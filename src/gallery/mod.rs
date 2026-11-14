@@ -2,6 +2,7 @@
 //! components, the mark sets and the type; each component has a page with a live preview, every
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
+pub mod film;
 mod looks;
 mod pages;
 mod scenes;
@@ -29,14 +30,15 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 220.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
+pub enum Page { Film, Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke"];
 
 impl Page {
     /// Every page, in rail order.
     pub fn all() -> Vec<Page> {
-        let mut v: Vec<Page> = comp_pages();
+        let mut v: Vec<Page> = vec![Page::Film];
+        v.extend(comp_pages());
         v.extend((0..set::COUNT as u8).map(Page::Marks));
         v.extend((0..MATERIAL_COUNT as u8).map(Page::Material));
         v.push(Page::Gaze);
@@ -52,6 +54,7 @@ impl Page {
     /// The page's address on the web: plain ASCII words, so a page can be linked.
     pub fn hash(self) -> String {
         match self {
+            Page::Film => "film".into(),
             Page::Comp(i) => COMPONENTS[i].hash.to_owned(),
             Page::LongList => "list-10k".into(),
             Page::Marks(s) => format!("marks-{}", MARK_HASH[s as usize]),
@@ -72,11 +75,12 @@ impl Page {
     /// From `#name` or `name`; an empty hash is the first page.
     pub fn from_hash(h: &str) -> Option<Page> {
         let h = h.trim_start_matches('#');
-        if h.is_empty() { return Some(Page::Comp(0)); }
+        if h.is_empty() || h == "gallery" { return Some(Page::Comp(0)); }
         Page::all().into_iter().find(|p| p.hash() == h)
     }
     pub fn name(self) -> &'static str {
         match self {
+            Page::Film => "影片",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -192,6 +196,8 @@ pub enum Msg {
     Parts(particles::PMsg),
     /// Something on the 风格 page.
     Preset(presets::PreMsg),
+    /// Something in the film.
+    Film(film::FMsg),
 }
 
 pub struct Gallery {
@@ -287,6 +293,8 @@ pub struct Gallery {
     pub pre_to: usize,
     pub pre_json: TextEdit,
     pub pre_note: String,
+    /// The film (`#film`).
+    pub film: film::Film,
 }
 
 impl Default for Gallery {
@@ -302,7 +310,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: false, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -342,6 +350,7 @@ impl Gallery {
                           press_ms: self.press_ms, roles: self.roles, transition: self.transition };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
+        film::look(self, &mut l);
         l
     }
     /// Apply style preset `i`: everything at once; the theme and material switches still work after.
@@ -374,6 +383,8 @@ impl Gallery {
             Page::Scene(i) => { let st = SCENES[i as usize].3; self.sc.look = st; self.apply_style(st); }
             // The 风格 page starts from its "from".
             Page::Presets => self.apply_style(self.pre_from),
+            // The film opens on its chapter, in its preset.
+            Page::Film => { self.film.entered = self.clock; self.film.ghost = 0; self.apply_style(film::CH[self.film.ch].style); }
             _ => {}
         }
     }
@@ -470,6 +481,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Three(m) => three::update(s, m),
         Msg::Parts(m) => particles::update(s, m),
         Msg::Preset(m) => presets::update(s, m),
+        Msg::Film(m) => film::update(s, m),
         Msg::RipBurst => { s.rip_burst = Some((s.clock, 0)); burst_step(s, s.clock); }
         Msg::Text(t) => s.text = t,
         Msg::Notes(t) => s.notes = t,
@@ -499,6 +511,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
 pub fn view(s: &Gallery) -> El<Msg> {
     let narrow = s.width < NARROW;
     let th = s.theme();
+    if s.page == Page::Film { return film::view(s); }
     // A scene has the whole window under the top bar.
     if let Page::Scene(i) = s.page {
         // On a scene the top bar is chrome, like the strip: fronts the scene makes pass it by.
@@ -549,6 +562,7 @@ fn top_bar(s: &Gallery) -> El<Msg> {
         .child(row().key("top/controls").gap(16.0).wrap().align(AlignItems::CENTER)
             .child(menu("perf", "性能", &PERF_ITEMS.map(|i| if i.is_empty() { if s.overlay { "隐藏读数" } else { "显示读数" } } else { i }),
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
+            .child(button_as("top/film", "影片", Variant::Quiet, Msg::Go(Page::Film)))
             .child(button_as("top/scenes", "场景", Variant::Quiet, Msg::Go(Page::Scenes)))
             .child(menu("theme", "主题", &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
             .child(menu("material", "材质", &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
@@ -630,8 +644,9 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             if k == s.hovered { return false; }
             // Only the pages that show what is hovered need a new view.
             let shows = matches!(s.page, Page::Style(_));
+            let film = film::hovered(s, k.as_deref());
             s.hovered = k;
-            shows
+            shows || film
         })
         .on_tick(|s, t| {
             // The departure board ticks once a second; scenes have their own clocks.
@@ -640,7 +655,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let burst = burst_step(s, t);
             // The 3D page's camera coasts after a fast drag.
             let coast = s.page == Page::Three && s.three.orbit.step(t);
-            scenes::tick(s, t) || changed || burst || coast
+            let film = film::tick(s, t);
+            scenes::tick(s, t) || changed || burst || coast || film
         })
         .on_look(|s| s.look())
         .on_wake(|s, t| {
@@ -649,13 +665,15 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let burst = s.rip_burst.map(|(start, n)| start + n as f32 * BURST_GAP);
             let burst = if s.page == Page::Three && s.three.orbit.moving() { Some(t) } else { burst };
             let board = match (board, burst) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, film::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
         })
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
             if k == crate::el::Key::F(2) { s.overlay = !s.overlay; return true; }
-            scenes::key(s, k, shift)
+            film::key(s, k, shift) || scenes::key(s, k, shift)
         })
-        .on_input(scenes::heard)
+        .on_input(|s| film::heard(s) | scenes::heard(s))
+        .on_pointer(film::pointer)
         .on_key_up(scenes::key_up)
 }
