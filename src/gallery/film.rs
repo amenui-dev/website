@@ -108,6 +108,8 @@ pub struct Film {
     pub last_input: f32,
     pub last_tick: f32,
     pub ghost: usize,
+    /// When input last paused autoplay (so the Space that did it is read as "pause").
+    pub yielded: Option<f32>,
     /// The three actors' state: the sentence, the number, the object's turn.
     pub sentence: TextEdit,
     pub n: f32,
@@ -153,7 +155,7 @@ pub struct Film {
 impl Default for Film {
     fn default() -> Self {
         Self {
-            ch: 0, spec: FilmSpec::default(), playing: true, held: false, entered: 0.0, last_input: -1e9, last_tick: 0.0, ghost: 0,
+            ch: 0, spec: FilmSpec::default(), playing: true, held: false, entered: 0.0, last_input: -1e9, last_tick: 0.0, ghost: 0, yielded: None,
             sentence: TextEdit::new("松开，再合上"), n: 12.0, yaw: 24.0, hover: None, ptr: (0.5, 0.5), obj_hover: false, drafts: None,
             motion: false, query: TextEdit::default(), sel: 0, orbit: { let mut o = Orbit::default(); o.yaw = 35.0; o.pitch = 20.0; o }, ident: None,
             rows: [12.0; 4], board_at: 0.0, obj: (340.0, 20.0), contrast: 100.0, form: 0, scrub_from: None, tear: None, locks: vec![], error: false,
@@ -596,8 +598,7 @@ fn poster(x: &Cx) -> Vec<El<Msg>> {
         col().key(form_key(2)).width(x.u(w * 0.9)).child(picture(SKY, super::pages::ratio(SKY)).key("film/c07/print").pic_fx(STYLE_SLOT).loose(1.0)),
     ];
     let current = f.form % FORMS;
-    let run = f.scrub_from;
-    let st = stack(forms.into_iter().enumerate().map(|(i, el)| el.hidden_until_morphed(i != current && Some(i) != run).respond(Response::Loosen).loose(0.55)))
+    let st = stack(forms.into_iter().enumerate().map(|(i, el)| el.hidden_until_morphed(i != current).respond(Response::Loosen).loose(0.55)))
         .key(x.key("forms")).width(x.u(w)).height(x.u(h)).focusable(true).label("变形").cursor(crate::el::Cursor::Grab)
         .on_drag_with(|d: Drag| Some(Msg::Film(FMsg::Scrub(d))))
         .on_key(|k, _| matches!(k, Key::Enter | Key::Char(' ')).then_some(Msg::Film(FMsg::Form)));
@@ -850,7 +851,16 @@ pub fn update(g: &mut Gallery, m: FMsg) {
         FMsg::Go(i) => { let at = tick_at(g, i); go(g, i, at); }
         FMsg::Next => { let n = g.film.ch + 1; go(g, n, None); }
         FMsg::Prev => { let n = g.film.ch + CHAPTERS - 1; go(g, n, None); }
-        FMsg::Play => { let f = &mut g.film; f.playing = !f.playing; f.held = !f.playing; if f.playing { f.entered = now; f.ghost = 0; } }
+        FMsg::Play => {
+            // Space pauses what was playing (even when this key's own input has just paused it) and plays
+            // what was paused.
+            let f = &mut g.film;
+            let was = f.playing || f.yielded == Some(now);
+            f.playing = !was;
+            f.held = was;
+            f.yielded = None;
+            if f.playing { f.entered = now; f.ghost = 0; }
+        }
         FMsg::Sentence(t) => g.film.sentence = t,
         FMsg::Motion => g.film.motion = !g.film.motion,
         FMsg::Num(Edit::Draft(d)) => g.film.drafts = Some((1, d)),
@@ -1063,6 +1073,7 @@ pub fn heard(g: &mut Gallery) -> bool {
     let f = &mut g.film;
     f.last_input = g.clock;
     let was = f.playing;
+    if was { f.yielded = Some(g.clock); }
     f.playing = false;
     was
 }

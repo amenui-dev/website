@@ -44,7 +44,11 @@
 //!     the page in the target preset, byte for byte; mid-transition it differs from both ends (but for
 //!     Normcore, which has none).
 //!
-//! usage: check [components | recompose | mesh | dirty | presets]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
+//! 17. The film (§6): after each of the twelve cuts (chapter c to c + 1, the last to the first), once the
+//!     target's transition and the actors' flow are over, the frame equals a fresh render of the target
+//!     chapter, byte for byte; mid-cut it differs (but into Normcore, which cuts without a transition).
+//!
+//! usage: check [components | recompose | mesh | dirty | presets | film]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
 use lab::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use lab::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use lab::morph::MorphSpec;
@@ -76,6 +80,11 @@ fn main() {
     let fonts = || load_bundled("assets").expect("fonts");
     if std::env::args().nth(1).is_some_and(|a| a == "recompose") {
         let f = recompose(&mut o, &fonts);
+        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
+        return eprintln!("all checks passed");
+    }
+    if std::env::args().nth(1).is_some_and(|a| a == "film") {
+        let f = film(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
@@ -471,6 +480,7 @@ fn main() {
     failed += meshes(&mut o, &fonts);
     failed += dirty(&fonts);
     failed += presets(&fonts);
+    failed += film(&fonts);
 
     if failed > 0 { eprintln!("{failed} checks failed"); std::process::exit(1); }
     eprintln!("all checks passed");
@@ -945,5 +955,56 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         eprintln!("   preset {name}: {dur:.2} s, end vs fresh {differ} px");
     }
     eprintln!("16. presets: {failed} failing");
+    failed
+}
+
+// ── 17. The film's cuts end exactly ──────────────────────────────────────────────────────────────
+fn film(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    use lab::gallery::{self, GalleryUi, Msg, film::{self, FMsg}};
+    let (w, h) = (960u32, 540u32);
+    let mut o = Offscreen::new(w, h);
+    let mut failed = 0;
+    let open = |c: usize| -> GalleryUi {
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        ui.pointer_leave();
+        assert!(ui.state.route("film"));
+        gallery::update(&mut ui.state, Msg::Film(FMsg::Play));
+        film::go(&mut ui.state, c, None);
+        ui.relayout();
+        ui
+    };
+    let run = |o: &mut Offscreen, ui: &mut GalleryUi, to: f32| -> Vec<u8> {
+        let mut t = ui.now();
+        let mut px = vec![];
+        while t < to - 1e-4 { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) || px.is_empty() { let look = ui.state.look(); px = o.render(ui, &look); } }
+        let look = ui.state.look();
+        o.render(ui, &look)
+    };
+    for c in 0..film::CHAPTERS {
+        let next = (c + 1) % film::CHAPTERS;
+        let mut ui = open(c);
+        run(&mut o, &mut ui, 3.0);
+        gallery::update(&mut ui.state, Msg::Film(FMsg::Next));
+        ui.relayout();
+        let t0 = ui.now();
+        let d = ui.state.presets[film::CH[next].style].transition.duration_ms / 1000.0;
+        let mid = run(&mut o, &mut ui, t0 + d.max(0.2) * 0.5);
+        let end = run(&mut o, &mut ui, t0 + d + 3.0);
+        let mut fresh = open(next);
+        run(&mut o, &mut fresh, 0.5);
+        fresh.set_material_clock(ui.material_clock());
+        fresh.set_ground_clock(ui.ground_clock());
+        run(&mut o, &mut fresh, ui.now());
+        fresh.set_material_clock(ui.material_clock());
+        fresh.set_ground_clock(ui.ground_clock());
+        let look = fresh.state.look();
+        let want = o.render(&mut fresh, &look);
+        let differ = end.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
+        let moved = mid.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
+        eprintln!("   cut {:02} → {:02} ({}): end vs fresh {differ} px, mid-cut {moved} px", c + 1, next + 1, film::CH[next].name);
+        if differ > 0 { eprintln!("FAIL film: after the cut into {:02} the frame is not a fresh render of it ({differ} px)", next + 1); failed += 1; }
+        if moved == 0 && d > 0.0 { eprintln!("FAIL control: mid-cut into {:02} already equals the end", next + 1); failed += 1; }
+    }
+    eprintln!("17. film cuts: {failed} failing");
     failed
 }
