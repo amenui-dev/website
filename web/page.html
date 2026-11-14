@@ -1,0 +1,176 @@
+<title>gui-lab</title>
+<style>
+  /* One canvas fills the view. Everything inside it is drawn by the framework. */
+  html, body { height: 100%; }
+  body { background: #0c0d0e; color: #e2e3e0; font: 14px/1.5 system-ui, sans-serif; overflow: hidden; }
+  #stage { position: relative; width: 100%; height: 100%; }
+  /* The page handles every touch itself (scrolling, taps): no browser panning, zooming, double-tap zoom,
+     callout or selection on the canvas. */
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none;
+           user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; }
+  /* The text agent: an invisible text field at the caret while a text field has focus. It takes the
+     keyboard, the input method (its candidate window opens here) and the clipboard. */
+  /* The accessibility mirror: a DOM tree of the interface's roles and names at the places they are drawn,
+     invisible (but not hidden from assistive technology) and not in the pointer's way. */
+  #a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+  #a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
+  #ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden;
+        opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
+</style>
+<div id="stage">
+  <canvas id="c" tabindex="0"></canvas>
+  <textarea id="ta" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="文本输入"></textarea>
+  <div id="a11y"></div>
+  <div id="msg">正在载入…</div>
+</div>
+<script>__GLUE__</script>
+<script>
+(async () => {
+  const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const msg = document.getElementById('msg'), canvas = document.getElementById('c'), stage = document.getElementById('stage');
+  try {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const fit = () => { const r = stage.getBoundingClientRect(); canvas.width = Math.max(1, Math.floor(r.width * dpr)); canvas.height = Math.max(1, Math.floor(r.height * dpr)); };
+    fit();
+    await wasm_bindgen({ module_or_path: b64("__WASM__") });
+    const w = wasm_bindgen;
+    await w.start(canvas, b64("__SANS__"), b64("__PIXEL__"), b64("__MONO__"), dpr, location.hash);
+    msg.remove();
+    canvas.focus();
+    const now = () => performance.now() / 1000;
+    const at = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    // The page is in the hash (plain names such as #button), so it can be linked; Back goes back.
+    const sync = () => { const h = '#' + w.hash(); if (location.hash !== h) location.hash = h; };
+    window.addEventListener('hashchange', () => { if (!w.route(location.hash)) sync(); });
+    sync();
+    // Frames on demand: the animation-frame loop runs only while the framework needs frames; when it
+    // does not, the loop stops, and input or a timed wake (the caret's blink, a clock) starts it again.
+    let raf = 0, timer = 0;
+    const loop = () => {
+      raf = 0; if (timer) { clearTimeout(timer); timer = 0; }
+      const d = w.frame(now());
+      axUpdate();
+      if (d === 0) raf = requestAnimationFrame(loop);
+      else if (d > 0) timer = setTimeout(kick, d * 1000);
+    };
+    const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+    // Text: while a text field has focus the hidden text element sits at its caret and has the keyboard.
+    const ta = document.getElementById('ta');
+    const syncText = () => {
+      const r = w.ime_rect();
+      if (r.length) {
+        ta.style.left = r[0] + 'px'; ta.style.top = r[1] + 'px'; ta.style.height = Math.max(r[3], 10) + 'px'; ta.style.fontSize = Math.max(r[3] * 0.8, 10) + 'px';
+        if (document.activeElement !== ta) ta.focus({ preventScroll: true });
+      } else if (document.activeElement === ta) canvas.focus({ preventScroll: true });
+      canvas.style.cursor = w.cursor();
+    };
+    // The accessibility mirror, kept in step with what the framework reports changed.
+    const ax = document.getElementById('a11y'), els = new Map();
+    const axUpdate = () => {
+      const c = canvas.getBoundingClientRect();
+      for (const op of JSON.parse(w.a11y_update())) {
+        if (op.remove !== undefined) { const e = els.get(op.remove); if (e) { e.remove(); els.delete(op.remove); } continue; }
+        if (op.focus !== undefined) {
+          // Focus follows only while assistive technology is in the mirror; otherwise the canvas (or the
+          // text element) keeps the keyboard.
+          const e = op.focus && els.get(op.focus);
+          if (e && ax.contains(document.activeElement) && document.activeElement !== e) e.focus({ preventScroll: true });
+          continue;
+        }
+        const n = op.set;
+        let e = els.get(n.key);
+        if (!e) {
+          e = document.createElement('div');
+          els.set(n.key, e);
+          e.addEventListener('click', ev => { ev.stopPropagation(); w.a11y_activate(n.key, now()); after(); });
+          e.addEventListener('focus', () => { w.a11y_focus(n.key, now()); after(); });
+        }
+        const parent = (n.parent && els.get(n.parent)) || ax;
+        if (e.parentNode !== parent) parent.appendChild(e);
+        for (const a of ['role', 'aria-label', 'aria-checked', 'aria-selected', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-modal', 'aria-level', 'aria-disabled', 'tabindex']) e.removeAttribute(a);
+        if (n.role === 'text') { if (e.textContent !== n.name) e.textContent = n.name; }
+        else {
+          e.setAttribute('role', n.role);
+          e.setAttribute('aria-label', n.name);
+          if (n.role === 'textbox') e.textContent = n.text || '';
+        }
+        if (n.checked !== undefined) e.setAttribute('aria-checked', n.checked);
+        if (n.selected !== undefined) e.setAttribute('aria-selected', n.selected);
+        if (n.value) { e.setAttribute('aria-valuenow', n.value[0]); e.setAttribute('aria-valuemin', n.value[1]); e.setAttribute('aria-valuemax', n.value[2]); }
+        if (n.modal) e.setAttribute('aria-modal', 'true');
+        if (n.level) e.setAttribute('aria-level', n.level);
+        if (n.disabled) e.setAttribute('aria-disabled', 'true');
+        if (n.focusable) e.setAttribute('tabindex', '-1');
+        const r = n.rect;
+        e.style.left = (c.left + r[0]) + 'px'; e.style.top = (c.top + r[1]) + 'px'; e.style.width = Math.max(r[2], 1) + 'px'; e.style.height = Math.max(r[3], 1) + 'px';
+      }
+    };
+    const after = () => { sync(); syncText(); axUpdate(); kick(); };
+    // Mouse, pen and touch come as pointer events (kind 0, 2, 1); the pointer is captured while it is
+    // down, so a drag keeps going outside the canvas.
+    const kind = e => e.pointerType === 'touch' ? 1 : e.pointerType === 'pen' ? 2 : 0;
+    canvas.addEventListener('pointermove', e => {
+      for (const c of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) w.pointer_move(e.pointerId, kind(e), ...at(c), now(), (c.timeStamp || e.timeStamp) / 1000);
+      canvas.style.cursor = w.cursor(); kick();
+    });
+    canvas.addEventListener('pointerleave', e => { if (kind(e) !== 1) { w.pointer_leave(now()); kick(); } });
+    // The page decides where focus goes (the canvas, or the text element when a field is pressed), so the
+    // browser's own focus change on press is suppressed. Only the primary button presses.
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (kind(e) === 0 && e.button !== 0) return;
+      canvas.focus({ preventScroll: true }); canvas.setPointerCapture(e.pointerId);
+      const [x, y] = at(e);
+      if (kind(e) !== 1) w.pointer_move(e.pointerId, kind(e), x, y, now(), e.timeStamp / 1000);
+      w.pointer_down(e.pointerId, kind(e), x, y, e.shiftKey, now(), e.timeStamp / 1000); after();
+    });
+    canvas.addEventListener('pointerup', e => { if (kind(e) === 0 && e.button !== 0) return; w.pointer_up(e.pointerId, kind(e), ...at(e), now()); after(); });
+    canvas.addEventListener('pointercancel', e => { w.pointer_cancel(e.pointerId, now()); after(); });
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    // Wheel deltas in pixels; lines are 40 px (as on the native window), pages the canvas's height. A
+    // trackpad's own momentum comes as more wheel events, so none is added. A pinch arrives as a wheel
+    // with Ctrl: it is not a scroll, and the page is not zoomed.
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (e.ctrlKey) return;
+      const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? canvas.clientHeight : 1;
+      w.wheel(...at(e), e.deltaX * k, e.deltaY * k, now()); kick();
+    }, { passive: false });
+    window.addEventListener('keydown', e => {
+      // Keys the input method is composing with are its own.
+      if (e.isComposing || e.keyCode === 229) return;
+      const cmd = e.ctrlKey || e.metaKey;
+      if (cmd) {
+        const k = e.key.toLowerCase();
+        // Copy, cut and paste arrive as clipboard events; other shortcuts belong to the browser.
+        if (!['a', 'z', 'y'].includes(k)) return;
+        if (w.key_mods(e.key, e.shiftKey, true, e.altKey, now())) e.preventDefault();
+        after(); return;
+      }
+      const text = w.text_focused();
+      if (e.altKey && !text) return;
+      // In a text field characters arrive as input events (so the input method can take them).
+      if (text && e.key.length === 1) return;
+      if (w.key_mods(e.key, e.shiftKey, false, e.altKey, now()) || e.key === 'Tab') e.preventDefault();
+      after();
+    });
+    ta.addEventListener('input', e => {
+      if (e.isComposing) return;
+      if (e.inputType === 'insertLineBreak') w.key_mods('Enter', false, false, false, now());
+      // A composition's text comes through the composition events.
+      else if (e.data && e.inputType !== 'insertCompositionText') w.text_input(e.data, now());
+      ta.value = ''; after();
+    });
+    ta.addEventListener('compositionupdate', e => { w.ime_preedit(e.data || '', now()); after(); });
+    ta.addEventListener('compositionend', e => { w.ime_commit(e.data || '', now()); ta.value = ''; after(); });
+    document.addEventListener('copy', e => { const t = w.copy(); if (t != null) { e.clipboardData.setData('text/plain', t); e.preventDefault(); } });
+    document.addEventListener('cut', e => { const t = w.cut(now()); if (t != null) { e.clipboardData.setData('text/plain', t); e.preventDefault(); after(); } });
+    document.addEventListener('paste', e => { const t = e.clipboardData.getData('text/plain'); if (t && w.paste(t, now())) { e.preventDefault(); after(); } });
+    window.addEventListener('keyup', e => { w.key_up(e.key, now()); after(); });
+    window.addEventListener('hashchange', kick);
+    new ResizeObserver(() => { fit(); w.resize(canvas.width, canvas.height, dpr); kick(); }).observe(stage);
+    kick();
+  } catch (e) { msg.textContent = '这个浏览器没能启动图形功能：' + (e && e.message ? e.message : e); console.error(e); }
+})();
+</script>
