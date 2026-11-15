@@ -181,6 +181,7 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
         .child(header(s, h, comp.title, comp.func, comp.desc))
         .child(section(h, "预览", preview(h, live)))
         .children((c == BUTTON).then(|| section(h, "涟漪", ripple(s))))
+        .children((c == LIST).then(|| section(h, "滚动", scrolling(s))))
         .child(section(h, "变体", variants(h, vars)))
         .child(section(h, "参数", params(s, c)))
         .child(section(h, "源码", source(h, comp.file, comp.source)))
@@ -190,7 +191,7 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
 fn shown(e: Edit) -> Msg { Msg::Num(Target::Shown, e) }
 
 /// The ripple section's numbers (DESIGN.md §1.15, §1.16): name, spec, and where each lives in the state.
-pub const RIPPLE_PARAMS: [(&str, Spec); 8] = [
+pub const RIPPLE_PARAMS: [(&str, Spec); 9] = [
     ("可读上限", Spec { min: 0.0, max: 1.0, step: 0.01, decimals: 2, unit: "" }),
     ("松开上限", Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" }),
     ("重组时长", Spec { min: 0.0, max: 3000.0, step: 10.0, decimals: 0, unit: "ms" }),
@@ -199,13 +200,46 @@ pub const RIPPLE_PARAMS: [(&str, Spec); 8] = [
     ("滑动时长", Spec { min: 0.0, max: 3000.0, step: 10.0, decimals: 0, unit: "ms" }),
     ("最短间隔", Spec { min: 0.0, max: 1000.0, step: 10.0, decimals: 0, unit: "ms" }),
     ("粒子总数上限", Spec { min: 100.0, max: 200000.0, step: 1000.0, decimals: 0, unit: "" }),
+    ("重组格子", Spec { min: 1.0, max: 8.0, step: 1.0, decimals: 0, unit: "px" }),
 ];
+/// The scroll section's numbers (DESIGN.md §1.8.3), in the order of `style::Scroll`'s fields.
+pub const SCROLL_PARAMS: [(&str, Spec); 8] = [
+    ("平静速度", Spec { min: 0.0, max: 6000.0, step: 50.0, decimals: 0, unit: "px/s" }),
+    ("满速", Spec { min: 100.0, max: 12000.0, step: 50.0, decimals: 0, unit: "px/s" }),
+    ("收住", Spec { min: 0.0, max: 2000.0, step: 10.0, decimals: 0, unit: "ms" }),
+    ("拖尾", Spec { min: 0.0, max: 200.0, step: 1.0, decimals: 0, unit: "px" }),
+    ("套印错位", Spec { min: 0.0, max: 40.0, step: 0.5, decimals: 1, unit: "px" }),
+    ("错带位移", Spec { min: 0.0, max: 200.0, step: 1.0, decimals: 0, unit: "px" }),
+    ("错带高", Spec { min: 4.0, max: 400.0, step: 2.0, decimals: 0, unit: "px" }),
+    ("错带间隔", Spec { min: 16.0, max: 2000.0, step: 10.0, decimals: 0, unit: "ms" }),
+];
+pub fn scroll_slot(sc: &mut crate::style::Scroll, i: usize) -> &mut f32 {
+    match i { 0 => &mut sc.calm_speed, 1 => &mut sc.full_speed, 2 => &mut sc.settle_ms, 3 => &mut sc.trail, 4 => &mut sc.misreg, 5 => &mut sc.slip, 6 => &mut sc.band, _ => &mut sc.slip_ms }
+}
+/// The scroll section of the list page: the numbers of how scrolling looks, over a long list to try them on.
+fn scrolling(s: &Gallery) -> El<Msg> {
+    let h = "scrolling";
+    let mut nums = row().key(format!("{h}/params")).fill_width().wrap().gap(10.0);
+    let mut sc = s.scroll;
+    for (i, (name, spec)) in SCROLL_PARAMS.iter().enumerate() {
+        let t = Target::Scroll(i);
+        nums = nums.child(number(&format!("{h}/p{i}"), name, *scroll_slot(&mut sc, i), *spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
+    }
+    let lines = (0..60).fold(col().key(format!("{h}/lines")).gap(6.0).fill_width(), |c, i| {
+        c.child(text(format!("{:03}  慢慢滚动时，字是一张被整像素移动的图：清楚、稳定；快了，每种材质留下自己的痕迹。", i + 1), 14.0, Paint::TEXT).key(format!("{h}/line{i}")))
+    });
+    col().key(format!("{h}/body")).fill_width().gap(14.0)
+        .child(col().key(format!("{h}/try")).fill_width().height(280.0).scroll().bar().pad(20.0, 16.0).radius(6.0).border(1.0, Paint::FAINT).child(lines))
+        .child(nums)
+        .child(text("低于平静速度时，滚动只是整像素的移动，材质的点阵跟着内容走；高于它，痕迹按速度渐强（平静速度到满速），停下后在“收住”的时间里消失。plain 只有一点拖尾；dot 一行一行地落在点阵上，留下荧光的点；halftone 和 print 的第二色错开；ascii 落在字格上，留下浅的字；glitch 偶尔整带错开。正文从不因此松开。", 13.0, Paint::DIM))
+}
+
 /// The scope choices of the counter: its own subtree, the row it is in, the whole window.
 pub const RIPPLE_SCOPES: [&str; 3] = ["自身", "这一块", "整个窗口"];
 pub fn ripple_scope(i: usize) -> Scope { match i { 0 => Scope::Own, 1 => Scope::Container(None), _ => Scope::Global } }
 pub fn ripple_value(s: &Gallery, i: usize) -> f32 {
     let r = &s.recompose;
-    [s.legible_cap, s.loose_max, r.duration_ms, r.stagger, r.count_max, r.slide_ms, r.min_interval_ms, r.max_tiles][i.min(7)]
+    [s.legible_cap, s.loose_max, r.duration_ms, r.stagger, r.count_max, r.slide_ms, r.min_interval_ms, r.max_tiles, r.tile][i.min(8)]
 }
 
 /// The ripple section of the button page: a counter whose presses reach what the scope says, three

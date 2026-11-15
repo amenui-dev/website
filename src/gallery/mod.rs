@@ -132,6 +132,8 @@ pub enum Target {
     OpValue,
     /// Number `i` of the button page's ripple section (`pages::RIPPLE_PARAMS`).
     Rip(usize),
+    /// Number `i` of the list page's scroll section (`pages::SCROLL_PARAMS`).
+    Scroll(usize),
     /// A variant: shown, but its value does not change.
     Shown,
 }
@@ -272,6 +274,8 @@ pub struct Gallery {
     pub legible_cap: f32,
     pub loose_max: f32,
     pub recompose: crate::morph::Recompose,
+    /// How scrolling looks (the 滚动 section of the list page; a preset sets it).
+    pub scroll: crate::style::Scroll,
     pub rip_count: u32,
     /// Ten fast presses of the counter in progress: when they started (state clock) and how many are done.
     pub rip_burst: Option<(f32, u32)>,
@@ -310,7 +314,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: false, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -347,7 +351,7 @@ impl Gallery {
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
         let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
-                          press_ms: self.press_ms, roles: self.roles, transition: self.transition };
+                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         film::look(self, &mut l);
@@ -373,6 +377,7 @@ impl Gallery {
         self.recompose = it.recompose;
         self.press_ms = it.press_ms;
         self.roles = [it.text, it.decoration];
+        self.scroll = it.scroll;
         self.transition = st.transition;
     }
     /// Opening a page that has a style of its own applies it: a style page its preset, a scene its
@@ -467,8 +472,9 @@ pub fn update(s: &mut Gallery, m: Msg) {
                 Target::Rip(i) => match i {
                     0 => s.legible_cap = v, 1 => s.loose_max = v, 2 => s.recompose.duration_ms = v,
                     3 => s.recompose.stagger = v, 4 => s.recompose.count_max = v, 5 => s.recompose.slide_ms = v,
-                    6 => s.recompose.min_interval_ms = v, _ => s.recompose.max_tiles = v,
+                    6 => s.recompose.min_interval_ms = v, 7 => s.recompose.max_tiles = v, _ => s.recompose.tile = v,
                 },
+                Target::Scroll(i) => *pages::scroll_slot(&mut s.scroll, i) = pages::SCROLL_PARAMS[i.min(7)].1.clamp(v),
                 Target::Shown => {}
             }
             s.edit = None;
