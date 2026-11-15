@@ -199,6 +199,7 @@ async function mount(stage, opts) {
     };
   } catch (e) { msg.textContent = '这个浏览器没能启动图形功能：' + (e && e.message ? e.message : e); console.error(e); throw e; }
 }
+if (document.getElementById('stage')) window.__labMounted = true;
 if (document.getElementById('stage')) mount(document.getElementById('stage'), { hash: location.hash, ownsHash: true }).catch(() => {});
 </script>
 __EMBED__

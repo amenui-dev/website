@@ -30,6 +30,8 @@ python3 web/build.py
 
 同一个构建定义了一个自定义元素，所以任何渲染 HTML 的页面或框架都能放进这个界面。`dist/embed-example.html` 是一个用它的普通页面。
 
+一个文档里只有一个 `<lab-view>`：模块里只有一个运行时和一个渲染器。第二个（或者完整页面上再放一个）不画，在自己的框里说明这一点并带上 `data-lab-limit="one-per-document"`，第一个照常工作。
+
 | 属性 | 作用 |
 |---|---|
 | `page` | 显示哪一页：组件名（`button`）、`film`，或任何页面的 hash。 |

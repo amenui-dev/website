@@ -30,6 +30,8 @@ The page follows its address: `#button` opens a component, `#look:v1:…` applie
 
 The same build defines a custom element, so any page or framework that renders HTML can hold the interface. `dist/embed-example.html` is a plain page that uses it.
 
+One `<lab-view>` per document: the module holds one runtime and one renderer. A second one (or one on the full page) is not drawn; it says so in its box and carries `data-lab-limit="one-per-document"`, and the first keeps working.
+
 | Attribute | What it does |
 |---|---|
 | `page` | The page to show: a component's name (`button`), `film`, any page's hash. |

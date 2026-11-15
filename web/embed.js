@@ -6,7 +6,12 @@
 // Attributes: `page` (a gallery page's hash, such as `button` or `film`), `recipe` (a `look:v1:…`
 // string; wins over the page's own look), `theme` and `material` (names as the render tool takes
 // them), `locale` (`zh-Hans`, `en`). Events: `lab-ready` once it draws, `lab-route` with
-// `detail.page` whenever the page changes inside it. Methods: `focus()`. One per document.
+// `detail.page` whenever the page changes inside it. Methods: `focus()`.
+//
+// One per document: the wasm module keeps one runtime and one renderer (every export reads that one
+// state). A second <lab-view> (or one next to the full page's #stage) is not drawn; it says so in its
+// box and sets `data-lab-limit`, and the first keeps working. Several views need one runtime per view
+// behind every export (an id on each call), which is not done (DESIGN.md §9).
 (() => {
   const CSS = `:host { display: block; position: relative; min-height: 120px; contain: content; }
     .stage { position: absolute; inset: 0; }
@@ -20,6 +25,12 @@
     connectedCallback() {
       if (this.shadowRoot) return;
       const root = this.attachShadow({ mode: 'open' });
+      if (window.__labMounted) {
+        root.innerHTML = `<style>${CSS}</style><div class="stage"><div class="msg">one &lt;lab-view&gt; per document: this one is not drawn</div></div>`;
+        this.setAttribute('data-lab-limit', 'one-per-document');
+        return;
+      }
+      window.__labMounted = true;
       root.innerHTML = `<style>${CSS}</style><div class="stage"><canvas class="c" tabindex="0"></canvas><textarea class="ta" tabindex="-1" aria-label="text input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><div class="a11y"></div><div class="msg">…</div></div>`;
       const first = this.getAttribute('recipe') || this.getAttribute('page') || 'film';
       this.ready = mount(root.querySelector('.stage'), {
