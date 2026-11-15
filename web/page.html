@@ -145,8 +145,9 @@
       const cmd = e.ctrlKey || e.metaKey;
       if (cmd) {
         const k = e.key.toLowerCase();
-        // Copy, cut and paste arrive as clipboard events; other shortcuts belong to the browser.
-        if (!['a', 'z', 'y'].includes(k)) return;
+        // Copy, cut and paste arrive as clipboard events; ⌘K / Ctrl+K is the page's search; other
+        // shortcuts belong to the browser.
+        if (!['a', 'z', 'y', 'k'].includes(k)) return;
         if (w.key_mods(e.key, e.shiftKey, true, e.altKey, now())) e.preventDefault();
         after(); return;
       }

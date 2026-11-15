@@ -720,10 +720,10 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
 }
 
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
-    let mut state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
+    let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
     // Tools (reel, scroll, pages) can ask for a language: LAB_LOCALE=en.
     #[cfg(not(target_arch = "wasm32"))]
-    if let Some(l) = std::env::var("LAB_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut state, Msg::Locale(l)); }
+    let state = { let mut s = state; if let Some(l) = std::env::var("LAB_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut s, Msg::Locale(l)); } s };
     let mut ui = crate::ui::Ui::new(state, view, update, faces, w, h, scale);
     // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
     // names them.
