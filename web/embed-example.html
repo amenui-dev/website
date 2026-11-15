@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lab-view, embedded</title>
+<style>
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #f4f4f2; color: #1d1e20; }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; padding: 4px 10px; border: 1px solid #c8c8c4; background: #fff; border-radius: 4px; }
+  lab-view { height: 520px; border: 1px solid #d6d6d2; resize: vertical; overflow: hidden; }
+  code { font: 13px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>&lt;lab-view&gt; in a plain page</h1>
+  <p>The element below is the framework, mounted in its own shadow root. The buttons set its attributes; its <code>lab-route</code> events write the page it is on. Drag its bottom edge: it follows its box.</p>
+  <div class="bar">
+    <button data-page="button">button</button><button data-page="input">input</button><button data-page="film">film</button>
+    <button data-theme="dark">dark</button><button data-theme="light">light</button>
+    <button data-material="dot">dot</button><button data-material="halftone">halftone</button><button data-material="plain">plain</button>
+    <button data-locale="en">English</button><button data-locale="zh-Hans">简体中文</button>
+    <span id="at">…</span>
+  </div>
+  <lab-view id="v" page="button" theme="light" locale="en"></lab-view>
+</main>
+<script>
+  const v = document.getElementById('v'), at = document.getElementById('at');
+  v.addEventListener('lab-route', e => at.textContent = 'page: ' + e.detail.page);
+  v.addEventListener('lab-ready', () => at.textContent += ' · ready');
+  for (const b of document.querySelectorAll('button')) b.addEventListener('click', () => {
+    for (const k of ['page', 'theme', 'material', 'locale']) if (b.dataset[k]) v.setAttribute(k, b.dataset[k]);
+  });
+</script>
+__LAB__
+</body>
+</html>

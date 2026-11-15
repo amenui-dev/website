@@ -999,6 +999,8 @@ fn film(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         ui.relayout();
         let t0 = ui.now();
         let d = ui.state.presets[film::CH[next].style].transition.duration_ms / 1000.0;
+        // Two frames inside the cut (a short transition can be over by its middle).
+        let early = run(&mut o, &mut ui, t0 + d.max(0.2) * 0.2);
         let mid = run(&mut o, &mut ui, t0 + d.max(0.2) * 0.5);
         let end = run(&mut o, &mut ui, t0 + d + 3.0);
         let mut fresh = open(next);
@@ -1011,10 +1013,10 @@ fn film(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         let look = fresh.state.look();
         let want = o.render(&mut fresh, &look);
         let differ = end.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
-        let moved = mid.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
-        eprintln!("   cut {:02} → {:02} ({}): end vs fresh {differ} px, mid-cut {moved} px", c + 1, next + 1, film::CH[next].name);
-        if differ > 0 { eprintln!("FAIL film: after the cut into {:02} the frame is not a fresh render of it ({differ} px)", next + 1); failed += 1; }
-        if moved == 0 && d > 0.0 { eprintln!("FAIL control: mid-cut into {:02} already equals the end", next + 1); failed += 1; }
+        let moved = [&early, &mid].iter().map(|f| f.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count()).max().unwrap_or(0);
+        eprintln!("   cut {c:02} → {next:02} ({}): end vs fresh {differ} px, mid-cut {moved} px", film::CH[next].name);
+        if differ > 0 { eprintln!("FAIL film: after the cut into {next:02} the frame is not a fresh render of it ({differ} px)"); failed += 1; }
+        if moved == 0 && d > 0.0 { eprintln!("FAIL control: mid-cut into {next:02} already equals the end"); failed += 1; }
     }
     eprintln!("17. film cuts: {failed} failing");
     failed

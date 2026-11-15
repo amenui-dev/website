@@ -13,24 +13,26 @@ use crate::widgets::{SELECTED, TextEdit, Variant, button_as, command, command_ma
 use taffy::AlignItems;
 
 /// The prose pages, by slug, in reading order: the first four are 开始, the rest 概念.
-pub const DOCS: [&str; 18] = ["introduction", "installation", "first-view", "project-structure", "tree-and-messages", "layout", "text", "materials", "ripples",
-    "transforms", "presets", "annotation", "three-d", "particles", "i18n", "accessibility", "performance", "testing"];
+pub const DOCS: [&str; 21] = ["introduction", "installation", "first-view", "project-structure", "tree-and-messages", "layout", "text", "materials", "ripples",
+    "transforms", "presets", "annotation", "three-d", "particles", "i18n", "accessibility", "performance", "testing", "theming", "rtl", "registry-schema"];
 pub const START: usize = 4;
-const ZH: [&str; 18] = [
+const ZH: [&str; 21] = [
     include_str!("../../docs/site/zh-Hans/introduction.md"), include_str!("../../docs/site/zh-Hans/installation.md"), include_str!("../../docs/site/zh-Hans/first-view.md"),
     include_str!("../../docs/site/zh-Hans/project-structure.md"), include_str!("../../docs/site/zh-Hans/tree-and-messages.md"), include_str!("../../docs/site/zh-Hans/layout.md"),
     include_str!("../../docs/site/zh-Hans/text.md"), include_str!("../../docs/site/zh-Hans/materials.md"), include_str!("../../docs/site/zh-Hans/ripples.md"),
     include_str!("../../docs/site/zh-Hans/transforms.md"), include_str!("../../docs/site/zh-Hans/presets.md"), include_str!("../../docs/site/zh-Hans/annotation.md"),
     include_str!("../../docs/site/zh-Hans/three-d.md"), include_str!("../../docs/site/zh-Hans/particles.md"), include_str!("../../docs/site/zh-Hans/i18n.md"),
     include_str!("../../docs/site/zh-Hans/accessibility.md"), include_str!("../../docs/site/zh-Hans/performance.md"), include_str!("../../docs/site/zh-Hans/testing.md"),
+    include_str!("../../docs/site/zh-Hans/theming.md"), include_str!("../../docs/site/zh-Hans/rtl.md"), include_str!("../../docs/site/zh-Hans/registry-schema.md"),
 ];
-const EN: [&str; 18] = [
+const EN: [&str; 21] = [
     include_str!("../../docs/site/en/introduction.md"), include_str!("../../docs/site/en/installation.md"), include_str!("../../docs/site/en/first-view.md"),
     include_str!("../../docs/site/en/project-structure.md"), include_str!("../../docs/site/en/tree-and-messages.md"), include_str!("../../docs/site/en/layout.md"),
     include_str!("../../docs/site/en/text.md"), include_str!("../../docs/site/en/materials.md"), include_str!("../../docs/site/en/ripples.md"),
     include_str!("../../docs/site/en/transforms.md"), include_str!("../../docs/site/en/presets.md"), include_str!("../../docs/site/en/annotation.md"),
     include_str!("../../docs/site/en/three-d.md"), include_str!("../../docs/site/en/particles.md"), include_str!("../../docs/site/en/i18n.md"),
     include_str!("../../docs/site/en/accessibility.md"), include_str!("../../docs/site/en/performance.md"), include_str!("../../docs/site/en/testing.md"),
+    include_str!("../../docs/site/en/theming.md"), include_str!("../../docs/site/en/rtl.md"), include_str!("../../docs/site/en/registry-schema.md"),
 ];
 /// The For-AI pages and the changelog: (hash name, title key, source).
 pub const AI: [(&str, &str, &str); 3] = [("ai-agents", "docs.ai.agents", include_str!("../../AGENTS.md")), ("ai-llms", "docs.ai.llms", include_str!("../../llms.txt")), ("changelog", "docs.changelog", include_str!("../../CHANGELOG.md"))];
@@ -145,6 +147,34 @@ fn prev_next(s: &Gallery) -> El<Msg> {
 pub fn doc_w(s: &Gallery, max: f32) -> f32 {
     if s.width < super::NARROW { return (s.width - 36.0).max(200.0); }
     (s.width - 220.0 - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, max)
+}
+/// A page as raw Markdown (`<hash>.md`), for agents and for reading without the framework: a prose page
+/// is its source; a component's page is written out in the same order as it is shown (title and
+/// description, installation, usage, every example's code, the API table). `None` for pages that are
+/// drawn only (the film, the mark and material pages, the scenes).
+pub fn markdown(page: Page, l: Locale) -> Option<String> {
+    match page {
+        Page::Doc(i) => Some(source(i as usize, l).to_owned()),
+        Page::Ai(i) => Some(AI[i as usize].2.to_owned()),
+        Page::Widget(_) | Page::Comp(_) => {
+            let name = match page { Page::Widget(i) => widget_names()[i as usize].clone(), Page::Comp(c) => COMP_NAMES[c].replace('-', "_"), _ => unreachable!() };
+            let all = items();
+            let it = all.iter().find(|i| i.name == name || i.name == name.replace('_', "-"))?;
+            let en = l == Locale::En;
+            let title = if en { it.name.replace('_', " ") } else { it.title.clone() };
+            let desc = if en && !it.desc_en.is_empty() { &it.desc_en } else { &it.desc };
+            let src = it.files.first().map(|f| widget_source(f)).unwrap_or("");
+            let ex = examples_of(example_source(&it.name).unwrap_or(""));
+            let mut md = format!("# {title}\n\n{desc}\n\n## {}\n\n```sh\ncargo run --release --bin lab -- add {} --to ../my-app\n```\n\n{}: {}\n\n## {}\n\n```rust\nuse lab::widgets::{{{}}};\n\n{}\n```\n",
+                tr("docs.sec.install"), it.name, tr("docs.install.files"), it.files.join(", "), tr("docs.sec.usage"), it.functions.join(", "), ex.first().map(|e| e.1.clone()).unwrap_or_default());
+            for (label, code) in &ex { md.push_str(&format!("\n## {}\n\n```rust\n{code}\n```\n", pick(label, l))); }
+            md.push_str(&format!("\n## {}\n\n| | |\n|---|---|\n| {} | `{}` |\n| {} | {} |\n| {} | `{}` |\n| {} | {} |\n",
+                tr("docs.sec.api"), tr("docs.api.functions"), it.functions.join("`, `"), tr("docs.api.props"), header_line(src, "Props:"), tr("docs.api.files"), it.files.join("`, `"), tr("docs.kb.keys"), header_line(src, "Messages:")));
+            Some(md)
+        }
+        Page::Registry => Some(REGISTRY.to_owned()),
+        _ => None,
+    }
 }
 /// A page and its outline side by side, prev / next under it.
 fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) -> El<Msg> {

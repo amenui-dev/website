@@ -20,6 +20,12 @@ if not wasm.exists(): wasm = root / 'dist/pkg/lab_bg.wasm'
 b = lambda p: base64.b64encode(p.read_bytes()).decode()
 glue = (root / 'dist/pkg/lab.js').read_text().replace('</script', '<\\/script')
 page = (root / 'web/page.html').read_text().replace('__GLUE__', glue).replace('__WASM__', b(wasm)).replace('__SANS__', b(subs[0])).replace('__PIXEL__', b(subs[1])).replace('__MONO__', b(subs[2]))
+embed = '<script>' + (root / 'web/embed.js').read_text() + '</script>'
+# The full page defines <lab-view> too (so the same file can be embedded); the example page carries
+# the glue and the element only, without the full page's stage.
+script_part = page[page.index('<script>'):].replace('__EMBED__', embed)
+page = page.replace('__EMBED__', embed)
+(root / 'dist/embed-example.html').write_text((root / 'web/embed-example.html').read_text().replace('__LAB__', script_part))
 (root / 'dist/artifact.html').write_text(page)
 (root / 'dist/index.html').write_text('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' + page.replace('<div id="stage">', '</head><body style="margin:0"><div id="stage">', 1) + '</body></html>')
 print('wasm', wasm.name, wasm.stat().st_size // 1024, 'KB; fonts', [f.stat().st_size // 1024 for f in subs], 'KB; page', len(page) // 1024, 'KB')

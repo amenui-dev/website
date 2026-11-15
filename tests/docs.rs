@@ -57,3 +57,13 @@ fn every_internal_link_resolves() {
     assert!(n > 4);
     for (i, _) in docs::DOCS.iter().enumerate() { for l in Locale::ALL { assert!(!docs::title(i, l).is_empty()); } }
 }
+
+#[test]
+fn llms_lists_every_page_that_has_markdown() {
+    let llms = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/llms.txt")).expect("llms.txt");
+    for p in lab::gallery::Page::all() {
+        if lab::gallery::docs::markdown(p, lab::i18n::Locale::En).is_some() {
+            assert!(llms.contains(&format!("(md/en/{}.md): ", p.hash())), "llms.txt does not list {}", p.hash());
+        }
+    }
+}

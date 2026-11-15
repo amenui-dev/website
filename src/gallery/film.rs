@@ -61,13 +61,13 @@ pub struct FilmSpec {
     pub flow_ms: f32,
     /// Particles of the finale (up to 1,000,000; the default stays smooth on the WebGL2 tier).
     pub particles: f32,
-    /// How loose the prologue's right side is held, so its material shows (0–1).
+    /// How loose the prologue's picture is held on the material's side, so its marks show (0–1).
     pub split_loose: f32,
     /// How long before a cut the way on pulses, ms.
     pub cue_ms: f32,
 }
 impl Default for FilmSpec {
-    fn default() -> Self { Self { dwell_ms: 9000.0, idle_ms: 12000.0, flow_ms: 640.0, particles: 60000.0, split_loose: 0.5, cue_ms: 900.0 } }
+    fn default() -> Self { Self { dwell_ms: 9000.0, idle_ms: 12000.0, flow_ms: 640.0, particles: 60000.0, split_loose: 1.0, cue_ms: 900.0 } }
 }
 pub const COUNT_SPEC: Spec = Spec { min: 1000.0, max: 1_000_000.0, step: 1000.0, decimals: 0, unit: "" };
 pub const N_SPEC: Spec = Spec { min: 0.0, max: 99.0, step: 1.0, decimals: 0, unit: "" };
@@ -472,6 +472,15 @@ const TYPES: [Type; CHAPTERS] = [
 // ── 0 Prologue: one interface, as it is and in a material ───────────────────────────────────────
 /// The materials the prologue's chips choose for the right side, with their names' messages.
 pub const SPLIT_MATS: [Material; 9] = [Material::Halftone, Material::Dot, Material::Ascii, Material::Print, Material::Lino, Material::Glitch, Material::Xray, Material::Chrome, Material::Liquid];
+/// The picture slot the prologue's material side uses, and the marks each material's chip shows the
+/// picture in (the material draws the ground and the loose; the marks are the picture's own).
+pub const SPLIT_SLOT: u8 = 5;
+pub fn split_marks(mat: usize) -> crate::style::PicFx {
+    use crate::style::{PicFx, set};
+    let base = |s: u8, pitch: f32| PicFx { pitch, levels: 8.0, ground: 0.08, ..PicFx::with_set(s) };
+    match mat { 0 => base(set::DOTS, 7.0), 1 => base(set::LED, 6.0), 2 => PicFx { levels: 16.0, ground: 0.0, ..base(set::CHARS, 8.0) }, 3 => base(set::STIPPLE, 7.0), 4 => base(set::HATCH, 8.0),
+        5 => base(set::PIXEL, 6.0), 6 => base(set::TOPO, 10.0), 7 => PicFx { relief: 1.0, ..base(set::CUBES, 11.0) }, _ => base(set::HEX, 9.0) }
+}
 /// The frame the interface sits in (units): left, top, right, bottom.
 pub const FRAME: [f32; 4] = [MARGIN, TOP_Y, UNITS - MARGIN, 604.0];
 /// The divider's place in stage units.
@@ -483,8 +492,11 @@ fn split_panel(x: &Cx, side: &str, actors: bool) -> El<Msg> {
     let k = |n: &str| format!("film/c00/{side}/{n}");
     let z = x.z();
     let (x0, y0) = (FRAME[0] + 40.0, FRAME[1] + 40.0);
-    let pw = span(6.0) - 40.0;
-    let pic = col().key(k("pic")).width(x.u(pw)).child(picture(DUSK, super::pages::ratio(DUSK)).key(k("picture")).pic_fx(STYLE_SLOT));
+    let pw = span(5.0);
+    // Only the picture is held loose on the material's side: text and controls stay whole and readable
+    // in every material (a line is crisp or it changes as a whole, never glyph by glyph).
+    let loose = if actors { 0.0 } else { f.spec.split_loose };
+    let pic = col().key(k("pic")).width(x.u(pw)).child(picture(DUSK, super::pages::ratio(DUSK)).key(k("picture")).pic_fx(if actors { STYLE_SLOT } else { SPLIT_SLOT }).loose(loose));
     let tx = colx(7.0);
     let num = { let n = x.number_keyed(&k("number"), x.display() * 1.6, Paint::INK); if actors { n.flow("film-number") } else { n } };
     let draft = f.drafts.as_ref().filter(|d| d.0 == 0).map(|d| d.1.as_str());
@@ -515,7 +527,7 @@ fn prologue(x: &Cx) -> Parts {
     let (lw, rw) = (x.u(sx), x.u(UNITS - sx));
     let left = col().key(x.key("left")).width(lw).height(x.u(STAGE_H)).clip().material(Material::Plain.id())
         .child(split_panel(x, "a", true).absolute(Some(0.0), Some(0.0), None, None));
-    let right = col().key(x.key("right")).width(rw).height(x.u(STAGE_H)).clip().material(mat.id()).loosen(f.spec.split_loose)
+    let right = col().key(x.key("right")).width(rw).height(x.u(STAGE_H)).clip().material(mat.id())
         .child(split_panel(x, "b", false).absolute(Some(-lw), Some(0.0), None, None));
     out.push(x.at(left, 0.0, 0.0));
     out.push(x.at(right, sx, 0.0));
@@ -1458,6 +1470,7 @@ pub fn hovered(g: &mut Gallery, k: Option<&str>) -> bool {
 pub fn look(g: &Gallery, l: &mut Look) {
     if g.page != Page::Film { return; }
     let f = &g.film;
+    if f.ch == 0 { l.pics[SPLIT_SLOT as usize] = split_marks(f.mat); }
     if f.ch == 4 {
         // The detector boxes what is focused while the ghost plays, what the pointer is near otherwise.
         l.gaze = Gaze { mode: if f.playing { GazeMode::Focus } else if f.hover.is_some() { GazeMode::Hover } else { GazeMode::All }, kinds: gaze::FRAME | gaze::KIND | gaze::SIZE | gaze::CROSS, density: 6.0, ..l.gaze };
