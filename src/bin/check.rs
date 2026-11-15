@@ -403,8 +403,22 @@ fn main() {
             let glyphs = inked(&o.render(&mut ui, &look));
             let r = (gap.max(1.0) as i32) + 1;
             let mut nearest = f32::INFINITY;
+            // Beside the obstacle the gap is across the line's band, from the obstacle's widest ink in
+            // that band; above and below it, straight to the ink.
+            let bands = ui.line_boxes("wrap-body");
+            let span = |y0: f32, y1: f32| -> Option<(i32, i32)> {
+                let (mut a, mut b) = (i32::MAX, i32::MIN);
+                for qy in (y0.floor().max(0.0) as i32)..(y1.ceil() as i32).min(H as i32) { for qx in 0..W as i32 { if obstacle[(qy * W as i32 + qx) as usize] { a = a.min(qx); b = b.max(qx); } } }
+                (a <= b).then_some((a, b))
+            };
+            let spans: Vec<_> = bands.iter().map(|b| (b.y, b.bottom(), span(b.y, b.bottom()))).collect();
             for py in 0..H as i32 { for px_ in 0..W as i32 {
                 if !glyphs[(py * W as i32 + px_) as usize] { continue; }
+                if let Some(&(_, _, Some((a, b)))) = spans.iter().find(|s| py as f32 + 0.5 >= s.0 && (py as f32 + 0.5) < s.1) {
+                    let d = if px_ < a { a - px_ } else if px_ > b { px_ - b } else { 0 };
+                    nearest = nearest.min(d as f32);
+                    continue;
+                }
                 for dy in -r..=r { for dx in -r..=r {
                     let (qx, qy) = (px_ + dx, py + dy);
                     if qx < 0 || qy < 0 || qx >= W as i32 || qy >= H as i32 || !obstacle[(qy * W as i32 + qx) as usize] { continue; }
@@ -622,7 +636,7 @@ fn wrapped(s: &Wr) -> El<()> {
     };
     let alpha = if s.show == 1 { 0.0 } else { 1.0 };
     col().pad(20.0, 20.0).child(col().width(640.0)
-        .child(text_lh(WRAP_TEXT.repeat(4), 16.0, 26.0, Paint::INK.alpha(alpha)).fill_width().around(Around::new(vec![sil], s.gap)))
+        .child(text_lh(WRAP_TEXT.repeat(4), 16.0, 26.0, Paint::INK.alpha(alpha)).key("wrap-body").fill_width().around(Around::new(vec![sil], s.gap)))
         .child(ob.hidden_until_morphed(s.show == 2).absolute(Some(s.x), Some(s.y), None, None)))
 }
 

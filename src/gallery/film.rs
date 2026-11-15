@@ -917,7 +917,9 @@ fn device(x: &Cx) -> Parts {
         // Apart: the layers stand side by side in equal steps on the stage's centre line, each named;
         // together they are one body. The pointer moves the nearer ones a little more.
         let step = if f.exploded { dw + 40.0 } else { 0.0 };
-        let (lx, ly) = (cx0 + depth * step + px * (i as f32) * 8.0, cy0 + py * (i as f32) * 6.0);
+        let (lx, ly) = (cx0 + depth * step, cy0);
+        // The parallax is a shift after layout, so following the pointer lays nothing out.
+        let (dx, dy) = (px * (i as f32) * 8.0, py * (i as f32) * 6.0);
         let k = x.key(&format!("layer{i}"));
         let mut layer = col().key(k.clone()).width(u(dw)).height(u(dh)).radius(u(36.0)).flow(format!("film-layer{i}"));
         if f.exploded { layer = layer.child(at(x.mono(format!("{:02} {}", i + 1, l(name)), x.caption(), Paint::DIM).key(format!("{k}/name")), 0.0, -26.0)); }
@@ -961,7 +963,7 @@ fn device(x: &Cx) -> Parts {
                 .child(at(space(u(120.0), u(3.0)).fill(Paint::INK.alpha(0.5)).key(format!("{k}/glint0")), 36.0, 18.0))
                 .child(at(space(u(60.0), u(3.0)).fill(Paint::INK.alpha(0.35)).key(format!("{k}/glint1")), 36.0, 26.0)),
         };
-        out.push(x.at(layer, lx, ly));
+        out.push(x.at(layer, lx, ly).shift(u(dx), u(dy)));
     }
     let z = x.z();
     let sw = row().key(x.key("explode-row")).child(switch(x.key("explode"), &l("film.apart"), f.exploded, None, Msg::Film(FMsg::Explode)).zoom(z));

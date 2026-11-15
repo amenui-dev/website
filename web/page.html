@@ -117,7 +117,13 @@ async function mount(stage, opts) {
     };
     // A copy button in the page asks for the clipboard: hand its text to the browser after the event.
     const clip = () => { const t = w.take_clipboard(); if (t != null && navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); };
-    const after = () => { sync(); syncText(); axUpdate(); clip(); kick(); };
+    // The readout's open / compact choice outlives the page (per browser; nothing breaks without storage).
+    const READOUT = 'gui-lab.readout';
+    let readout = 0;
+    try { const v = localStorage.getItem(READOUT); if (v !== null) { w.set_readout(+v); } } catch (e) {}
+    readout = w.readout();
+    const keepReadout = () => { const v = w.readout(); if (v !== readout) { readout = v; try { localStorage.setItem(READOUT, String(v)); } catch (e) {} } };
+    const after = () => { sync(); syncText(); axUpdate(); clip(); keepReadout(); kick(); };
     // Mouse, pen and touch come as pointer events (kind 0, 2, 1); the pointer is captured while it is
     // down, so a drag keeps going outside the canvas.
     const kind = e => e.pointerType === 'touch' ? 1 : e.pointerType === 'pen' ? 2 : 0;
