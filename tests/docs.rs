@@ -1,4 +1,5 @@
-//! The documentation site (DESIGN.md §5): every component has a page with all seven sections, non-empty,
+//! The documentation site (DESIGN.md §5): every component has a page with all eight sections, non-empty,
+//! its right-to-left example inside a right-to-left box, and a place in one of six groups of the rail,
 //! in both languages; every code sample on it is compiled (the examples are modules of the library,
 //! and each `ex_*` is the preview it sits under); every internal link resolves to a page.
 use lab::gallery::{self, Msg, Page, docs};
@@ -18,14 +19,25 @@ fn every_component_has_a_full_page_in_both_languages() {
             gallery::update(&mut ui.state, Msg::Go(p));
             ui.relayout();
             let tree = ui.export_tree();
-            for i in 0..7 {
+            for i in 0..8 {
                 let sec = tree.find(&format!("doc/{h}/sec{i}")).unwrap_or_else(|| panic!("{} ({}): no section {i}", it.name, l.tag()));
                 let mut t = vec![];
                 texts(sec, &mut t);
                 assert!(t.len() >= 2, "{} ({}): section {i} is empty: {t:?}", it.name, l.tag());
             }
             assert!(ui.problems().is_empty(), "{}: {:?}", it.name, ui.problems());
+            // The right-to-left example: its box runs right to left, so its first child is on the right.
+            let b = ui.node(&format!("doc/{h}/rtl/box")).unwrap_or_else(|| panic!("{}: no RTL box", it.name)).rect;
+            let first = ui.nodes().iter().find(|n| n.key.starts_with(&format!("doc/{h}/rtl/k")) && n.rect.w > 0.0).map(|n| n.rect);
+            if let Some(f) = first { assert!(f.right() > b.x + b.w * 0.5, "{}: the RTL example does not start on the right ({f:?} in {b:?})", it.name); }
+            // In the rail, under its group.
+            assert!(["inputs", "display", "feedback", "navigation", "layout", "data"].contains(&docs::group_of(&it.name).as_str()), "{}: no group", it.name);
         }
+        // The rail has the six component groups, titled in this language.
+        let tree = ui.export_tree();
+        let mut t = vec![];
+        texts(tree.find("rail").expect("rail"), &mut t);
+        for (_, key) in docs::GROUPS { let name = l.tr(key); assert!(t.iter().any(|x| x.contains(&name)), "{}: no rail group {name}", l.tag()); }
     }
     assert!(lab::i18n::misses().is_empty(), "{:?}", lab::i18n::misses());
 }

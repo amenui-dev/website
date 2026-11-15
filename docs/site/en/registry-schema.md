@@ -6,6 +6,7 @@
 |---|---|---|
 | `name` | string | The component's name, as `lab add` takes it (`dialog`, `scroll_area`). |
 | `title` | string | Its name in Chinese. |
+| `group` | string | Where the docs list it: `inputs`, `display`, `feedback`, `navigation`, `layout` or `data`. |
 | `description`, `description_en` | string | One sentence in each language. |
 | `functions` | string[] | The functions it exports (`dialog`, `dialog_sized`). |
 | `files` | string[] | Source files, relative to the repository root, copied to the same paths. |

@@ -6,6 +6,7 @@
 |---|---|---|
 | `name` | 字符串 | 组件名，`lab add` 用的就是它（`dialog`、`scroll_area`）。 |
 | `title` | 字符串 | 中文名。 |
+| `group` | 字符串 | 文档把它列在哪一组：`inputs`、`display`、`feedback`、`navigation`、`layout`、`data`。 |
 | `description`、`description_en` | 字符串 | 两种语言各一句话。 |
 | `functions` | 字符串数组 | 它导出的函数（`dialog`、`dialog_sized`）。 |
 | `files` | 字符串数组 | 源码文件，相对仓库根目录，拷到同样的路径。 |

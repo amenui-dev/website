@@ -690,12 +690,17 @@ fn comp_pages() -> Vec<Page> {
 }
 
 /// The groups and their pages.
-fn groups() -> [(String, Vec<Page>); 12] {
+fn groups() -> Vec<(String, Vec<Page>)> {
     let tr = crate::i18n::tr;
-    [
+    // The components in six groups (registry.json's `group`), shadcn's way; the long list with the list.
+    let comps: Vec<Page> = comp_pages().into_iter().chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
+    let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
+    let mut v = vec![
         (tr("nav.start"), (0..docs::START as u8).map(Page::Doc).collect()),
-        (tr("nav.concepts"), (docs::START as u8..docs::DOCS.len() as u8).map(Page::Doc).collect()),
-        (tr("nav.components"), comp_pages().into_iter().chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect()),
+        (tr("nav.concepts"), (docs::START as u8..docs::DOCS.len() as u8).map(Page::Doc).collect::<Vec<_>>()),
+    ];
+    for (g, key) in docs::GROUPS { v.push((format!("{} · {}", tr("nav.components"), tr(key)), comps.iter().filter(|p| docs::group_of(&name_of(p)) == g).copied().collect())); }
+    v.extend([
         (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..12u8).map(Page::Style)).collect()),
         (tr("nav.ai"), vec![Page::Ai(0), Page::Ai(1), Page::Registry]),
         (tr("nav.changelog"), vec![Page::Ai(2)]),
@@ -705,7 +710,8 @@ fn groups() -> [(String, Vec<Page>); 12] {
         (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
         (tr("nav.type"), vec![Page::Type, Page::Demo]),
         (tr("nav.scenes"), std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
-    ]
+    ]);
+    v
 }
 
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {

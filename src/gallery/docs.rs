@@ -12,22 +12,23 @@ use crate::style::{MATERIAL_COUNT, Material};
 use crate::widgets::{SELECTED, TextEdit, Variant, button_as, command, command_matches, dialog};
 use taffy::AlignItems;
 
-/// The prose pages, by slug, in reading order: the first four are 开始, the rest 概念.
-pub const DOCS: [&str; 21] = ["introduction", "installation", "first-view", "project-structure", "tree-and-messages", "layout", "text", "materials", "ripples",
+/// The prose pages, by slug, in reading order: the first six are 开始 (with the command line and the
+/// forms recipe), the rest 概念.
+pub const DOCS: [&str; 23] = ["introduction", "installation", "cli", "first-view", "project-structure", "forms", "tree-and-messages", "layout", "text", "materials", "ripples",
     "transforms", "presets", "annotation", "three-d", "particles", "i18n", "accessibility", "performance", "testing", "theming", "rtl", "registry-schema"];
-pub const START: usize = 4;
-const ZH: [&str; 21] = [
-    include_str!("../../docs/site/zh-Hans/introduction.md"), include_str!("../../docs/site/zh-Hans/installation.md"), include_str!("../../docs/site/zh-Hans/first-view.md"),
-    include_str!("../../docs/site/zh-Hans/project-structure.md"), include_str!("../../docs/site/zh-Hans/tree-and-messages.md"), include_str!("../../docs/site/zh-Hans/layout.md"),
+pub const START: usize = 6;
+const ZH: [&str; 23] = [
+    include_str!("../../docs/site/zh-Hans/introduction.md"), include_str!("../../docs/site/zh-Hans/installation.md"), include_str!("../../docs/site/zh-Hans/cli.md"), include_str!("../../docs/site/zh-Hans/first-view.md"),
+    include_str!("../../docs/site/zh-Hans/project-structure.md"), include_str!("../../docs/site/zh-Hans/forms.md"), include_str!("../../docs/site/zh-Hans/tree-and-messages.md"), include_str!("../../docs/site/zh-Hans/layout.md"),
     include_str!("../../docs/site/zh-Hans/text.md"), include_str!("../../docs/site/zh-Hans/materials.md"), include_str!("../../docs/site/zh-Hans/ripples.md"),
     include_str!("../../docs/site/zh-Hans/transforms.md"), include_str!("../../docs/site/zh-Hans/presets.md"), include_str!("../../docs/site/zh-Hans/annotation.md"),
     include_str!("../../docs/site/zh-Hans/three-d.md"), include_str!("../../docs/site/zh-Hans/particles.md"), include_str!("../../docs/site/zh-Hans/i18n.md"),
     include_str!("../../docs/site/zh-Hans/accessibility.md"), include_str!("../../docs/site/zh-Hans/performance.md"), include_str!("../../docs/site/zh-Hans/testing.md"),
     include_str!("../../docs/site/zh-Hans/theming.md"), include_str!("../../docs/site/zh-Hans/rtl.md"), include_str!("../../docs/site/zh-Hans/registry-schema.md"),
 ];
-const EN: [&str; 21] = [
-    include_str!("../../docs/site/en/introduction.md"), include_str!("../../docs/site/en/installation.md"), include_str!("../../docs/site/en/first-view.md"),
-    include_str!("../../docs/site/en/project-structure.md"), include_str!("../../docs/site/en/tree-and-messages.md"), include_str!("../../docs/site/en/layout.md"),
+const EN: [&str; 23] = [
+    include_str!("../../docs/site/en/introduction.md"), include_str!("../../docs/site/en/installation.md"), include_str!("../../docs/site/en/cli.md"), include_str!("../../docs/site/en/first-view.md"),
+    include_str!("../../docs/site/en/project-structure.md"), include_str!("../../docs/site/en/forms.md"), include_str!("../../docs/site/en/tree-and-messages.md"), include_str!("../../docs/site/en/layout.md"),
     include_str!("../../docs/site/en/text.md"), include_str!("../../docs/site/en/materials.md"), include_str!("../../docs/site/en/ripples.md"),
     include_str!("../../docs/site/en/transforms.md"), include_str!("../../docs/site/en/presets.md"), include_str!("../../docs/site/en/annotation.md"),
     include_str!("../../docs/site/en/three-d.md"), include_str!("../../docs/site/en/particles.md"), include_str!("../../docs/site/en/i18n.md"),
@@ -45,15 +46,24 @@ pub fn title(i: usize, l: Locale) -> String { source(i, l).lines().find_map(|x| 
 
 /// The components the registry lists (not the shared sizes), in its order: (name, title, description,
 /// functions, files, dependencies, response, recompose).
-pub struct Item { pub name: String, pub title: String, pub desc: String, pub desc_en: String, pub functions: Vec<String>, pub files: Vec<String>, pub deps: Vec<String>, pub response: String, pub recompose: String }
+pub struct Item { pub name: String, pub title: String, pub group: String, pub desc: String, pub desc_en: String, pub functions: Vec<String>, pub files: Vec<String>, pub deps: Vec<String>, pub response: String, pub recompose: String }
 pub fn items() -> Vec<Item> {
     let reg: serde_json::Value = serde_json::from_str(REGISTRY).unwrap_or_default();
     let s = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
     let list = |v: &serde_json::Value| v.as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default();
     reg["items"].as_array().into_iter().flatten().filter(|i| i["name"] != "base").map(|i| Item {
-        name: s(&i["name"]), title: s(&i["title"]), desc: s(&i["description"]), desc_en: s(&i["description_en"]), functions: list(&i["functions"]), files: list(&i["files"]),
+        name: s(&i["name"]), title: s(&i["title"]), group: s(&i["group"]), desc: s(&i["description"]), desc_en: s(&i["description_en"]), functions: list(&i["functions"]), files: list(&i["files"]),
         deps: list(&i["dependencies"]), response: s(&i["response"]), recompose: s(&i["recompose"]),
     }).collect()
+}
+/// The component groups the docs list, in order (`registry.json`'s `group`), with their title keys.
+pub const GROUPS: [(&str, &str); 6] = [("inputs", "nav.group.inputs"), ("display", "nav.group.display"), ("feedback", "nav.group.feedback"), ("navigation", "nav.group.navigation"), ("layout", "nav.group.layout"), ("data", "nav.group.data")];
+/// A component's group by its name (`scroll-area` and `scroll_area` alike).
+pub fn group_of(name: &str) -> String {
+    static GROUP: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+    let all = GROUP.get_or_init(|| items().into_iter().map(|i| (i.name.replace('_', "-"), i.group)).collect());
+    let n = name.replace('_', "-");
+    all.iter().find(|(k, _)| *k == n).map(|(_, g)| g.clone()).unwrap_or_default()
 }
 /// A widget file's header line (`Props:`, `States:`, `Messages:`, with its continuation lines).
 fn header_line(src: &str, part: &str) -> String {
@@ -230,7 +240,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let examples = examples_of(ex_src);
     let mut previews = crate::recipes::components::examples(example_name(name));
     let as_msg = |e: El<()>| e.map(std::rc::Rc::new(|_| Msg::Nothing));
-    let titles = [tr("docs.sec.preview"), tr("docs.sec.install"), tr("docs.sec.usage"), tr("docs.sec.examples"), tr("docs.sec.api"), tr("docs.sec.keyboard"), tr("docs.sec.materials")];
+    let titles = [tr("docs.sec.preview"), tr("docs.sec.install"), tr("docs.sec.usage"), tr("docs.sec.examples"), tr("docs.sec.api"), tr("docs.sec.keyboard"), tr("docs.sec.rtl"), tr("docs.sec.materials")];
     let title = if l == Locale::En { name.replace('_', " ") } else { it.title.clone() };
     let desc = if l == Locale::En && !it.desc_en.is_empty() { it.desc_en.clone() } else { it.desc.clone() };
     let head = col().key(format!("doc/{h}/head")).gap(10.0)
@@ -273,8 +283,15 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let api = crate::markdown::render(&api_md, &format!("doc/{h}/api"), doc_w(s, 780.0), &|t| link(t)).0;
     // 6. Keyboard and accessibility.
     let kb_md = format!("| | |\n|---|---|\n| {} | {} |\n| {} | {} |\n", tr("docs.kb.states"), header_line(src, "States:"), tr("docs.kb.keys"), header_line(src, "Messages:"));
-    let kb = crate::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0;
-    // 7. Under every material: the first example, small, once per material.
+    let kb = col().key(format!("doc/{h}/kb-col")).gap(10.0).fill_width().min_width(0.0)
+        .child(crate::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0)
+        .child(text_lh(tr("docs.kb.mirror"), 14.0, 24.0, Paint::DIM).width(doc_w(s, 780.0)).key(format!("doc/{h}/kb-mirror")));
+    // 7. Right to left: the first example in a subtree that runs right to left, and what follows.
+    let rtl_ex = crate::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/rtl/k"));
+    let rtl = col().key(format!("doc/{h}/rtl")).gap(10.0).fill_width().min_width(0.0)
+        .child(text_lh(tr("docs.rtl.note"), 14.0, 24.0, Paint::TEXT).width(doc_w(s, 780.0)).key(format!("doc/{h}/rtl-note")))
+        .child(row().key(format!("doc/{h}/rtl/box")).fill_width().min_width(0.0).pad(24.0, 20.0).radius(6.0).border(1.0, Paint::FAINT).rtl(true).child(rtl_ex));
+    // 8. Under every material: the first example, small, once per material.
     let mut strip = row().key(format!("doc/{h}/mats")).wrap().gap(10.0).fill_width();
     let first_ex = crate::recipes::components::examples(example_name(name)).into_iter().next();
     if let Some(e0) = first_ex {
@@ -287,7 +304,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
                 .child(text(mat.name(), 12.0, Paint::DIM).font(Font::Mono)));
         }
     }
-    let secs = [preview, install, usage, exs, api, kb, strip];
+    let secs = [preview, install, usage, exs, api, kb, rtl, strip];
     let mut body = col().key(format!("doc/{h}")).gap(34.0).fill_width().min_width(0.0).child(head);
     for (i, (t, b)) in titles.iter().zip(secs).enumerate() { body = body.child(section(&h, i, t, b)); }
     let outline: Vec<(String, String)> = titles.iter().enumerate().map(|(i, t)| (t.clone(), format!("doc/{h}/sec{i}"))).collect();
