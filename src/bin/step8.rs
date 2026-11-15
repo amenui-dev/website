@@ -37,6 +37,7 @@ fn main() {
     if what == "mesh" { mesh(&out); }
     if what == "particles" { particles(&out); }
     if what == "transitions" { transitions(&out); }
+    if what == "looks" { looks(&out); }
 }
 
 /// Play preset `to`'s transition from preset `from` on the 风格 page; `at` is called with the ui at each
@@ -167,4 +168,89 @@ fn mesh(out: &str) {
     let (w, h, px) = sheet(&frames, 8);
     save_png(&format!("{out}/mesh-materials.png"), w, h, &px);
     eprintln!("wrote {out}/mesh-materials.png ({} frames: every material at rest and loose 0.7, then four mark sets)", frames.len());
+}
+
+/// The look features, each off and on, on the image page and the film's chapters that use them:
+/// `looks.png`, a row per feature (off | on).
+fn looks(out: &str) {
+    use lab::gallery::{self, Msg, Page};
+    use lab::post::*;
+    let (w, h) = (560u32, 360u32);
+    let mut o = Offscreen::new(w, h);
+    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::from_hash("image").expect("page")));
+    gallery::update(&mut ui.state, Msg::Material(0));
+    ui.relayout();
+    ui.pointer_leave();
+    ui.tick(5.0);
+    let base = ui.state.look();
+    let rows: Vec<PostSpec> = vec![
+        PostSpec { bloom: Bloom { strength: 0.8, threshold: 0.45, radius: 8.0 }, ..PostSpec::default() },
+        PostSpec { chroma: Chroma { offset: 3.0 }, ..PostSpec::default() },
+        PostSpec { scanlines: Scanlines { strength: 0.35, period: 3.0 }, ..PostSpec::default() },
+        PostSpec { grain: Grain { amount: 0.1, size: 1.0 }, ..PostSpec::default() },
+        PostSpec { vignette: Vignette { strength: 0.6, radius: 0.4 }, ..PostSpec::default() },
+        PostSpec { curvature: Curvature { amount: 0.1 }, ..PostSpec::default() },
+        PostSpec { dither: Dither { kind: DitherKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() },
+        PostSpec { dither: Dither { kind: DitherKind::BlueNoise, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Moss4, colors: vec![] }, ..PostSpec::default() },
+        PostSpec { dither: Dither { kind: DitherKind::AtkinsonLike, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Originals8, colors: vec![] }, ..PostSpec::default() },
+        PostSpec { dither: Dither { kind: DitherKind::Bayer8, levels: 4, strength: 0.8 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, bloom: Bloom { strength: 0.35, threshold: 0.6, radius: 6.0 }, ..PostSpec::default() },
+    ];
+    let mut frames = vec![];
+    for p in rows {
+        frames.push((w, h, o.render(&mut ui, &base)));
+        let mut l = base;
+        l.post = p.look();
+        frames.push((w, h, o.render(&mut ui, &l)));
+    }
+    // Depth marks on the 3D page under ascii and dot: off | on.
+    let mut big = Offscreen::new(w * 2, h * 2);
+    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w * 2, h * 2, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::from_hash("three").expect("page")));
+    for m in [3usize, 1] {
+        gallery::update(&mut ui.state, Msg::Material(m));
+        ui.relayout();
+        ui.pointer_leave();
+        ui.tick(5.0);
+        let base = ui.state.look();
+        frames.push(half(&(w * 2, h * 2, big.render(&mut ui, &base))));
+        let mut l = base;
+        l.marks = lab::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
+        frames.push(half(&(w * 2, h * 2, big.render(&mut ui, &l))));
+    }
+    // Shedding (the zine's sign still | being dragged) and the monitor's flow field (paused | a second
+    // of drift while it plays), from the film.
+    let film_ui = |ch: usize, play: bool| {
+        let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w * 2, h * 2, 1.0);
+        ui.pointer_leave();
+        ui.state.route("film");
+        if ui.state.film.playing != play { gallery::update(&mut ui.state, Msg::Film(lab::gallery::film::FMsg::Play)); }
+        lab::gallery::film::go(&mut ui.state, ch, None);
+        ui.relayout();
+        for i in 1..=180 { ui.tick(i as f32 / 60.0); }
+        ui
+    };
+    let mut ui = film_ui(6, false);
+    let look = ui.state.look();
+    let still = big.render(&mut ui, &look);
+    let (x, y) = ui.node("film/c06/sign").expect("sign").rect.center();
+    ui.press(x, y);
+    let mut t = ui.now();
+    for i in 1..=24 { t += 1.0 / 60.0; ui.pointer_move(x + i as f32 * 8.0, y + i as f32 * 3.0); ui.tick(t); }
+    let look = ui.state.look();
+    let moving = big.render(&mut ui, &look);
+    frames.push(half(&(w * 2, h * 2, still)));
+    frames.push(half(&(w * 2, h * 2, moving)));
+    let mut ui = film_ui(8, true);
+    let look = ui.state.look();
+    let a = big.render(&mut ui, &look);
+    let mut t = ui.now();
+    for _ in 0..60 { t += 1.0 / 60.0; ui.tick(t); }
+    let look = ui.state.look();
+    let b = big.render(&mut ui, &look);
+    frames.push(half(&(w * 2, h * 2, a)));
+    frames.push(half(&(w * 2, h * 2, b)));
+    let (sw, sh, px) = sheet(&frames, 2);
+    save_png(&format!("{out}/looks.png"), sw, sh, &px);
+    eprintln!("{out}/looks.png");
 }

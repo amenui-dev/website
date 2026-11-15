@@ -326,6 +326,9 @@ pub struct Gallery {
     pub recompose: crate::morph::Recompose,
     /// How scrolling looks (the 滚动 section of the list page; a preset sets it).
     pub scroll: crate::style::Scroll,
+    /// The finishing pass and depth marks of the style in use (DESIGN.md §1.21).
+    pub post: crate::post::Post,
+    pub depth_marks: crate::style::Marks,
     pub rip_count: u32,
     /// Ten fast presses of the counter in progress: when they started (state clock) and how many are done.
     pub rip_burst: Option<(f32, u32)>,
@@ -364,7 +367,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -406,7 +409,7 @@ impl Gallery {
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
         let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
-                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll };
+                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         film::look(self, &mut l);
@@ -434,6 +437,8 @@ impl Gallery {
         self.roles = [it.text, it.decoration];
         self.scroll = it.scroll;
         self.transition = st.transition;
+        self.post = st.post.look();
+        self.depth_marks = st.marks;
     }
     /// Opening a page that has a style of its own applies it: a style page its preset, a scene its
     /// default.

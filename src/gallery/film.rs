@@ -790,6 +790,8 @@ fn board(x: &Cx) -> Parts {
 
 // ── 6 Lo-Fi Print: a zine spread ─────────────────────────────────────────────────────────────────
 const ZINE_D: f32 = 210.0;
+/// Marks the zine's sign sheds per 100 px it is dragged (toner coming off).
+pub const ZINE_SHED: f32 = 12.0;
 fn zine(x: &Cx) -> Parts {
     let f = x.f;
     let (tx, ty, tw, th) = (colx(0.0), 196.0, span(6.0) - 30.0, 420.0);
@@ -801,7 +803,7 @@ fn zine(x: &Cx) -> Parts {
     let sil = sign_outline(q(x.u(bx)), q(x.u(by)), x.u(ZINE_D));
     let body = text_lh(l("film.c06.zine"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body")).width(x.u(tw)).around(Around::new(vec![sil], x.u(f.gap)));
     let draft = x.g.film.drafts.as_ref().filter(|d| d.0 == 6).map(|d| d.1.as_str());
-    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).cursor(crate::el::Cursor::Grab).focusable(true).label(l("film.sign")).unframed()
+    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).shed(crate::motes::Shed { rate: ZINE_SHED, ..crate::motes::Shed::default() }).cursor(crate::el::Cursor::Grab).focusable(true).label(l("film.sign")).unframed()
         .on_drag_with({ let (bx, by) = (bx, by); let k = x.geo.k; move |d: Drag| Some(Msg::Film(FMsg::Obj(bx + d.dx / k, by + d.dy / k))) })
         .on_key({ let (bx, by) = (bx, by); move |key, sh| { let s = if sh { 40.0 } else { 10.0 }; let (dx, dy) = match key { Key::Left => (-s, 0.0), Key::Right => (s, 0.0), Key::Up => (0.0, -s), Key::Down => (0.0, s), _ => return None }; Some(Msg::Film(FMsg::Obj(bx + dx, by + dy))) } });
     let z = x.z();
@@ -847,6 +849,8 @@ fn poster(x: &Cx) -> Parts {
 
 // ── 8 Glitch: a signal monitor ───────────────────────────────────────────────────────────────────
 pub const BARS: usize = 96;
+/// How fast the monitor's ground drifts while the chapter plays (logical px/s).
+pub const MONITOR_FLOW: f32 = 18.0;
 fn monitor(x: &Cx) -> Parts {
     let f = x.f;
     let (wx, wy, ww, wh) = (colx(0.0), 190.0, span(12.0), 300.0);
@@ -884,7 +888,12 @@ fn monitor(x: &Cx) -> Parts {
     let dlg = dialog(&x.key("error"), f.error, &l("film.c08.lost"), 380.0, 0.35, close.clone(),
         col().gap(14.0).child(x.label(l("film.c08.body"), 14.0, Paint::TEXT).width(330.0))
             .child(row().gap(10.0).child(button_as(x.key("retry"), &l("film.c08.retry"), Variant::Accent, Msg::Film(FMsg::Retry))).child(button_as(x.key("ignore"), &l("film.c08.ignore"), Variant::Default, close))));
+    // The ground: faint marks drift along a noise field while the chapter plays, and stand still once
+    // it is paused (no frames when nothing is asked of it).
+    let ground = space(x.u(span(12.0)), x.u(wh + 120.0)).key(x.key("ground")).respond(Response::Ignore)
+        .flow_field(crate::motes::FlowField { speed: if x.g.film.playing { MONITOR_FLOW } else { 0.0 }, scale: x.u(160.0), size: x.u(2.0).max(1.0), ..crate::motes::FlowField::default() });
     (vec![
+        x.at(ground, wx, wy - 60.0),
         x.at(x.mono("SNR dB", x.caption(), Paint::DIM).key(x.key("n-label")), colx(10.0), TOP_Y - 20.0),
         x.at(x.number(x.display(), Paint::hue(1)).font(Font::Mono), colx(10.0), TOP_Y),
         x.at(x.mono("CH 08", x.caption(), Paint::DIM).key(x.key("channel")), colx(0.0), wy - 30.0),
@@ -1473,6 +1482,8 @@ pub fn look(g: &Gallery, l: &mut Look) {
     if g.page != Page::Film { return; }
     let f = &g.film;
     if f.ch == 0 { l.pics[SPLIT_SLOT as usize] = split_marks(f.mat); }
+    // The mechanism's marks follow its depth: the far parts' marks are smaller and fainter.
+    if f.ch == 13 { l.marks = crate::style::Marks { depth_scale: 0.45, depth_dim: 0.35 }; }
     if f.ch == 4 {
         // The detector boxes what is focused while the ghost plays, what the pointer is near otherwise.
         l.gaze = Gaze { mode: if f.playing { GazeMode::Focus } else if f.hover.is_some() { GazeMode::Hover } else { GazeMode::All }, kinds: gaze::FRAME | gaze::KIND | gaze::SIZE | gaze::CROSS, density: 6.0, ..l.gaze };

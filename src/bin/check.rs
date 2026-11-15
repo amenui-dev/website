@@ -102,6 +102,11 @@ fn main() {
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
+    if std::env::args().nth(1).is_some_and(|a| a == "looks") {
+        let f = looks(&fonts);
+        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
+        return eprintln!("all checks passed");
+    }
     if std::env::args().nth(1).is_some_and(|a| a == "dirty") {
         let f = dirty(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
@@ -505,6 +510,7 @@ fn main() {
     failed += presets(&fonts);
     failed += film(&fonts);
     failed += scroll(&fonts);
+    failed += looks(&fonts);
 
     if failed > 0 { eprintln!("{failed} checks failed"); std::process::exit(1); }
     eprintln!("all checks passed");
@@ -1082,5 +1088,101 @@ fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         if still == 0 { eprintln!("FAIL control: {:?} the page did not move while scrolling", mat); failed += 1; }
     }
     eprintln!("18. slow scroll is a moved picture: {failed} failing");
+    failed
+}
+
+// ── 19. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
+fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    use lab::gallery::{self, Msg, Page};
+    use lab::post::*;
+    let (w, h) = (640u32, 420u32);
+    let mut o = Offscreen::new(w, h);
+    let mut failed = 0;
+    let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::from_hash("image").expect("page")));
+    gallery::update(&mut ui.state, Msg::Material(0));
+    ui.relayout();
+    ui.pointer_leave();
+    ui.tick(5.0);
+    let base = ui.state.look();
+    let off = o.render(&mut ui, &base);
+    let with = |p: PostSpec| { let mut l = base; l.post = p.look(); l };
+    let differs = |a: &[u8], b: &[u8]| a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p[..3] != q[..3]).count();
+    // Off is the copy it always was: an effect at zero strength is the same frame.
+    let zero = o.render(&mut ui, &with(PostSpec { bloom: Bloom { strength: 0.0, ..Bloom::default() }, ..PostSpec::default() }));
+    if zero != off { eprintln!("FAIL the finishing pass at zero changes the frame"); failed += 1; }
+    // Each effect alone changes the frame.
+    let effects: Vec<(&str, PostSpec)> = vec![
+        ("bloom", PostSpec { bloom: Bloom { strength: 0.8, threshold: 0.4, radius: 8.0 }, ..PostSpec::default() }),
+        ("chroma", PostSpec { chroma: Chroma { offset: 3.0 }, ..PostSpec::default() }),
+        ("scanlines", PostSpec { scanlines: Scanlines { strength: 0.4, period: 3.0 }, ..PostSpec::default() }),
+        ("grain", PostSpec { grain: Grain { amount: 0.1, size: 1.0 }, ..PostSpec::default() }),
+        ("vignette", PostSpec { vignette: Vignette { strength: 0.6, radius: 0.4 }, ..PostSpec::default() }),
+        ("curvature", PostSpec { curvature: Curvature { amount: 0.12 }, ..PostSpec::default() }),
+        ("dither", PostSpec { dither: Dither { kind: DitherKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() }),
+    ];
+    for (name, p) in &effects {
+        let img = o.render(&mut ui, &with(p.clone()));
+        let n = differs(&img, &off);
+        if n < (w * h / 50) as usize { eprintln!("FAIL {name} changes only {n} px"); failed += 1; }
+        // A still page is a still image: the same frame again is the same bytes.
+        if o.render(&mut ui, &with(p.clone())) != img { eprintln!("FAIL {name} is not the same image twice"); failed += 1; }
+    }
+    // Dither at two levels with no palette: every channel is 0 or 255.
+    let img = o.render(&mut ui, &with(effects[6].1.clone()));
+    let odd = img.chunks(4).filter(|p| p[..3].iter().any(|&v| v > 1 && v < 254)).count();
+    if odd > 0 { eprintln!("FAIL two-level dither leaves {odd} px between 0 and 255"); failed += 1; }
+    // A palette: every pixel is one of its colours (within 1/255), for every fixed palette and a user one.
+    let mut kinds: Vec<Palette> = PaletteKind::ALL.iter().filter(|k| !k.colors().is_empty()).map(|&k| Palette { kind: k, colors: vec![] }).collect();
+    kinds.push(Palette { kind: PaletteKind::User, colors: vec![[10, 20, 30], [200, 40, 60], [240, 230, 200]] });
+    for pal in kinds {
+        let cols = pal.resolved();
+        for kind in [DitherKind::None, DitherKind::Bayer8, DitherKind::BlueNoise, DitherKind::AtkinsonLike] {
+            let img = o.render(&mut ui, &with(PostSpec { palette: pal.clone(), dither: Dither { kind, levels: 4, strength: 1.0 }, ..PostSpec::default() }));
+            let out = img.chunks(4).filter(|p| !cols.iter().any(|c| (0..3).all(|i| (p[i] as i32 - c[i] as i32).abs() <= 1))).count();
+            if out > 0 { eprintln!("FAIL palette {:?} with {kind:?}: {out} px are not palette colours", pal.kind); failed += 1; }
+        }
+    }
+    // Control: without the palette most pixels are not those colours.
+    let cols = PaletteKind::Moss4.colors();
+    let out = off.chunks(4).filter(|p| !cols.iter().any(|c| (0..3).all(|i| (p[i] as i32 - c[i] as i32).abs() <= 1))).count();
+    if out < (w * h / 2) as usize { eprintln!("FAIL control: the page already looks quantised ({out} px off the palette)"); failed += 1; }
+    // Drawn in part with the pass on is the same as drawn whole (the kept frame is the one before it).
+    let all = with(PostSpec { chroma: Chroma { offset: 2.0 }, scanlines: Scanlines { strength: 0.3, period: 3.0 }, dither: Dither { kind: DitherKind::Bayer4, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, curvature: Curvature { amount: 0.05 }, ..PostSpec::default() });
+    let k = ui.nodes().iter().find(|n| n.kind() == "image").map(|n| n.key.clone()).expect("a picture");
+    let (x, y) = ui.node(&k).expect("picture").rect.center();
+    let mut t = 6.0;
+    let mut bad = 0;
+    for step in 0..24 {
+        t += 1.0 / 60.0;
+        ui.tick(t);
+        match step { 2 => ui.pointer_move(x, y), 8 => ui.press(x, y), 10 => ui.release(x, y), 16 => ui.pointer_move(x + 100.0, y), _ => {} }
+        let a = o.render(&mut ui, &all);
+        o.r.partial = false;
+        ui.invalidate();
+        let b = o.render(&mut ui, &all);
+        o.r.partial = true;
+        if a != b { bad += 1; }
+    }
+    if bad > 0 { eprintln!("FAIL with the finishing pass, {bad} frames drawn in part differ from whole"); failed += 1; }
+    // Marks by depth on a 3D element: off is the frame it was; on, the far parts are darker.
+    let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::from_hash("three").expect("page")));
+    gallery::update(&mut ui.state, Msg::Material(0));
+    ui.relayout();
+    ui.pointer_leave();
+    ui.tick(5.0);
+    let base = ui.state.look();
+    let plain = o.render(&mut ui, &base);
+    let mut l = base;
+    l.marks = lab::style::Marks { depth_scale: 0.0, depth_dim: 0.0 };
+    if o.render(&mut ui, &l) != plain { eprintln!("FAIL depth marks at 0 change the frame"); failed += 1; }
+    l.marks = lab::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
+    let deep = o.render(&mut ui, &l);
+    let lum = |p: &[u8]| p[0] as u32 + p[1] as u32 + p[2] as u32;
+    let (mut darker, mut lighter) = (0, 0);
+    for (a, b) in plain.chunks(4).zip(deep.chunks(4)) { let (x, y) = (lum(a), lum(b)); if y + 6 < x { darker += 1; } else if y > x + 6 { lighter += 1; } }
+    if darker < 500 || lighter > darker / 10 { eprintln!("FAIL depth marks: {darker} px darker, {lighter} lighter"); failed += 1; }
+    eprintln!("19. looks: {} effects, palettes × dithers, drawn in part, depth marks ({darker} px darker); {failed} failing", effects.len());
     failed
 }
