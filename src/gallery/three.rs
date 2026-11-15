@@ -1,28 +1,26 @@
-//! The 3D page (三维, DESIGN.md §1.18): one low-poly object to turn, and a field of copies drawn in one
-//! call. Every number is a number control; the material is the global one (the top bar's menu).
+//! The 3D page (三维, DESIGN.md §1.18): the mechanism (`mechanism.rs`, the film's chapter 13) to turn,
+//! take apart and run in another material, and a field of copies drawn in one call. Every number is a
+//! number control.
 use super::pages::{ParamDef, header, section};
+use super::mechanism::{self, MMsg, Mech};
 use super::{Gallery, Msg, Target};
 use crate::el::{El, Paint, Response, col, row, scene3d, text};
-use crate::mesh::{BUILTIN, Camera, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
-use crate::widgets::{Orbit, OrbitMsg, choice, number, orbit, switch};
+use crate::mesh::{Camera, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
+use crate::widgets::{number, segmented};
 use taffy::AlignItems;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TMsg {
-    Orbit(OrbitMsg),
+    /// The mechanism: drag, wheel, keys, picks, explode, material.
+    Mech(MMsg),
     /// The pointer over the field: the copy it is on, or a press.
     Pick(Pick),
-    /// Which built-in mesh the object is.
-    Mesh(usize),
-    /// Draw the object as a picture (its marks) instead of through the material.
-    Picture,
 }
 
 /// The page's state.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Three {
-    pub orbit: Orbit,
-    pub mesh: usize,
+    pub mech: Mech,
     pub spec: Mesh3d,
     /// The light's direction (degrees around and above) and the ambient share.
     pub light_yaw: f32,
@@ -34,14 +32,13 @@ pub struct Three {
     pub wave: f32,
     pub phase: f32,
     pub field_pitch: f32,
-    pub as_picture: bool,
     pub hover: Option<MeshHit>,
     pub picked: Option<MeshHit>,
 }
 impl Default for Three {
     fn default() -> Self {
-        Self { orbit: Orbit::default(), mesh: MeshId::ICO[1].0 as usize, spec: Mesh3d::default(), light_yaw: -40.0, light_pitch: 52.0, ambient: 0.28, fov: 35.0,
-               count: 2000.0, wave: 0.35, phase: 0.0, field_pitch: 38.0, as_picture: false, hover: None, picked: None }
+        Self { mech: Mech::default(), spec: Mesh3d::default(), light_yaw: -40.0, light_pitch: 52.0, ambient: 0.28, fov: 35.0,
+               count: 2000.0, wave: 0.35, phase: 0.0, field_pitch: 38.0, hover: None, picked: None }
     }
 }
 
@@ -57,9 +54,9 @@ pub const PARAMS: [ParamDef; 18] = [
     p("光 方位", -180.0, 180.0, 5.0, 0, "°", -40.0),
     p("光 高度", -90.0, 90.0, 5.0, 0, "°", 52.0),
     p("视角", 10.0, 100.0, 1.0, 0, "°", 35.0),
-    p("距离", 0.8, 30.0, 0.1, 1, "", 3.2),
-    p("方位", -360.0, 360.0, 1.0, 0, "°", 30.0),
-    p("俯仰", -85.0, 85.0, 1.0, 0, "°", 22.0),
+    p("距离", 1.6, 9.0, 0.1, 1, "", 4.6),
+    p("方位", -360.0, 360.0, 1.0, 0, "°", -24.0),
+    p("俯仰", -85.0, 85.0, 1.0, 0, "°", 16.0),
     p("拖动", 0.05, 2.0, 0.05, 2, "°/px", 0.4),
     p("惯性摩擦", 0.5, 12.0, 0.1, 1, "/s", 3.5),
     p("方向键", 1.0, 45.0, 1.0, 0, "°", 5.0),
@@ -72,32 +69,30 @@ pub const PARAMS: [ParamDef; 18] = [
 pub fn slot(t: &mut Three, i: usize) -> &mut f32 {
     match i {
         0 => &mut t.spec.resolution_scale, 1 => &mut t.spec.edge_depth, 2 => &mut t.spec.edge_normal, 3 => &mut t.ambient, 4 => &mut t.light_yaw,
-        5 => &mut t.light_pitch, 6 => &mut t.fov, 7 => &mut t.orbit.distance, 8 => &mut t.orbit.yaw, 9 => &mut t.orbit.pitch, 10 => &mut t.orbit.per_px,
-        11 => &mut t.orbit.friction, 12 => &mut t.orbit.step_deg, 13 => &mut t.orbit.dolly, 14 => &mut t.count, 15 => &mut t.wave, 16 => &mut t.phase, _ => &mut t.field_pitch,
+        5 => &mut t.light_pitch, 6 => &mut t.fov, 7 => &mut t.mech.orbit.distance, 8 => &mut t.mech.orbit.yaw, 9 => &mut t.mech.orbit.pitch, 10 => &mut t.mech.orbit.per_px,
+        11 => &mut t.mech.orbit.friction, 12 => &mut t.mech.orbit.step_deg, 13 => &mut t.mech.orbit.dolly, 14 => &mut t.count, 15 => &mut t.wave, 16 => &mut t.phase, _ => &mut t.field_pitch,
     }
 }
 
 pub fn update(s: &mut Gallery, m: TMsg) {
     let t = &mut s.three;
     match m {
-        TMsg::Orbit(o) => t.orbit.update(o, s.clock),
+        TMsg::Mech(m) => { let mut cmds = vec![]; t.mech.update(m, s.clock, &mut cmds, "three/object"); s.cmds.extend(cmds); }
         TMsg::Pick(Pick::Hover(h)) => t.hover = h,
         TMsg::Pick(Pick::Press(h)) => t.picked = h,
-        TMsg::Mesh(i) => t.mesh = i.min(BUILTIN.len() - 1),
-        TMsg::Picture => t.as_picture = !t.as_picture,
     }
 }
 
 fn light(t: &Three) -> Light { Light::from_angles(t.light_yaw, t.light_pitch, t.ambient) }
 
-/// The low-poly object, as the page shows it (also used by the acceptance sheet).
+/// One low-poly object (an icosahedron subdivided once) in this page's light and numbers: the acceptance
+/// sheet's specimen.
 pub fn object(t: &Three) -> Scene3d {
-    let mut sc = Scene3d::single(MeshId(t.mesh as u32));
+    let mut sc = Scene3d::single(MeshId::ICO[1]);
     sc.items[0].transforms = vec![Mat4::uniform(1.6)];
     sc.camera = Camera { projection: Projection::Perspective { fov: t.fov }, ..Camera::default() };
     sc.light = light(t);
     sc.spec = t.spec;
-    sc.picture = t.as_picture.then_some(super::STYLE_SLOT);
     sc
 }
 
@@ -123,7 +118,7 @@ pub fn field(t: &Three) -> Scene3d {
 pub fn page(s: &Gallery) -> El<Msg> {
     let h = "three";
     let t = &s.three;
-    let view = orbit("three/object", object(t), &t.orbit, |m| Msg::Three(TMsg::Orbit(m))).width(520.0).height(380.0);
+    let view = mechanism::view(&t.mech, "three/object", 640.0, 420.0, 12.0, |m| Msg::Three(TMsg::Mech(m)));
     let picked = match t.picked { Some(m) => format!("按下：第 {} 个", m.instance + 1), None => "按下：—".into() };
     let hovered = match t.hover { Some(m) => format!("指针：第 {} 个", m.instance + 1), None => "指针：—".into() };
     let field = scene3d(field(t)).key("three/field").fill_width().height(340.0).respond(Response::Loosen)
@@ -140,13 +135,20 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let aw = crate::style::MAT_PARAMS[ascii as usize][3];
     let tg = Target::Mat(ascii, 3);
     nums = nums.child(number("three/ascii-normal", "ASCII 法线权重", s.mats[ascii as usize].0[3], crate::widgets::Spec { min: aw.min, max: aw.max, step: aw.step, decimals: aw.decimals, unit: aw.unit }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));
-    let controls = col().key("three/controls").gap(12.0)
-        .child(choice("three/mesh", "网格", &BUILTIN, t.mesh, |i| Msg::Three(TMsg::Mesh(i))).max_width(420.0))
-        .child(switch("three/picture", "按图片画（记号）", t.as_picture, None, Msg::Three(TMsg::Picture)))
-        .child(text("拖动转动，滚轮推近拉远；获得焦点后方向键转动，Shift 每次四倍。松手时还在转，会慢慢停下。", 13.0, Paint::DIM).max_width(380.0));
+    let names: Vec<&str> = mechanism::MATS.iter().map(|m| m.0).collect();
+    let tg = Target::Three(PARAMS.len());
+    let controls = col().key("three/controls").gap(12.0).max_width(400.0)
+        .child(segmented("three/mat", &names, t.mech.mat, 30.0, |i| Msg::Three(TMsg::Mech(MMsg::Material(i)))))
+        .child(number("three/explode", "拆开", t.mech.explode_to, crate::widgets::Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0))
+        .children(mechanism::PARTS.iter().enumerate().map(|(i, p)| {
+            let on = t.mech.hover.or(t.mech.chosen) == Some(i);
+            let z = if p.teeth > 0 { format!("{}  ·  z = {}", p.name, p.teeth) } else { p.name.to_owned() };
+            text(format!("{:02}  {z}", i + 1), 13.0, if on { Paint::ACCENT } else { Paint::TEXT }).key(format!("three/part{i}"))
+        }))
+        .child(text(format!("{}。松手时还在转，会慢慢停下。", mechanism::KEYS), 13.0, Paint::DIM).max_width(380.0));
     col().key("three/page").fill_width().max_width(1100.0).gap(34.0)
-        .child(header(s, h, "三维", "El::mesh / scene3d / MeshInstances", "三维物体是页面上的又一种东西：在布局给它的矩形里画，用当前的材质，会松开、变形，可以按到。网格在一张离屏图里画出明暗、法线、深度和编号，再变成和文字一样的墨与近度：轮廓和棱都是“边”。"))
-        .child(section(h, "一个物体", row().key("three/object-row").fill_width().wrap().gap(24.0).align(AlignItems::START).child(view).child(controls)))
+        .child(header(s, h, "三维", "El::mesh / scene3d / MeshInstances", "三维物体是页面上的又一种东西：在布局给它的矩形里画，会松开、变形，可以按到。机件由代码里的基本形搭成：齿轮按齿数比啮合，凸轮推着从动杆；两种色调的平涂、画出的轮廓线，材质可以换。网格在一张离屏图里画出明暗、法线、深度和编号，再变成和文字一样的墨与近度：轮廓和棱都是“边”。"))
+        .child(section(h, "机件", row().key("three/object-row").fill_width().wrap().gap(24.0).align(AlignItems::START).child(view).child(controls)))
         .child(section(h, "两千个，一次画出", col().key("three/field-col").fill_width().gap(10.0).child(field)
             .child(row().gap(24.0).child(text(hovered, 13.0, Paint::DIM).key("three/hovered")).child(text(picked, 13.0, Paint::DIM).key("three/picked")))))
         .child(section(h, "参数", nums))

@@ -45,30 +45,31 @@ fn hover_and_press_carry_the_copy() {
 #[test]
 fn drag_orbits_and_coasts_wheel_dollies_keys_turn() {
     let mut ui = ui();
-    let r = ui.node("three/object").expect("object").rect;
-    let (x, y) = r.center();
-    let yaw = ui.state.three.orbit.yaw;
+    // On the mechanism's ground, off its parts (a drag on a gear turns the train instead).
+    let r = ui.node("three/object/view").expect("object").rect;
+    let (x, y) = (r.right() - 20.0, r.y + 20.0);
+    let yaw = ui.state.three.mech.orbit.yaw;
     let mut t = 2.0;
     ui.tick(t);
     ui.press(x, y);
     for i in 1..=8 { t += 1.0 / 60.0; ui.tick(t); ui.pointer_move(x - 15.0 * i as f32, y); }
     ui.release(x - 120.0, y);
-    assert!(ui.state.three.orbit.yaw > yaw + 40.0, "{}", ui.state.three.orbit.yaw);
-    assert!(ui.state.three.orbit.moving(), "a fast drag coasts");
+    assert!(ui.state.three.mech.orbit.yaw > yaw + 40.0, "{}", ui.state.three.mech.orbit.yaw);
+    assert!(ui.state.three.mech.orbit.moving(), "a fast drag coasts");
     assert!(ui.needs_frame(t + 0.02));
-    let after = ui.state.three.orbit.yaw;
+    let after = ui.state.three.mech.orbit.yaw;
     for _ in 0..240 { t += 1.0 / 60.0; ui.tick(t); }
-    assert!(ui.state.three.orbit.yaw > after && !ui.state.three.orbit.moving());
+    assert!(ui.state.three.mech.orbit.yaw > after && !ui.state.three.mech.orbit.moving());
     ui.frame_drawn();
     assert!(!ui.needs_frame(t + 2.0), "at rest once it has stopped");
-    let d = ui.state.three.orbit.distance;
+    let d = ui.state.three.mech.orbit.distance;
     ui.wheel(x, y, 120.0);
-    assert!(ui.state.three.orbit.distance > d);
+    assert!(ui.state.three.mech.orbit.distance > d);
     // Focused (the press gave it focus), the arrows turn it.
-    assert_eq!(ui.focus(), Some("three/object"));
-    let y0 = ui.state.three.orbit.yaw;
+    assert_eq!(ui.focus(), Some("three/object/view"));
+    let y0 = ui.state.three.mech.orbit.yaw;
     ui.key(lab::el::Key::Left, false);
-    assert_eq!(ui.state.three.orbit.yaw, y0 + ui.state.three.orbit.step_deg);
+    assert_eq!(ui.state.three.mech.orbit.yaw, y0 + ui.state.three.mech.orbit.step_deg);
 }
 
 #[test]

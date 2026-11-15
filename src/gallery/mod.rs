@@ -3,6 +3,7 @@
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
 pub mod film;
+pub mod mechanism;
 mod looks;
 mod pages;
 mod scenes;
@@ -459,6 +460,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
                 Target::Value => s.value = v,
                 Target::Morph(i) => *morph_slot(&mut s.morph, i) = v,
                 Target::Flow(i) => *flow_slot(&mut s.flow, i) = v,
+                Target::Three(i) if i >= three::PARAMS.len() => s.three.mech.explode_to = v.clamp(0.0, 1.0),
                 Target::Three(i) => *three::slot(&mut s.three, i) = v,
                 Target::Parts(i) => *particles::slot(&mut s.parts, &mut s.particles, i) = v,
                 Target::Preset(i) => presets::set(s, i, v),
@@ -643,7 +645,11 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
 
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
     let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
-    crate::ui::Ui::new(state, view, update, faces, w, h, scale).on_resize(|s, w, h| { s.width = w; s.height = h; }).on_commands(|s| std::mem::take(&mut s.cmds))
+    let mut ui = crate::ui::Ui::new(state, view, update, faces, w, h, scale);
+    // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
+    // names them.
+    for m in mechanism::meshes() { ui.add_mesh(m); }
+    ui.on_resize(|s, w, h| { s.width = w; s.height = h; }).on_commands(|s| std::mem::take(&mut s.cmds))
         .on_gaze(|s| s.look().gaze)
         .on_hover(|s, k| {
             let k = k.map(str::to_owned);
@@ -660,7 +666,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             s.clock = t;
             let burst = burst_step(s, t);
             // The 3D page's camera coasts after a fast drag.
-            let coast = s.page == Page::Three && s.three.orbit.step(t);
+            let coast = s.page == Page::Three && s.three.mech.step(t);
             let film = film::tick(s, t);
             scenes::tick(s, t) || changed || burst || coast || film
         })
@@ -669,7 +675,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             // The departure board wants the next whole second; scenes say for themselves.
             let board = (s.page == Page::Style(1)).then(|| t.floor() + 1.0);
             let burst = s.rip_burst.map(|(start, n)| start + n as f32 * BURST_GAP);
-            let burst = if s.page == Page::Three && s.three.orbit.moving() { Some(t) } else { burst };
+            let burst = if s.page == Page::Three && s.three.mech.moving(t) { Some(t) } else { burst };
             let board = match (board, burst) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, film::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
