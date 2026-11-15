@@ -281,6 +281,8 @@ pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, 
         .on_wheel(move |_, dy| Some(b(MMsg::Wheel(dy))))
         .on_key(move |k, sh| matches!(k, Key::Left | Key::Right | Key::Up | Key::Down | Key::Enter | Key::Char('[' | ']' | '+' | '=' | '-' | 'e' | 'E' | 'm' | 'M' | ',' | '.' | ' ')).then(|| c(MMsg::Key(k, sh))))
         .on_pick(move |p| Some(d(MMsg::Pick(p))));
+    // Pressed and dragged, the machine is being handled, not loosened: it stays as drawn.
+    if mat == Material::Plain { v = v.respond(Response::Ignore); }
     if mat != Material::Plain {
         v = v.material(mat.id());
         if mat != Material::Chrome { v = v.loose(1.0).legible(false); }

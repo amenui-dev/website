@@ -140,3 +140,7 @@ shell.theme = Theme
 shell.material = Material
 shell.style = Style
 shell.reset = Reset
+widget.pagination.prev = Previous page
+widget.pagination.next = Next page
+widget.command.none = No matching command
+widget.command.placeholder = Type a command…

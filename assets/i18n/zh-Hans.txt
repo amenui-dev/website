@@ -140,3 +140,7 @@ shell.theme = 主题
 shell.material = 材质
 shell.style = 风格
 shell.reset = 恢复默认
+widget.pagination.prev = 上一页
+widget.pagination.next = 下一页
+widget.command.none = 没有匹配的命令
+widget.command.placeholder = 输入命令…
