@@ -34,7 +34,7 @@ pub const RAIL: f32 = 220.0;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
 
-pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke"];
+pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke", "led", "braille", "cubes", "hex", "stipple", "hatch", "truchet", "topo"];
 
 impl Page {
     /// Every page, in rail order.
@@ -43,7 +43,7 @@ impl Page {
         v.extend((0..docs::DOCS.len() as u8).map(Page::Doc));
         v.extend(comp_pages());
         v.extend((0..docs::widget_names().len() as u8).map(Page::Widget));
-        v.extend((0..set::COUNT as u8).map(Page::Marks));
+        v.extend(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks));
         v.extend((0..MATERIAL_COUNT as u8).map(Page::Material));
         v.push(Page::Gaze);
         v.extend((0..12u8).map(Page::Style));
@@ -309,7 +309,8 @@ pub struct Gallery {
     /// The showcase scenes' state.
     pub sc: Scenes,
     /// The frame-time readout (F2, or the 性能 menu) and the material resolution (0 = automatic).
-    pub overlay: bool,
+    /// The performance readout: 0 off, 1 one line, 2 every number.
+    pub overlay: u8,
     pub quality: f32,
     /// The input page's multi-line field.
     pub notes: TextEdit,
@@ -362,7 +363,7 @@ impl Default for Gallery {
             menu: 0, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
-            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: false, quality: 1.0, long_pick: None, long_on: vec![],
+            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
             rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
@@ -378,6 +379,11 @@ pub fn mark_defaults(s: u8) -> PicFx {
         set::MOSAIC | set::BRICK => PicFx { pitch: 10.0, relief: 1.0, ground: 0.2, ..base },
         set::GLOW => PicFx { pitch: 8.0, levels: 12.0, ground: 0.0, glow: 1.0, gamma: 0.8, ..base },
         set::STROKE => PicFx { pitch: 9.0, levels: 8.0, ground: 0.15, follow: 1.0, ..base },
+        set::LED => PicFx { pitch: 7.0, levels: 8.0, ground: 0.0, glow: 0.6, ..base },
+        set::BRAILLE => PicFx { pitch: 8.0, levels: 9.0, ground: 0.0, ..base },
+        set::CUBES => PicFx { pitch: 12.0, levels: 8.0, ground: 0.1, relief: 1.0, ..base },
+        set::HATCH => PicFx { pitch: 9.0, levels: 5.0, ground: 0.0, ..base },
+        set::TOPO => PicFx { pitch: 12.0, levels: 8.0, ground: 0.0, ..base },
         _ => PicFx { pitch: 8.0, levels: 8.0, ground: 0.15, ..base },
     }
 }
@@ -454,7 +460,19 @@ impl Gallery {
     }
     pub fn draft(&self, t: Target) -> Option<&str> { self.edit.as_ref().filter(|(k, _)| *k == t).map(|(_, d)| d.as_str()) }
     /// Go to the page a hash names; returns whether it names one.
+    /// The look as a recipe: the active preset (the first when none is chosen) as `Preset::recipe`.
+    pub fn recipe(&self) -> String { self.presets[self.style.unwrap_or(0).min(self.presets.len().saturating_sub(1))].recipe() }
+    /// Take a recipe (`look:v1:…`): its preset replaces the built-in one it names, and becomes the look.
+    pub fn take_recipe(&mut self, r: &str) -> Result<(), crate::error::PresetError> {
+        let p = crate::preset::Preset::from_recipe(r)?;
+        let i = self.presets.iter().position(|q| q.hash == p.hash).unwrap_or(0);
+        self.presets[i] = p;
+        self.apply_style(i);
+        Ok(())
+    }
     pub fn route(&mut self, hash: &str) -> bool {
+        // A recipe in the address: the look changes, the page stays.
+        if hash.trim_start_matches('#').starts_with(crate::preset::RECIPE_PREFIX) { return self.take_recipe(hash).is_ok(); }
         match Page::from_hash(hash) {
             Some(p) => { self.page = p; self.edit = None; self.enter(p); true }
             None => false,
@@ -472,7 +490,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
             s.enter(p);
         }
         Msg::Menu(k) => s.menu = k,
-        Msg::Perf(0) => { s.overlay = !s.overlay; s.menu = 0; }
+        Msg::Perf(0) => { s.overlay = (s.overlay + 1) % 3; s.menu = 0; }
         Msg::Perf(i) => { s.quality = if i == 1 { 0.0 } else { crate::perf::LEVELS[(i - 2).min(2)] }; s.menu = 0; }
         Msg::Style(i) => { s.apply_style(i); s.menu = 0; }
         Msg::GazeMode(i) => s.gaze_page.mode = GAZE_MODES[i.min(GAZE_MODES.len() - 1)].0,
@@ -488,7 +506,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Open(o) => { if o != s.opened { s.cmds.push(Cmd::Flow(s.flow)); } s.opened = o; }
         Msg::Locale(l) => {
             // The film's sentence follows the language while nobody has changed it.
-            if s.film.sentence.text == s.locale.tr("film.sentence") { s.film.sentence = TextEdit::new(&l.tr("film.sentence")); }
+            if s.film.note.text == s.locale.tr("film.c01.note-default") { s.film.note = TextEdit::new(&l.tr("film.c01.note-default")); }
             s.locale = l;
             crate::i18n::set_current(l);
             s.menu = 0;
@@ -588,8 +606,27 @@ pub fn view(s: &Gallery) -> El<Msg> {
             .child(col().key(format!("main/{}", s.page.hash())).grow(1.0).fill_width().child(scenes::page(s, i as usize)));
     }
     let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(top_bar(s)).child(divider(th.hairline).key("top-rule"));
-    let main = col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width();
-    let main = match s.page {
+    let page = main_page(s, narrow);
+    if narrow {
+        // A phone's width: the page is set in the window's width, so its text wraps there; anything
+        // wider (an example, a code line) scrolls sideways in its own box.
+        let main = col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width()
+            .child(col().key("narrow").width(s.width).min_width(0.0).child(page));
+        root = root.child(rail_row(s)).child(divider(th.hairline).key("rail-rule")).child(main);
+    } else {
+        // `min_height(0)`: the row is as tall as the window allows, not as tall as the rail's contents (which
+        // made the page itself as tall as the rail, so the page never scrolled once the rail was longer
+        // than the window).
+        root = root.child(row().key("body").grow(1.0).min_height(0.0).fill_width().align(AlignItems::STRETCH)
+            .child(rail(s)).child(vdivider(th.hairline).key("rail-rule")).child(col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width().child(page).shrink()));
+    }
+    root.child(docs::search(s))
+}
+
+/// The page under the top bar, padded.
+fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
+    let main = col().key(format!("page/{}", s.page.hash())).fill_width().min_width(0.0);
+    match s.page {
         Page::Demo => main.child(demo::view(&s.demo).map(Rc::new(Msg::Demo))),
         Page::Material(_) | Page::Gaze => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(looks::page(s)),
         Page::Style(i) => main.child(styles::page(s, i as usize)),
@@ -602,17 +639,7 @@ pub fn view(s: &Gallery) -> El<Msg> {
         Page::Widget(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::component(s, &docs::widget_names()[i as usize], None, None)),
         Page::Scenes | Page::Scene(_) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(scenes::list(s)),
         _ => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(pages::page(s)),
-    };
-    if narrow {
-        root = root.child(rail_row(s)).child(divider(th.hairline).key("rail-rule")).child(main);
-    } else {
-        // `min_height(0)`: the row is as tall as the window allows, not as tall as the rail's contents (which
-        // made the page itself as tall as the rail, so the page never scrolled once the rail was longer
-        // than the window).
-        root = root.child(row().key("body").grow(1.0).min_height(0.0).fill_width().align(AlignItems::STRETCH)
-            .child(rail(s)).child(vdivider(th.hairline).key("rail-rule")).child(main.shrink()));
     }
-    root.child(docs::search(s))
 }
 
 /// The performance menu: the readout (its label says what pressing it does), then the qualities.
@@ -630,14 +657,15 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     let name = if matches!(s.page, Page::Scene(_)) {
         button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
     } else { text("gui-lab", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
-    let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay { "shell.readout.hide" } else { "shell.readout.show" }) } else { tr(i) }).collect();
+    let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
     let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
     let langs: Vec<&str> = crate::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
     let lang_now = crate::i18n::Locale::ALL.iter().position(|l| *l == s.locale);
     row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 10.0).align(AlignItems::CENTER)
         .child(name)
         .child(space(0.0, 0.0).grow(1.0))
-        .child(row().key("top/controls").gap(16.0).wrap().align(AlignItems::CENTER)
+        // On a phone's width the controls stay on one line that scrolls sideways; wider, they wrap.
+        .child({ let r = row().key("top/controls").gap(16.0).align(AlignItems::CENTER); if s.width < NARROW { r.scroll_x().fill_width().min_width(0.0) } else { r.wrap().shrink().min_width(0.0) } }
             .child(menu("perf", &tr("shell.perf"), &perf,
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
             .child(button_as("top/film", &tr("shell.film"), Variant::Quiet, Msg::Go(Page::Film)))
@@ -666,7 +694,7 @@ fn groups() -> [(String, Vec<Page>); 12] {
         (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..12u8).map(Page::Style)).collect()),
         (tr("nav.ai"), vec![Page::Ai(0), Page::Ai(1), Page::Registry]),
         (tr("nav.changelog"), vec![Page::Ai(2)]),
-        (tr("nav.marks"), (0..set::COUNT as u8).map(Page::Marks).collect()),
+        (tr("nav.marks"), set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks).collect()),
         (tr("nav.materials"), (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
         (tr("nav.annotation"), vec![Page::Gaze]),
         (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
@@ -762,7 +790,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
         })
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
-            if k == crate::el::Key::F(2) { s.overlay = !s.overlay; return true; }
+            if k == crate::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
             if docs::search_key(s, k) { return true; }
             if k == crate::el::Key::Char('/') && s.page != Page::Film { update(s, Msg::Search(true)); return true; }
             film::key(s, k, shift) || scenes::key(s, k, shift)

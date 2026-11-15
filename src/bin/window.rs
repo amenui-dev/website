@@ -76,6 +76,7 @@ impl App {
         let faces = lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).map_err(|e| e.to_string())?;
         let mut ui = gallery::new_ui(faces, config.width, config.height, window.scale_factor() as f32);
         ui.perf_mut().backend = format!("{:?}", info.backend);
+        ui.perf_mut().adapter = info.name.clone();
         if let Some(p) = &self.page && ui.state.route(p) { ui.relayout(); }
         ui.restart(self.now());
         Ok(Running { window, frames: 0, skipped: 0, surface, config, r, ui })

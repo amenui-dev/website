@@ -45,22 +45,30 @@ fn f2_shows_the_readout_in_the_annotation_layer() {
     ui.tick(1.0);
     let before = ui.scene().annot.len();
     assert!(ui.key(Key::F(2), false), "F2 is used");
-    assert!(ui.state.look().overlay);
+    assert_eq!(ui.state.look().overlay, 1, "one line first");
     ui.tick(1.1);
-    let shown = ui.scene().annot.len();
-    assert!(shown > before + 100, "readout glyphs in the annotation layer: {before} → {shown}");
-    // While shown it refreshes twice a second (a timed wake), not every frame.
+    let one = ui.scene().annot.len();
+    assert!(one > before + 20, "readout glyphs in the annotation layer: {before} → {one}");
+    assert!(ui.key(Key::F(2), false));
+    assert_eq!(ui.state.look().overlay, 2, "then every number");
+    ui.tick(1.2);
+    let all = ui.scene().annot.len();
+    assert!(all > one + 200, "every number: {one} → {all}");
+    // It never keeps frames coming: at most one more, a second after the last frame, to say idle.
     ui.frame_drawn();
-    let t = ui.now() + 0.6;
-    ui.tick(t);
+    let t = ui.now();
+    let w = ui.next_wake(t);
+    assert!(w.is_none_or(|w| w <= t + 1.1), "{w:?}");
+    ui.tick(t + 1.2);
     ui.frame_drawn();
-    let w = ui.next_wake(t).expect("a refresh");
-    assert!(w > t && w <= t + 0.5 + 1e-3);
-    // The menu item does the same.
+    let t = ui.now();
+    assert!(ui.next_wake(t).is_none(), "idle: no more frames for the readout");
+    assert!(!ui.needs_frame(t + 5.0));
+    // The menu item steps the same way: off again.
     gallery::update(&mut ui.state, Msg::Perf(0));
     ui.relayout();
     ui.tick(t + 0.1);
-    assert!(!ui.state.look().overlay);
+    assert_eq!(ui.state.look().overlay, 0);
     assert_eq!(ui.scene().annot.len(), before);
     gallery::update(&mut ui.state, Msg::Perf(1));
     assert_eq!(ui.state.look().quality, 0.0, "automatic");

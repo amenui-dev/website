@@ -21,7 +21,8 @@ fn bayer_is_a_permutation() {
 fn level_zero_is_empty_where_marks_carry_tone() {
     let a = atlas();
     // Pixel-art, mosaic and brick are solid at every level: their tone is the colour, not the mark.
-    for s in (0..set::COUNT as u8).filter(|s| ![set::PIXEL, set::MOSAIC, set::BRICK].contains(s)) {
+    // The LED matrix keeps a faint seat for an unlit lamp, so the matrix reads in the dark.
+    for s in (0..set::COUNT as u8).filter(|s| ![set::PIXEL, set::MOSAIC, set::BRICK, set::LED].contains(s)) {
         assert_eq!(ink(&a, s, 0), 0.0, "set {} level 0 is not empty", set::NAMES[s as usize]);
         assert!(ink(&a, s, LEVELS - 1) > ink(&a, s, 0), "set {} has no ink at its last level", set::NAMES[s as usize]);
     }

@@ -662,7 +662,8 @@ fn components(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
             // Where the controls are: the preview and the variants; for the dialog, its card (the page
             // beneath it is held partly loose on purpose).
             let rects: Vec<lab::ui::Rect> = if c == comp::DIALOG { vec![ui.node("dialog/dialog/card").expect("card").rect] }
-                else { [format!("{hash}/preview"), format!("{hash}/variants")].iter().map(|k| ui.node(k).expect("region").rect).collect() };
+                else { [format!("doc/{hash}/preview"), format!("{hash}/variants"), format!("doc/{hash}/examples")].iter().filter_map(|k| ui.node(k).map(|n| n.rect)).collect() };
+            assert!(!rects.is_empty(), "no preview region on {hash}");
             let look = ui.state.look();
             let full_p = o.render(&mut ui, &look);
             o.r.hide_glyphs = true;

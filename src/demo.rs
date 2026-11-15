@@ -169,7 +169,7 @@ fn content(s: &Demo) -> El<Msg> {
         list = list.child(item);
     }
     let body_line = (sz.body * 1.75).round();
-    col().key("content").grow(1.0).basis(460.0).max_width(760.0).gap(18.0)
+    col().key("content").grow(1.0).shrink().basis(460.0).min_width(0.0).max_width(760.0).gap(18.0)
         .child(text_lh("界面骨架", sz.display, (sz.display * 1.3).round(), Paint::INK).font(Font::Display))
         .child(text_lh("这一页的每个字、每条线和每张图都由框架自己画出：布局、文字排版、点击、焦点和滚动都在框架里。", sz.small + 2.0, (sz.small * 1.8).round(), Paint::DIM))
         .child(card)
@@ -255,12 +255,17 @@ pub const TERRAIN: u32 = 2;
 pub const BUST: u32 = 3;
 /// The bust cut out of its ground: transparent around its silhouette, so it has a true outline.
 pub const CUTOUT: u32 = 4;
+/// Saturated, high-contrast subjects with deep darks and bright rims, which is what marks read best:
+/// a cloudscape crossed by a streak of light, a planet against the dark, a flower.
+pub const DUSK: u32 = 5;
+pub const PLANET: u32 = 6;
+pub const FLOWER: u32 = 7;
 pub const PICTURE_NAMES: [&str; 4] = ["球", "天空", "地形", "胸像"];
-pub const PICTURE_SIZES: [(u32, u32); 5] = [(640, 320), (640, 400), (640, 400), (640, 400), (520, 400)];
+pub const PICTURE_SIZES: [(u32, u32); 8] = [(640, 320), (640, 400), (640, 400), (640, 400), (520, 400), (640, 400), (640, 400), (480, 480)];
 
 /// Every demo picture: id, width, height, RGBA8.
 pub fn pictures() -> Vec<(u32, u32, u32, Vec<u8>)> {
-    let f: [fn(u32, u32) -> Vec<u8>; 5] = [picture_pixels, sky_pixels, terrain_pixels, bust_pixels, cutout_pixels];
+    let f: [fn(u32, u32) -> Vec<u8>; 8] = [picture_pixels, sky_pixels, terrain_pixels, bust_pixels, cutout_pixels, dusk_pixels, planet_pixels, flower_pixels];
     f.iter().enumerate().map(|(i, f)| { let (w, h) = PICTURE_SIZES[i]; (i as u32, w, h, f(w, h)) }).collect()
 }
 
@@ -433,6 +438,104 @@ pub fn cutout_alpha() -> (u32, u32, Vec<u8>) {
 /// Centre or radii of an ellipsoid, px.
 type V3 = (f32, f32, f32);
 fn norm(v: [f32; 3]) -> [f32; 3] { let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt(); [v[0] / l, v[1] / l, v[2] / l] }
+/// Towering clouds at dusk: layered fbm with a lit top edge, a deep violet-to-orange ground, and one
+/// diagonal streak of light breaking through.
+pub fn dusk_pixels(w: u32, h: u32) -> Vec<u8> {
+    let (sw, sh) = (w as f32, h as f32);
+    rgba(w, h, |x, y| {
+        let (u, v) = (x / sw, y / sh);
+        let sky = if v < 0.5 { mix3([0.03, 0.03, 0.14], [0.36, 0.08, 0.42], v / 0.5) } else { mix3([0.36, 0.08, 0.42], [1.0, 0.42, 0.10], ((v - 0.5) / 0.32).min(1.0)) };
+        // A towering cloud bank rising from the horizon: broad fbm, its density highest low down.
+        let dens = |x: f32, y: f32| {
+            let (u, v) = (x / sw, y / sh);
+            fbm(x * 0.0042 + 3.0, y * 0.0058, 5) + v * 0.55 - 0.18 * (u * 6.0).sin().abs() - 0.15
+        };
+        let d = dens(x, y);
+        let a = smooth(0.50, 0.56, d);
+        // Lit from the upper right: the side facing it is bright, a thin rim at the top edge.
+        let toward = (d - dens(x + 7.0, y - 9.0)).clamp(-0.06, 0.06) / 0.12 + 0.5;
+        let rim = smooth(0.50, 0.53, d) * (1.0 - smooth(0.53, 0.60, d));
+        let cloud = add3(mix3([0.08, 0.03, 0.16], [0.95, 0.48, 0.30], toward.clamp(0.0, 1.0)), scale3([1.0, 0.85, 0.6], rim * 0.9));
+        let mut c = mix3(sky, cloud, a);
+        // The streak: a soft band of light breaking through from the upper right.
+        let s = (u * 0.75 + v - 0.98) / 0.045;
+        let band = (-s * s).exp() * smooth(0.15, 0.9, u);
+        c = add3(c, scale3([1.0, 0.9, 0.7], band * (0.55 - a * 0.3)));
+        // The sea: dark, with the light laid on it in short horizontal strokes.
+        if v > 0.84 {
+            let k = (v - 0.84) / 0.16;
+            c = mix3([0.20, 0.05, 0.16], [0.02, 0.01, 0.05], k);
+            let glint = (-((u - 0.66) / (0.05 + 0.1 * k)).powi(2)).exp() * smooth(0.55, 0.75, fbm(x * 0.08, y * 0.9, 2));
+            c = add3(c, scale3([1.0, 0.55, 0.2], glint * (1.0 - k * 0.5)));
+        }
+        c
+    })
+}
+
+/// A planet with an atmosphere's bright rim against stars, lit from the right, a ring crossing it.
+pub fn planet_pixels(w: u32, h: u32) -> Vec<u8> {
+    let (sw, sh) = (w as f32, h as f32);
+    let (cx, cy, r) = (sw * 0.42, sh * 0.56, sh * 0.36);
+    let light = norm([0.75, -0.35, 0.45]);
+    rgba(w, h, |x, y| {
+        let star = hash(x as i32, y as i32);
+        let mut c = [0.01, 0.01, 0.04];
+        if star > 0.9985 { c = [0.9, 0.9, 1.0]; } else if star > 0.996 { c = [0.35, 0.35, 0.5]; }
+        let (dx, dy) = ((x - cx) / r, (y - cy) / r);
+        let d2 = dx * dx + dy * dy;
+        // The ring behind and in front: an ellipse band.
+        let ring = |x: f32, y: f32| { let (rx, ry) = ((x - cx) / (r * 1.9), (y - cy) / (r * 0.42)); let rr = (rx * rx + ry * ry).sqrt(); smooth(0.78, 0.8, rr) * smooth(1.0, 0.97, rr) };
+        let rg = ring(x, y);
+        if rg > 0.0 && (y < cy || d2 > 1.0) { c = mix3(c, [0.95, 0.72, 0.42], rg * 0.85); }
+        if d2 < 1.0 {
+            let dz = (1.0 - d2).sqrt();
+            let lam = (dx * light[0] + dy * light[1] + dz * light[2]).max(0.0);
+            let bands = fbm(dx * 2.0 + 3.0, dy * 9.0, 4);
+            let base = mix3([0.85, 0.25, 0.10], [0.15, 0.55, 0.85], smooth(0.35, 0.65, bands));
+            c = scale3(base, 0.04 + lam * 1.05);
+            // The rim: the atmosphere, bright on the lit limb.
+            let rim = smooth(0.80, 1.0, d2.sqrt()) * (0.3 + lam);
+            c = add3(c, scale3([0.55, 0.85, 1.0], rim * 0.9));
+            if rg > 0.0 && y > cy { c = mix3(c, [0.95, 0.72, 0.42], rg * 0.9); }
+        } else {
+            let halo = (-(d2.sqrt() - 1.0) * 14.0).exp() * 0.6;
+            let side = (dx * light[0] + dy * light[1]).max(0.0) + 0.15;
+            c = add3(c, scale3([0.35, 0.65, 1.0], halo * side));
+        }
+        c
+    })
+}
+
+/// A flower: six petals from a polar SDF, saturated magenta with lit edges, on deep green.
+pub fn flower_pixels(w: u32, h: u32) -> Vec<u8> {
+    let (sw, sh) = (w as f32, h as f32);
+    let (cx, cy) = (sw * 0.5, sh * 0.5);
+    let s = sw.min(sh);
+    rgba(w, h, |x, y| {
+        let (dx, dy) = ((x - cx) / s, (y - cy) / s);
+        let r = (dx * dx + dy * dy).sqrt();
+        let a = dy.atan2(dx);
+        let leaf = fbm(x * 0.02, y * 0.02, 4);
+        let mut c = mix3([0.0, 0.07, 0.03], [0.05, 0.28, 0.10], leaf * smooth(0.7, 0.2, r));
+        // Two rings of petals.
+        for (k, (n, len, rot, col)) in [(6.0f32, 0.42f32, 0.0f32, [0.95f32, 0.12, 0.45]), (6.0, 0.30, 0.52, [1.0, 0.35, 0.60])].into_iter().enumerate() {
+            let p = ((a + rot) * n * 0.5).cos().abs();
+            let edge = len * p.powf(0.7);
+            if r < edge {
+                let t = r / edge;
+                let shade = 0.35 + 0.65 * (1.0 - t * 0.6) * (0.6 + 0.4 * p);
+                let mut pc = scale3(col, shade);
+                pc = add3(pc, scale3([1.0, 0.85, 0.9], smooth(0.82, 1.0, t) * 0.55));
+                let vein = ((a + rot) * n * 4.0).sin().abs();
+                pc = scale3(pc, 1.0 - 0.12 * smooth(0.9, 1.0, vein) * (1.0 - t));
+                c = if k == 0 { pc } else { mix3(c, pc, 1.0) };
+            }
+        }
+        if r < 0.085 { let t = r / 0.085; c = mix3([1.0, 0.85, 0.2], [0.55, 0.25, 0.02], t); if hash((x * 0.5) as i32, (y * 0.5) as i32) > 0.7 { c = scale3(c, 0.6); } }
+        c
+    })
+}
+
 fn mix3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] { [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t] }
 fn add3(a: [f32; 3], b: [f32; 3]) -> [f32; 3] { [a[0] + b[0], a[1] + b[1], a[2] + b[2]] }
 fn scale3(a: [f32; 3], k: f32) -> [f32; 3] { [a[0] * k, a[1] * k, a[2] * k] }

@@ -9,7 +9,7 @@ use crate::widgets::{Edit, Spec, TextEdit, Variant, button_as, choice, number, t
 use taffy::AlignItems;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum PreMsg { From(usize), To(usize), Play, Export, Import, Json(TextEdit) }
+pub enum PreMsg { From(usize), To(usize), Play, Export, Recipe, Import, Json(TextEdit) }
 
 /// The numbers of the target preset that get controls: its interaction, its transition, and its
 /// looseness and lattice. Paths as `Preset::numbers` names them.
@@ -51,6 +51,11 @@ pub fn update(s: &mut Gallery, m: PreMsg) {
         // The button is a commit: the frame as it was stays, and the target's transition plays over it.
         PreMsg::Play => s.apply_style(s.pre_to),
         PreMsg::Export => { s.pre_json = TextEdit::new(&s.presets[s.pre_to].to_json()); s.pre_note = format!("{} 的数据（可以复制，改了以后按“导入”）", s.presets[s.pre_to].name); }
+        PreMsg::Recipe => { s.pre_json = TextEdit::new(&s.presets[s.pre_to].recipe()); s.pre_note = format!("{} 的配方：和内置的差别，可以放进网址的 # 后面，或粘贴回来导入", s.presets[s.pre_to].name); }
+        PreMsg::Import if s.pre_json.text.trim().trim_start_matches('#').starts_with(crate::preset::RECIPE_PREFIX) => match Preset::from_recipe(&s.pre_json.text) {
+            Ok(p) => { s.pre_note = format!("已导入配方：{}", p.name); let i = s.presets.iter().position(|q| q.hash == p.hash).unwrap_or(s.pre_to); s.presets[i] = p; s.pre_to = i; }
+            Err(e) => s.pre_note = e.to_string(),
+        },
         PreMsg::Import => match Preset::from_json(&s.pre_json.text) {
             Ok(p) => { s.pre_note = format!("已导入：{}", p.name); s.presets[s.pre_to] = p; }
             Err(e) => s.pre_note = e.to_string(),
@@ -79,9 +84,10 @@ pub fn page(s: &Gallery) -> El<Msg> {
     }
     let json = col().key("presets/json-col").fill_width().gap(10.0)
         .child(row().gap(10.0)
-            .child(button_as("presets/export", "导出", Variant::Default, Msg::Preset(PreMsg::Export)))
+            .child(button_as("presets/recipe", "复制配方", Variant::Default, Msg::Preset(PreMsg::Recipe)))
+            .child(button_as("presets/export", "导出 JSON", Variant::Default, Msg::Preset(PreMsg::Export)))
             .child(button_as("presets/import", "导入", Variant::Default, Msg::Preset(PreMsg::Import))))
-        .child(textarea("presets/json", &s.pre_json, "预设的 JSON：导出后复制，或粘贴一份再导入", 880.0, 6, 20000, |t| Msg::Preset(PreMsg::Json(t))))
+        .child(textarea("presets/json", &s.pre_json, "配方（look:v1:…）或预设的 JSON：复制，或粘贴一份再导入", 880.0, 6, 20000, |t| Msg::Preset(PreMsg::Json(t))))
         .child(text(s.pre_note.clone(), 13.0, Paint::DIM).key("presets/note"));
     col().key("presets/page").fill_width().max_width(1000.0).gap(30.0)
         .child(header(s, h, "风格切换", "preset::Preset · Transition", "每个风格是一份数据：主题、材质和它的参数、字体、标注、交互的性格，和一段过渡。过渡是几个步骤拼成的小程序（按形状揭开、错位的带、淡入、光条、色块、松开、分层、融化、检测框、刻、先画轮廓、撕开），每一步几个数。切到一个风格、进入这个风格的页面，都用目标风格的过渡；过渡中途再切，从此刻的画面接着过渡；输入一直可用。"))

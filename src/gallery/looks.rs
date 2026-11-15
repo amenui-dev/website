@@ -37,7 +37,9 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
     let sz = s.theme().sizes;
     let collage = m == Material::Collage.id();
     let over = |e: El<Msg>, id: Material| if collage { e.material(id.id()) } else { e };
-    let left = col().key(format!("{h}/left")).width(430.0).gap(18.0)
+    // On a narrow window both columns take what is left inside the specimen's margins.
+    let fit = |w: f32| w.min((s.width - if s.width < super::NARROW { 36.0 + 72.0 } else { super::RAIL + 180.0 }).max(160.0));
+    let left = col().key(format!("{h}/left")).width(fit(430.0)).gap(18.0)
         .child(over(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/headline")), Material::Lino))
         .child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时，文字、形状和图片按各自的轮廓松开，再合拢回来。",
             sz.body, (sz.body * 1.7).round(), Paint::TEXT).key(format!("{h}/body")))
@@ -46,9 +48,9 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
             .child(button_as(format!("{h}/save"), "保存", Variant::Accent, Msg::Press))
             .child(segmented(&format!("{h}/seg"), &["日", "周", "月"], s.pick.min(2), 30.0, Msg::Pick)))
         .child(switch(format!("{h}/switch"), "显示网格", s.on, None, Msg::Switch).width(260.0));
-    let right = col().key(format!("{h}/right")).width(360.0).gap(16.0)
+    let right = col().key(format!("{h}/right")).width(fit(360.0)).gap(16.0)
         .child(over(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).pic_fx(IMAGE_SLOT)), Material::Halftone))
-        .child(over(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(360.0), Material::Xray))
+        .child(over(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(fit(360.0)), Material::Xray))
         .child(row().key(format!("{h}/shapes")).gap(14.0).align(AlignItems::CENTER)
             .child(over(space(84.0, 84.0).radius(42.0).fill(Paint::ACCENT).key(format!("{h}/disc")), Material::Liquid))
             .child(over(space(84.0, 84.0).radius(42.0).fill(Paint::hue(1)).key(format!("{h}/disc2")), Material::Liquid))

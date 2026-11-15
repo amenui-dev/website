@@ -42,11 +42,12 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
-    col().key(format!("{h}/page")).fill_width().gap(26.0).pad(48.0, 36.0).ripple_scope().ripple(Scope::Container(None))
+    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(if s.width < super::NARROW { 18.0 } else { 48.0 }, 36.0).ripple_scope().ripple(Scope::Container(None))
         .child(row().key(format!("{h}/caption")).fill_width().gap(14.0).align(AlignItems::BASELINE).wrap()
             .child(text(st.name, 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/name")))
             .child(text(STYLE_DESC[i], 13.0, Paint::DIM).key(format!("{h}/desc")).grow(1.0)))
-        .child(body)
+        // A composition is drawn at its own size: a narrow window scrolls it sideways.
+        .child(if s.width < super::NARROW { col().key(format!("{h}/pan")).fill_width().min_width(0.0).scroll_x().child(body) } else { body })
 }
 
 fn pic(h: &str, k: &str, id: u32, w: f32) -> El<Msg> { pic_at(h, k, id, w, 0.0) }

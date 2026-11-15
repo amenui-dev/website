@@ -106,7 +106,8 @@ fn pick(label: &str, l: Locale) -> String { match label.split_once(" · ") { Som
 
 /// A block of code, selectable, with a copy button.
 fn code(k: &str, src: &str) -> El<Msg> {
-    let mut b = col().key(format!("{k}/code")).fill_width().pad(16.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).selectable();
+    // Code keeps its lines: a narrow window scrolls them sideways rather than widening the page.
+    let mut b = col().key(format!("{k}/code")).fill_width().min_width(0.0).scroll_x().pad(16.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).selectable();
     for (j, line) in src.lines().enumerate() { b = b.child(text(if line.is_empty() { " ".to_owned() } else { line.to_owned() }, 12.5, Paint::TEXT).font(Font::Mono).key(format!("{k}/code/{j}"))); }
     col().key(k.to_owned()).gap(6.0).fill_width()
         .child(row().key(format!("{k}/bar")).child(space(0.0, 0.0).grow(1.0)).child(button_as(format!("{k}/copy"), &tr("docs.copy"), Variant::Quiet, Msg::Copy(src.to_owned())).height(24.0)))
@@ -114,7 +115,7 @@ fn code(k: &str, src: &str) -> El<Msg> {
 }
 /// One section of a page: its heading (in the outline) and body.
 fn section(page: &str, i: usize, title: &str, body: El<Msg>) -> El<Msg> {
-    col().key(format!("doc/{page}/sec{i}")).gap(12.0).fill_width()
+    col().key(format!("doc/{page}/sec{i}")).gap(12.0).fill_width().min_width(0.0)
         .child(text(title, 20.0, Paint::INK).font(Font::Display).heading(2).key(format!("doc/{page}/sec{i}/h")))
         .child(body)
 }
@@ -139,10 +140,16 @@ fn prev_next(s: &Gallery) -> El<Msg> {
     if at + 1 < all.len() { let p = all[at + 1]; r = r.child(button_as("doc/next", &format!("{} →", p.name()), Variant::Default, Msg::Go(p))); }
     r
 }
+/// The width a documentation page's text is set in: the window less the rail, the margins and (on a
+/// wide window) the outline; on a narrow window, the window less its two margins.
+pub fn doc_w(s: &Gallery, max: f32) -> f32 {
+    if s.width < super::NARROW { return (s.width - 36.0).max(200.0); }
+    (s.width - 220.0 - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, max)
+}
 /// A page and its outline side by side, prev / next under it.
 fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) -> El<Msg> {
     let wide = s.width > 1180.0;
-    let mut r = row().key(format!("doc/{page}/frame")).fill_width().gap(40.0).align(AlignItems::START).child(col().key(format!("doc/{page}/col")).grow(1.0).shrink().gap(30.0).max_width(860.0).child(body).child(prev_next(s)));
+    let mut r = row().key(format!("doc/{page}/frame")).fill_width().gap(40.0).align(AlignItems::START).child(col().key(format!("doc/{page}/col")).grow(1.0).shrink().min_width(0.0).gap(30.0).max_width(860.0).child(body).child(prev_next(s)));
     if wide { r = r.child(outline(s, page, titles)); }
     r
 }
@@ -150,7 +157,7 @@ fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) ->
 /// A prose page (开始, 概念).
 pub fn prose(s: &Gallery, i: usize) -> El<Msg> {
     let src = source(i, s.locale);
-    let w = (s.width - 220.0 - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, 820.0);
+    let w = doc_w(s, 820.0);
     let (body, out) = crate::markdown::render(src, &format!("doc/{}/md", DOCS[i]), w, &|t| link(t));
     // The outline lists the page's second-level headings, by their keys.
     frame(s, DOCS[i], body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
@@ -158,7 +165,7 @@ pub fn prose(s: &Gallery, i: usize) -> El<Msg> {
 /// A For-AI page, the registry, or the changelog.
 pub fn ai(s: &Gallery, i: usize) -> El<Msg> {
     let (hash, _, src) = AI[i];
-    let w = (s.width - 220.0 - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, 820.0);
+    let w = doc_w(s, 820.0);
     // llms.txt is plain text: shown as a block of code.
     let body = if hash == "ai-llms" { col().key("doc/ai-llms/md").gap(14.0).child(text(tr("docs.ai.llms"), 30.0, Paint::INK).font(Font::Display).heading(1)).child(code("doc/ai-llms/txt", src)) }
         else { crate::markdown::render(src, &format!("doc/{hash}/md"), w, &|t| link(t)).0 };
@@ -170,7 +177,7 @@ pub fn registry(s: &Gallery) -> El<Msg> {
     for it in items() { md.push_str(&format!("| [{}](#{}) | `{}` | `{}` |\n", it.name, page_hash(&it.name), it.functions.join(", "), it.files.join(", "))); }
     md.push_str(&format!("\n## {}\n\n", tr("docs.recipes")));
     for (n, _, what) in crate::recipes::RECIPES { md.push_str(&format!("- [{n}](#recipe-{n}): {what}\n")); }
-    let w = (s.width - 220.0 - 80.0).clamp(280.0, 900.0);
+    let w = doc_w(s, 900.0);
     let (body, _) = crate::markdown::render(&md, "doc/ai-registry/md", w, &|t| link(t));
     frame(s, "ai-registry", body, &[])
 }
@@ -207,36 +214,36 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let tabs = row().key(format!("doc/{h}/tabs")).gap(4.0).role(Role::TabList)
         .child(tab(&h, 0, &tr("docs.tab.preview"), s.doc_tab == 0)).child(tab(&h, 1, &tr("docs.tab.code"), s.doc_tab == 1));
     let pane = if s.doc_tab == 1 { code(&format!("doc/{h}/source"), ex_src) }
-        else { col().key(format!("doc/{h}/preview")).fill_width().pad(40.0, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(shown) };
-    let mut preview = col().key(format!("doc/{h}/preview-col")).gap(10.0).fill_width().child(tabs).child(pane);
+        else { col().key(format!("doc/{h}/preview")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 16.0 } else { 40.0 }, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(shown) };
+    let mut preview = col().key(format!("doc/{h}/preview-col")).gap(10.0).fill_width().min_width(0.0).child(tabs).child(pane);
     if let Some(p) = params { preview = preview.child(p); }
     // 2. Installation: the add command and the files it copies.
     let files = crate::add::files(REGISTRY, &[name]).unwrap_or_default();
-    let install = col().key(format!("doc/{h}/install")).gap(10.0).fill_width()
+    let install = col().key(format!("doc/{h}/install")).gap(10.0).fill_width().min_width(0.0)
         .child(text_lh(tr("docs.install.lead"), 15.0, 26.0, Paint::TEXT))
         .child(code(&format!("doc/{h}/add"), &format!("cargo run --release --bin lab -- add {name} --to ../my-app")))
         .child(text_lh(format!("{}: {}", tr("docs.install.files"), files.join(", ")), 13.0, 22.0, Paint::DIM));
     // 3. Usage: the first example's code.
-    let usage = col().key(format!("doc/{h}/usage")).gap(10.0).fill_width()
+    let usage = col().key(format!("doc/{h}/usage")).gap(10.0).fill_width().min_width(0.0)
         .child(code(&format!("doc/{h}/use"), &format!("use lab::widgets::{{{}}};\n\n{}", it.functions.join(", "), examples.first().map(|e| e.1.clone()).unwrap_or_default())));
     // 4. Examples: every one, a preview and its code.
-    let mut exs = col().key(format!("doc/{h}/examples")).gap(18.0).fill_width();
+    let mut exs = col().key(format!("doc/{h}/examples")).gap(18.0).fill_width().min_width(0.0);
     let all_previews: Vec<El<Msg>> = first.into_iter().chain(previews.into_iter().map(as_msg)).collect();
     for (j, ((label, c), p)) in examples.iter().zip(all_previews).enumerate() {
         let p = p.rekey(&format!("doc/{h}/ex{j}/k"));
         exs = exs.child(col().key(format!("doc/{h}/ex{j}")).gap(8.0).fill_width()
             .child(text(pick(label, l), 15.0, Paint::INK).key(format!("doc/{h}/ex{j}/label")))
-            .child(col().key(format!("doc/{h}/ex{j}/box")).fill_width().pad(24.0, 20.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(p))
+            .child(col().key(format!("doc/{h}/ex{j}/box")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 12.0 } else { 24.0 }, 20.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(p))
             .child(code(&format!("doc/{h}/ex{j}/src"), c)));
     }
     // 5. API: from the registry and the widget's own header.
     let api_md = format!("| | |\n|---|---|\n| {} | `{}` |\n| {} | {} |\n| {} | `{}` |\n| {} | {} |\n| {} | {} |\n| {} | {} |\n",
         tr("docs.api.functions"), it.functions.join("`, `"), tr("docs.api.props"), header_line(src, "Props:"), tr("docs.api.files"), it.files.join("`, `"),
         tr("docs.api.deps"), it.deps.join(", "), tr("docs.api.response"), it.response, tr("docs.api.recompose"), it.recompose);
-    let api = crate::markdown::render(&api_md, &format!("doc/{h}/api"), 780.0, &|t| link(t)).0;
+    let api = crate::markdown::render(&api_md, &format!("doc/{h}/api"), doc_w(s, 780.0), &|t| link(t)).0;
     // 6. Keyboard and accessibility.
     let kb_md = format!("| | |\n|---|---|\n| {} | {} |\n| {} | {} |\n", tr("docs.kb.states"), header_line(src, "States:"), tr("docs.kb.keys"), header_line(src, "Messages:"));
-    let kb = crate::markdown::render(&kb_md, &format!("doc/{h}/kb"), 780.0, &|t| link(t)).0;
+    let kb = crate::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0;
     // 7. Under every material: the first example, small, once per material.
     let mut strip = row().key(format!("doc/{h}/mats")).wrap().gap(10.0).fill_width();
     let first_ex = crate::recipes::components::examples(example_name(name)).into_iter().next();
@@ -251,7 +258,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
         }
     }
     let secs = [preview, install, usage, exs, api, kb, strip];
-    let mut body = col().key(format!("doc/{h}")).gap(34.0).fill_width().child(head);
+    let mut body = col().key(format!("doc/{h}")).gap(34.0).fill_width().min_width(0.0).child(head);
     for (i, (t, b)) in titles.iter().zip(secs).enumerate() { body = body.child(section(&h, i, t, b)); }
     let outline: Vec<(String, String)> = titles.iter().enumerate().map(|(i, t)| (t.clone(), format!("doc/{h}/sec{i}"))).collect();
     frame(s, &h, body, &outline)

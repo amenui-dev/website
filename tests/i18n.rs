@@ -56,13 +56,13 @@ fn the_film_in_english_has_every_text_and_no_chinese() {
     }
     let missed = i18n::misses();
     assert!(missed.is_empty(), "keys with no text: {missed:?}");
-    // The sentence followed the language; switching back is one message, laid out again.
-    assert_eq!(ui.state.film.sentence.text, Locale::En.tr("film.sentence"));
+    // The note followed the language; switching back is one message, laid out again.
+    assert_eq!(ui.state.film.note.text, Locale::En.tr("film.c01.note-default"));
     let views = ui.counters().views;
     gallery::update(&mut ui.state, Msg::Locale(Locale::ZhHans));
     ui.relayout();
     assert!(ui.counters().views > views);
-    assert_eq!(ui.state.film.sentence.text, Locale::ZhHans.tr("film.sentence"));
+    assert_eq!(ui.state.film.note.text, Locale::ZhHans.tr("film.c01.note-default"));
     assert!(ui.export_tree().find("film/caption").and_then(|n| n.text.clone()).is_some_and(|t| cjk(&t)));
 }
 

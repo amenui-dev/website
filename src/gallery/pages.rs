@@ -1,7 +1,7 @@
 //! The pages of the gallery: one per component, one per mark set, and the type. Every component page
 //! has the same parts, top to bottom: title, one sentence, 预览, 变体, 参数, 源码.
 use super::{Gallery, IMAGE_SLOT, MARK_SLOT, Msg, Page, Target, WIPE_SPEC};
-use crate::demo::{self, BUST, PICTURE_NAMES, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
+use crate::demo::{self, BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use crate::el::{El, Font, Paint, Response, Scope, col, picture, row, space, stack, text, text_lh};
 use crate::morph::{Ease, FlowSpec, MorphSpec};
 use crate::style::set;
@@ -109,7 +109,7 @@ pub(crate) fn header(s: &Gallery, h: &str, title: &str, ident: &str, desc: &str)
 }
 
 pub(crate) fn section(h: &str, name: &str, body: El<Msg>) -> El<Msg> {
-    col().key(format!("{h}/{name}")).gap(12.0).fill_width()
+    col().key(format!("{h}/{name}")).gap(12.0).fill_width().min_width(0.0)
         .child(text(name, 13.0, Paint::DIM).heading(2))
         .child(body)
 }
@@ -175,7 +175,7 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
     let (live, vars) = component(s, c);
     // The documentation page (docs.rs) in its fixed order; the gallery's own live preview, its numbers,
     // its states and (button, list) the ripple and scroll sections go under the preview.
-    let extra = col().key(format!("{h}/page")).fill_width().gap(24.0)
+    let extra = col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(24.0)
         .children((c == BUTTON).then(|| section(h, "涟漪", ripple(s))))
         .children((c == LIST).then(|| section(h, "滚动", scrolling(s))))
         .child(section(h, "变体", variants(h, vars)))
@@ -456,6 +456,14 @@ const MARK_DESC: [&str; set::COUNT] = [
     "横线的粗细随亮度变化。",
     "带一圈辉光的软边光点，暗处没有。",
     "短线，方向跟着图片的明暗走。",
+    "一格一盏圆角的灯：亮的地方灯亮，暗的地方只剩一个很淡的灯位，像点阵屏。",
+    "盲文的 2 × 4 个点：越亮点越多，点的位置不变，读起来像一页凸点。",
+    "一格一个等轴测的小立方体：顶面最亮，左右两面一明一暗，越亮立方体越大。",
+    "六角形的格子，四周留一道细缝，越亮越满。",
+    "点刻：大小一样的小点，越亮点越多，位置按格子打散，看不出规律。",
+    "交叉线：越亮线越多，从一个方向到四个方向，像钢笔排线。",
+    "特鲁谢拼块：每格两段四分之一圆弧，相邻的格子连成曲线，越亮线越粗。",
+    "等高线：一格里一圈圈同心的线，越亮线越粗，连起来像地图上的等高线。",
 ];
 
 fn pic_value(f: &crate::style::PicFx, i: usize) -> f32 { let mut c = *f; let (v, k) = demo::pic_slot(&mut c, i); *v * k }
@@ -470,10 +478,39 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         let t = Target::Pic(k, i);
         nums = nums.child(number(&format!("{h}/p{i}"), prm.name, pic_value(f, i), prm.spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
-    let view = col().fill_width().gap(14.0)
-        .child(row().child(segmented(&format!("{h}/picture-choice"), &PICTURE_NAMES, s.shown as usize, 30.0, |i| Msg::Show(i as u32))))
-        .child(col().max_width(820.0).child(picture(s.shown, ph as f32 / w as f32).key(format!("{h}/picture")).pic_fx(MARK_SLOT).wipe(s.wipe).on_drag(|x, _| Msg::Wipe(x))))
-        .child(text_lh("对比线左侧是原图，右侧是完全松开后的记号。拖动图片可以移动这条线。", 13.0, 22.0, Paint::DIM))
+    // The comparison, as the film's prologue has it: a framed picture, the original left of a divider
+    // with a round handle and the marks right of it, small capital tags in the top corners, and the
+    // sets as a row of plain text chips along the frame's bottom edge, by family.
+    let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::RAIL - 120.0 }).clamp(240.0, 820.0);
+    let phh = pw * ph as f32 / w as f32;
+    let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore);
+    let hx = pw * s.wipe;
+    let mut chips = row().key(format!("{h}/chips")).wrap().gap(4.0).width(pw - 20.0);
+    for (fi, (fam, sets)) in set::FAMILIES.iter().enumerate() {
+        if fi > 0 { chips = chips.child(space(10.0, 1.0)); }
+        chips = chips.child(text(fam.to_string(), 10.0, Paint::DIM).key(format!("{h}/fam{fi}")));
+        for &j in sets.iter() {
+            let on = j == k;
+            chips = chips.child(col().key(format!("{h}/chip{j}")).pad(7.0, 3.0).fill(if on { Paint::INK } else { Paint::GROUND }).on_press(Msg::Go(Page::Marks(j))).role(crate::el::Role::Link).focusable(true)
+                .child(text(set::NAMES[j as usize], 11.0, if on { Paint::GROUND } else { Paint::TEXT }).key(format!("{h}/chip{j}/t"))));
+        }
+    }
+    let frame = col().key(format!("{h}/frame")).width(pw).height(phh)
+        .child(picture(s.shown, ph as f32 / w as f32).key(format!("{h}/picture")).width(pw).pic_fx(MARK_SLOT).wipe(s.wipe).on_drag(|x, _| Msg::Wipe(x)).absolute(Some(0.0), Some(0.0), None, None))
+        .child(space(1.5, phh).fill(Paint::INK).key(format!("{h}/divider")).respond(Response::Ignore).absolute(Some(hx - 0.75), Some(0.0), None, None))
+        .child(col().key(format!("{h}/handle")).width(26.0).height(26.0).radius(13.0).fill(Paint::GROUND).border(1.5, Paint::INK).respond(Response::Ignore).absolute(Some(hx - 13.0), Some(phh * 0.5 - 13.0), None, None))
+        .child(tag("原图 · BEFORE", "before").absolute(Some(10.0), Some(8.0), None, None))
+        .child(row().key(format!("{h}/after-row")).width(pw).pad(10.0, 0.0).justify(JustifyContent::END).respond(Response::Ignore).absolute(Some(0.0), Some(8.0), None, None)
+            .child(tag(&format!("{} · AFTER", set::NAMES[k as usize]), "after")));
+    let pick: [u32; 7] = [demo::SPHERE, demo::SKY, demo::TERRAIN, demo::BUST, demo::DUSK, demo::PLANET, demo::FLOWER];
+    let pick_names = ["球", "天空", "地形", "胸像", "黄昏", "行星", "花"];
+    let at = pick.iter().position(|&i| i == s.shown).unwrap_or(0);
+    let view = col().fill_width().min_width(0.0).gap(14.0)
+        .child(row().child(segmented(&format!("{h}/picture-choice"), &pick_names, at, 30.0, move |i| Msg::Show(pick[i.min(6)]))))
+        .child(space(pw, 1.0).fill(Paint::FAINT).key(format!("{h}/rule-top")))
+        .child(frame)
+        .child(chips)
+        .child(space(pw, 1.0).fill(Paint::FAINT).key(format!("{h}/rule-bottom")))
         .child(number(&format!("{h}/wipe"), "对比线位置", s.wipe, WIPE_SPEC, s.draft(Target::Wipe), |e| Msg::Num(Target::Wipe, e)).width(330.0));
     col().key(format!("{h}/page")).fill_width().max_width(980.0).gap(34.0)
         .child(header(s, h, set::NAMES[k as usize], &format!("set::{}", super::MARK_HASH[k as usize].to_uppercase()), MARK_DESC[k as usize]))
@@ -503,11 +540,20 @@ fn type_page(s: &Gallery) -> El<Msg> {
     for m in [1.0f32, 2.0, 3.0] {
         mono = mono.child(line(format!("type/departure/{m}"), format!("Departure Mono {}", 11.0 * m), 11.0 * m, MONO));
     }
+    // Geist Pixel: five shapes of the same pixel grid, Latin only.
+    let mut geist = col().key("type/geist").gap(10.0).fill_width();
+    for (i, name) in crate::text::GEIST_NAMES.iter().enumerate() {
+        let face = crate::text::GEIST_PIXEL[i];
+        geist = geist.child(row().key(format!("type/geist/{name}")).gap(20.0).align(AlignItems::BASELINE)
+            .child(row().width(150.0).child(text(format!("Geist Pixel {name}"), 12.0, Paint::DIM).font(Font::Face(MONO))))
+            .child(text("Interface as material 0123", 28.0, Paint::INK).font(Font::Face(face)).grow(1.0)));
+    }
     col().key("type/page").fill_width().max_width(980.0).gap(34.0)
         .child(header(s, h, "字号与字体", "Theme::sizes", "主题的字号阶，以及两套像素字体。像素字体只按字面的整数倍显示，笔画边缘只有墨色和底色。"))
         .child(section(h, "比例字体 Noto Sans SC", sans))
         .child(section(h, "像素字体 Fusion Pixel 12", pixel))
         .child(section(h, "像素字体 Departure Mono 11", mono))
+        .child(section(h, "像素字面 Geist Pixel（五种形状，只有西文）", geist))
         .child(space(1.0, 24.0))
 }
 
@@ -543,8 +589,8 @@ const PARAGRAPH: &str = "屏幕上的任何东西都能散成粒子，飞到别�
 fn shape(s: &Gallery, i: usize) -> El<Msg> {
     let k = Gallery::shape_key(i);
     let el = match i {
-        0 => text_lh("变换", 120.0, 150.0, Paint::INK).font(Font::Display).key(k),
-        1 => col().key(k).width(460.0).child(text_lh(PARAGRAPH, 17.0, 30.0, Paint::TEXT)),
+        0 => { let z = if s.width < super::NARROW { 0.6 } else { 1.0 }; text_lh("变换", 120.0 * z, 150.0 * z, Paint::INK).font(Font::Display).key(k) }
+        1 => col().key(k).width(460.0f32.min(s.width - 60.0)).child(text_lh(PARAGRAPH, 17.0, 30.0, Paint::TEXT)),
         2 => col().key(k).width(460.0).child(picture(SPHERE, 0.5).key("morph/picture").pic_fx(IMAGE_SLOT)),
         3 => space(220.0, 220.0).key(k).radius(110.0).fill(Paint::ACCENT),
         4 => space(220.0, 220.0).key(k).radius(110.0).border(18.0, Paint::INK),
@@ -557,7 +603,7 @@ fn shape(s: &Gallery, i: usize) -> El<Msg> {
 fn morph_page(s: &Gallery) -> El<Msg> {
     let h = "morph";
     let stage = stack((0..MORPH_NAMES.len()).map(|i| shape(s, i))).key("morph/stage").fill_width().height(400.0).radius(6.0).border(1.0, Paint::FAINT);
-    let controls = row().key("morph/controls").wrap().gap(12.0).align(AlignItems::CENTER)
+    let controls = row().key("morph/controls").wrap().gap(12.0).min_width(0.0).align(AlignItems::CENTER)
         .child(text("变成", 13.0, Paint::DIM))
         .child(segmented("morph/targets", &MORPH_NAMES, s.shape, 30.0, Msg::MorphTo))
         .child(button_as("morph/back", "反向", Variant::Default, Msg::MorphBack).disabled(s.shape_before.is_none()));
