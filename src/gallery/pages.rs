@@ -114,10 +114,6 @@ pub(crate) fn section(h: &str, name: &str, body: El<Msg>) -> El<Msg> {
         .child(body)
 }
 
-/// The live component on the page ground, with room around it.
-fn preview(h: &str, body: El<Msg>) -> El<Msg> {
-    col().key(format!("{h}/preview")).fill_width().pad(40.0, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(body)
-}
 
 /// Every variant and state, each with a small caption.
 fn variants(h: &str, items: Vec<(&str, El<Msg>)>) -> El<Msg> {
@@ -177,15 +173,15 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
     let comp = &COMPONENTS[c];
     let h = comp.hash;
     let (live, vars) = component(s, c);
-    col().key(format!("{h}/page")).fill_width().max_width(980.0).gap(34.0)
-        .child(header(s, h, comp.title, comp.func, comp.desc))
-        .child(section(h, "预览", preview(h, live)))
+    // The documentation page (docs.rs) in its fixed order; the gallery's own live preview, its numbers,
+    // its states and (button, list) the ripple and scroll sections go under the preview.
+    let extra = col().key(format!("{h}/page")).fill_width().gap(24.0)
         .children((c == BUTTON).then(|| section(h, "涟漪", ripple(s))))
         .children((c == LIST).then(|| section(h, "滚动", scrolling(s))))
         .child(section(h, "变体", variants(h, vars)))
         .child(section(h, "参数", params(s, c)))
-        .child(section(h, "源码", source(h, comp.file, comp.source)))
-        .child(space(1.0, 24.0))
+        .child(section(h, "源码", source(h, comp.file, comp.source)));
+    super::docs::component(s, super::docs::COMP_NAMES[c], Some(live), Some(extra))
 }
 
 fn shown(e: Edit) -> Msg { Msg::Num(Target::Shown, e) }

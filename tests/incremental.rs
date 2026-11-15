@@ -84,7 +84,10 @@ fn the_wheel_does_not_lay_out_or_shape() {
         for _ in 0..6 { ui.wheel(x, y, 90.0); }
         let c1 = ui.counters();
         assert!(ui.scroll_offset(&main) > 0.0, "{page} scrolled");
-        assert_eq!((c1.layouts, c1.shaped, c1.views), (c0.layouts, c0.shaped, c0.views), "{page}: the wheel only moves things");
+        assert_eq!((c1.layouts, c1.views), (c0.layouts, c0.views), "{page}: the wheel only moves things");
+        // A text first drawn when it scrolls into view can be shaped once at its drawn width (a
+        // documentation page's text whose box gives its width): never more than a couple.
+        assert!(c1.shaped <= c0.shaped + 2, "{page}: shaped {} → {}", c0.shaped, c1.shaped);
         assert!(c1.scenes > c0.scenes);
     }
 }

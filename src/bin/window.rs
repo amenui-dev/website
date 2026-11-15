@@ -238,6 +238,8 @@ impl ApplicationHandler for App {
                 drop(view);
                 s.r.queue().present(frame);
                 s.frames += 1;
+                // A copy button asked for the clipboard.
+                if let Some(t) = s.ui.state.clipboard.take() { let _ = clipboard(|c| c.set_text(t)); }
                 if std::env::var_os("WINDOW_TRACE").is_some() { eprintln!("frame {:.0} ms", t0.elapsed().as_secs_f32() * 1000.0); }
             }
             _ => {}

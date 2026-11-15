@@ -2,6 +2,7 @@
 //! components, the mark sets and the type; each component has a page with a live preview, every
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
+pub mod docs;
 pub mod film;
 pub mod mechanism;
 mod looks;
@@ -31,7 +32,7 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 220.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Film, Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
+pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke"];
 
@@ -39,7 +40,9 @@ impl Page {
     /// Every page, in rail order.
     pub fn all() -> Vec<Page> {
         let mut v: Vec<Page> = vec![Page::Film];
+        v.extend((0..docs::DOCS.len() as u8).map(Page::Doc));
         v.extend(comp_pages());
+        v.extend((0..docs::widget_names().len() as u8).map(Page::Widget));
         v.extend((0..set::COUNT as u8).map(Page::Marks));
         v.extend((0..MATERIAL_COUNT as u8).map(Page::Material));
         v.push(Page::Gaze);
@@ -50,12 +53,17 @@ impl Page {
         v.push(Page::Demo);
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
+        v.extend([Page::Ai(0), Page::Ai(1), Page::Registry, Page::Ai(2)]);
         v
     }
     /// The page's address on the web: plain ASCII words, so a page can be linked.
     pub fn hash(self) -> String {
         match self {
             Page::Film => "film".into(),
+            Page::Doc(i) => format!("docs-{}", docs::DOCS[i as usize]),
+            Page::Ai(i) => docs::AI[i as usize].0.into(),
+            Page::Registry => "ai-registry".into(),
+            Page::Widget(i) => docs::page_hash(&docs::widget_names()[i as usize]),
             Page::Comp(i) => COMPONENTS[i].hash.to_owned(),
             Page::LongList => "list-10k".into(),
             Page::Marks(s) => format!("marks-{}", MARK_HASH[s as usize]),
@@ -79,9 +87,29 @@ impl Page {
         if h.is_empty() || h == "gallery" { return Some(Page::Comp(0)); }
         Page::all().into_iter().find(|p| p.hash() == h)
     }
-    pub fn name(self) -> &'static str {
+    /// The page's name in the current language.
+    pub fn name(self) -> String {
+        let l = crate::i18n::current();
+        let en = l == crate::i18n::Locale::En;
+        let zh = self.name_zh();
         match self {
-            Page::Film => "影片",
+            Page::Film => crate::i18n::tr("shell.film"),
+            Page::Doc(i) => docs::title(i as usize, l),
+            Page::Ai(i) => crate::i18n::tr(docs::AI[i as usize].1),
+            Page::Registry => crate::i18n::tr("docs.ai.registry"),
+            Page::Widget(i) => { let n = docs::widget_names()[i as usize].clone(); if en { n.replace('_', " ") } else { docs::items().into_iter().find(|it| it.name == n).map_or(n, |it| it.title) } }
+            Page::Comp(i) if en => docs::COMP_NAMES[i].replace('-', " "),
+            _ if en => match self {
+                Page::LongList => "10,000 rows".into(), Page::Gaze => "Annotation".into(), Page::Morph => "Morph".into(), Page::Particles => "Particles".into(),
+                Page::Flow => "Page change".into(), Page::Three => "3D".into(), Page::Presets => "Switching styles".into(), Page::Type => "Type".into(),
+                Page::Demo => "Skeleton demo".into(), Page::Scenes => "All scenes".into(), _ => zh.to_owned(),
+            },
+            _ => zh.to_owned(),
+        }
+    }
+    fn name_zh(self) -> &'static str {
+        match self {
+            Page::Film | Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) => "",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -144,6 +172,14 @@ pub enum Msg {
     Go(Page),
     /// Switch the language (DESIGN.md §1.20): everything is laid out again; keyed text recomposes.
     Locale(crate::i18n::Locale),
+    /// A component page's 预览 / 代码 tab; an outline entry (scroll to that key); the search over every
+    /// page (open, its query, run row `i`); a copy button (its text for the clipboard).
+    DocTab(usize),
+    Outline(String),
+    Search(bool),
+    SearchQuery(TextEdit),
+    SearchRun(usize),
+    Copy(String),
     Theme(usize),
     Material(usize),
     Reset,
@@ -242,6 +278,14 @@ pub struct Gallery {
     pub cmds: Vec<Cmd>,
     /// The language everything is shown in.
     pub locale: crate::i18n::Locale,
+    /// The documentation: the component page's tab, the outline entry in view, the search, and text
+    /// a copy button asked the host to put on the clipboard.
+    pub doc_tab: usize,
+    pub outline_at: usize,
+    pub search: bool,
+    pub search_q: TextEdit,
+    pub search_active: usize,
+    pub clipboard: Option<String>,
     /// Which top-bar menu is open (0 = none).
     pub menu: u8,
     /// Every material's numbers; the looseness the material pages hold their specimen at.
@@ -314,7 +358,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: crate::i18n::Locale::default(),
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: crate::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
             menu: 0, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -449,6 +493,12 @@ pub fn update(s: &mut Gallery, m: Msg) {
             crate::i18n::set_current(l);
             s.menu = 0;
         }
+        Msg::DocTab(i) => s.doc_tab = i.min(1),
+        Msg::Outline(k) => docs::outline_go(s, k),
+        Msg::Search(on) => { s.search = on; s.search_active = 0; if on { s.cmds.push(Cmd::Focus { key: "search/palette/query".into() }); } }
+        Msg::SearchQuery(q) => { s.search_q = q; s.search_active = 0; }
+        Msg::SearchRun(i) => docs::search_run(s, i),
+        Msg::Copy(t) => s.clipboard = Some(t),
         Msg::Theme(i) => { s.theme = i.min(THEMES.len() - 1); s.demo.theme = s.theme; s.faces = None; s.menu = 0; }
         Msg::Material(i) => { s.material = MATERIALS[i.min(MATERIALS.len() - 1)].0; s.demo.material = s.material; s.menu = 0; }
         Msg::Reset => {
@@ -546,6 +596,10 @@ pub fn view(s: &Gallery) -> El<Msg> {
         Page::Three => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(three::page(s)),
         Page::Particles => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(particles::page(s)),
         Page::Presets => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(presets::page(s)),
+        Page::Doc(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::prose(s, i as usize)),
+        Page::Ai(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::ai(s, i as usize)),
+        Page::Registry => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::registry(s)),
+        Page::Widget(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::component(s, &docs::widget_names()[i as usize], None, None)),
         Page::Scenes | Page::Scene(_) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(scenes::list(s)),
         _ => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(pages::page(s)),
     };
@@ -558,7 +612,7 @@ pub fn view(s: &Gallery) -> El<Msg> {
         root = root.child(row().key("body").grow(1.0).min_height(0.0).fill_width().align(AlignItems::STRETCH)
             .child(rail(s)).child(vdivider(th.hairline).key("rail-rule")).child(main.shrink()));
     }
-    root
+    root.child(docs::search(s))
 }
 
 /// The performance menu: the readout (its label says what pressing it does), then the qualities.
@@ -603,16 +657,21 @@ fn comp_pages() -> Vec<Page> {
 }
 
 /// The groups and their pages.
-fn groups() -> [(&'static str, Vec<Page>); 8] {
+fn groups() -> [(String, Vec<Page>); 12] {
+    let tr = crate::i18n::tr;
     [
-        ("组件", comp_pages()),
-        ("记号", (0..set::COUNT as u8).map(Page::Marks).collect()),
-        ("材质", (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
-        ("标注", vec![Page::Gaze]),
-        ("风格", std::iter::once(Page::Presets).chain((0..12u8).map(Page::Style)).collect()),
-        ("变换", vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
-        ("排版", vec![Page::Type, Page::Demo]),
-        ("场景", std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
+        (tr("nav.start"), (0..docs::START as u8).map(Page::Doc).collect()),
+        (tr("nav.concepts"), (docs::START as u8..docs::DOCS.len() as u8).map(Page::Doc).collect()),
+        (tr("nav.components"), comp_pages().into_iter().chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect()),
+        (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..12u8).map(Page::Style)).collect()),
+        (tr("nav.ai"), vec![Page::Ai(0), Page::Ai(1), Page::Registry]),
+        (tr("nav.changelog"), vec![Page::Ai(2)]),
+        (tr("nav.marks"), (0..set::COUNT as u8).map(Page::Marks).collect()),
+        (tr("nav.materials"), (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
+        (tr("nav.annotation"), vec![Page::Gaze]),
+        (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
+        (tr("nav.type"), vec![Page::Type, Page::Demo]),
+        (tr("nav.scenes"), std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
     ]
 }
 
@@ -704,9 +763,13 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
             if k == crate::el::Key::F(2) { s.overlay = !s.overlay; return true; }
+            if docs::search_key(s, k) { return true; }
+            if k == crate::el::Key::Char('/') && s.page != Page::Film { update(s, Msg::Search(true)); return true; }
             film::key(s, k, shift) || scenes::key(s, k, shift)
         })
         .on_input(|s| film::heard(s) | scenes::heard(s))
         .on_pointer(film::pointer)
         .on_key_up(scenes::key_up)
+        .on_shortcut(|s, c| { if c == 'k' { update(s, Msg::Search(!s.search)); true } else { false } })
+        .on_scrolled(docs::scrolled)
 }
