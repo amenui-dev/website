@@ -8,6 +8,8 @@ text = ''.join(p.read_text() for p in [root / 'src/demo.rs', root / 'src/style.r
 chars = set(''.join(re.findall(r'"((?:[^"\\]|\\.)*)"', text))) | {chr(c) for c in range(32, 127)}
 # Files the gallery shows whole as source: every character in them, comments included.
 chars |= set((root / 'src/morph.rs').read_text())
+# Every message of every language (assets/i18n), and the documentation pages the gallery renders.
+for p in sorted((root / 'assets/i18n').glob('*.txt')) + sorted((root / 'docs').rglob('*.md')): chars |= set(p.read_text())
 subs = []
 for name in ['NotoSansSC-Regular.otf', 'FusionPixel-12px-Proportional-zh_hans.otf', 'DepartureMono-Regular.otf']:
     sub = root / ('dist/subset-' + name)

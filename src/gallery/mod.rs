@@ -142,6 +142,8 @@ pub enum Target {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg {
     Go(Page),
+    /// Switch the language (DESIGN.md §1.20): everything is laid out again; keyed text recomposes.
+    Locale(crate::i18n::Locale),
     Theme(usize),
     Material(usize),
     Reset,
@@ -238,6 +240,8 @@ pub struct Gallery {
     pub flow: FlowSpec,
     /// Commands for the runtime, taken after every update.
     pub cmds: Vec<Cmd>,
+    /// The language everything is shown in.
+    pub locale: crate::i18n::Locale,
     /// Which top-bar menu is open (0 = none).
     pub menu: u8,
     /// Every material's numbers; the looseness the material pages hold their specimen at.
@@ -310,7 +314,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![],
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: crate::i18n::Locale::default(),
             menu: 0, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -438,6 +442,13 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::MorphBack => if let Some(b) = s.shape_before { s.morph_to(b); },
         Msg::Ease(i) => s.morph.ease = Ease::from_index(i),
         Msg::Open(o) => { if o != s.opened { s.cmds.push(Cmd::Flow(s.flow)); } s.opened = o; }
+        Msg::Locale(l) => {
+            // The film's sentence follows the language while nobody has changed it.
+            if s.film.sentence.text == s.locale.tr("film.sentence") { s.film.sentence = TextEdit::new(&l.tr("film.sentence")); }
+            s.locale = l;
+            crate::i18n::set_current(l);
+            s.menu = 0;
+        }
         Msg::Theme(i) => { s.theme = i.min(THEMES.len() - 1); s.demo.theme = s.theme; s.faces = None; s.menu = 0; }
         Msg::Material(i) => { s.material = MATERIALS[i.min(MATERIALS.len() - 1)].0; s.demo.material = s.material; s.menu = 0; }
         Msg::Reset => {
@@ -551,7 +562,7 @@ pub fn view(s: &Gallery) -> El<Msg> {
 }
 
 /// The performance menu: the readout (its label says what pressing it does), then the qualities.
-const PERF_ITEMS: [&str; 5] = ["", "质量 自动", "质量 1", "质量 0.75", "质量 0.5"];
+const PERF_ITEMS: [&str; 5] = ["", "shell.quality.auto", "shell.quality.1", "shell.quality.075", "shell.quality.05"];
 fn perf_item(s: &Gallery) -> usize {
     if s.quality == 0.0 { 1 } else { 2 + crate::perf::LEVELS.iter().position(|&l| l == s.quality).unwrap_or(0) }
 }
@@ -561,21 +572,27 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     let material_names: Vec<&str> = MATERIALS.iter().map(|m| m.1).collect();
     let style_names: Vec<&str> = styles().iter().map(|t| t.name).collect();
     let material_now = MATERIALS.iter().position(|m| m.0 == s.material);
+    let tr = crate::i18n::tr;
     let name = if matches!(s.page, Page::Scene(_)) {
-        button_as("top/back", "‹ 场景", Variant::Quiet, Msg::Go(Page::Scenes))
+        button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
     } else { text("gui-lab", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
+    let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay { "shell.readout.hide" } else { "shell.readout.show" }) } else { tr(i) }).collect();
+    let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
+    let langs: Vec<&str> = crate::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
+    let lang_now = crate::i18n::Locale::ALL.iter().position(|l| *l == s.locale);
     row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 10.0).align(AlignItems::CENTER)
         .child(name)
         .child(space(0.0, 0.0).grow(1.0))
         .child(row().key("top/controls").gap(16.0).wrap().align(AlignItems::CENTER)
-            .child(menu("perf", "性能", &PERF_ITEMS.map(|i| if i.is_empty() { if s.overlay { "隐藏读数" } else { "显示读数" } } else { i }),
+            .child(menu("perf", &tr("shell.perf"), &perf,
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
-            .child(button_as("top/film", "影片", Variant::Quiet, Msg::Go(Page::Film)))
-            .child(button_as("top/scenes", "场景", Variant::Quiet, Msg::Go(Page::Scenes)))
-            .child(menu("theme", "主题", &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
-            .child(menu("material", "材质", &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
-            .child(menu("style", "风格", &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))
-            .child(button_as("reset", "恢复默认", Variant::Default, Msg::Reset)))
+            .child(button_as("top/film", &tr("shell.film"), Variant::Quiet, Msg::Go(Page::Film)))
+            .child(button_as("top/scenes", &tr("shell.scenes"), Variant::Quiet, Msg::Go(Page::Scenes)))
+            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(crate::i18n::Locale::ALL[i.min(1)])))
+            .child(menu("theme", &tr("shell.theme"), &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
+            .child(menu("material", &tr("shell.material"), &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
+            .child(menu("style", &tr("shell.style"), &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))
+            .child(button_as("reset", &tr("shell.reset"), Variant::Default, Msg::Reset)))
 }
 
 /// The component pages: one per component, and the list's ten thousand rows right after the list.
@@ -644,7 +661,10 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
 }
 
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
-    let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
+    let mut state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
+    // Tools (reel, scroll, pages) can ask for a language: LAB_LOCALE=en.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(l) = std::env::var("LAB_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut state, Msg::Locale(l)); }
     let mut ui = crate::ui::Ui::new(state, view, update, faces, w, h, scale);
     // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
     // names them.
@@ -671,6 +691,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             scenes::tick(s, t) || changed || burst || coast || film
         })
         .on_look(|s| s.look())
+        .on_locale(|s| s.locale)
         .on_wake(|s, t| {
             // The departure board wants the next whole second; scenes say for themselves.
             let board = (s.page == Page::Style(1)).then(|| t.floor() + 1.0);

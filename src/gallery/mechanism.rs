@@ -18,22 +18,24 @@ use std::sync::OnceLock;
 
 /// The parts, by the id their group carries in picks (index + 1).
 pub const PARTS: [Part; 8] = [
-    Part { name: "后板", en: "back plate", teeth: 0 },
-    Part { name: "底板", en: "base", teeth: 0 },
-    Part { name: "大齿轮", en: "gear A", teeth: 24 },
-    Part { name: "小齿轮", en: "pinion B", teeth: 12 },
-    Part { name: "惰轮", en: "idler C", teeth: 18 },
-    Part { name: "轴", en: "shafts", teeth: 0 },
-    Part { name: "凸轮与从动杆", en: "cam & follower", teeth: 0 },
-    Part { name: "螺母与螺栓", en: "nuts & bolts", teeth: 0 },
+    Part { name: "mech.part0", teeth: 0 },
+    Part { name: "mech.part1", teeth: 0 },
+    Part { name: "mech.part2", teeth: 24 },
+    Part { name: "mech.part3", teeth: 12 },
+    Part { name: "mech.part4", teeth: 18 },
+    Part { name: "mech.part5", teeth: 0 },
+    Part { name: "mech.part6", teeth: 0 },
+    Part { name: "mech.part7", teeth: 0 },
 ];
 #[derive(Clone, Copy, Debug)]
-pub struct Part { pub name: &'static str, pub en: &'static str, pub teeth: u32 }
+/// A part: its name (a message key) and, for a gear, its tooth count.
+pub struct Part { pub name: &'static str, pub teeth: u32 }
 /// The ground disc's group id (not a part: no hover, no press).
 const GROUND: u32 = 99;
 
 /// The materials the switch offers: (name, material). The first is the two-tone drawing.
-pub const MATS: [(&str, Material); 6] = [("双色", Material::Plain), ("ASCII", Material::Ascii), ("点阵", Material::Dot), ("半色调", Material::Halftone), ("凸版", Material::Lino), ("金属", Material::Chrome)];
+/// (the name's message key, the material).
+pub const MATS: [(&str, Material); 6] = [("mech.mat0", Material::Plain), ("mech.mat1", Material::Ascii), ("mech.mat2", Material::Dot), ("mech.mat3", Material::Halftone), ("mech.mat4", Material::Lino), ("mech.mat5", Material::Chrome)];
 
 /// The gears: teeth, pitch radius, centre (x, y). They mesh: centre distances are the sums of the radii.
 const MODULE: f32 = 0.05;
@@ -274,7 +276,7 @@ pub fn anchor(m: &Mech, p: usize, aspect: f32) -> Option<(f32, f32)> {
 pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, msg: impl Fn(MMsg) -> M + Clone + 'static) -> El<M> {
     let mat = MATS[m.mat].1;
     let (a, b, c, d, e) = (msg.clone(), msg.clone(), msg.clone(), msg.clone(), msg.clone());
-    let mut v = scene3d(m.scene()).key(format!("{key}/view")).width(w).height(h).focusable(true).label("机件").cursor(crate::el::Cursor::Grab)
+    let mut v = scene3d(m.scene()).key(format!("{key}/view")).width(w).height(h).focusable(true).label(crate::i18n::tr("mech.label")).cursor(crate::el::Cursor::Grab)
         .on_drag_with(move |dr| Some(a(MMsg::Drag(dr))))
         .on_wheel(move |_, dy| Some(b(MMsg::Wheel(dy))))
         .on_key(move |k, sh| matches!(k, Key::Left | Key::Right | Key::Up | Key::Down | Key::Enter | Key::Char('[' | ']' | '+' | '=' | '-' | 'e' | 'E' | 'm' | 'M' | ',' | '.' | ' ')).then(|| c(MMsg::Key(k, sh))))
@@ -295,7 +297,8 @@ pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, 
         let (px, py) = (fx * w, fy * h);
         let ly = (h * 0.08).max(size);
         let part = &PARTS[p];
-        let label = if part.teeth > 0 { format!("{:02} {} · {} · z = {}", p + 1, part.name, part.en, part.teeth) } else { format!("{:02} {} · {}", p + 1, part.name, part.en) };
+        let name = crate::i18n::tr(part.name);
+        let label = if part.teeth > 0 { crate::t!(crate::i18n::current(), "mech.leader", i = format!("{:02}", p + 1), name = name, z = part.teeth) } else { format!("{:02} {name}", p + 1) };
         let lx = if px > w * 0.5 { (px - size * 16.0).max(0.0) } else { px };
         layers.push(space(1.0, (py - ly - size * 0.4).max(1.0)).fill(Paint::ACCENT).key(format!("{key}/leader-v")).absolute(Some(px), Some(ly + size * 0.4), None, None).respond(Response::Ignore).material(Material::Plain.id()));
         layers.push(space(size * 0.5, size * 0.5).radius(size * 0.25).fill(Paint::ACCENT).key(format!("{key}/leader-dot")).absolute(Some(px - size * 0.25), Some(py - size * 0.25), None, None).respond(Response::Ignore).material(Material::Plain.id()));
@@ -305,8 +308,8 @@ pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, 
     stack(layers).key(key.to_owned()).width(w).height(h)
 }
 
-/// The keys, for the hint line and the docs.
-pub const KEYS: &str = "拖动转动视角 · 拖齿轮转整个轮系 · 滚轮推拉 · 方向键 / [ ] / E 拆开 / M 材质 / , . 选零件 / Enter 散开";
+/// The keys, for the hint line and the docs (a message key).
+pub const KEYS: &str = "mech.keys";
 
 #[cfg(test)]
 mod tests {

@@ -27,24 +27,23 @@ use taffy::AlignItems;
 
 pub const CHAPTERS: usize = 13;
 
-/// One chapter: the preset it is in (index into `style::styles()`), its name, its caption (what it
-/// shows of the framework, in plain words) and its hint (what you can do).
-pub struct Chapter { pub style: usize, pub name: &'static str, pub caption: &'static str, pub hint: &'static str }
+/// One chapter: the preset it is in (index into `style::styles()`) and its name. Its caption (what it
+/// shows of the framework, in plain words) and hint (what you can do) are messages
+/// `film.cNN.caption` and `film.cNN.hint` in the catalogs (`Chapter::caption`, `Chapter::hint`).
+pub struct Chapter { pub style: usize, pub name: &'static str }
+impl Chapter {
+    pub fn caption(&self, i: usize) -> String { l(&format!("film.c{:02}.caption", i + 1)) }
+    pub fn hint(&self, i: usize) -> String { l(&format!("film.c{:02}.hint", i + 1)) }
+}
 pub const CH: [Chapter; CHAPTERS] = [
-    Chapter { style: 7, name: "Normcore", caption: "一张普通的设置表单。静止时什么都不动；打字立刻出现，没有过渡。", hint: "改标题（它会带到每一章） · 反色 · 数量" },
-    Chapter { style: 8, name: "Cyberminimalism", caption: "命令面板：筛选时，变了的字重新组合，没变的留在原地。", hint: "直接打字筛选 · ↑↓ 选择 · Enter 执行" },
-    Chapter { style: 6, name: "Tech-Manual", caption: "图纸：尺寸线量的是标志真实的轮廓，引线指向它的几个部分。", hint: "横向拖动标志改变大小 · 悬停零件表的一行" },
-    Chapter { style: 0, name: "Algorithmic Gaze", caption: "检测器：按下一个东西，它松开、被扫描、写出量到的数，再合上。", hint: "按一个东西（或 Tab 到它按 Enter）识别它" },
-    Chapter { style: 1, name: "Neo-Dotmatrix", caption: "点阵出发牌：每一秒，一行接一行地刷新，只有变了的数字重组。", hint: "指针放在标志上，它从点合拢" },
-    Chapter { style: 2, name: "Lo-Fi Print", caption: "小志的一页：正文绕着标志真实的轮廓排，不绕它的方框。", hint: "拖动标志，正文跟着重排 · 间隔" },
-    Chapter { style: 4, name: "Metamorphosis Linocut", caption: "一次变形：标志散成格子，拼成这句话，再刻成一张图，再变回标志。", hint: "按下进入下一形态 · 横向拖动来回拨动变形" },
-    Chapter { style: 3, name: "Glitch", caption: "信号监视器：按住撕开指针处的一带，松开把它锁在错开的位置。", hint: "在波形上按住拖动 · 错误对话框用 Tab 和 Esc" },
-    Chapter { style: 5, name: "Transparent Electronics", caption: "透明的设备：电路、元件、屏幕、玻璃各是一层，随指针错开。", hint: "移动指针看视差 · 拆开 / 合上" },
-    Chapter { style: 9, name: "Bauhaus", caption: "控件就是几何形：一条线和一个圆是滑块，两个方块是开关，色块是标签页。", hint: "拖动圆 · 按方块 · 选一个色块" },
-    Chapter { style: 10, name: "Neo-Y2K", caption: "金属的标志和液态的菜单：指针下的项鼓起来，和邻居融成一体。", hint: "悬停菜单 · 选一项，它会分开 · 指针移过金属" },
-    Chapter { style: 11, name: "Mixed media", caption: "拼贴：前面每一章的一块，各用自己的材质；最后一切散成粒子，合成这句话。", hint: "按“合上” · 粒子数" },
-    Chapter { style: 6, name: "Mechanism", caption: "机件：齿轮按齿数比啮合，凸轮推着从动杆；透视、主光、两种色调、画出的轮廓线。", hint: mechanism::KEYS },
+    Chapter { style: 7, name: "Normcore" }, Chapter { style: 8, name: "Cyberminimalism" }, Chapter { style: 6, name: "Tech-Manual" },
+    Chapter { style: 0, name: "Algorithmic Gaze" }, Chapter { style: 1, name: "Neo-Dotmatrix" }, Chapter { style: 2, name: "Lo-Fi Print" },
+    Chapter { style: 4, name: "Metamorphosis Linocut" }, Chapter { style: 3, name: "Glitch" }, Chapter { style: 5, name: "Transparent Electronics" },
+    Chapter { style: 9, name: "Bauhaus" }, Chapter { style: 10, name: "Neo-Y2K" }, Chapter { style: 11, name: "Mixed media" },
+    Chapter { style: 6, name: "Mechanism" },
 ];
+/// A message in the current locale (the runtime sets it from the state while the view is built).
+fn l(key: &str) -> String { crate::i18n::tr(key) }
 
 /// The film's numbers (named, with defaults, each a number control in its strip of the gallery).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -163,7 +162,7 @@ impl Default for Film {
     fn default() -> Self {
         Self {
             ch: 0, spec: FilmSpec::default(), playing: true, held: false, entered: 0.0, last_input: -1e9, last_tick: 0.0, ghost: 0, yielded: None,
-            sentence: TextEdit::new("松开，再合上"), n: 12.0, inverted: false, hover: None, ptr: (0.5, 0.5), drafts: None,
+            sentence: TextEdit::new(&l("film.sentence")), n: 12.0, inverted: false, hover: None, ptr: (0.5, 0.5), drafts: None,
             query: TextEdit::default(), sel: 0, dia: 300.0, dia0: None, ident: None, known: vec![],
             rows: [12.0; 4], board_at: 0.0, lit: false, obj: (330.0, 40.0), gap: 14.0, form: 0, scrub_from: None, tear: None, locks: vec![], error: false,
             exploded: false, size: 0.55, squares: false, plane: 0, menu_sel: 1, finale: false, mech: Mech::default(),
@@ -222,7 +221,7 @@ impl Cx<'_> {
     fn display(&self) -> f32 { self.u(self.t.d) }
     fn body(&self) -> f32 { self.u(self.t.b).max(10.0) }
     fn caption(&self) -> f32 { self.u(self.t.c).max(9.0) }
-    fn words(&self) -> String { let s = self.f.sentence.text.trim(); if s.is_empty() { "松开，再合上".into() } else { s.to_owned() } }
+    fn words(&self) -> String { let s = self.f.sentence.text.trim(); if s.is_empty() { l("film.sentence") } else { s.to_owned() } }
     /// The sentence actor.
     fn sentence(&self, size: f32, paint: Paint) -> El<Msg> {
         text(self.words(), size, paint).font(Font::Display).key(self.key("sentence")).flow("film-sentence").nowrap()
@@ -317,9 +316,12 @@ fn slate(s: &Gallery, g: &Geo) -> El<Msg> {
     let f = &s.film;
     let st = if f.playing { "▶" } else { "||" };
     row().key("film/slate").material(Material::Plain.id()).width(g.sw).absolute(Some(g.sx), Some((g.sy - g.bar * 1.4 - 22.0).max(4.0)), None, None).align(AlignItems::CENTER).calm()
-        .child(text("gui-lab · 松开，再合上", g.bar, Paint::TEXT).font(Font::Mono).key("film/title"))
+        .child(text(l("film.title"), g.bar, Paint::TEXT).font(Font::Mono).key("film/title"))
         .child(space(0.0, 0.0).grow(1.0))
         .child(text(format!("{st}  {:02} / {CHAPTERS}   {}", f.ch + 1, CH[f.ch].name), g.bar, Paint::TEXT).font(Font::Mono).key("film/slate/at").recompose(false))
+        // The language, next to where the chapter is: the other one's name switches to it.
+        .child(space(18.0, 0.0))
+        .child({ let other = crate::i18n::Locale::ALL.into_iter().find(|l| *l != s.locale).unwrap_or_default(); button_as("film/lang", other.name(), Variant::Quiet, Msg::Locale(other)).height(g.bar * 1.9).label(l("film.language")) })
 }
 
 /// Below the stage: the timeline (a hairline with a tick per chapter; hover a tick for its name, press
@@ -350,10 +352,10 @@ fn bottom(s: &Gallery, g: &Geo) -> El<Msg> {
     let ch = &CH[f.ch];
     col().key("film/bottom").width(g.sw).gap(4.0).absolute(Some(g.sx), Some(y), None, None).calm().material(Material::Plain.id())
         .child(line)
-        .child(text(ch.caption, g.bar + 1.0, Paint::TEXT).key("film/caption").recompose(false))
+        .child(text(ch.caption(f.ch), g.bar + 1.0, Paint::TEXT).key("film/caption"))
         .child(row().key("film/notes").width(g.sw).gap(18.0).align(AlignItems::CENTER)
-            .child(text(ch.hint, g.bar, Paint::DIM).font(Font::Mono).key("film/hint").recompose(false).grow(1.0).shrink())
-            .child(button_as("film/gallery", "gallery →", Variant::Quiet, Msg::Go(Page::Comp(0)))))
+            .child(text(ch.hint(f.ch), g.bar, Paint::DIM).font(Font::Mono).key("film/hint").grow(1.0).shrink())
+            .child(button_as("film/gallery", &l("film.gallery"), Variant::Quiet, Msg::Go(Page::Comp(0)))))
 }
 
 /// Each chapter's three sizes (units): display, body, caption.
@@ -371,21 +373,21 @@ fn normcore(x: &Cx) -> Vec<El<Msg>> {
     let lab = |s: &str| x.label(s, x.body(), Paint::DIM).width(x.u(150.0));
     let draft = x.g.film.drafts.as_ref().filter(|d| d.0 == 1).map(|d| d.1.as_str());
     let form = col().key(x.key("form")).gap(x.u(22.0)).width(x.u(span(5.0)))
-        .child(row().key(x.key("row-title")).align(AlignItems::CENTER).child(lab("标题"))
-            .child(input(&x.key("title"), &f.sentence, "标题", (x.u(span(5.0) - 150.0) / z).max(120.0), 24, |e| Msg::Film(FMsg::Sentence(e))).zoom(z)))
-        .child(row().key(x.key("row-invert")).align(AlignItems::CENTER).child(lab("反色"))
+        .child(row().key(x.key("row-title")).align(AlignItems::CENTER).child(lab(&l("film.c01.title")))
+            .child(input(&x.key("title"), &f.sentence, &l("film.c01.title"), (x.u(span(5.0) - 150.0) / z).max(120.0), 24, |e| Msg::Film(FMsg::Sentence(e))).zoom(z)))
+        .child(row().key(x.key("row-invert")).align(AlignItems::CENTER).child(lab(&l("film.invert")))
             .child(switch(x.key("invert"), "", f.inverted, None, Msg::Film(FMsg::Invert)).zoom(z)))
-        .child(row().key(x.key("row-count")).align(AlignItems::CENTER).child(lab("数量"))
-            .child(number(&x.key("count"), "数量", f.n, N_SPEC, draft, |e| Msg::Film(FMsg::Num(e))).zoom(z)));
+        .child(row().key(x.key("row-count")).align(AlignItems::CENTER).child(lab(&l("film.count")))
+            .child(number(&x.key("count"), &l("film.count"), f.n, N_SPEC, draft, |e| Msg::Film(FMsg::Num(e))).zoom(z)));
     // The preview: the sign on a quiet card, as a settings page shows what it changes.
     let card = col().key(x.key("preview")).width(x.u(span(5.0))).height(x.u(390.0)).border(1.0, Paint::FAINT).radius(x.u(10.0))
         .align(AlignItems::CENTER).justify(taffy::JustifyContent::CENTER).gap(x.u(26.0))
         .child(x.sign(220.0, Paint::INK, Paint::ACCENT))
-        .child(x.label("预览", x.caption(), Paint::DIM).key(x.key("preview-label")));
+        .child(x.label(l("film.c01.preview"), x.caption(), Paint::DIM).key(x.key("preview-label")));
     vec![
-        x.at(x.label("设置 · 外观与内容", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 76.0),
+        x.at(x.label(l("film.c01.eyebrow"), x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 76.0),
         x.at(x.sentence(x.display(), Paint::INK), colx(0.0), 104.0),
-        x.at(x.label("数量", x.caption(), Paint::DIM).key(x.key("count-label")), colx(5.0), 76.0),
+        x.at(x.label(l("film.count"), x.caption(), Paint::DIM).key(x.key("count-label")), colx(5.0), 76.0),
         x.at(x.number(x.display(), Paint::INK), colx(5.0), 104.0),
         x.at(space(x.u(span(6.0)), 1.0).fill(Paint::FAINT).key(x.key("rule")), colx(0.0), 214.0),
         x.at(form, colx(0.0), 262.0),
@@ -426,7 +428,7 @@ fn cyber(x: &Cx) -> Vec<El<Msg>> {
         list = list.child(row_el);
     }
     let z = x.z();
-    let field = input(&x.key("query"), &f.query, "输入命令…", (x.u(w - 40.0) / z).max(120.0), 32, |e| Msg::Film(FMsg::Query(e))).zoom(z);
+    let field = input(&x.key("query"), &f.query, &l("film.c02.placeholder"), (x.u(w - 40.0) / z).max(120.0), 32, |e| Msg::Film(FMsg::Query(e))).zoom(z);
     vec![
         x.at(x.sentence(x.display(), Paint::TEXT), colx(0.0), 70.0),
         x.at(x.mono("results", x.caption(), Paint::DIM).key(x.key("n-label")), colx(10.0), 52.0),
@@ -434,14 +436,14 @@ fn cyber(x: &Cx) -> Vec<El<Msg>> {
         x.at(row().key(x.key("prompt")).gap(x.u(12.0)).align(AlignItems::CENTER).child(x.mono("›", x.body() * 1.3, Paint::ACCENT)).child(field), colx(3.0), 168.0),
         x.at(space(x.u(w), 1.0).fill(Paint::FAINT).key(x.key("rule")), colx(3.0), 226.0),
         x.at(list, colx(3.0), 240.0),
-        x.at(x.mono(format!("{} / {}    ↑↓ 选择   enter 执行", found.len(), cmds.len()), x.caption(), Paint::DIM).key(x.key("count")).recompose(false), colx(3.0), 520.0),
+        x.at(x.mono(crate::t!(crate::i18n::current(), "film.c02.status", found = found.len(), all = cmds.len()), x.caption(), Paint::DIM).key(x.key("count")).recompose(false), colx(3.0), 520.0),
         x.at(x.sign(80.0, Paint::DIM, Paint::ACCENT), colx(11.0) - 22.0, 500.0),
     ]
 }
 
 // ── 3 Tech-Manual: the sign on a drawing sheet, dimensioned ──────────────────────────────────────
 /// The sign's parts on the drawing.
-pub const PARTS: [&str; 4] = ["圆", "方", "总宽", "偏移"];
+pub const PARTS: [&str; 4] = ["film.c03.part0", "film.c03.part1", "film.c03.part2", "film.c03.part3"];
 fn manual(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
     let d = f.dia.clamp(160.0, 340.0);
@@ -455,7 +457,7 @@ fn manual(x: &Cx) -> Vec<El<Msg>> {
     // Centre lines through the disc, as a drawing has them.
     out.push(x.at(space(x.u(d + 40.0), 1.0).fill(Paint::DIM).key(x.key("axis-h")).respond(Response::Ignore), sx - 20.0, sy + d * 0.5));
     out.push(x.at(space(1.0, x.u(d + 40.0)).fill(Paint::DIM).key(x.key("axis-v")).respond(Response::Ignore), sx + d * 0.5, sy - 20.0));
-    let sign = x.sign(d, Paint::INK, Paint::hue(0)).cursor(crate::el::Cursor::ColResize).focusable(true).label("标志的大小")
+    let sign = x.sign(d, Paint::INK, Paint::hue(0)).cursor(crate::el::Cursor::ColResize).focusable(true).label(l("film.c03.size"))
         .on_drag_with(|dr: Drag| Some(Msg::Film(FMsg::Size(dr))))
         .on_key(move |k, sh| { let s = if sh { 40.0 } else { 10.0 }; match k { Key::Right | Key::Up => Some(Msg::Film(FMsg::Size(Drag { phase: Phase::End, x: 0.0, y: 0.0, w: 1.0, h: 1.0, dx: s, dy: 0.0 }))), Key::Left | Key::Down => Some(Msg::Film(FMsg::Size(Drag { phase: Phase::End, x: 0.0, y: 0.0, w: 1.0, h: 1.0, dx: -s, dy: 0.0 }))), _ => None } });
     out.push(x.at(sign, sx, sy));
@@ -465,7 +467,7 @@ fn manual(x: &Cx) -> Vec<El<Msg>> {
         let on = f.hover.as_deref().is_some_and(|h| h.ends_with(&format!("part{i}")));
         let s = if on { 14.0 } else { 9.0 };
         let mk = space(x.u(s).max(5.0), x.u(s).max(5.0)).radius(x.u(s)).fill(if on { Paint::ACCENT } else { Paint::INK }).border(1.5, Paint::GROUND).key(x.key(&format!("callout{i}")))
-            .annotate(PARTS[i]).respond(Response::Ignore);
+            .annotate(l(PARTS[i])).respond(Response::Ignore);
         out.push(x.at(mk, px - s * 0.5, py - s * 0.5));
     }
     // Dimensions from the sign's own geometry: the overall width under it, the disc's diameter at its
@@ -491,22 +493,22 @@ fn manual(x: &Cx) -> Vec<El<Msg>> {
     let values = [format!("Ø {d:.1}"), format!("{q:.1} × {q:.1}"), format!("{w:.1}"), format!("{:.1}, {:.1}", d * 0.5, d * 0.5)];
     let mut list = col().key(x.key("parts")).width(x.u(span(4.0))).gap(0.0)
         .child(row().key(x.key("parts/head")).height(x.u(34.0)).align(AlignItems::CENTER).gap(x.u(16.0))
-            .child(x.mono("№", x.caption(), Paint::DIM).width(x.u(40.0))).child(x.mono("部分", x.caption(), Paint::DIM).width(x.u(120.0))).child(x.mono("尺寸", x.caption(), Paint::DIM)));
+            .child(x.mono("№", x.caption(), Paint::DIM).width(x.u(40.0))).child(x.mono(l("film.c03.part"), x.caption(), Paint::DIM).width(x.u(120.0))).child(x.mono(l("film.c03.dimension"), x.caption(), Paint::DIM)));
     for (i, name) in PARTS.iter().enumerate() {
         let k = x.key(&format!("part{i}"));
         let on = f.hover.as_deref() == Some(k.as_str());
         list = list.child(space(x.u(span(4.0)), 1.0).fill(Paint::FAINT).key(x.key(&format!("part{i}/rule"))))
             .child(row().key(k).height(x.u(40.0)).align(AlignItems::CENTER).gap(x.u(16.0)).on_press(Msg::Film(FMsg::Num(Edit::Set(f.n)))).focusable(false)
                 .child(x.mono(format!("{:02}", i + 1), x.body(), if on { Paint::ACCENT } else { Paint::INK }).width(x.u(40.0)))
-                .child(x.label(*name, x.body(), if on { Paint::ACCENT } else { Paint::INK }).width(x.u(120.0)))
+                .child(x.label(l(name), x.body(), if on { Paint::ACCENT } else { Paint::INK }).width(x.u(120.0)))
                 .child(x.mono(values[i].clone(), x.caption(), Paint::DIM).key(x.key(&format!("part{i}/v"))).recompose(false)));
     }
     out.push(x.at(list, colx(8.0), 84.0));
     // The title block: figure, the sentence, scale with the number.
     let block = col().key(x.key("titleblock")).width(x.u(span(4.0))).pad(x.u(16.0), x.u(12.0)).gap(x.u(6.0)).border(1.0, Paint::INK)
-        .child(x.mono("图 03 · 标志 · 主视图", x.caption(), Paint::DIM))
+        .child(x.mono(l("film.c03.figure"), x.caption(), Paint::DIM))
         .child(x.sentence(x.display(), Paint::INK))
-        .child(row().gap(x.u(10.0)).align(AlignItems::BASELINE).key(x.key("scale")).child(x.mono("比例 1 :", x.caption(), Paint::DIM)).child(x.number(x.body() * 1.4, Paint::INK).font(Font::Mono)));
+        .child(row().gap(x.u(10.0)).align(AlignItems::BASELINE).key(x.key("scale")).child(x.mono(l("film.c03.scale"), x.caption(), Paint::DIM)).child(x.number(x.body() * 1.4, Paint::INK).font(Font::Mono)));
     out.push(x.at(block, colx(8.0), 420.0));
     out
 }
@@ -530,7 +532,7 @@ fn ident_at(f: &Film, k: &str, now: f32) -> (f32, Option<f32>, bool) {
 }
 /// A thing the detector can identify: its element, key, kind, the facts it writes once known, and its
 /// box in stage units (for the scan).
-type Thing<'a> = (El<Msg>, String, &'a str, String, [f32; 4]);
+type Thing = (El<Msg>, String, String, String, [f32; 4]);
 fn detector(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
     let now = x.g.clock;
@@ -539,16 +541,16 @@ fn detector(x: &Cx) -> Vec<El<Msg>> {
     let words = x.words();
     let sw = words.chars().count() as f32 * x.t.d * 0.98;
     let things: Vec<Thing> = vec![
-        (x.sentence(x.display(), Paint::INK), x.key("sentence"), "文字", format!("{} 字 · 一行", words.chars().count()), [colx(0.0), 96.0, sw, x.t.d * 1.3]),
-        (x.number(x.display(), Paint::ACCENT), x.key("number"), "数字", format!("值 {:02}", f.n.round() as i64), [colx(10.0) + 40.0, 96.0, x.t.d * 1.2, x.t.d * 1.3]),
-        (x.sign(260.0, Paint::INK, Paint::ACCENT), x.key("sign"), "标志", "圆 + 方 · 2 个形状".into(), [colx(4.0), 200.0, 260.0 * SIGN_W, 260.0 * SIGN_W]),
-        (col().key(x.key("picture")).width(x.u(span(3.0))).child(picture(TERRAIN, super::pages::ratio(TERRAIN)).key(x.key("terrain")).pic_fx(STYLE_SLOT)), x.key("picture"), "图片",
+        (x.sentence(x.display(), Paint::INK), x.key("sentence"), l("film.c04.text"), crate::t!(crate::i18n::current(), "film.c04.chars", n = words.chars().count()), [colx(0.0), 96.0, sw, x.t.d * 1.3]),
+        (x.number(x.display(), Paint::ACCENT), x.key("number"), l("film.c04.number"), crate::t!(crate::i18n::current(), "film.c04.value", v = format!("{:02}", f.n.round() as i64)), [colx(10.0) + 40.0, 96.0, x.t.d * 1.2, x.t.d * 1.3]),
+        (x.sign(260.0, Paint::INK, Paint::ACCENT), x.key("sign"), l("film.sign"), l("film.c04.sign-facts"), [colx(4.0), 200.0, 260.0 * SIGN_W, 260.0 * SIGN_W]),
+        (col().key(x.key("picture")).width(x.u(span(3.0))).child(picture(TERRAIN, super::pages::ratio(TERRAIN)).key(x.key("terrain")).pic_fx(STYLE_SLOT)), x.key("picture"), l("film.c04.picture"),
             format!("{:.2} : 1", 1.0 / super::pages::ratio(TERRAIN)), [colx(9.0), 300.0, span(3.0), span(3.0) * super::pages::ratio(TERRAIN)]),
-        (x.mono(format!("frame {:04}", (f.n * 37.0) as i64 % 10000), x.body(), Paint::DIM).key(x.key("caption")), x.key("caption"), "文字", "等宽 · 10 字".into(), [colx(0.0), 560.0, 10.0 * x.t.b * 0.6, x.t.b * 1.3]),
+        (x.mono(format!("frame {:04}", (f.n * 37.0) as i64 % 10000), x.body(), Paint::DIM).key(x.key("caption")), x.key("caption"), l("film.c04.text"), l("film.c04.caption-facts"), [colx(0.0), 560.0, 10.0 * x.t.b * 0.6, x.t.b * 1.3]),
     ];
     for (el, k, kind, facts, b) in things {
         let (loose, scan, known) = ident_at(f, &k, now);
-        let note = if known { format!("{kind} · 已识别 · {facts} · {{xy}}") } else { format!("{kind} · {{xy}}") };
+        let note = if known { crate::t!(crate::i18n::current(), "film.c04.known", kind = kind, facts = facts.as_str()) } else { crate::t!(crate::i18n::current(), "film.c04.unknown", kind = kind) };
         let el = el.annotate(note).legible(false).respond(Response::Loosen).loose(loose).on_press(Msg::Film(FMsg::Identify(k.clone()))).focusable(true);
         out.push(x.at(el, b[0], b[1]));
         // The scan: a bright line sweeping down with two fainter ones after it, inside the thing's box.
@@ -563,36 +565,34 @@ fn detector(x: &Cx) -> Vec<El<Msg>> {
 }
 
 // ── 5 Neo-Dotmatrix: a departure board ───────────────────────────────────────────────────────────
-pub const DEST: [&str; 4] = ["松开", "合上", "再松开", "回到原处"];
+pub const DEST: [&str; 4] = ["film.c05.dest0", "film.c05.dest1", "film.c05.dest2", "film.c05.dest3"];
 fn board(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
     let mut b = col().key(x.key("board")).width(x.u(span(7.0))).gap(x.u(10.0))
         .child(row().key(x.key("board/head")).gap(x.u(24.0))
-            .child(x.label("时间", x.caption(), Paint::DIM).width(x.u(130.0))).child(x.label("去往", x.caption(), Paint::DIM).width(x.u(300.0))).child(x.label("站台", x.caption(), Paint::DIM)));
+            .child(x.label(l("film.c05.time"), x.caption(), Paint::DIM).width(x.u(130.0))).child(x.label(l("film.c05.to"), x.caption(), Paint::DIM).width(x.u(300.0))).child(x.label(l("film.c05.gate"), x.caption(), Paint::DIM)));
     for (i, d) in DEST.iter().enumerate() {
         let v = f.rows[i].round() as i64 + i as i64 * 7;
         b = b.child(row().key(x.key(&format!("row{i}"))).gap(x.u(24.0)).align(AlignItems::CENTER)
             .child(x.label(format!("{:02}:{:02}", (9 + v / 60) % 24, v % 60), x.body(), Paint::ACCENT).key(x.key(&format!("row{i}/time"))).width(x.u(130.0)))
-            .child(x.label(*d, x.body(), Paint::INK).key(x.key(&format!("row{i}/dest"))).width(x.u(300.0)))
+            .child(x.label(l(d), x.body(), Paint::INK).key(x.key(&format!("row{i}/dest"))).width(x.u(300.0)))
             .child(x.label(format!("{}", (v % 9) + 1), x.body(), Paint::INK).key(x.key(&format!("row{i}/gate")))));
     }
     // The sign is dots until the pointer is on it (or it was pressed): then it condenses.
     let on = f.lit || f.hover.as_deref() == Some(x.key("sign").as_str());
     let sign = x.sign(330.0, Paint::INK, Paint::ACCENT).loose(if on { 0.0 } else { 0.8 }).respond(Response::Loosen).legible(false)
-        .on_press(Msg::Film(FMsg::Lit)).label("标志");
+        .on_press(Msg::Film(FMsg::Lit)).label(l("film.sign"));
     vec![
-        x.at(x.label("出发 · DEPARTURES", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 70.0),
+        x.at(x.label(l("film.c05.eyebrow"), x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 70.0),
         x.at(x.sentence(x.display(), Paint::INK), colx(0.0), 96.0),
         x.at(b, colx(0.0), 240.0),
-        x.at(x.label("分", x.caption(), Paint::DIM).key(x.key("n-label")), colx(6.0), 70.0),
+        x.at(x.label(l("film.c05.minute"), x.caption(), Paint::DIM).key(x.key("n-label")), colx(6.0), 70.0),
         x.at(x.number(x.display(), Paint::ACCENT), colx(6.0), 96.0),
         x.at(sign, colx(7.5), 170.0),
     ]
 }
 
 // ── 6 Lo-Fi Print: a zine spread ─────────────────────────────────────────────────────────────────
-pub const ZINE: &str = "一样东西松开的时候，它不是消失了，而是把自己摊开：每一个点都还在，只是不再挨着。印在纸上的字也是这样，墨从笔画里渗出来一点，网点之间露出纸，复印一次，再复印一次，边缘就毛了。可你仍然认得它。复印机的光从左边扫到右边，纸上的灰变成了点，点又连成了字。认得一个东西，靠的不是它的方框，而是它的轮廓：这一行字绕着这个标志走，贴着它真实的边，在圆凸出来的地方让开，在方角伸出去的地方让得更远，在它收回去的地方又靠过去。把它拖到别处，字就跟过去，重新找自己的位置。纸的边上有一道折痕，是上一期留下的。";
-pub const ZINE2: &str = "这一页是为了被拿在手里。它有自己的纸色，有一种专色，套印的时候差了一点点，于是红色的那一层落在黑色旁边。我们不修正它。间隔可以调：调大，字离标志远一些；调小，字贴着它的边。";
 const ZINE_D: f32 = 210.0;
 fn zine(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
@@ -601,20 +601,20 @@ fn zine(x: &Cx) -> Vec<El<Msg>> {
     let (bx, by) = (f.obj.0.clamp(-60.0, tw - ow + 60.0), f.obj.1.clamp(-40.0, th - oh + 40.0));
     // The obstacle in the text's own box, logical px: the sign's true outline.
     let sil = sign_outline(x.u(bx), x.u(by), x.u(ZINE_D));
-    let body = text_lh(ZINE, x.body(), x.body() * 1.7, Paint::INK).key(x.key("body")).width(x.u(tw)).around(Around::new(vec![sil], x.u(f.gap)));
+    let body = text_lh(l("film.c06.zine"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body")).width(x.u(tw)).around(Around::new(vec![sil], x.u(f.gap)));
     let draft = x.g.film.drafts.as_ref().filter(|d| d.0 == 6).map(|d| d.1.as_str());
-    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).cursor(crate::el::Cursor::Grab).focusable(true).label("标志")
+    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).cursor(crate::el::Cursor::Grab).focusable(true).label(l("film.sign"))
         .on_drag_with({ let (bx, by) = (bx, by); let k = x.geo.k; move |d: Drag| Some(Msg::Film(FMsg::Obj(bx + d.dx / k, by + d.dy / k))) })
         .on_key({ let (bx, by) = (bx, by); move |key, sh| { let s = if sh { 40.0 } else { 10.0 }; let (dx, dy) = match key { Key::Left => (-s, 0.0), Key::Right => (s, 0.0), Key::Up => (0.0, -s), Key::Down => (0.0, s), _ => return None }; Some(Msg::Film(FMsg::Obj(bx + dx, by + dy))) } });
     let z = x.z();
     vec![
-        x.at(x.label("小志 · 第 3 期", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 60.0),
+        x.at(x.label(l("film.c06.eyebrow"), x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 60.0),
         x.at(x.sentence(x.display(), Paint::INK).weight(1.5), colx(0.0), 84.0),
         x.at(body, tx, ty),
         x.at(sign, tx + bx, ty + by),
         x.at(space(1.0, x.u(500.0)).fill(Paint::FAINT).key(x.key("gutter")), 800.0, 90.0),
-        x.at(text_lh(ZINE2, x.body(), x.body() * 1.7, Paint::INK).key(x.key("body2")).width(x.u(span(5.0))), colx(6.5), 110.0),
-        x.at(number(&x.key("gap"), "间隔", f.gap, GAP_SPEC, draft, |e| Msg::Film(FMsg::Gap(e))).width((x.u(300.0) / z).max(220.0)).zoom(z), colx(6.5), 470.0),
+        x.at(text_lh(l("film.c06.zine2"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body2")).width(x.u(span(5.0))), colx(6.5), 110.0),
+        x.at(number(&x.key("gap"), &l("film.c06.gap"), f.gap, GAP_SPEC, draft, |e| Msg::Film(FMsg::Gap(e))).width((x.u(300.0) / z).max(220.0)).zoom(z), colx(6.5), 470.0),
         x.at(row().key(x.key("folio")).gap(x.u(10.0)).align(AlignItems::BASELINE).child(x.label("—", x.body(), Paint::DIM)).child(x.number(x.body() * 1.2, Paint::INK)).child(x.label("—", x.body(), Paint::DIM)), 1170.0, 570.0),
     ]
 }
@@ -634,7 +634,7 @@ fn poster(x: &Cx) -> Vec<El<Msg>> {
     ];
     let current = f.form % FORMS;
     let st = stack(forms.into_iter().enumerate().map(|(i, el)| el.hidden_until_morphed(i != current).respond(Response::Loosen).loose(0.55)))
-        .key(x.key("forms")).width(x.u(w)).height(x.u(h)).focusable(true).label("变形").cursor(crate::el::Cursor::Grab)
+        .key(x.key("forms")).width(x.u(w)).height(x.u(h)).focusable(true).label(l("film.c07.morph")).cursor(crate::el::Cursor::Grab)
         .on_drag_with(|d: Drag| Some(Msg::Film(FMsg::Scrub(d))))
         .on_key(|k, _| matches!(k, Key::Enter | Key::Char(' ')).then_some(Msg::Film(FMsg::Form)));
     vec![
@@ -644,7 +644,7 @@ fn poster(x: &Cx) -> Vec<El<Msg>> {
         x.at(st, colx(2.5), 150.0),
         // The sign actor stands small in the corner, as the poster's mark.
         x.at(x.sign(70.0, Paint::INK, Paint::hue(0)), colx(11.0) - 6.0, 560.0),
-        x.at(x.label("凸版 · 一刀一刀刻出来的形状，按下就变成下一个", x.caption(), Paint::DIM).key(x.key("note")), colx(0.0), 610.0),
+        x.at(x.label(l("film.c07.note"), x.caption(), Paint::DIM).key(x.key("note")), colx(0.0), 610.0),
     ]
 }
 
@@ -684,25 +684,25 @@ fn monitor(x: &Cx) -> Vec<El<Msg>> {
     }
     let close = Msg::Film(FMsg::Error(false));
     let z = x.z();
-    let dlg = dialog(&x.key("error"), f.error, "信号丢失", 380.0, 0.35, close.clone(),
-        col().gap(14.0).child(x.label("通道 08 有三段被锁在了错开的位置。重试会把它们放回去。", 14.0, Paint::TEXT).width(330.0))
-            .child(row().gap(10.0).child(button_as(x.key("retry"), "重试", Variant::Accent, Msg::Film(FMsg::Retry))).child(button_as(x.key("ignore"), "忽略", Variant::Default, close))));
+    let dlg = dialog(&x.key("error"), f.error, &l("film.c08.lost"), 380.0, 0.35, close.clone(),
+        col().gap(14.0).child(x.label(l("film.c08.body"), 14.0, Paint::TEXT).width(330.0))
+            .child(row().gap(10.0).child(button_as(x.key("retry"), &l("film.c08.retry"), Variant::Accent, Msg::Film(FMsg::Retry))).child(button_as(x.key("ignore"), &l("film.c08.ignore"), Variant::Default, close))));
     vec![
-        x.at(x.mono("CH 08 · 监视", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 60.0),
+        x.at(x.mono("CH 08 · MONITOR", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(0.0), 60.0),
         x.at(x.sentence(x.display(), Paint::INK), colx(0.0), 84.0),
         x.at(x.mono("SNR dB", x.caption(), Paint::DIM).key(x.key("n-label")), colx(10.0), 60.0),
         x.at(x.number(x.display(), Paint::hue(1)).font(Font::Mono), colx(10.0), 84.0),
         x.at(space(x.u(ww), 1.0).fill(Paint::FAINT).key(x.key("axis")), wx, wy + wh * 0.5),
         x.at(wave, wx, wy),
         x.at(x.mono(format!("locked {}   ·   hold to tear, release to lock", f.locks.len()), x.caption(), Paint::DIM).key(x.key("status")).recompose(false), colx(0.0), 540.0),
-        x.at(button_as(x.key("raise"), "注入错误", Variant::Default, Msg::Film(FMsg::Error(true))).zoom(z), colx(6.0), 532.0),
+        x.at(button_as(x.key("raise"), &l("film.c08.raise"), Variant::Default, Msg::Film(FMsg::Error(true))).zoom(z), colx(6.0), 532.0),
         x.at(x.sign(96.0, Paint::INK, Paint::hue(1)), colx(11.0) - 40.0, 520.0),
         dlg,
     ]
 }
 
 // ── 9 Transparent Electronics: a device seen through ─────────────────────────────────────────────
-pub const LAYERS: [&str; 4] = ["电路", "元件", "屏幕", "玻璃"];
+pub const LAYERS: [&str; 4] = ["film.c09.layer0", "film.c09.layer1", "film.c09.layer2", "film.c09.layer3"];
 fn device(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
     let (dw, dh) = (360.0, 470.0);
@@ -716,42 +716,42 @@ fn device(x: &Cx) -> Vec<El<Msg>> {
         let spread = if f.exploded { 92.0 } else { 0.0 };
         let (lx, ly) = (cx0 + depth * spread * 1.1 + px * depth * 26.0, cy0 - depth * spread * 0.45 + py * depth * 18.0);
         let k = x.key(&format!("layer{i}"));
-        let mut layer = col().key(k.clone()).width(u(dw)).height(u(dh)).radius(u(28.0)).annotate(*name).flow(format!("film-layer{i}"));
+        let mut layer = col().key(k.clone()).width(u(dw)).height(u(dh)).radius(u(28.0)).annotate(l(name)).flow(format!("film-layer{i}"));
         let at = |el: El<Msg>, ex: f32, ey: f32| el.absolute(Some(u(ex)), Some(u(ey)), None, None);
         layer = match i {
             // The board: traces that run in right angles between pads, vias, the outline.
             0 => {
-                let mut l = layer.border(1.0, Paint::DIM);
+                let mut lay = layer.border(1.0, Paint::DIM);
                 let traces: [(f32, f32, f32, f32); 12] = [
                     (40.0, 90.0, 180.0, 0.0), (220.0, 90.0, 0.0, 120.0), (220.0, 210.0, 100.0, 0.0), (60.0, 150.0, 0.0, 200.0), (60.0, 350.0, 150.0, 0.0),
                     (210.0, 350.0, 0.0, 70.0), (120.0, 40.0, 0.0, 50.0), (280.0, 60.0, 0.0, 150.0), (40.0, 260.0, 120.0, 0.0), (160.0, 260.0, 0.0, 40.0),
                     (300.0, 300.0, 0.0, 120.0), (240.0, 420.0, 60.0, 0.0)];
                 for (t, (tx, ty, tw, th)) in traces.iter().enumerate() {
-                    l = l.child(at(space(u(tw.max(2.5)), u(th.max(2.5))).fill(Paint::hue(0)).key(format!("{k}/trace{t}")), *tx, *ty));
+                    lay = lay.child(at(space(u(tw.max(2.5)), u(th.max(2.5))).fill(Paint::hue(0)).key(format!("{k}/trace{t}")), *tx, *ty));
                 }
                 for (v, (vx, vy)) in [(212.0, 82.0), (52.0, 142.0), (202.0, 342.0), (292.0, 412.0), (112.0, 32.0), (272.0, 52.0), (152.0, 252.0)].iter().enumerate() {
-                    l = l.child(at(space(u(16.0), u(16.0)).radius(u(8.0)).border(u(4.0).max(1.5), Paint::hue(0)).key(format!("{k}/via{v}")), *vx, *vy));
+                    lay = lay.child(at(space(u(16.0), u(16.0)).radius(u(8.0)).border(u(4.0).max(1.5), Paint::hue(0)).key(format!("{k}/via{v}")), *vx, *vy));
                 }
-                l
+                lay
             }
             // The components: two chips with their pins, capacitors, a crystal; the sign as the maker's mark.
             1 => {
-                let mut l = layer;
+                let mut lay = layer;
                 for (c, (cxp, cyp, cw, chh, label)) in [(150.0, 120.0, 110.0, 80.0, "U1"), (90.0, 280.0, 80.0, 60.0, "U2")].iter().enumerate() {
                     let chip = col().key(format!("{k}/chip{c}")).width(u(*cw)).height(u(*chh)).fill(Paint::tone(0.75)).radius(u(4.0)).align(AlignItems::CENTER).justify(taffy::JustifyContent::CENTER)
                         .child(x.mono(*label, x.caption(), Paint::GROUND).key(format!("{k}/chip{c}/label")));
-                    l = l.child(at(chip, *cxp, *cyp));
+                    lay = lay.child(at(chip, *cxp, *cyp));
                     let pins = (*cw / 16.0) as usize;
                     for p in 0..pins {
-                        l = l.child(at(space(u(5.0), u(10.0)).fill(Paint::INK).key(format!("{k}/chip{c}/pin{p}a")), cxp + 6.0 + p as f32 * 16.0, cyp - 10.0))
+                        lay = lay.child(at(space(u(5.0), u(10.0)).fill(Paint::INK).key(format!("{k}/chip{c}/pin{p}a")), cxp + 6.0 + p as f32 * 16.0, cyp - 10.0))
                              .child(at(space(u(5.0), u(10.0)).fill(Paint::INK).key(format!("{k}/chip{c}/pin{p}b")), cxp + 6.0 + p as f32 * 16.0, cyp + chh));
                     }
                 }
                 for (c, (ccx, ccy)) in [(60.0, 60.0), (290.0, 250.0), (250.0, 380.0)].iter().enumerate() {
-                    l = l.child(at(space(u(26.0), u(26.0)).radius(u(13.0)).fill(Paint::hue(1)).key(format!("{k}/cap{c}")), *ccx, *ccy));
+                    lay = lay.child(at(space(u(26.0), u(26.0)).radius(u(13.0)).fill(Paint::hue(1)).key(format!("{k}/cap{c}")), *ccx, *ccy));
                 }
-                l = l.child(at(space(u(70.0), u(24.0)).radius(u(12.0)).border(2.0, Paint::INK).key(format!("{k}/xtal")), 230.0, 30.0));
-                l.child(at(x.sign(70.0, Paint::INK, Paint::hue(0)).annotate("标志"), 250.0, 400.0))
+                lay = lay.child(at(space(u(70.0), u(24.0)).radius(u(12.0)).border(2.0, Paint::INK).key(format!("{k}/xtal")), 230.0, 30.0));
+                lay.child(at(x.sign(70.0, Paint::INK, Paint::hue(0)).annotate(l("film.sign")), 250.0, 400.0))
             }
             // The screen: a player.
             2 => layer.border(1.0, Paint::INK).pad(u(26.0), u(30.0)).gap(u(10.0))
@@ -768,8 +768,8 @@ fn device(x: &Cx) -> Vec<El<Msg>> {
         out.push(x.at(layer, lx, ly));
     }
     let z = x.z();
-    out.push(x.at(row().key(x.key("explode-row")).width(x.u(300.0).max(160.0)).child(switch(x.key("explode"), "拆开", f.exploded, None, Msg::Film(FMsg::Explode)).zoom(z)), colx(0.0), 560.0));
-    out.push(x.at(x.label("电路、元件、屏幕、玻璃：每一层只画它的轮廓和走线，所以下面的层透得过来。", x.caption(), Paint::DIM).key(x.key("note")).width(x.u(span(3.5))), colx(0.0), 96.0));
+    out.push(x.at(row().key(x.key("explode-row")).width(x.u(300.0).max(160.0)).child(switch(x.key("explode"), &l("film.apart"), f.exploded, None, Msg::Film(FMsg::Explode)).zoom(z)), colx(0.0), 560.0));
+    out.push(x.at(x.label(l("film.c09.note"), x.caption(), Paint::DIM).key(x.key("note")).width(x.u(span(3.5))), colx(0.0), 96.0));
     out
 }
 
@@ -779,7 +779,7 @@ fn bauhaus(x: &Cx) -> Vec<El<Msg>> {
     let lw = span(4.0);
     let r = 15.0;
     // The slider: a line and a circle on it.
-    let slider = col().key(x.key("slider")).width(x.u(lw)).height(x.u(40.0)).focusable(true).label("大小").cursor(crate::el::Cursor::Grab)
+    let slider = col().key(x.key("slider")).width(x.u(lw)).height(x.u(40.0)).focusable(true).label(l("film.c10.size")).cursor(crate::el::Cursor::Grab)
         .value_range(f.size, 0.0, 1.0)
         .on_drag_with(|d: Drag| Some(Msg::Film(FMsg::Knob(d.fx()))))
         .on_key({ let v = f.size; move |k, sh| { let st = if sh { 0.2 } else { 0.05 }; match k { Key::Left => Some(Msg::Film(FMsg::Knob(v - st))), Key::Right => Some(Msg::Film(FMsg::Knob(v + st))), _ => None } } })
@@ -787,12 +787,12 @@ fn bauhaus(x: &Cx) -> Vec<El<Msg>> {
         .child(space(x.u(r * 2.0), x.u(r * 2.0)).radius(x.u(r)).fill(Paint::hue(0)).key(x.key("slider/knob")).absolute(Some(x.u((lw - r * 2.0) * f.size)), Some(x.u(20.0 - r)), None, None));
     // The switch: two squares, the one that is on filled.
     let sq = |on: bool, k: &str| space(x.u(34.0), x.u(34.0)).key(x.key(k)).fill(if on { Paint::INK } else { Paint::GROUND }).border(2.0, Paint::INK);
-    let toggle = row().key(x.key("toggle")).gap(x.u(6.0)).on_press(Msg::Film(FMsg::Squares)).label("反色").child(sq(!f.squares, "toggle/a")).child(sq(f.squares, "toggle/b"));
+    let toggle = row().key(x.key("toggle")).gap(x.u(6.0)).on_press(Msg::Film(FMsg::Squares)).label(l("film.invert")).child(sq(!f.squares, "toggle/a")).child(sq(f.squares, "toggle/b"));
     // The tabs: three planes of colour; the chosen one is taller.
     let mut tabs = row().key(x.key("planes")).gap(x.u(8.0)).align(AlignItems::END);
     for i in 0..3usize {
         tabs = tabs.child(space(x.u(70.0), x.u(if i == f.plane { 56.0 } else { 34.0 })).fill(Paint::hue(i as u8)).key(x.key(&format!("plane{i}")))
-            .on_press(Msg::Film(FMsg::Plane(i))).label(["圆", "方", "环"][i]));
+            .on_press(Msg::Film(FMsg::Plane(i))).label(l(&format!("film.c10.plane{i}"))));
     }
     // The composition: the sign recomposed from the primitives the planes choose (a disc and a square,
     // a square and a disc, a ring and a square), sized by the slider.
@@ -809,11 +809,11 @@ fn bauhaus(x: &Cx) -> Vec<El<Msg>> {
         .child(first.key(format!("{k}/disc")).absolute(Some(0.0), Some(0.0), None, None))
         .child(second.key(format!("{k}/square")).absolute(Some(d * 0.5), Some(d * 0.5), None, None));
     vec![
-        x.at(x.label("大小", x.caption(), Paint::DIM).key(x.key("l-size")), colx(0.0), 110.0),
+        x.at(x.label(l("film.c10.size"), x.caption(), Paint::DIM).key(x.key("l-size")), colx(0.0), 110.0),
         x.at(slider, colx(0.0), 134.0),
-        x.at(x.label("反色", x.caption(), Paint::DIM).key(x.key("l-toggle")), colx(0.0), 214.0),
+        x.at(x.label(l("film.invert"), x.caption(), Paint::DIM).key(x.key("l-toggle")), colx(0.0), 214.0),
         x.at(toggle, colx(0.0), 238.0),
-        x.at(x.label("形", x.caption(), Paint::DIM).key(x.key("l-planes")), colx(0.0), 310.0),
+        x.at(x.label(l("film.c10.form"), x.caption(), Paint::DIM).key(x.key("l-planes")), colx(0.0), 310.0),
         x.at(tabs, colx(0.0), 334.0),
         x.at(space(x.u(span(3.0)), x.u(100.0)).fill(b).key(x.key("square")), colx(5.0), 330.0),
         x.at(space(x.u(span(12.0)), x.u(14.0)).fill(Paint::INK).key(x.key("bar")), colx(0.0), 430.0),
@@ -824,7 +824,7 @@ fn bauhaus(x: &Cx) -> Vec<El<Msg>> {
 }
 
 // ── 11 Neo-Y2K: chrome and a liquid menu ─────────────────────────────────────────────────────────
-pub const MENU: [&str; 5] = ["播放", "收藏", "分享", "下载", "设置"];
+pub const MENU: [&str; 5] = ["film.c11.item0", "film.c11.item1", "film.c11.item2", "film.c11.item3", "film.c11.item4"];
 fn chrome(x: &Cx) -> Vec<El<Msg>> {
     let f = x.f;
     let liquid = Material::Liquid.id();
@@ -838,10 +838,10 @@ fn chrome(x: &Cx) -> Vec<El<Msg>> {
         let r = if hot { 46.0 } else { 33.0 };
         let shift = if sel { 70.0 } else { 0.0 };
         let blob = space(x.u(r * 2.0), x.u(r * 2.0)).radius(x.u(r)).fill(if sel { Paint::hue(1) } else { Paint::hue(0) }).material(liquid).key(format!("{k}/blob")).respond(Response::Loosen);
-        menu = menu.child(row().key(k).height(x.u(64.0)).gap(x.u(20.0)).align(AlignItems::CENTER).on_press(Msg::Film(FMsg::MenuSel(i))).label(*name)
+        menu = menu.child(row().key(k).height(x.u(64.0)).gap(x.u(20.0)).align(AlignItems::CENTER).on_press(Msg::Film(FMsg::MenuSel(i))).label(l(name))
             .child(space(x.u(shift + 46.0 - r), 1.0))
             .child(blob)
-            .child(x.label(*name, x.body(), if sel { Paint::INK } else { Paint::TEXT })));
+            .child(x.label(l(name), x.body(), if sel { Paint::INK } else { Paint::TEXT })));
     }
     vec![
         x.at(menu, colx(0.0) - 10.0, 46.0),
@@ -857,12 +857,12 @@ fn collage(x: &Cx) -> Vec<El<Msg>> {
     let m = |mat: Material| mat.id();
     let paper = |el: El<Msg>, k: &str, mat: Material| col().key(x.key(k)).pad(x.u(14.0), x.u(12.0)).fill(Paint::tone(0.08)).material(m(mat)).child(el);
     let frags: Vec<(El<Msg>, f32, f32)> = vec![
-        (paper(row().key(x.key("f1/r")).gap(10.0).align(AlignItems::CENTER).child(x.label("反色", x.body(), Paint::TEXT)).child(switch(x.key("f1/switch"), "", f.inverted, None, Msg::Film(FMsg::Invert)).zoom(x.z())), "f1", Material::Plain), colx(0.0), 70.0),
+        (paper(row().key(x.key("f1/r")).gap(10.0).align(AlignItems::CENTER).child(x.label(l("film.invert"), x.body(), Paint::TEXT)).child(switch(x.key("f1/switch"), "", f.inverted, None, Msg::Film(FMsg::Invert)).zoom(x.z())), "f1", Material::Plain), colx(0.0), 70.0),
         (paper(x.mono("› go 05 neo-dotmatrix", x.body(), Paint::ACCENT).key(x.key("f2/t")), "f2", Material::Plain), colx(3.0), 60.0),
         (paper(row().gap(6.0).key(x.key("f3/r")).child(space(x.u(90.0), 1.0).fill(Paint::INK)).child(x.mono("Ø 300.0", x.caption(), Paint::INK)), "f3", Material::Plain), colx(7.0), 72.0),
         (paper(x.number(x.u(54.0), Paint::ACCENT).loose(0.0), "f5", Material::Dot), colx(0.0), 190.0),
-        (paper(text_lh("墨从笔画里渗出来一点，网点之间露出纸。", x.body(), x.body() * 1.5, Paint::INK).width(x.u(220.0)).key(x.key("f6/t")), "f6", Material::Print), colx(2.0), 190.0),
-        (paper(text("刻", x.u(90.0), Paint::INK).font(Font::Display).weight(3.0).key(x.key("f7/t")).loose(0.6), "f7", Material::Lino), colx(5.0) + 10.0, 170.0),
+        (paper(text_lh(l("film.c12.ink"), x.body(), x.body() * 1.5, Paint::INK).width(x.u(220.0)).key(x.key("f6/t")), "f6", Material::Print), colx(2.0), 190.0),
+        (paper(text(l("film.c12.carve"), x.u(90.0), Paint::INK).font(Font::Display).weight(3.0).key(x.key("f7/t")).loose(0.6), "f7", Material::Lino), colx(5.0) + 10.0, 170.0),
         (paper(row().gap(3.0).key(x.key("f8/w")).children((0..18).map(|i| space(3.0, x.u(12.0 + ((i * 7) % 11) as f32 * 4.0)).fill(Paint::INK).key(x.key(&format!("f8/b{i}"))))), "f8", Material::Glitch), colx(7.0), 180.0),
         (paper(col().key(x.key("f9/p")).width(x.u(150.0)).height(x.u(100.0)).radius(x.u(14.0)).fill(Paint::INK), "f9", Material::Xray), colx(9.5), 70.0),
         (paper(row().gap(x.u(8.0)).key(x.key("f10/r")).child(space(x.u(70.0), x.u(70.0)).radius(x.u(70.0)).fill(Paint::hue(0)).loose(0.8)).child(space(x.u(60.0), x.u(60.0)).fill(Paint::hue(1)).loose(0.8)), "f10", Material::Halftone), colx(0.0), 330.0),
@@ -886,8 +886,8 @@ fn collage(x: &Cx) -> Vec<El<Msg>> {
     }
     let z = x.z();
     out.push(x.at(row().key(x.key("controls")).gap(x.u(18.0)).align(AlignItems::CENTER)
-        .child(button_as(x.key("close"), if f.finale { "再松开" } else { "合上" }, Variant::Accent, Msg::Film(FMsg::Finale)).zoom(z))
-        .child(number(&x.key("count"), "粒子数", f.spec.particles, COUNT_SPEC, draft, |e| Msg::Film(FMsg::Count(e))).width(360.0).zoom(z)), colx(0.0), 560.0));
+        .child(button_as(x.key("close"), &if f.finale { l("film.c12.open") } else { l("film.c12.close") }, Variant::Accent, Msg::Film(FMsg::Finale)).zoom(z))
+        .child(number(&x.key("count"), &l("film.c12.particles"), f.spec.particles, COUNT_SPEC, draft, |e| Msg::Film(FMsg::Count(e))).width(360.0).zoom(z)), colx(0.0), 560.0));
     out
 }
 
@@ -905,15 +905,16 @@ fn machine(x: &Cx) -> Vec<El<Msg>> {
         let teeth = if p.teeth > 0 { format!("z {}", p.teeth) } else { String::new() };
         parts = parts.child(row().key(x.key(&format!("part{i}"))).height(x.u(30.0)).gap(x.u(12.0)).align(AlignItems::CENTER)
             .child(x.mono(format!("{:02}", i + 1), x.caption(), if on { Paint::ACCENT } else { Paint::DIM }).width(x.u(30.0)))
-            .child(x.label(p.name, x.body(), if on { Paint::ACCENT } else { Paint::INK }).width(x.u(140.0)))
+            .child(x.label(l(p.name), x.body(), if on { Paint::ACCENT } else { Paint::INK }).width(x.u(140.0)))
             .child(x.mono(teeth, x.caption(), Paint::DIM)));
     }
-    let names: Vec<&str> = mechanism::MATS.iter().map(|m| m.0).collect();
+    let names: Vec<String> = mechanism::MATS.iter().map(|m| l(m.0)).collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let mats = segmented(&x.key("mat"), &names, m.mat, 28.0, |i| Msg::Film(FMsg::Mech(MMsg::Material(i)))).zoom(z);
-    let explode = number(&x.key("explode"), "拆开", m.explode_to, EXPLODE_SPEC, draft, |e| Msg::Film(FMsg::MechExplode(e))).width(300.0).zoom(z);
+    let explode = number(&x.key("explode"), &l("film.apart"), m.explode_to, EXPLODE_SPEC, draft, |e| Msg::Film(FMsg::MechExplode(e))).width(300.0).zoom(z);
     vec![
         x.at(view, colx(0.0) - 20.0, 30.0),
-        x.at(x.mono("FIG. 13 · 机件", x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(8.5), 46.0),
+        x.at(x.mono(l("mech.eyebrow"), x.caption(), Paint::DIM).key(x.key("eyebrow")), colx(8.5), 46.0),
         x.at(x.sentence(x.display(), Paint::INK), colx(8.5), 70.0),
         x.at(row().key(x.key("ratio")).gap(x.u(10.0)).align(AlignItems::BASELINE).child(x.mono("i =", x.caption(), Paint::DIM)).child(x.number(x.body() * 1.6, Paint::ACCENT).font(Font::Mono)).child(x.mono("24 : 12 : 18", x.caption(), Paint::DIM)), colx(8.5), 140.0),
         x.at(parts, colx(8.5), 196.0),

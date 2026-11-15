@@ -1,7 +1,7 @@
 //! One deterministic frame of any gallery page or recipe, and its tree (DESIGN.md §1.17). Fixed 60 Hz
 //! clock from 0, fixed seeds: the same arguments give byte-identical PNGs.
 //!
-//! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>]
+//! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans]
 //!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--strict]
 //!
 //! `--events` is a JSON list such as `[{"at_ms": 200, "kind": "press", "target": "button/live"},
@@ -10,7 +10,7 @@
 //! them an error.
 use lab::drive::{RenderSpec, parse_events, render};
 
-const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--strict]";
+const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--strict]";
 
 fn fail(msg: impl std::fmt::Display) -> ! {
     eprintln!("render: {msg}");
@@ -19,7 +19,7 @@ fn fail(msg: impl std::fmt::Display) -> ! {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let mut spec = RenderSpec { page: String::new(), w: 1280, h: 800, scale: 1.0, material: None, theme: None, at_ms: 1000.0, events: vec![] };
+    let mut spec = RenderSpec { page: String::new(), w: 1280, h: 800, scale: 1.0, material: None, theme: None, at_ms: 1000.0, events: vec![], locale: None };
     let (mut out, mut tree, mut strict) = ("out.png".to_owned(), None, false);
     let mut i = 0;
     while i < args.len() {
@@ -37,6 +37,7 @@ fn main() {
             "--scale" => spec.scale = v.parse().unwrap_or_else(|_| fail(format!("`--scale {v}`: write device px per logical px, e.g. 1 or 2."))),
             "--material" => spec.material = Some(v),
             "--theme" => spec.theme = Some(v),
+            "--locale" => spec.locale = Some(v),
             "--at" => spec.at_ms = v.parse().unwrap_or_else(|_| fail(format!("`--at {v}`: write the time of the frame in ms, e.g. 1000."))),
             "--events" => {
                 let json = std::fs::read_to_string(&v).unwrap_or_else(|e| fail(format!("`--events {v}` could not be read ({e}).")));
