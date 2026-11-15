@@ -808,7 +808,7 @@ fn zine(x: &Cx) -> Parts {
     (vec![
         x.at(x.label(l("film.c06.head"), x.u(x.t.d), Paint::INK).font(Font::Display).weight(1.5).key(x.key("head")).nowrap(), colx(0.0), TOP_Y),
         x.at(body, tx, ty),
-        x.at(sign, tx + bx, ty + by),
+        x.at(sign, tx + q(x.u(bx)) / x.geo.k, ty + q(x.u(by)) / x.geo.k),
         x.at(space(1.0, x.u(500.0)).fill(Paint::FAINT).key(x.key("gutter")), 800.0, TOP_Y),
         x.at(text_lh(l("film.c06.zine2"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body2")).width(x.u(span(5.0))), colx(6.5), ty),
         x.at(number(&x.key("gap"), &l("film.c06.gap"), f.gap, GAP_SPEC, draft, |e| Msg::Film(FMsg::Gap(e))).width((x.u(300.0) / z).max(220.0)).zoom(z), colx(6.5), 470.0),
