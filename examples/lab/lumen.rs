@@ -36,7 +36,7 @@ impl Experiment for Lumen {
             let k = (-((g.x - lx).powi(2) + (g.y - ly).powi(2)) / (r * r)).exp();
             Pose { tone: l0 + (1.0 - l0) * k, accent: if near > 0.5 && k > 0.8 { 1.0 } else { 0.0 }, ..Pose::default() }
         });
-        let piece = col().key(format!("{key}/piece")).fill_width().height(150.0).child(body).on_point(|p| Some(Msg::Point(p)));
+        let piece = col().key(format!("{key}/piece")).fill_width().height(118.0).child(body).on_point(|p| Some(Msg::Point(p)));
         let formula = format!("L(d) = {l0:.2} + {:.2}·e^(−d²/{r:.0}²)", 1.0 - l0);
         frame(key, "lumen", "move to light", piece, formula, &self.p.caption(), Msg::Num, "tone by distance · outlines untouched")
     }

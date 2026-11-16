@@ -46,8 +46,14 @@ pub fn title(i: usize, l: Locale) -> String { source(i, l).lines().find_map(|x| 
 
 /// The components the registry lists (not the shared sizes), in its order: (name, title, description,
 /// functions, files, dependencies, response, recompose).
+#[derive(Clone)]
 pub struct Item { pub name: String, pub title: String, pub group: String, pub desc: String, pub desc_en: String, pub functions: Vec<String>, pub files: Vec<String>, pub deps: Vec<String>, pub response: String, pub recompose: String }
 pub fn items() -> Vec<Item> {
+    // Parsed once: the rail, the page list and every component page ask for it on every view.
+    static ITEMS: std::sync::OnceLock<Vec<Item>> = std::sync::OnceLock::new();
+    ITEMS.get_or_init(parse_items).clone()
+}
+fn parse_items() -> Vec<Item> {
     let reg: serde_json::Value = serde_json::from_str(REGISTRY).unwrap_or_default();
     let s = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
     let list = |v: &serde_json::Value| v.as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default();
@@ -98,7 +104,10 @@ fn widget_source(path: &str) -> &'static str {
 /// The registry names of the components the gallery has its own live page for (`COMPONENTS`).
 pub const COMP_NAMES: [&str; 13] = ["button", "number", "input", "switch", "slider", "tabs", "choice", "list", "card", "dialog", "image", "divider", "scroll-area"];
 /// The other components: their pages are made from their examples (`Page::Widget(i)`).
-pub fn widget_names() -> Vec<String> { items().into_iter().map(|i| i.name).filter(|n| !COMP_NAMES.contains(&n.as_str())).collect() }
+pub fn widget_names() -> Vec<String> {
+    static NAMES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    NAMES.get_or_init(|| items().into_iter().map(|i| i.name).filter(|n| !COMP_NAMES.contains(&n.as_str())).collect()).clone()
+}
 /// The examples file of a component (registry name → `examples/components/<name>.rs`).
 fn example_name(name: &str) -> &str { match name { "scroll_area" | "scroll-area" => "scroll", n => n } }
 pub fn example_source(name: &str) -> Option<&'static str> { crate::recipes::components::all().into_iter().find(|(n, _)| *n == example_name(name)).map(|(_, s)| s) }

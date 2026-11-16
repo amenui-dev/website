@@ -86,6 +86,7 @@ fn main() {
     let runs: usize = std::env::args().nth(1).and_then(|v| v.parse().ok()).unwrap_or(40);
     if std::env::args().nth(2).is_some_and(|a| a == "gpu") { particles(runs); return; }
     if std::env::args().nth(2).is_some_and(|a| a == "dirty") { dirty(); return; }
+    if std::env::args().nth(2).is_some_and(|a| a == "lab") { lab(runs); return; }
     let (w, h) = (1280u32, 800u32);
 
     // 1. Gallery button page: press the live button.
@@ -188,4 +189,34 @@ fn gallery_long(runs: usize) {
     ui.tick(1.0);
     let ms = time(runs, |i| { ui.wheel(700.0, 450.0, if (i / 20) % 2 == 0 { 120.0 } else { -120.0 }); });
     println!("10k virtual rows, wheel {ms:8.3} ms   (gallery page 一万行, per wheel step)");
+}
+
+/// The Lab's pages with the pointer moving over a cell: the CPU cost of a frame (tick: update, view,
+/// layout, scene), no GPU (DESIGN.md §5.3).
+fn lab(runs: usize) {
+    use lab::gallery::{self, Msg, Page};
+    let faces = lab::text::load_bundled("assets").expect("fonts");
+    let mut ui = gallery::new_ui(faces, 1280, 900, 1.0);
+    for p in std::iter::once(Page::Lab).chain((0..lab::gallery::lab::COUNT as u8).map(Page::Experiment)) {
+        gallery::update(&mut ui.state, Msg::Go(p));
+        ui.relayout();
+        let key = if let Page::Experiment(i) = p { format!("lab/{}", lab::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
+        let r = ui.node(&key).map(|n| n.rect).unwrap_or(lab::ui::Rect::new(300.0, 200.0, 300.0, 300.0));
+        let mut t = ui.now();
+        let mut total = 0.0;
+        for i in 0..runs {
+            t += 1.0 / 60.0;
+            ui.pointer_move(r.x + r.w * (0.2 + 0.6 * (i % 30) as f32 / 30.0), r.y + 90.0 + (i % 5) as f32 * 8.0);
+            let t0 = std::time::Instant::now();
+            ui.tick(t);
+            total += t0.elapsed().as_secs_f64() * 1000.0;
+        }
+        let t0 = std::time::Instant::now();
+        for _ in 0..10 { ui.relayout(); }
+        let rl = t0.elapsed().as_secs_f64() * 100.0;
+        let t0 = std::time::Instant::now();
+        for _ in 0..10 { let _ = (lab::gallery::view)(&ui.state); }
+        let vw = t0.elapsed().as_secs_f64() * 100.0;
+        println!("{:<16} {:6.2} ms/frame (CPU: input, update, view, layout, scene); one relayout {rl:.2} ms, of it the view {vw:.2} ms; {} nodes", p.hash(), total / runs as f64, ui.nodes().len());
+    }
 }

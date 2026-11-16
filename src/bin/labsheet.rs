@@ -14,7 +14,7 @@ const CH: u32 = 470;
 /// A cell alone: frames at rest, then the pointer moving over it (and pressing, for the drag cells).
 fn cell<E: Experiment>(o: &mut Offscreen, out: &str, name: &str, drag: bool) -> f64 {
     let mut u = ui::<E>(faces(), CW, CH, 1.0);
-    let look = lab::style::Look { theme: lab::style::LAB, ..Default::default() };
+    let look = u.look();
     let mut t = 0.0f32;
     let mut frames = vec![];
     let mut cost = (0.0f64, 0u32);

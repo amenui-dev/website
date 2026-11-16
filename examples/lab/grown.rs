@@ -25,7 +25,7 @@ impl Experiment for Grown {
     type Msg = Msg;
     fn view(&self, key: &str) -> El<Msg> {
         let shape: El<Msg> = match self.shape {
-            0 => text("Aa", 128.0, Paint::INK).font(Font::Face(0)),
+            0 => text("Aa", 168.0, Paint::INK).font(Font::Face(0)),
             1 => switch_sized(format!("{key}/toggle"), "", true, None, 150.0, Msg::Num(9, Edit::Cancel)),
             _ => space(130.0, 112.0).radius(30.0).fill(Paint::INK),
         };
