@@ -791,7 +791,10 @@ fn board(x: &Cx) -> Parts {
 // ── 6 Lo-Fi Print: a zine spread ─────────────────────────────────────────────────────────────────
 const ZINE_D: f32 = 210.0;
 /// Marks the zine's sign sheds per 100 px it is dragged (toner coming off).
-pub const ZINE_SHED: f32 = 12.0;
+pub const ZINE_SHED: f32 = 6.0;
+/// How far the zine's toner keeps off the text (px): it falls in the gap round the sign and is gone before
+/// it reaches a line.
+pub const ZINE_CLEAR: f32 = 10.0;
 fn zine(x: &Cx) -> Parts {
     let f = x.f;
     let (tx, ty, tw, th) = (colx(0.0), 196.0, span(6.0) - 30.0, 420.0);
@@ -803,7 +806,7 @@ fn zine(x: &Cx) -> Parts {
     let sil = sign_outline(q(x.u(bx)), q(x.u(by)), x.u(ZINE_D));
     let body = text_lh(l("film.c06.zine"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body")).width(x.u(tw)).around(Around::new(vec![sil], x.u(f.gap)));
     let draft = x.g.film.drafts.as_ref().filter(|d| d.0 == 6).map(|d| d.1.as_str());
-    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).shed(crate::motes::Shed { rate: ZINE_SHED, ..crate::motes::Shed::default() }).cursor(crate::el::Cursor::Grab).focusable(true).label(l("film.sign")).unframed()
+    let sign = x.sign(ZINE_D, Paint::INK, Paint::ACCENT).shed(crate::motes::Shed { rate: ZINE_SHED, clear: ZINE_CLEAR, ..crate::motes::Shed::default() }).cursor(crate::el::Cursor::Grab).focusable(true).label(l("film.sign")).unframed()
         .on_drag_with({ let (bx, by) = (bx, by); let k = x.geo.k; move |d: Drag| Some(Msg::Film(FMsg::Obj(bx + d.dx / k, by + d.dy / k))) })
         .on_key({ let (bx, by) = (bx, by); move |key, sh| { let s = if sh { 40.0 } else { 10.0 }; let (dx, dy) = match key { Key::Left => (-s, 0.0), Key::Right => (s, 0.0), Key::Up => (0.0, -s), Key::Down => (0.0, s), _ => return None }; Some(Msg::Film(FMsg::Obj(bx + dx, by + dy))) } });
     let z = x.z();
@@ -814,6 +817,8 @@ fn zine(x: &Cx) -> Parts {
         x.at(space(1.0, x.u(500.0)).fill(Paint::FAINT).key(x.key("gutter")), 800.0, TOP_Y),
         x.at(text_lh(l("film.c06.zine2"), x.body(), x.body() * 1.7, Paint::INK).key(x.key("body2")).width(x.u(span(5.0))), colx(6.5), ty),
         x.at(number(&x.key("gap"), &l("film.c06.gap"), f.gap, GAP_SPEC, draft, |e| Msg::Film(FMsg::Gap(e))).width((x.u(300.0) / z).max(220.0)).zoom(z), colx(6.5), 470.0),
+        // The formula caption: the numbers the wrap uses, from the same fields (DESIGN.md §5.2).
+        x.at(x.mono(format!("around(gap {:.0} px, justify ≤ {:.2} em)  ·  toner {:.0}/100 px, clear {:.0} px", f.gap, crate::wrap::JUSTIFY_MAX_EM, ZINE_SHED, ZINE_CLEAR), x.caption(), Paint::DIM).key(x.key("caption")).recompose(false), colx(6.5), 520.0),
         x.at(row().key(x.key("folio")).gap(x.u(10.0)).align(AlignItems::BASELINE).child(x.label("—", x.body(), Paint::DIM)).child(x.number(x.body() * 1.2, Paint::INK)).child(x.label("—", x.body(), Paint::DIM)), 1170.0, 570.0),
     ], None)
 }

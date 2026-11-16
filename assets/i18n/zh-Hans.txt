@@ -267,3 +267,4 @@ craft.stack.auto = 跟随材质
 craft.stack.plain = 平
 craft.stack.thick = 厚
 craft.stack.marks = 记号
+widget.chart.label = 点阵图表

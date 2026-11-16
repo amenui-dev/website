@@ -267,3 +267,4 @@ craft.stack.auto = From the material
 craft.stack.plain = Plain
 craft.stack.thick = Thick
 craft.stack.marks = Marks
+widget.chart.label = Dot chart

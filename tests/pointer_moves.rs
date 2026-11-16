@@ -79,7 +79,9 @@ fn audit(ui: &mut GalleryUi, name: &str, bad: &mut Vec<String>) {
         }
         prev = cur;
         ui.frame_drawn();
-        if !same { continue; }
+        // An element that hears the pointer (`El::on_move`: a scrubbing chart, a menu) changes with it by
+        // design: what it shows follows the pointer, so it may lay out and shape.
+        if !same || ui.move_over().is_some() { continue; }
         if after.layouts != before.layouts || (after.shaped != before.shaped && !labels) {
             bad.push(format!("{name}: move {i} to ({x}, {y}) with the same hover ran {} layouts and shaped {}: {:?}", after.layouts - before.layouts, after.shaped - before.shaped, ui.text_mut().shape_log.iter().rev().take(3).collect::<Vec<_>>()));
             return;
