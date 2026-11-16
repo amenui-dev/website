@@ -192,6 +192,10 @@ widget.command.placeholder = 输入命令…
 
 # The documentation
 nav.start = 开始
+nav.lab = 实验室
+lab.title = [ 实验室 ]  一格只做一件事的小实验
+lab.intro = 每一格是一个示例文件，只用公开的接口写成。移动、拖动或触摸；下面的数就是驱动它的数。
+nav.decode = 解码过渡
 nav.concepts = 概念
 nav.components = 组件
 nav.styles = 风格 / 预设

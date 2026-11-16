@@ -192,6 +192,10 @@ widget.command.placeholder = Type a command…
 
 # The documentation
 nav.start = Getting started
+nav.lab = Lab
+lab.title = [ LAB ]  small live pieces, one thing each
+lab.intro = Each cell is one example file written against the public API. Move, drag or touch; the numbers under each are the ones driving it.
+nav.decode = Decode transition
 nav.concepts = Concepts
 nav.components = Components
 nav.styles = Styles and presets

@@ -3,6 +3,8 @@
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
 pub mod craft;
+pub mod lab;
+pub mod decode;
 pub mod docs;
 pub mod film;
 pub mod mechanism;
@@ -33,7 +35,7 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 220.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8) }
+pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Lab, Experiment(u8), Decode }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke", "led", "braille", "cubes", "hex", "stipple", "hatch", "truchet", "topo"];
 
@@ -42,6 +44,9 @@ impl Page {
     pub fn all() -> Vec<Page> {
         let mut v: Vec<Page> = vec![Page::Film];
         v.extend((0..docs::DOCS.len() as u8).map(Page::Doc));
+        v.push(Page::Lab);
+        v.extend((0..lab::COUNT as u8).map(Page::Experiment));
+        v.push(Page::Decode);
         v.extend(comp_pages());
         v.extend((0..docs::widget_names().len() as u8).map(Page::Widget));
         v.extend(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks));
@@ -80,6 +85,9 @@ impl Page {
             Page::Demo => "demo".into(),
             Page::Scenes => "scenes".into(),
             Page::Scene(i) => scenes::hash(i as usize),
+            Page::Lab => "lab".into(),
+            Page::Experiment(i) => format!("lab-{}", lab::NAMES[i as usize]),
+            Page::Decode => "decode".into(),
         }
     }
     /// From `#name` or `name`; an empty hash is the first page.
@@ -95,6 +103,9 @@ impl Page {
         let zh = self.name_zh();
         match self {
             Page::Film => crate::i18n::tr("shell.film"),
+            Page::Lab => crate::i18n::tr("nav.lab"),
+            Page::Experiment(i) => { let n = lab::NAMES[i as usize]; n[..1].to_uppercase() + &n[1..] }
+            Page::Decode => crate::i18n::tr("nav.decode"),
             Page::Doc(i) => docs::title(i as usize, l),
             Page::Ai(i) => crate::i18n::tr(docs::AI[i as usize].1),
             Page::Registry => crate::i18n::tr("docs.ai.registry"),
@@ -110,7 +121,7 @@ impl Page {
     }
     fn name_zh(self) -> &'static str {
         match self {
-            Page::Film | Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) => "",
+            Page::Film | Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode => "",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -244,6 +255,10 @@ pub enum Msg {
     Film(film::FMsg),
     /// Something in an interaction preview (`craft`).
     Craft(craft::CMsg),
+    /// Something in a Lab cell.
+    Lab(lab::LMsg),
+    /// Something on the decode transition's page.
+    Decode(decode::DMsg),
 }
 
 pub struct Gallery {
@@ -359,6 +374,8 @@ pub struct Gallery {
     pub film: film::Film,
     /// The interaction previews (sheet, floating box, menus, loading, stack, chart, fields).
     pub craft: craft::Craft,
+    pub lab: lab::Lab,
+    pub decode: decode::DecodePage,
 }
 
 impl Default for Gallery {
@@ -374,7 +391,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), craft: craft::Craft::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), craft: craft::Craft::default(), lab: lab::Lab::default(), decode: decode::DecodePage::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -420,6 +437,7 @@ impl Gallery {
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         film::look(self, &mut l);
+        lab::look(self, &mut l);
         l
     }
     /// Apply style preset `i`: everything at once; the theme and material switches still work after.
@@ -583,6 +601,8 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Preset(m) => presets::update(s, m),
         Msg::Film(m) => film::update(s, m),
         Msg::Craft(m) => craft::update(s, m),
+        Msg::Lab(m) => lab::update(s, m),
+        Msg::Decode(m) => decode::update(s, m),
         Msg::RipBurst => { s.rip_burst = Some((s.clock, 0)); burst_step(s, s.clock); }
         Msg::Text(t) => s.text = t,
         Msg::Notes(t) => s.notes = t,
@@ -642,6 +662,9 @@ fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
     let main = col().key(format!("page/{}", s.page.hash())).fill_width().min_width(0.0);
     match s.page {
         Page::Demo => main.child(demo::view(&s.demo).map(Rc::new(Msg::Demo))),
+        Page::Lab => main.pad(if narrow { 14.0 } else { 32.0 }, 28.0).child(lab::page(s)),
+        Page::Decode => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(decode::page(s)),
+        Page::Experiment(i) => main.pad(if narrow { 14.0 } else { 40.0 }, 32.0).child(lab::experiment(s, i as usize)),
         Page::Material(_) | Page::Gaze => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(looks::page(s)),
         Page::Style(i) => main.child(styles::page(s, i as usize)),
         Page::Three => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(three::page(s)),
@@ -707,6 +730,7 @@ fn groups() -> Vec<(String, Vec<Page>)> {
     let mut v = vec![
         (tr("nav.start"), (0..docs::START as u8).map(Page::Doc).collect()),
         (tr("nav.concepts"), (docs::START as u8..docs::DOCS.len() as u8).map(Page::Doc).collect::<Vec<_>>()),
+        (tr("nav.lab"), std::iter::once(Page::Lab).chain((0..lab::COUNT as u8).map(Page::Experiment)).chain([Page::Decode]).collect()),
     ];
     for (g, key) in docs::GROUPS { v.push((format!("{} · {}", tr("nav.components"), tr(key)), comps.iter().filter(|p| docs::group_of(&name_of(p)) == g).copied().collect())); }
     v.extend([
@@ -796,7 +820,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let film = film::tick(s, t);
             let craft = craft::tick(s, t);
-            scenes::tick(s, t) || changed || burst || coast || film || craft
+            let lab = lab::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t));
+            scenes::tick(s, t) || changed || burst || coast || film || craft || lab
         })
         .on_look(|s| s.look())
         .on_locale(|s| s.locale)
@@ -808,6 +833,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let board = match (board, burst) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, film::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, craft::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, if s.page == Page::Decode { decode::wake(s, t) } else { None }) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, lab::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
         })
         .on_unused_key(|s, k, shift| {

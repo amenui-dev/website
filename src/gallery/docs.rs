@@ -223,7 +223,7 @@ pub fn registry(s: &Gallery) -> El<Msg> {
     frame(s, "ai-registry", body, &[])
 }
 /// A link target as a message: `#hash` goes to that page.
-fn link(t: &str) -> Msg {
+pub(super) fn link(t: &str) -> Msg {
     match Page::from_hash(t) { Some(p) => Msg::Go(p), None => Msg::Nothing }
 }
 /// The hash of a component's page.
