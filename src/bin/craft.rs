@@ -125,17 +125,27 @@ fn study_menu(out: &str) {
     r.save(out, "menu", 4);
 }
 
+fn study_loading(out: &str) {
+    let mut r = Rig::new("skeleton", "craft/load/demo");
+    r.shot();
+    r.tap("craft/load/reload");
+    r.ui.pointer_move(5.0, 900.0);
+    for secs in [0.15, 0.25, 0.3, 0.25, 0.03, 0.05, 0.05, 0.6] { r.run(secs); r.shot(); }
+    r.save(out, "loading", 3);
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu"];
+    let all = ["sheet", "floating", "menu", "loading"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
             "sheet" => study_sheet(&out),
             "floating" => study_floating(&out),
             "menu" => study_menu(&out),
+            "loading" => study_loading(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }
