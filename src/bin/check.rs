@@ -917,6 +917,52 @@ fn dirty(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         }
         if bad > 0 { failed += 1; }
     }
+    // The floating box dragged, thrown and gliding to a corner over its page (a moving box over
+    // content: what it leaves must be drawn again, every frame), under plain and dot.
+    let fh = 900u32;
+    let runs: Vec<(usize, f32)> = if std::env::var("DIRTY_ONLY").is_ok() { vec![(6, 1.0)] } else { (0..lab::style::MATERIALS.len()).map(|m| (m, 1.0)).chain([(0, 2.0), (1, 2.0)]).collect() };
+    for (mi, sc) in runs {
+        let mut part = Offscreen::new((w as f32 * sc) as u32, (fh as f32 * sc) as u32);
+        let mut ui = gallery::new_ui(fonts(), (w as f32 * sc) as u32, (fh as f32 * sc) as u32, sc);
+        gallery::update(&mut ui.state, Msg::Go(Page::from_hash("floating").expect("page")));
+        gallery::update(&mut ui.state, Msg::Material(mi));
+        ui.relayout();
+        ui.pointer_leave();
+        let Some(pip) = ui.nodes().iter().find(|n| n.key == "craft/pip/box").map(|n| n.key.clone()) else { eprintln!("FAIL dirty: no floating box"); failed += 1; continue };
+        let (x, y) = ui.node(&pip).expect("pip").rect.center();
+        let mut t = 3.0;
+        ui.tick(t);
+        let mut bad = 0;
+        for step in 0..90 {
+            t += 1.0 / 60.0;
+            match step {
+                4 => ui.pointer_move(x, y),
+                6 => ui.press(x, y),
+                7..=12 => ui.pointer_move(x - 30.0 * (step - 6) as f32, y + 18.0 * (step - 6) as f32),
+                13 => ui.release(x - 180.0, y + 108.0),
+                _ => {}
+            }
+            ui.tick(t);
+            let look = ui.state.look();
+            let a = part.render(&mut ui, &look);
+            let boxes = part.r.last_region;
+            part.r.partial = false;
+            ui.invalidate();
+            let b = part.render(&mut ui, &look);
+            part.r.partial = true;
+            frames += 1;
+            if let Some((_, b2)) = boxes && (b2[2] as f32) * (b2[3] as f32) < (w * fh) as f32 * sc * sc / 2.0 { small += 1; }
+            if a != b {
+                let n = a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p != q).count();
+                let ww = (w as f32 * sc) as usize;
+                let bb = a.chunks(4).zip(b.chunks(4)).enumerate().filter(|(_, (p, q))| p != q).fold([usize::MAX, usize::MAX, 0, 0], |m, (k, _)| [m[0].min(k % ww), m[1].min(k / ww), m[2].max(k % ww), m[3].max(k / ww)]);
+                eprintln!("  differing pixels within {bb:?}");
+                if bad == 0 { eprintln!("FAIL dirty floating material {mi} scale {sc} frame {step}: {n} pixels differ from the whole redraw (boxes {:?})", boxes); }
+                bad += 1;
+            }
+        }
+        if bad > 0 { failed += 1; }
+    }
     // Control: most frames really were drawn in part.
     if small * 2 < frames { eprintln!("FAIL control: only {small} of {frames} frames were drawn in boxes under half the window"); failed += 1; }
     eprintln!("15. dirty boxes: {frames} frames compared, {small} drawn in part, {failed} failing");
