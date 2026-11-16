@@ -107,16 +107,35 @@ fn study_floating(out: &str) {
     r.save(out, "floating", 5);
 }
 
+fn study_menu(out: &str) {
+    let mut r = Rig::new("nested-menu", "craft/menu/demo");
+    r.tap("craft/menu/zone");
+    let o = { let b = r.ui.node("craft/menu").unwrap().rect; (b.x, b.y) };
+    let go = |r: &mut Rig, x: f32, y: f32| { r.ui.pointer_move(o.0 + x, o.1 + y); r.frame(); };
+    go(&mut r, 100.0, 18.0);
+    r.run(0.2); r.shot();
+    // Diagonal toward the submenu across B and C: A stays open, the triangle follows.
+    for i in 1..=10 { go(&mut r, 100.0 + 9.5 * i as f32, 18.0 + 7.0 * i as f32); if i % 3 == 0 { r.shot(); } }
+    go(&mut r, 215.0, 92.0); r.run(0.2); r.shot();
+    // Back to the first menu and straight down: outside the triangle, the row takes over after the delay.
+    go(&mut r, 100.0, 18.0); r.run(0.3);
+    for y in [40.0, 60.0, 78.0] { go(&mut r, 100.0, y); }
+    r.shot();
+    r.run(0.15); r.shot();
+    r.save(out, "menu", 4);
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating"];
+    let all = ["sheet", "floating", "menu"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
             "sheet" => study_sheet(&out),
             "floating" => study_floating(&out),
+            "menu" => study_menu(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

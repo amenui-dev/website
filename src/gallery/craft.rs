@@ -4,12 +4,12 @@
 //! from the same fields it reads.
 use super::{Gallery, Msg, Target};
 use crate::el::{El, Font, Paint, col, layers, row, space, text};
-use crate::widgets::{CaptionParam, Edit, FloatMsg, Floating, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating};
+use crate::widgets::{CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
 use taffy::AlignItems;
 
 /// The previews' state.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Craft { pub sheet: Sheet, pub pip: Floating }
+pub struct Craft { pub sheet: Sheet, pub pip: Floating, pub menu: Menu, pub picked: Vec<usize> }
 /// The sheet preview's phone-shaped frame, and the floating preview's area (logical px).
 pub const PHONE: (f32, f32) = (340.0, 560.0);
 pub const AREA: (f32, f32) = (520.0, 320.0);
@@ -20,12 +20,19 @@ impl Default for Craft {
         let mut pip = Floating::default();
         (pip.area, pip.size) = (AREA, (168.0, 100.0));
         pip.place(3);
-        Self { sheet, pip }
+        Self { sheet, pip, menu: Menu::new(menu_items()), picked: vec![] }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CMsg { SheetOpen, Sheet(SheetMsg), Pip(FloatMsg) }
+pub enum CMsg { SheetOpen, Sheet(SheetMsg), Pip(FloatMsg), Menu(MenuMsg), SafeZone }
+
+/// The menu preview's rows (generic names; the labels are in the catalogs).
+fn menu_items() -> Vec<MenuItem> {
+    let t = |k: &str| crate::i18n::tr(k);
+    let sub = |k: &str, n: usize| MenuItem::sub(t(k), (1..=n).map(|i| MenuItem::leaf(format!("{} {i}", t("craft.menu.item")))).collect());
+    vec![sub("craft.menu.new", 5), sub("craft.menu.recent", 6), sub("craft.menu.share", 4), sub("craft.menu.arrange", 5), MenuItem::leaf(t("craft.menu.close"))]
+}
 
 pub fn update(s: &mut Gallery, m: CMsg) {
     let now = s.clock;
@@ -34,6 +41,8 @@ pub fn update(s: &mut Gallery, m: CMsg) {
         CMsg::SheetOpen => { c.sheet.present(now); s.cmds.push(crate::morph::Cmd::Focus { key: "craft/sheet/handle".into() }); }
         CMsg::Sheet(m) => c.sheet.update(m, now),
         CMsg::Pip(m) => c.pip.update(m, now),
+        CMsg::Menu(m) => if let Some(p) = c.menu.update(m, now) { c.picked = p; },
+        CMsg::SafeZone => c.menu.show_safe_zone = !c.menu.show_safe_zone,
     }
 }
 /// Step what springs; whether the view changed.
@@ -41,10 +50,15 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     let c = &mut s.craft;
     let a = c.sheet.step(t);
     let b = c.pip.step(t);
-    a || b
+    let m = c.menu.step(t);
+    a || b || m
 }
 /// Every frame while something springs; nothing at rest.
-pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.craft.sheet.moving() || s.craft.pip.moving()).then_some(t) }
+pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
+    if s.craft.sheet.moving() || s.craft.pip.moving() { return Some(t); }
+    // A menu switch waits for its time, not for every frame.
+    s.craft.menu.due()
+}
 
 const fn spec(min: f32, max: f32, step: f32, decimals: usize, unit: &'static str) -> Spec { Spec { min, max, step, decimals, unit } }
 /// The numbers of preview `p` (0 sheet, 1 floating): (name in the formula, range).
@@ -58,13 +72,17 @@ fn defs(p: usize) -> &'static [(&'static str, Spec)] {
         ("corner_inset", spec(0.0, 80.0, 1.0, 0, "px")), ("projection_decel", spec(0.9, 0.9995, 0.0005, 4, "")), ("stiffness", spec(10.0, 2000.0, 10.0, 0, "")),
         ("damping", spec(0.0, 200.0, 1.0, 0, "")), ("rubber.coeff", spec(0.0, 2.0, 0.05, 2, "")),
     ];
-    match p { 0 => &SHEET, _ => &PIP }
+    const MENU: [(&str, Spec); 4] = [
+        ("submenu_delay_ms", spec(0.0, 1000.0, 10.0, 0, "ms")), ("close_delay_ms", spec(0.0, 2000.0, 10.0, 0, "ms")), ("row_h", spec(20.0, 60.0, 1.0, 0, "px")), ("width", spec(120.0, 320.0, 4.0, 0, "px")),
+    ];
+    match p { 0 => &SHEET, 1 => &PIP, _ => &MENU }
 }
 /// Number `i` of preview `p`.
 fn get(c: &Craft, p: usize, i: usize) -> f32 {
     match (p, i) {
         (0, 0) => c.sheet.detents[0], (0, 1) => c.sheet.detents[1], (0, 2) => c.sheet.dismiss_velocity, (0, 3) => c.sheet.projection_decel,
         (0, 4) => c.sheet.backdrop, (0, 5) => c.sheet.spring.stiffness, (0, 6) => c.sheet.spring.damping, (0, _) => c.sheet.rubber.coeff,
+        (2, 0) => c.menu.submenu_delay_ms, (2, 1) => c.menu.close_delay_ms, (2, 2) => c.menu.row_h, (2, _) => c.menu.width,
         (_, 0) => c.pip.corner_inset, (_, 1) => c.pip.projection_decel, (_, 2) => c.pip.spring.stiffness, (_, 3) => c.pip.spring.damping, _ => c.pip.rubber.coeff,
     }
 }
@@ -74,6 +92,7 @@ pub fn set(s: &mut Gallery, p: usize, i: usize, v: f32) {
         (0, 0) => c.sheet.detents[0] = v.min(c.sheet.detents[1]), (0, 1) => c.sheet.detents[1] = v.max(c.sheet.detents[0]), (0, 2) => c.sheet.dismiss_velocity = v,
         (0, 3) => c.sheet.projection_decel = v, (0, 4) => c.sheet.backdrop = v, (0, 5) => c.sheet.spring.stiffness = v, (0, 6) => c.sheet.spring.damping = v,
         (0, _) => c.sheet.rubber.coeff = v,
+        (2, 0) => c.menu.submenu_delay_ms = v, (2, 1) => c.menu.close_delay_ms = v, (2, 2) => c.menu.row_h = v, (2, _) => c.menu.width = v,
         (_, 0) => { c.pip.corner_inset = v; let k = c.pip.corner(); c.pip.place(k); }
         (_, 1) => c.pip.projection_decel = v, (_, 2) => c.pip.spring.stiffness = v, (_, 3) => c.pip.spring.damping = v, _ => c.pip.rubber.coeff = v,
     }
@@ -91,6 +110,7 @@ pub fn live(s: &Gallery, name: &str) -> Option<El<Msg>> {
     match name {
         "bottom_sheet" => Some(sheet_page(s)),
         "floating" => Some(pip_page(s)),
+        "nested_menu" => Some(menu_page(s)),
         _ => None,
     }
 }
@@ -137,4 +157,23 @@ fn pip_page(s: &Gallery) -> El<Msg> {
     let formula = format!("end = at + v/1000·{d:.4}/(1−{d:.4})  ·  corner = nearest(end), inset {i:.0}  ·  spring k={k:.0} c={c:.0} (ζ={z:.2})  ·  past an edge: (1 − 1/(d·{rc:.2}/dim + 1))·dim",
         d = f.projection_decel, i = f.corner_inset, k = f.spring.stiffness, c = f.spring.damping, z = f.spring.ratio(), rc = f.rubber.coeff);
     cap(s, 1, "craft/pip/cap", formula, area)
+}
+
+fn menu_page(s: &Gallery) -> El<Msg> {
+    let m = &s.craft.menu;
+    let tr = crate::i18n::tr;
+    let picked = if s.craft.picked.is_empty() { tr("craft.menu.none") } else {
+        let mut it: &[MenuItem] = &m.items;
+        let mut names = vec![];
+        for &i in &s.craft.picked { if let Some(x) = it.get(i) { names.push(x.label.clone()); it = &x.items; } }
+        names.join(" › ")
+    };
+    let menu = nested_menu("craft/menu", m, |x| Msg::Craft(CMsg::Menu(x)));
+    let area = col().key("craft/menu/area").width(560.0).height(330.0).pad(16.0, 16.0).radius(8.0).border(1.0, Paint::FAINT).child(menu);
+    let controls = row().key("craft/menu/controls").gap(16.0).align(AlignItems::CENTER)
+        .child(switch("craft/menu/zone", &tr("craft.menu.show-zone"), m.show_safe_zone, None, Msg::Craft(CMsg::SafeZone)))
+        .child(text(format!("{}: {picked}", tr("craft.menu.picked")), 13.0, Paint::DIM).key("craft/menu/picked"));
+    let formula = format!("switch row after {sd:.0} ms; inside △(prev pointer, submenu near corners) wait {cd:.0} ms, re-armed by each move  ·  rows {rh:.0} px, menus {w:.0} px",
+        sd = m.submenu_delay_ms, cd = m.close_delay_ms, rh = m.row_h, w = m.width);
+    cap(s, 2, "craft/menu/cap", formula, col().key("craft/menu/demo").gap(12.0).child(area).child(controls))
 }

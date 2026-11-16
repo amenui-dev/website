@@ -20,9 +20,10 @@ fn click(ui: &mut GalleryUi, k: &str) {
     for _ in 0..60 {
         let n = ui.node(k).unwrap_or_else(|| panic!("no node {k}"));
         let (c, r) = (n.clip, n.rect);
-        if !k.starts_with("nav/") || (r.y >= c.y && r.bottom() <= c.bottom()) { break; }
+        // Clear of the rail's padding too: a press on a row that is cut by it scrolls it into view first.
+        if !k.starts_with("nav/") || (r.y >= c.y + 24.0 && r.bottom() <= c.bottom() - 24.0) { break; }
         let rail = ui.node("rail").expect("rail").rect;
-        ui.wheel(rail.center().0, rail.center().1, if r.y < c.y { -120.0 } else { 120.0 });
+        ui.wheel(rail.center().0, rail.center().1, if r.y < c.y + 24.0 { -120.0 } else { 120.0 });
     }
     let (x, y) = centre(ui, k);
     ui.press(x, y);
