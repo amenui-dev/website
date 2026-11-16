@@ -2,6 +2,8 @@
 widget.dialog.close = 关闭
 widget.image.alt = 图片
 widget.orbit.label = 三维视图
+widget.sheet.handle = 调整面板高度
+widget.floating.label = 浮动窗口
 widget.number.less = 减少
 widget.number.more = 增加
 widget.list.rows.one = {n} 行

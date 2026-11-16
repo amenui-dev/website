@@ -2,6 +2,8 @@
 widget.dialog.close = Close
 widget.image.alt = Picture
 widget.orbit.label = 3D view
+widget.sheet.handle = Resize the sheet
+widget.floating.label = Floating window
 widget.number.less = Less
 widget.number.more = More
 widget.list.rows.one = {n} row

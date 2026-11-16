@@ -2,6 +2,7 @@
 //! components, the mark sets and the type; each component has a page with a live preview, every
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
+pub mod craft;
 pub mod docs;
 pub mod film;
 pub mod mechanism;
@@ -163,6 +164,8 @@ pub enum Target {
     Rip(usize),
     /// Number `i` of the list page's scroll section (`pages::SCROLL_PARAMS`).
     Scroll(usize),
+    /// Number `i` of interaction preview `p` (`craft`).
+    Craft(usize, usize),
     /// A variant: shown, but its value does not change.
     Shown,
 }
@@ -239,6 +242,8 @@ pub enum Msg {
     Preset(presets::PreMsg),
     /// Something in the film.
     Film(film::FMsg),
+    /// Something in an interaction preview (`craft`).
+    Craft(craft::CMsg),
 }
 
 pub struct Gallery {
@@ -352,6 +357,8 @@ pub struct Gallery {
     pub pre_note: String,
     /// The film (`#film`).
     pub film: film::Film,
+    /// The interaction previews (sheet, floating box, menus, loading, stack, chart, fields).
+    pub craft: craft::Craft,
 }
 
 impl Default for Gallery {
@@ -367,7 +374,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), craft: craft::Craft::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -547,6 +554,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
                 Target::Three(i) if i >= three::PARAMS.len() => s.three.mech.explode_to = v.clamp(0.0, 1.0),
                 Target::Three(i) => *three::slot(&mut s.three, i) = v,
                 Target::Parts(i) => *particles::slot(&mut s.parts, &mut s.particles, i) = v,
+                Target::Craft(p, i) => craft::set(s, p, i, v),
                 Target::Preset(i) => presets::set(s, i, v),
                 Target::Mat(m, i) => s.mats[m as usize].0[i] = v,
                 Target::Loose => s.loose = v,
@@ -574,6 +582,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Parts(m) => particles::update(s, m),
         Msg::Preset(m) => presets::update(s, m),
         Msg::Film(m) => film::update(s, m),
+        Msg::Craft(m) => craft::update(s, m),
         Msg::RipBurst => { s.rip_burst = Some((s.clock, 0)); burst_step(s, s.clock); }
         Msg::Text(t) => s.text = t,
         Msg::Notes(t) => s.notes = t,
@@ -641,7 +650,7 @@ fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
         Page::Doc(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::prose(s, i as usize)),
         Page::Ai(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::ai(s, i as usize)),
         Page::Registry => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::registry(s)),
-        Page::Widget(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::component(s, &docs::widget_names()[i as usize], None, None)),
+        Page::Widget(i) => { let n = &docs::widget_names()[i as usize]; main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::component(s, n, craft::live(s, n), None)) }
         Page::Scenes | Page::Scene(_) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(scenes::list(s)),
         _ => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(pages::page(s)),
     }
@@ -786,7 +795,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             // The 3D page's camera coasts after a fast drag.
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let film = film::tick(s, t);
-            scenes::tick(s, t) || changed || burst || coast || film
+            let craft = craft::tick(s, t);
+            scenes::tick(s, t) || changed || burst || coast || film || craft
         })
         .on_look(|s| s.look())
         .on_locale(|s| s.locale)
@@ -797,6 +807,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let burst = if s.page == Page::Three && s.three.mech.moving(t) { Some(t) } else { burst };
             let board = match (board, burst) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, film::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, craft::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
         })
         .on_unused_key(|s, k, shift| {
