@@ -48,5 +48,5 @@ impl Experiment for Silk {
         self.swarm.advect(dt, |x, y| { let (cx, cy) = curl(&field, x, y, 1.0); let (u, v) = stir.at(x, y); (cx * k + u, cy * k + v) });
         true
     }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() }
 }

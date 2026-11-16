@@ -16,7 +16,7 @@ static DEFS: [(&str, Spec); 4] = [("f", spec(0.01, 0.08, 0.001, 3, "")), ("k", s
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grown { pub p: Params, pub ptr: Pointer, pub gs: GrayScott, pub mask: Option<Rc<Grid>>, pub shape: usize, pub since: f32, pub t: f32 }
 impl Default for Grown {
-    fn default() -> Self { Self { p: Params::new(&DEFS, &[0.037, 0.060, 24.0, 9.0]), ptr: Pointer::new(0.0, 0.0, 300.0, 30.0), gs: GrayScott::new(N.0, N.1), mask: None, shape: 0, since: 0.0, t: 0.0 } }
+    fn default() -> Self { Self { p: Params::new(&DEFS, &[0.037, 0.060, 32.0, 9.0]), ptr: Pointer::new(0.0, 0.0, 300.0, 30.0), gs: GrayScott::new(N.0, N.1), mask: None, shape: 0, since: 0.0, t: 0.0 } }
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg { Point(Option<Point>), Outline(Rc<Grid>), Num(usize, Edit) }
@@ -55,5 +55,5 @@ impl Experiment for Grown {
         self.gs.step(self.p.get(2) as usize);
         true
     }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() }
 }

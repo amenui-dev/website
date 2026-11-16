@@ -19,7 +19,7 @@ macro_rules! cells {
         pub enum LMsg { Seen(usize, bool), $( $v(<$t as Experiment>::Msg) ),* }
         /// Every experiment's state, and which can be seen.
         #[derive(Clone, Default)]
-        pub struct Lab { pub seen: [bool; COUNT], $( pub $f: $t ),* }
+        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, $( pub $f: $t ),* }
         impl Lab {
             /// Cell `i`, keyed under `key`, telling when it comes into view.
             pub fn cell(&self, i: usize, key: &str) -> El<LMsg> {
@@ -27,11 +27,12 @@ macro_rules! cells {
                 c.on_visible(move |v| Some(LMsg::Seen(i, v)))
             }
             pub fn update(&mut self, m: LMsg, now: f32) {
+                if !matches!(m, LMsg::Seen(..)) { self.until = now + crate::experiment::IDLE_S; }
                 match m { LMsg::Seen(i, v) => self.seen[i] = v, $( LMsg::$v(m) => self.$f.update(m, now), )* }
             }
             /// Step what can be seen; whether the view changed.
-            pub fn step(&mut self, now: f32) -> bool { let mut c = false; $( if self.seen[$i] { c |= self.$f.step(now); } )* c }
-            pub fn moving(&self) -> bool { false $( || (self.seen[$i] && self.$f.moving()) )* }
+            pub fn step(&mut self, now: f32) -> bool { let idle = now < self.until; let mut c = false; $( if self.seen[$i] && (idle || self.$f.moving()) { c |= self.$f.step(now); } )* c }
+            pub fn moving(&self, now: f32) -> bool { false $( || (self.seen[$i] && (now < self.until || self.$f.moving())) )* }
         }
     };
 }
@@ -51,7 +52,9 @@ cells! {
 pub fn update(s: &mut Gallery, m: LMsg) { let now = s.clock; s.lab.update(m, now); }
 /// Step the cells that can be seen, on the Lab and on an experiment's page.
 pub fn tick(s: &mut Gallery, t: f32) -> bool { on_lab(s) && s.lab.step(t) }
-pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (on_lab(s) && s.lab.moving()).then_some(t) }
+pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (on_lab(s) && s.lab.moving(t)).then_some(t) }
+/// Arriving on a Lab page starts the idle motion of what can be seen.
+pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + crate::experiment::IDLE_S; }
 fn on_lab(s: &Gallery) -> bool { matches!(s.page, super::Page::Lab | super::Page::Experiment(_)) }
 
 /// The lab's look on its pages: its theme, plain material, nothing else.

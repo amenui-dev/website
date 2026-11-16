@@ -58,5 +58,5 @@ impl Experiment for Orbit {
         }
         true
     }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() }
 }

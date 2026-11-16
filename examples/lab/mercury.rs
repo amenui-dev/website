@@ -51,5 +51,5 @@ impl Experiment for Mercury {
         if !self.ptr.over { let (vx, vy) = (self.ptr.x.velocity, self.ptr.y.velocity); self.ptr.x.to(W * 0.5, vx, now); self.ptr.y.to(H * 0.5, vy, now); }
     }
     fn step(&mut self, now: f32) -> bool { self.t = now; self.ptr.step(now); true }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() }
 }

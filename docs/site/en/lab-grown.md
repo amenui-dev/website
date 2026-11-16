@@ -16,7 +16,7 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 |---|---|---|---|
 | `f` | 0.037 | 0.01–0.08 | feed |
 | `k` | 0.060 | 0.04–0.07 | kill |
-| `steps` | 14 /frame | 1–40 | steps per frame |
+| `steps` | 32 /frame | 1–40 | steps per frame |
 | `T` | 9 s | 2–30 | time per shape |
 
 ## How it is made

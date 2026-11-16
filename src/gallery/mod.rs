@@ -52,7 +52,7 @@ impl Page {
         v.extend(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks));
         v.extend((0..MATERIAL_COUNT as u8).map(Page::Material));
         v.push(Page::Gaze);
-        v.extend((0..12u8).map(Page::Style));
+        v.extend((0..styles().len() as u8).map(Page::Style));
         v.push(Page::Presets);
         v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three]);
         v.push(Page::Type);
@@ -474,6 +474,7 @@ impl Gallery {
             // The 风格 page starts from its "from".
             Page::Presets => self.apply_style(self.pre_from),
             // The film opens on its chapter, in its preset.
+            Page::Lab | Page::Experiment(_) => lab::enter(self),
             Page::Film => { self.film.entered = self.clock; self.film.ghost = 0; self.apply_style(film::CH[self.film.ch].style); }
             _ => {}
         }
@@ -734,7 +735,7 @@ fn groups() -> Vec<(String, Vec<Page>)> {
     ];
     for (g, key) in docs::GROUPS { v.push((format!("{} · {}", tr("nav.components"), tr(key)), comps.iter().filter(|p| docs::group_of(&name_of(p)) == g).copied().collect())); }
     v.extend([
-        (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..12u8).map(Page::Style)).collect()),
+        (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style)).collect()),
         (tr("nav.ai"), vec![Page::Ai(0), Page::Ai(1), Page::Registry]),
         (tr("nav.changelog"), vec![Page::Ai(2)]),
         (tr("nav.marks"), set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks).collect()),

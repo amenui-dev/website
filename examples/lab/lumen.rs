@@ -44,5 +44,5 @@ impl Experiment for Lumen {
         match m { Msg::Point(p) => self.ptr.hear(p, now), Msg::Num(i, e) => self.p.edit(i, e) }
     }
     fn step(&mut self, now: f32) -> bool { self.t = now; self.ptr.step(now); true }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() }
 }

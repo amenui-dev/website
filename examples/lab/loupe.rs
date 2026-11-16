@@ -11,7 +11,7 @@ static DEFS: [(&str, Spec); 3] = [("R", spec(30.0, 120.0, 1.0, 0, "px")), ("ω0"
 #[derive(Clone, Debug, PartialEq)]
 pub struct Loupe { pub p: Params, pub ptr: Pointer, pub yaw: f32, pub spin: f32, pub tilt: f32, pub t: f32, grab: Option<(f32, f32)> }
 impl Default for Loupe {
-    fn default() -> Self { Self { p: Params::new(&DEFS, &[66.0, 0.3, 1.6]), ptr: Pointer::new(0.0, 0.0, 200.0, 24.0), yaw: 0.0, spin: 0.0, tilt: 0.35, t: 0.0, grab: None } }
+    fn default() -> Self { Self { p: Params::new(&DEFS, &[66.0, 0.3, 1.6]), ptr: Pointer::new(0.0, 0.0, 200.0, 24.0), yaw: 0.0, spin: 0.3, tilt: 0.35, t: 0.0, grab: None } }
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg { Point(Option<Point>), Num(usize, Edit) }
@@ -56,5 +56,5 @@ impl Experiment for Loupe {
         if self.grab.is_none() { let w0 = self.p.get(1); self.spin = w0 + (self.spin - w0) * (-self.p.get(2) * dt).exp(); self.yaw += self.spin * dt; }
         true
     }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.ptr.moving() || self.grab.is_some() || (self.spin - self.p.get(1)).abs() > 0.01 }
 }

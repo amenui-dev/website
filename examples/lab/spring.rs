@@ -53,5 +53,5 @@ impl Experiment for Spring {
         self.trace.retain(|&(t, _)| now - t <= 2.0);
         true
     }
-    fn moving(&self) -> bool { true }
+    fn moving(&self) -> bool { self.held || self.x.moving() || self.trace.windows(2).any(|w| w[0].1 != w[1].1) }
 }
