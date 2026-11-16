@@ -171,7 +171,7 @@ pub fn doc_w(s: &Gallery, max: f32) -> f32 {
 /// A page as raw Markdown (`<hash>.md`), for agents and for reading without the framework: a prose page
 /// is its source; a component's page is written out in the same order as it is shown (title and
 /// description, installation, usage, every example's code, the API table). `None` for pages that are
-/// drawn only (the film, the mark and material pages, the scenes).
+/// drawn only (the Body scene, the mark and material pages, the scenes).
 pub fn markdown(page: Page, l: Locale) -> Option<String> {
     match page {
         Page::Doc(i) => Some(source(i as usize, l).to_owned()),

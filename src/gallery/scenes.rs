@@ -17,11 +17,11 @@ use taffy::style_helpers::length;
 pub const SCENES: [(&str, &str, &str, usize); 7] = [
     ("opening", "开场", "满屏的点聚成标题，再散开拼出一页；然后由一台机器一步一步操作这一页。", 1),
     ("reading", "读一篇文章", "图文混排的长文。拖动图片，文字沿着它的真实轮廓重新排开。", 2),
-    ("printing", "一张图的印法", "同一张图分成五块，每块一种记号。指针下显出这一块的记号；拖动分界线，或只用一种记号对比原图。", 8),
+    ("printing", "一张图的印法", "同一张图分成五块，每块一种记号。指针下显出这一块的记号；拖动分界线，或只用一种记号对比原图。", 7),
     ("morph", "变形", "一个粗重的词散成粒子，拼成一张图；图变成记号，再合成一个能用的小界面。", 1),
-    ("xray", "透视", "按住空格，界面被拆开：边框、编号和中间图浮出来。松开，合回去。", 6),
+    ("xray", "拆开", "按住空格，界面被拆开：边框、编号和中间图浮出来。松开，合回去。", 5),
     ("sound", "声音", "一段按节拍生成的信号进入场：低频推动整页起伏，频谱散成点，文字仍然可读。", 3),
-    ("styles", "十种风格", "同一个界面，在十二个风格预设之间切换，变化从按下的地方传开。", 7),
+    ("styles", "九种风格", "同一个界面，在九个风格预设之间切换，变化从按下的地方传开。", 6),
 ];
 pub const COUNT: usize = 7;
 
@@ -209,7 +209,7 @@ pub fn update(g: &mut Gallery, m: SMsg) {
             if g.sc.playing { g.sc.song += now - g.sc.since; } else { g.sc.since = now; }
             g.sc.playing = !g.sc.playing;
         }
-        SMsg::Look(i) => { g.sc.look = i % 12; g.apply_style(i % 12); }
+        SMsg::Look(i) => { let i = i % styles().len(); g.sc.look = i; g.apply_style(i); }
     }
 }
 
@@ -765,7 +765,7 @@ fn xray(g: &Gallery, w: f32, h: f32) -> El<Msg> {
             .child(label("03  中间图：离墨的远近", cx + offs[0].0, cy + offs[0].1))
             .child(xr_app("near", aw, false, false).material(Material::Near.id()).absolute(Some(cx + offs[0].0), Some(cy + offs[0].1), None, None))
             .child(label("02  轮廓", cx + offs[1].0, cy + offs[1].1))
-            .child(xr_app("outline", aw, true, false).material(Material::Xray.id()).absolute(Some(cx + offs[1].0), Some(cy + offs[1].1), None, None))
+            .child(xr_app("outline", aw, true, false).material(Material::Plain.id()).absolute(Some(cx + offs[1].0), Some(cy + offs[1].1), None, None))
             .child(label("01  画面", cx + offs[2].0, cy + offs[2].1));
     }
     let (ox, oy) = if sc.apart { offs[2] } else { (0.0, 0.0) };

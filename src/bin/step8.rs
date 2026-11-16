@@ -170,7 +170,7 @@ fn mesh(out: &str) {
     eprintln!("wrote {out}/mesh-materials.png ({} frames: every material at rest and loose 0.7, then four mark sets)", frames.len());
 }
 
-/// The look features, each off and on, on the image page and the film's chapters that use them:
+/// The look features, each off and on, on the image page and the 3D page:
 /// `looks.png`, a row per feature (off | on).
 fn looks(out: &str) {
     use lab::gallery::{self, Msg, Page};
@@ -218,38 +218,6 @@ fn looks(out: &str) {
         l.marks = lab::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
         frames.push(half(&(w * 2, h * 2, big.render(&mut ui, &l))));
     }
-    // Shedding (the zine's sign still | being dragged) and the monitor's flow field (paused | a second
-    // of drift while it plays), from the film.
-    let film_ui = |ch: usize, play: bool| {
-        let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w * 2, h * 2, 1.0);
-        ui.pointer_leave();
-        ui.state.route("film");
-        if ui.state.film.playing != play { gallery::update(&mut ui.state, Msg::Film(lab::gallery::film::FMsg::Play)); }
-        lab::gallery::film::go(&mut ui.state, ch, None);
-        ui.relayout();
-        for i in 1..=180 { ui.tick(i as f32 / 60.0); }
-        ui
-    };
-    let mut ui = film_ui(6, false);
-    let look = ui.state.look();
-    let still = big.render(&mut ui, &look);
-    let (x, y) = ui.node("film/c06/sign").expect("sign").rect.center();
-    ui.press(x, y);
-    let mut t = ui.now();
-    for i in 1..=24 { t += 1.0 / 60.0; ui.pointer_move(x + i as f32 * 8.0, y + i as f32 * 3.0); ui.tick(t); }
-    let look = ui.state.look();
-    let moving = big.render(&mut ui, &look);
-    frames.push(half(&(w * 2, h * 2, still)));
-    frames.push(half(&(w * 2, h * 2, moving)));
-    let mut ui = film_ui(8, true);
-    let look = ui.state.look();
-    let a = big.render(&mut ui, &look);
-    let mut t = ui.now();
-    for _ in 0..60 { t += 1.0 / 60.0; ui.tick(t); }
-    let look = ui.state.look();
-    let b = big.render(&mut ui, &look);
-    frames.push(half(&(w * 2, h * 2, a)));
-    frames.push(half(&(w * 2, h * 2, b)));
     let (sw, sh, px) = sheet(&frames, 2);
     save_png(&format!("{out}/looks.png"), sw, sh, &px);
     eprintln!("{out}/looks.png");

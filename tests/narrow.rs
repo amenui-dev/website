@@ -11,7 +11,6 @@ fn no_text_is_cut_at_330_px() {
     ui.pointer_leave();
     let mut bad = vec![];
     for p in Page::all() {
-        if p == Page::Film { continue; }
         gallery::update(&mut ui.state, Msg::Go(p));
         ui.relayout();
         let t = ui.now();

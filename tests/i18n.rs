@@ -1,9 +1,9 @@
 //! Text in more than one language (DESIGN.md §1.20): every key is in every shipped catalog (plural
-//! keys with every form the locale needs), the film and its widgets show no missing key and no Chinese
+//! keys with every form the locale needs), the landing scene shows no missing key and no Chinese
 //! in English, switching the language is a message that lays everything out again (keyed text
 //! recomposes), and a right-to-left row puts its first child on the right.
 use lab::el::{El, Paint, row, space};
-use lab::gallery::{self, Msg, film};
+use lab::gallery::{self, Msg};
 use lab::i18n::{self, Locale};
 use std::collections::BTreeSet;
 
@@ -36,34 +36,32 @@ fn every_key_is_in_every_locale() {
 }
 
 #[test]
-fn the_film_in_english_has_every_text_and_no_chinese() {
-    let mut ui = gallery::new_ui(fonts(), 1280, 640, 1.0);
+fn the_landing_scene_in_english_has_every_text_and_no_chinese() {
+    let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
     ui.pointer_leave();
-    assert!(ui.state.route("film"));
+    assert!(ui.state.route("body"));
     gallery::update(&mut ui.state, Msg::Locale(Locale::En));
     ui.relayout();
     let _ = i18n::misses();
     let cjk = |s: &str| s.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c));
-    for c in 0..film::CHAPTERS {
-        film::go(&mut ui.state, c, None);
-        ui.relayout();
+    // On the page and in the body (its markings shown).
+    for t in [1.0f32, 6.0] {
+        let mut now = ui.now();
+        while now < t { now += 1.0 / 60.0; ui.tick(now); }
         let tree = ui.export_tree();
         let mut texts = vec![];
         fn walk(n: &lab::tree::TreeNode, out: &mut Vec<String>) { if let Some(t) = &n.text { out.push(t.clone()); } for c in &n.children { walk(c, out); } }
         walk(&tree, &mut texts);
-        let chinese: Vec<&String> = texts.iter().filter(|t| cjk(t) && !t.contains("简体中文")).collect();
-        assert!(chinese.is_empty(), "chapter {} in English still shows {chinese:?}", c + 1);
+        // The language marking names both languages by design.
+        let chinese: Vec<&String> = texts.iter().filter(|t| cjk(t) && !t.contains("中文")).collect();
+        assert!(chinese.is_empty(), "at {t} s the scene in English still shows {chinese:?}");
     }
     let missed = i18n::misses();
     assert!(missed.is_empty(), "keys with no text: {missed:?}");
-    // The note followed the language; switching back is one message, laid out again.
-    assert_eq!(ui.state.film.note.text, Locale::En.tr("film.c01.note-default"));
-    let views = ui.counters().views;
+    // Back to Chinese: the passage follows.
     gallery::update(&mut ui.state, Msg::Locale(Locale::ZhHans));
     ui.relayout();
-    assert!(ui.counters().views > views);
-    assert_eq!(ui.state.film.note.text, Locale::ZhHans.tr("film.c01.note-default"));
-    assert!(ui.export_tree().find("film/caption").and_then(|n| n.text.clone()).is_some_and(|t| cjk(&t)));
+    assert!(ui.export_tree().find("body/text").and_then(|n| n.text.clone()).is_some_and(|t| cjk(&t)));
 }
 
 #[test]

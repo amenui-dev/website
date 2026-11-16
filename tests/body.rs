@@ -13,12 +13,13 @@ fn run(ui: &mut Ui<Body, Msg>, secs: f32) -> usize {
     drawn
 }
 fn glyphs(ui: &Ui<Body, Msg>) -> Vec<Instance> { ui.instances_of("body/text").into_iter().filter(|i| i.paint[3] == lab::scene::GLYPH).collect() }
-fn gather(ui: &mut Ui<Body, Msg>) { let (x, y) = ui.node("body/stage").unwrap().rect.center(); ui.press(x, y); ui.release(x, y); }
+fn gather(ui: &mut Ui<Body, Msg>) { let (x, y) = ui.node("body").unwrap().rect.center(); ui.press(x, y); ui.release(x, y); }
 
 #[test]
 fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
     lab::i18n::set_current(lab::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
+    ui.state.auto = false;
     run(&mut ui, 0.5);
     let page = glyphs(&ui);
     assert!(page.len() > 1200, "the passage is long: {} glyphs", page.len());
@@ -33,7 +34,7 @@ fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
     let mid = glyphs(&ui);
     assert_eq!(mid.len(), page.len(), "mid-way");
     assert!(mid.iter().any(|i| i.xf != [0.0; 4]), "glyphs are on their way");
-    run(&mut ui, 2.0);
+    run(&mut ui, 3.0);
     let b = glyphs(&ui);
     assert_eq!(b.len(), page.len(), "in the body");
     assert!(ui.state.gather.value == 1.0 && !ui.state.gather.moving());
@@ -52,8 +53,12 @@ fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
 fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
     lab::i18n::set_current(lab::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
-    run(&mut ui, 1.0);
-    // The page: nothing at all.
+    // Arriving, the page gathers by itself after a moment.
+    run(&mut ui, body::DWELL + 0.2);
+    assert!(ui.state.target() >= 0.5, "it gathered by itself");
+    // Back to the page, and the page rests: nothing at all.
+    ui.state.update(Msg::Gather, ui.now());
+    run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "the page at rest draws nothing");
     // The body turns by itself: frames, and the turn moves.
     gather(&mut ui);
@@ -66,7 +71,7 @@ fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
     run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "the body without its idle turn draws nothing");
     // Reduced motion: the same.
-    ui.state.update(Msg::Num(3, lab::widgets::Edit::Set(0.18)), ui.now());
+    ui.state.update(Msg::Num(3, lab::widgets::Edit::Set(0.16)), ui.now());
     ui.state.reduced = true;
     run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "reduced motion: no turn");
@@ -76,9 +81,10 @@ fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
 fn dragging_turns_it_and_the_pointer_opens_it() {
     lab::i18n::set_current(lab::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
+    ui.state.auto = false;
     run(&mut ui, 0.5);
     gather(&mut ui);
-    run(&mut ui, 2.5);
+    run(&mut ui, 3.0);
     let r = ui.node("body/text").unwrap().rect;
     let (cx, cy) = r.center();
     // A drag turns it and it coasts on after the release.
@@ -91,7 +97,7 @@ fn dragging_turns_it_and_the_pointer_opens_it() {
     assert!(ui.state.spin > 1.0, "thrown: {}", ui.state.spin);
     assert!(ui.state.target() >= 0.5, "a drag does not toggle");
     run(&mut ui, 4.0);
-    assert!((ui.state.spin - 0.18).abs() < 0.02, "it coasts back to the idle turn: {}", ui.state.spin);
+    assert!((ui.state.spin - ui.state.omega).abs() < 0.02, "it coasts back to the idle turn: {}", ui.state.spin);
     // The opening: near the pointer the glyphs are back at their places on the page, far ones not.
     let (px, py) = (r.x + r.w * 0.3, r.y + r.h * 0.4);
     ui.pointer_move(px, py);

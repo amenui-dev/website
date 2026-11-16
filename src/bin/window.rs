@@ -322,8 +322,8 @@ fn main() -> std::process::ExitCode {
         }
     }
     shots.sort_by(|a, b| a.1.total_cmp(&b.1));
-    // The film is where the window opens unless a page is named.
-    let page = page.or_else(|| Some("film".to_owned()));
+    // The Body scene is where the window opens unless a page is named.
+    let page = page.or_else(|| Some("body".to_owned()));
     let mut app = App { display: el.owned_display_handle(), page, run: None, start: Instant::now(), mods: ModifiersState::empty(), composing: false, cursor: (0.0, 0.0), shots, exit_after, reported: 0.0 };
     match el.run_app(&mut app) {
         Ok(()) => std::process::ExitCode::SUCCESS,

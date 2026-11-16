@@ -1,9 +1,8 @@
-//! Moving the pointer costs only what changed (DESIGN.md §1.19): on every film chapter and gallery
+//! Moving the pointer costs only what changed (DESIGN.md §1.19): on every gallery
 //! page, 200 pointer moves that do not change what is hovered run no layout and shape no text, and the
 //! area to redraw stays bounded (never the whole window).
 use lab::dirty::{self, Region};
 use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::gallery::film::{self, FMsg};
 
 fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
@@ -33,7 +32,7 @@ fn settle(ui: &mut GalleryUi, secs: f32) {
 /// 200 moves on a path over the window; returns a line per failure.
 fn audit(ui: &mut GalleryUi, name: &str, bad: &mut Vec<String>) {
     ui.text_mut().log_shapes = true;
-    // The first input after arriving changes things once (the film's hints go): not what is measured.
+    // The first input after arriving changes things once: not what is measured.
     ui.pointer_move(4.0, 4.0);
     settle(ui, 1.5);
     let mut t = ui.now();
@@ -101,27 +100,10 @@ fn audit(ui: &mut GalleryUi, name: &str, bad: &mut Vec<String>) {
 }
 
 #[test]
-fn pointer_moves_on_every_film_chapter() {
-    let mut ui = gallery::new_ui(fonts(), W as u32, H as u32, 1.0);
-    assert!(ui.state.route("film"));
-    if ui.state.film.playing { gallery::update(&mut ui.state, Msg::Film(FMsg::Play)); }
-    let mut bad = vec![];
-    for c in 0..=13 {
-        film::go(&mut ui.state, c, None);
-        ui.relayout();
-        settle(&mut ui, 3.0);
-        audit(&mut ui, &format!("film chapter {c}"), &mut bad);
-        ui.pointer_leave();
-    }
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
-}
-
-#[test]
 fn pointer_moves_on_every_gallery_page() {
     let mut ui = gallery::new_ui(fonts(), W as u32, H as u32, 1.0);
     let mut bad = vec![];
     for p in Page::all() {
-        if p == Page::Film { continue; }
         gallery::update(&mut ui.state, Msg::Go(p));
         ui.relayout();
         settle(&mut ui, 2.5);

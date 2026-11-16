@@ -478,7 +478,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         let t = Target::Pic(k, i);
         nums = nums.child(number(&format!("{h}/p{i}"), prm.name, pic_value(f, i), prm.spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
-    // The comparison, as the film's prologue has it: a framed picture, the original left of a divider
+    // The comparison: a framed picture, the original left of a divider
     // with a round handle and the marks right of it, small capital tags in the top corners, and the
     // sets as a row of plain text chips along the frame's bottom edge, by family.
     let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::RAIL - 120.0 }).clamp(240.0, 820.0);

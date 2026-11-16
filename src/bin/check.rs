@@ -44,15 +44,13 @@
 //!     the page in the target preset, byte for byte; mid-transition it differs from both ends (but for
 //!     Normcore, which has none).
 //!
-//! 17. The film (§6): after each of the twelve cuts (chapter c to c + 1, the last to the first), once the
-//!     target's transition and the actors' flow are over, the frame equals a fresh render of the target
-//!     chapter, byte for byte; mid-cut it differs (but into Normcore, which cuts without a transition).
+//! 17. (Retired with the film in round 16.)
 //!
 //! 18. Scrolling (§1.8.3): under every material, scrolling the button page slowly (one device pixel a
 //!     frame), each frame inside the scroller (away from its edges) is the previous frame moved up by one
 //!     pixel, byte for byte; a control shows the page did move.
 //!
-//! usage: check [components | recompose | mesh | dirty | presets | film | scroll]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
+//! usage: check [components | recompose | mesh | dirty | presets | scroll]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
 use lab::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use lab::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use lab::morph::MorphSpec;
@@ -84,11 +82,6 @@ fn main() {
     let fonts = || load_bundled("assets").expect("fonts");
     if std::env::args().nth(1).is_some_and(|a| a == "recompose") {
         let f = recompose(&mut o, &fonts);
-        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
-        return eprintln!("all checks passed");
-    }
-    if std::env::args().nth(1).is_some_and(|a| a == "film") {
-        let f = film(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
@@ -336,7 +329,7 @@ fn main() {
             let allowed = if mat == Material::Print { 8 } else { 0 };
             eprintln!("   rest {} {:?}: body differs from plain by {d}/255", theme.name, mat);
             if d > allowed { eprintln!("FAIL rest: {:?} body text is not exact at rest ({d}/255)", mat); failed += 1; }
-            if theme.name == DARK.name && !matches!(mat, Material::Xray) {
+            if theme.name == DARK.name {
                 // Control: loosened, the same comparison sees the material.
                 ui.state.loose = 1.0; ui.relayout(); ui.tick(100.0);
                 let d1 = diff(&plain, &o.render(&mut ui, &look), r);
@@ -508,7 +501,6 @@ fn main() {
     failed += meshes(&mut o, &fonts);
     failed += dirty(&fonts);
     failed += presets(&fonts);
-    failed += film(&fonts);
     failed += scroll(&fonts);
     failed += looks(&fonts);
 
@@ -1035,108 +1027,6 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     failed
 }
 
-// ── 17. The film's cuts end exactly ──────────────────────────────────────────────────────────────
-fn film(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, GalleryUi, Msg, film::{self, FMsg}};
-    let (w, h) = (960u32, 540u32);
-    let mut o = Offscreen::new(w, h);
-    let mut failed = 0;
-    let open = |c: usize| -> GalleryUi {
-        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
-        ui.pointer_leave();
-        assert!(ui.state.route("film"));
-        gallery::update(&mut ui.state, Msg::Film(FMsg::Play));
-        film::go(&mut ui.state, c, None);
-        ui.relayout();
-        ui
-    };
-    let run = |o: &mut Offscreen, ui: &mut GalleryUi, to: f32| -> Vec<u8> {
-        let mut t = ui.now();
-        let mut px = vec![];
-        while t < to - 1e-4 { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) || px.is_empty() { let look = ui.state.look(); px = o.render(ui, &look); } }
-        let look = ui.state.look();
-        o.render(ui, &look)
-    };
-    for c in 0..film::CHAPTERS {
-        let next = (c + 1) % film::CHAPTERS;
-        let mut ui = open(c);
-        run(&mut o, &mut ui, 3.0);
-        gallery::update(&mut ui.state, Msg::Film(FMsg::Next));
-        ui.relayout();
-        let t0 = ui.now();
-        let d = ui.state.presets[film::CH[next].style].transition.duration_ms / 1000.0;
-        // Two frames inside the cut (a short transition can be over by its middle).
-        let early = run(&mut o, &mut ui, t0 + d.max(0.2) * 0.2);
-        let mid = run(&mut o, &mut ui, t0 + d.max(0.2) * 0.5);
-        let end = run(&mut o, &mut ui, t0 + d + 3.0);
-        let mut fresh = open(next);
-        run(&mut o, &mut fresh, 0.5);
-        fresh.set_material_clock(ui.material_clock());
-        fresh.set_ground_clock(ui.ground_clock());
-        run(&mut o, &mut fresh, ui.now());
-        fresh.set_material_clock(ui.material_clock());
-        fresh.set_ground_clock(ui.ground_clock());
-        let look = fresh.state.look();
-        let want = o.render(&mut fresh, &look);
-        let differ = end.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
-        let moved = [&early, &mid].iter().map(|f| f.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count()).max().unwrap_or(0);
-        eprintln!("   cut {c:02} → {next:02} ({}): end vs fresh {differ} px, mid-cut {moved} px", film::CH[next].name);
-        if differ > 0 { eprintln!("FAIL film: after the cut into {next:02} the frame is not a fresh render of it ({differ} px)"); failed += 1; }
-        if moved == 0 && d > 0.0 { eprintln!("FAIL control: mid-cut into {next:02} already equals the end"); failed += 1; }
-    }
-    eprintln!("17. film cuts: {failed} failing");
-    failed
-}
-
-/// Check 18: scrolling slowly is a picture moved by whole pixels (DESIGN.md §1.8.3). Under every
-/// material, a frame one device pixel of scroll later is the frame before moved up by one pixel,
-/// exactly, inside the scroller away from its edges. Control: unmoved, the two frames differ.
-fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, Msg, Page};
-    let (w, h) = (960u32, 600u32);
-    let mut o = Offscreen::new(w, h);
-    let mut failed = 0;
-    for m in 0..MATERIAL_COUNT as u8 {
-        let mat = Material::from_id(m);
-        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
-        ui.pointer_leave();
-        gallery::update(&mut ui.state, Msg::Go(Page::from_hash("button").expect("page")));
-        gallery::update(&mut ui.state, Msg::Material(m as usize));
-        ui.relayout();
-        let key = "main/button";
-        let r = ui.node(key).expect("the page scrolls").rect;
-        let (x, y) = r.center();
-        let mut t = 0.0;
-        while t < 2.0 { t += 1.0 / 60.0; ui.tick(t); }
-        // Into the source a little (a slow scroll, one pixel a frame: 60 px/s).
-        let mut frames = vec![];
-        for f in 0..40 {
-            t += 1.0 / 60.0;
-            ui.tick(t);
-            ui.wheel(x, y, 1.0);
-            ui.tick(t);
-            let look = ui.state.look();
-            if f >= 37 { frames.push(o.render(&mut ui, &look)); } else { o.draw(&mut ui, &look); }
-        }
-        // Inside the scroller, away from its edges and from the rail.
-        let (x0, y0, x1, y1) = ((r.x + 24.0) as u32, (r.y + 24.0) as u32, (r.right() - 24.0) as u32, (r.bottom() - 24.0) as u32);
-        let mut bad = 0;
-        let mut still = 0;
-        for p in frames.windows(2) {
-            for yy in y0..y1 - 1 {
-                for xx in x0..x1 {
-                    if px(&p[1], w, xx, yy) != px(&p[0], w, xx, yy + 1) { if bad < 3 { eprintln!("   {mat:?} at {xx},{yy}: {:?} vs {:?}", px(&p[1], w, xx, yy), px(&p[0], w, xx, yy + 1)); } bad += 1; }
-                    if px(&p[1], w, xx, yy) != px(&p[0], w, xx, yy) { still += 1; }
-                }
-            }
-        }
-        if bad > 0 { eprintln!("FAIL scroll: {:?} one pixel of slow scroll is not the frame moved by a pixel ({bad} px differ)", mat); failed += 1; }
-        if still == 0 { eprintln!("FAIL control: {:?} the page did not move while scrolling", mat); failed += 1; }
-    }
-    eprintln!("18. slow scroll is a moved picture: {failed} failing");
-    failed
-}
-
 // ── 19. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
 fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     use lab::gallery::{self, Msg, Page};
@@ -1230,5 +1120,54 @@ fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     for (a, b) in plain.chunks(4).zip(deep.chunks(4)) { let (x, y) = (lum(a), lum(b)); if y + 6 < x { darker += 1; } else if y > x + 6 { lighter += 1; } }
     if darker < 500 || lighter > darker / 10 { eprintln!("FAIL depth marks: {darker} px darker, {lighter} lighter"); failed += 1; }
     eprintln!("19. looks: {} effects, palettes × dithers, drawn in part, depth marks ({darker} px darker); {failed} failing", effects.len());
+    failed
+}
+
+/// Check 18: scrolling slowly is a picture moved by whole pixels (DESIGN.md §1.8.3). Under every
+/// material, a frame one device pixel of scroll later is the frame before moved up by one pixel,
+/// exactly, inside the scroller away from its edges. Control: unmoved, the two frames differ.
+fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    use lab::gallery::{self, Msg, Page};
+    let (w, h) = (960u32, 600u32);
+    let mut o = Offscreen::new(w, h);
+    let mut failed = 0;
+    for m in 0..MATERIAL_COUNT as u8 {
+        let mat = Material::from_id(m);
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        ui.pointer_leave();
+        gallery::update(&mut ui.state, Msg::Go(Page::from_hash("button").expect("page")));
+        gallery::update(&mut ui.state, Msg::Material(m as usize));
+        ui.relayout();
+        let key = "main/button";
+        let r = ui.node(key).expect("the page scrolls").rect;
+        let (x, y) = r.center();
+        let mut t = 0.0;
+        while t < 2.0 { t += 1.0 / 60.0; ui.tick(t); }
+        // Into the source a little (a slow scroll, one pixel a frame: 60 px/s).
+        let mut frames = vec![];
+        for f in 0..40 {
+            t += 1.0 / 60.0;
+            ui.tick(t);
+            ui.wheel(x, y, 1.0);
+            ui.tick(t);
+            let look = ui.state.look();
+            if f >= 37 { frames.push(o.render(&mut ui, &look)); } else { o.draw(&mut ui, &look); }
+        }
+        // Inside the scroller, away from its edges and from the rail.
+        let (x0, y0, x1, y1) = ((r.x + 24.0) as u32, (r.y + 24.0) as u32, (r.right() - 24.0) as u32, (r.bottom() - 24.0) as u32);
+        let mut bad = 0;
+        let mut still = 0;
+        for p in frames.windows(2) {
+            for yy in y0..y1 - 1 {
+                for xx in x0..x1 {
+                    if px(&p[1], w, xx, yy) != px(&p[0], w, xx, yy + 1) { if bad < 3 { eprintln!("   {mat:?} at {xx},{yy}: {:?} vs {:?}", px(&p[1], w, xx, yy), px(&p[0], w, xx, yy + 1)); } bad += 1; }
+                    if px(&p[1], w, xx, yy) != px(&p[0], w, xx, yy) { still += 1; }
+                }
+            }
+        }
+        if bad > 0 { eprintln!("FAIL scroll: {:?} one pixel of slow scroll is not the frame moved by a pixel ({bad} px differ)", mat); failed += 1; }
+        if still == 0 { eprintln!("FAIL control: {:?} the page did not move while scrolling", mat); failed += 1; }
+    }
+    eprintln!("18. slow scroll is a moved picture: {failed} failing");
     failed
 }

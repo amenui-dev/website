@@ -181,34 +181,11 @@ fn study_chart(out: &str) {
     r.drag("craft/chart/dots/knot1", 0.0, -60.0, 10, &[10]);
     r.save(out, "chart", 3);
 }
-fn study_zine(out: &str) {
-    let mut ui = gallery::new_ui(faces(), W, 640, 1.0);
-    ui.pointer_leave();
-    assert!(ui.state.route("film"));
-    if ui.state.film.playing { gallery::update(&mut ui.state, Msg::Film(lab::gallery::film::FMsg::Play)); }
-    lab::gallery::film::go(&mut ui.state, 6, None);
-    ui.relayout();
-    let mut r = Rig { o: Offscreen::new(W, 640), ui, frames: vec![], last: vec![], region: String::new(), pad: 0.0 };
-    r.run(3.0);
-    r.shot();
-    let (x, y) = r.center("film/c06/sign");
-    r.ui.press(x, y);
-    for i in 1..=36 {
-        let k = i as f32;
-        r.ui.pointer_move(x + (k * 0.17).sin() * 150.0, y + (k * 0.11).cos() * 60.0 - 60.0);
-        r.frame();
-        if i % 7 == 0 { r.shot(); }
-    }
-    r.ui.release(x, y);
-    r.run(0.3); r.shot();
-    r.save(out, "zine", 4);
-}
-
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "zine"];
+    let all = ["sheet", "floating", "menu", "loading", "stack", "chart"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -218,7 +195,6 @@ fn main() {
             "loading" => study_loading(&out),
             "stack" => study_stack(&out),
             "chart" => study_chart(&out),
-            "zine" => study_zine(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

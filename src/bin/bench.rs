@@ -108,23 +108,6 @@ fn main() {
     println!("10k plain rows, relayout{first:8.3} ms   (a new view of all rows)");
     gallery_long(runs);
 
-    // 2b. The film's linocut poster: a morph held under the pointer and scrubbed (per pointer move).
-    {
-        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
-        ui.pointer_leave();
-        gallery::update(&mut ui.state, Msg::Go(Page::Film));
-        if ui.state.film.playing { gallery::update(&mut ui.state, Msg::Film(lab::gallery::film::FMsg::Play)); }
-        lab::gallery::film::go(&mut ui.state, 7, None);
-        ui.relayout();
-        for i in 0..120 { ui.tick(1.0 + i as f32 / 60.0); }
-        let (x, y) = ui.node("film/c07/forms").expect("poster").rect.center();
-        ui.press(x, y);
-        ui.pointer_move(x + 4.0, y);
-        let ms = time(runs, |i| { ui.tick(3.0 + i as f32 / 60.0); ui.pointer_move(x + 4.0 + (i % 50) as f32 * 4.0, y); });
-        ui.release(x, y);
-        println!("scrub morph, move       {ms:8.3} ms   (update, view, layout and scene per pointer move)");
-    }
-
     // 3. The article: the disc moves, everything reflows.
     let mut ui = Ui::new(Article { x: 200.0 }, article_view, |_, _| {}, fonts(), w, h, 1.0);
     ui.tick(1.0);

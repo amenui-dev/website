@@ -101,57 +101,52 @@ fn decode(out: &str) {
     save_png(&format!("{out}/decode-dialog.png"), sw, sh, &spx);
 }
 
-/// The Body scene: eight frames (text, gathering, the body turning, the pointer opening it, back) and
-/// one large still; and what a frame costs with one and with four copies of the passage.
+/// The Body scene: eight frames (the page, gathering, the body turning, dragged, the opening, the
+/// release, the page again), one large still at 1600 × 1000 (`body-large.png`, and `body-cloud.png`),
+/// and what a frame costs with one and with three copies of the passage.
 fn body(out: &str) {
     use lab::recipes::scenes::body;
     lab::i18n::set_current(lab::i18n::Locale::En);
+    let step = |u: &mut lab::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
     let (w, h) = (1280u32, 800u32);
     let mut o = Offscreen::new(w, h);
     let mut u = body::ui(faces(), w, h, 1.0);
-    let look = body::look();
+    let look = body::look(0);
     let mut t = 0.0f32;
     let mut frames = vec![];
-    let step = |u: &mut lab::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
-    step(&mut u, &mut t, 30);
-    let r = u.node("body/text").expect("text").rect;
-    frames.push(o.render(&mut u, &look));
-    let (cx, cy) = r.center();
-    u.press(cx, cy); u.release(cx, cy);
-    u.pointer_leave();
-    step(&mut u, &mut t, 14); frames.push(o.render(&mut u, &look));
-    step(&mut u, &mut t, 16); frames.push(o.render(&mut u, &look));
-    step(&mut u, &mut t, 110); frames.push(o.render(&mut u, &look));
-    // A drag turns it.
+    step(&mut u, &mut t, 60); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 100); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 25); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 150); frames.push(o.render(&mut u, &look));
+    let (cx, cy) = (w as f32 * 0.5, h as f32 * 0.47);
     u.pointer_move(cx - 120.0, cy); u.press(cx - 120.0, cy);
     for k in 1..=12 { step(&mut u, &mut t, 1); u.pointer_move(cx - 120.0 + 16.0 * k as f32, cy + 3.0 * k as f32); }
     u.release(cx + 72.0, cy + 36.0);
-    step(&mut u, &mut t, 50); frames.push(o.render(&mut u, &look));
-    // The pointer near: the words come back round it.
-    let (px, py) = (r.x + r.w * 0.36, r.y + r.h * 0.42);
-    for k in 0..30 { u.pointer_move(px + k as f32, py); step(&mut u, &mut t, 1); }
+    step(&mut u, &mut t, 60); frames.push(o.render(&mut u, &look));
+    for k in 0..30 { u.pointer_move(cx - 90.0 + k as f32, cy - 40.0); step(&mut u, &mut t, 1); }
     frames.push(o.render(&mut u, &look));
     u.pointer_leave();
-    step(&mut u, &mut t, 40);
-    u.press(cx, cy); u.release(cx, cy); u.pointer_leave();
-    step(&mut u, &mut t, 24); frames.push(o.render(&mut u, &look));
-    step(&mut u, &mut t, 150); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 30);
+    u.state.update(body::Msg::Gather, t);
+    step(&mut u, &mut t, 40); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 160); frames.push(o.render(&mut u, &look));
     let small: Vec<(u32, u32, Vec<u8>)> = frames.iter().map(|px| crop(px, w, h, [0, 0, w, h])).collect();
     let (sw, sh, spx) = sheet(&small, 4);
     save_png(&format!("{out}/body.png"), sw, sh, &spx);
-    // One large still of the body, 1600 wide.
+    // One large still of each form at 1600 × 1000, the pointer resting to one side.
     let (lw, lh) = (1600u32, 1000u32);
     let mut ol = Offscreen::new(lw, lh);
-    let mut ul = body::ui(faces(), lw, lh, 1.0);
-    let mut t = 0.0;
-    step(&mut ul, &mut t, 10);
-    let c = ul.node("body/text").expect("text").rect.center();
-    ul.press(c.0, c.1); ul.release(c.0, c.1); ul.pointer_leave();
-    step(&mut ul, &mut t, 260);
-    let px = ol.render(&mut ul, &look);
-    save_png(&format!("{out}/body-large.png"), lw, lh, &px);
-    // The cost of a frame while it turns: one copy of the passage, and four.
-    // (a window tall enough for three copies to be drawn whole: several thousand glyphs)
+    for (form, file) in [(0u32, "body-large.png"), (1, "body-cloud.png")] {
+        let mut ul = body::ui(faces(), lw, lh, 1.0);
+        ul.state.form = form;
+        let mut t = 0.0;
+        ul.state.look_at(0.18, -0.08);
+        step(&mut ul, &mut t, 420);
+        let px = ol.render(&mut ul, &body::look(form));
+        save_png(&format!("{out}/{file}"), lw, lh, &px);
+    }
+    // The cost of a frame while it turns: one copy of the passage, and three (a taller window, so
+    // every glyph is drawn: several thousand).
     for copies in [1usize, 3] {
         let hh = if copies > 1 { 2700 } else { h };
         let mut o = Offscreen::new(w, hh);
@@ -159,10 +154,7 @@ fn body(out: &str) {
         u.state.copies = copies;
         u.relayout();
         let mut t = 0.0;
-        step(&mut u, &mut t, 10);
-        let c = u.node("body/text").expect("text").rect.center();
-        u.press(c.0, c.1); u.release(c.0, c.1); u.pointer_leave();
-        step(&mut u, &mut t, 200);
+        step(&mut u, &mut t, 360);
         let n = u.instances_of("body/text").len();
         let (mut tick, mut all) = (0.0f64, 0.0f64);
         for _ in 0..60 {
@@ -174,7 +166,7 @@ fn body(out: &str) {
             all += t0.elapsed().as_secs_f64() * 1000.0;
         }
         let b = lab::budget::usage();
-        println!("body ×{copies} ({w}×{hh}): {n} glyphs, {:.1} ms/frame in the runtime (tick, poses, scene), {:.1} ms with both passes and readback on this adapter; budget scale {:.2}", tick / 60.0, all / 60.0, b.scale);
+        println!("body ×{copies} ({w}×{hh}): {n} glyphs, {} marks in all, {:.1} ms/frame in the runtime (tick, poses, drawings, scene), {:.1} ms with both passes and readback on this adapter; budget scale {:.2}", u.scene().instances.len(), tick / 60.0, all / 60.0, b.scale);
     }
 }
 

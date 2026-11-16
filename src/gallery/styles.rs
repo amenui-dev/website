@@ -5,7 +5,7 @@ use super::{Gallery, Msg, STYLE_SLOT, Target};
 use crate::demo::{BUST, SKY, SPHERE, TERRAIN};
 use crate::el::{El, Font, Paint, Scope, col, picture, row, space, text, text_lh};
 use crate::style::styles;
-use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, slider, switch};
+use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, switch};
 use taffy::{AlignItems, JustifyContent};
 
 pub const STYLE_DESC: [&str; 12] = [
@@ -32,10 +32,9 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
         2 => print_zine(s, &h),
         3 => glitch(s, &h),
         4 => linocut(s, &h),
-        5 => electronics(s, &h),
-        6 => manual(s, &h),
-        7 => normcore(s, &h),
-        8 => cyber(s, &h),
+        5 => manual(s, &h),
+        6 => normcore(s, &h),
+        7 => cyber(s, &h),
         _ => bauhaus(s, &h),
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
@@ -227,44 +226,7 @@ fn linocut(s: &Gallery, h: &str) -> El<Msg> {
             .child(text("木版　34 × 28 厘米", 12.0, Paint::DIM)))
 }
 
-// ── 6 Transparent Electronics: see-through layers of a device ───────────────────────────────────────
-fn electronics(s: &Gallery, h: &str) -> El<Msg> {
-    let open = s.toggles[0];
-    let k = |d: f32| if open { d } else { d * 0.25 };
-    let slide = s.slides[2] * 120.0;
-    let layer = |key: &str, l: f32, t: f32, w: f32, hh: f32, r: f32, p: Paint, name: &str| space(w, hh).radius(r).fill(p).key(format!("{h}/{key}")).annotate(name).absolute(Some(l), Some(t), None, None);
-    let device = col().key(format!("{h}/device")).width(820.0).height(470.0).gaze_scope()
-        .child(layer("case", 240.0, 40.0 + k(0.0), 340.0, 380.0, 34.0, Paint::INK, "外壳"))
-        .child(layer("board", 270.0 - k(40.0), 90.0 + k(30.0), 280.0, 210.0, 10.0, Paint::hue(2), "主板"))
-        .child(layer("chip", 330.0 - k(60.0), 140.0 + k(50.0), 90.0, 90.0, 6.0, Paint::hue(1), "处理器"))
-        .child(layer("battery", 300.0 + k(70.0), 250.0 + k(60.0), 220.0, 110.0, 14.0, Paint::ACCENT, "电池"))
-        .child(layer("screen", 255.0 + k(90.0) - slide * 0.3, 60.0 - k(20.0) + slide * 0.5, 310.0, 330.0, 26.0, Paint::INK, "屏幕"))
-        .child(layer("button", 585.0 + k(20.0), 140.0, 14.0, 60.0, 7.0, Paint::ACCENT, "电源键"));
-    col().key(format!("{h}/comp")).gap(18.0)
-        .child(device)
-        .child(row().key(format!("{h}/controls")).gap(18.0).align(AlignItems::CENTER).wrap()
-            .child(switch(format!("{h}/explode"), "展开", open, None, Msg::Toggle(0)).width(160.0))
-            .child(text("屏幕位置", 13.0, Paint::DIM))
-            .child(slider(&format!("{h}/slide"), s.slides[2] * 100.0, Spec { min: 0.0, max: 100.0, step: 1.0, decimals: 0, unit: "" }, 260.0, |v| Msg::Slide(2, v / 100.0))))
-        .child(readouts(s, h))
-}
-
-/// A row of readouts under the device, each a see-through gauge.
-fn readouts(s: &Gallery, h: &str) -> El<Msg> {
-    let vals = [("电压", 3.7 + s.slides[2] * 0.5, "V", 0.62 + s.slides[2] * 0.3), ("温度", 31.0 + s.slides[2] * 9.0, "°C", 0.38 + s.slides[2] * 0.2), ("频率", 2.4, "GHz", 0.8)];
-    let mut r = row().key(format!("{h}/readouts")).gap(18.0).wrap();
-    for (i, (name, v, unit, f)) in vals.iter().enumerate() {
-        r = r.child(col().key(format!("{h}/gauge{i}")).width(250.0).height(120.0).pad(18.0, 16.0).radius(14.0).fill(Paint::INK).gap(10.0)
-            .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN)
-                .child(text(*name, 13.0, Paint::DIM))
-                .child(text(format!("{v:.1} {unit}"), 18.0, Paint::INK).font(Font::Mono)))
-            .child(col().width(214.0).height(18.0).radius(9.0).fill(Paint::hue(2))
-                .child(space(214.0 * f.min(1.0), 18.0).radius(9.0).fill(Paint::ACCENT))));
-    }
-    r
-}
-
-// ── 7 Tech-Manual: an exploded diagram and its parts list ───────────────────────────────────────────
+// ── 6 Tech-Manual: an exploded diagram and its parts list ───────────────────────────────────────────
 const PARTS: [(&str, &str); 6] = [("上盖", "1"), ("面板", "1"), ("旋钮", "2"), ("电路板", "1"), ("电池仓", "1"), ("底座", "1")];
 fn manual(s: &Gallery, h: &str) -> El<Msg> {
     let hot = |i: usize| s.hovered.as_deref() == Some(format!("{h}/part{i}").as_str()) || s.hovered.as_deref() == Some(format!("{h}/row{i}").as_str());
@@ -300,7 +262,7 @@ fn manual(s: &Gallery, h: &str) -> El<Msg> {
         .child(list)
 }
 
-// ── 8 Normcore: a plain settings form ────────────────────────────────────────────────────────────────
+// ── 7 Normcore: a plain settings form ────────────────────────────────────────────────────────────────
 fn normcore(s: &Gallery, h: &str) -> El<Msg> {
     let field = |label: &str, el: El<Msg>| row().fill_width().gap(16.0).align(AlignItems::CENTER).child(row().width(120.0).child(text(label, 14.0, Paint::TEXT))).child(el);
     col().key(format!("{h}/comp")).width(560.0).gap(16.0)
@@ -319,7 +281,7 @@ fn normcore(s: &Gallery, h: &str) -> El<Msg> {
             .child(button_as(format!("{h}/save"), "存储", Variant::Accent, Msg::Press)))
 }
 
-// ── 9 Cyberminimalism: one command line ──────────────────────────────────────────────────────────────
+// ── 8 Cyberminimalism: one command line ──────────────────────────────────────────────────────────────
 const COMMANDS: [(&str, &str); 8] = [
     ("layout.reset", "恢复默认布局"), ("layout.grid", "显示网格"), ("theme.dark", "切换到深色"), ("files.open", "打开文件"),
     ("files.recent", "最近的文件"), ("view.zoom", "缩放"), ("lab.ripple", "放出一道波前"), ("lab.gaze", "打开标注层"),
@@ -356,7 +318,7 @@ fn cyber(s: &Gallery, h: &str) -> El<Msg> {
             .child(text(format!("已选 {picked}"), 11.0, Paint::ACCENT).font(Font::Mono).key(format!("{h}/picked"))))
 }
 
-// ── 10 Bauhaus: a geometric poster with a control group ─────────────────────────────────────────────
+// ── 9 Bauhaus: a geometric poster with a control group ─────────────────────────────────────────────
 fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
     let pick = s.choices[5].min(2);
     let big = |i: usize| if pick == i { 1.0 } else { 0.62 };
