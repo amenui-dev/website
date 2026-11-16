@@ -31,6 +31,9 @@ fn longest(ui: &GalleryUi) -> f32 {
 #[test]
 fn every_page_comes_to_rest() {
     let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
+    // The Lab's pieces run while they are seen (DESIGN.md §5.3, the stated exception); with reduced
+    // motion they rest like every other page.
+    ui.state.lab.reduced = true;
     let mut report = vec![];
     for p in Page::all() {
         gallery::update(&mut ui.state, Msg::Go(p));
@@ -117,4 +120,34 @@ fn a_state_clock_wakes_once_a_second() {
     // Three ticks of the board, each a frame (or two: the tick, and condensing of what changed).
     assert!(n >= 3, "board frames in 3 s: {n}");
     assert!(n < 3 * 40, "the board does not draw every frame: {n}");
+}
+
+#[test]
+fn the_labs_pieces_run_while_seen_and_stop_when_scrolled_out() {
+    let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::Lab));
+    ui.relayout();
+    let t0 = ui.now();
+    run(&mut ui, t0 + 4.0);
+    // Long after any input, what is seen still steps: frames keep coming.
+    let t = ui.now();
+    assert!(ui.needs_frame(t + 1.0 / 60.0) || ui.moving_at(t), "seen cells run on");
+    let drawn = run(&mut ui, t + 1.0);
+    assert!(drawn > 40, "a second of living pieces draws most frames: {drawn}");
+    assert!(ui.state.lab.seen.iter().any(|&v| v) && !ui.state.lab.seen.iter().all(|&v| v), "some cells are seen, not all: {:?}", ui.state.lab.seen);
+    // Scrolled far down past every cell: nothing is seen, the page rests.
+    for _ in 0..80 { ui.wheel(700.0, 420.0, 400.0); }
+    let t = ui.now();
+    run(&mut ui, t + 2.0);
+    if ui.state.lab.seen.iter().all(|&v| !v) {
+        let t = ui.now();
+        assert_eq!(run(&mut ui, t + 1.0), 0, "nothing seen, nothing drawn");
+    }
+    // Reduced motion: it comes to rest.
+    ui.state.lab.reduced = true;
+    for _ in 0..80 { ui.wheel(700.0, 420.0, -400.0); }
+    let t = ui.now();
+    run(&mut ui, t + 4.0);
+    let t = ui.now();
+    assert_eq!(run(&mut ui, t + 1.0), 0, "reduced motion rests");
 }

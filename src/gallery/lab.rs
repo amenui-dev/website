@@ -19,7 +19,7 @@ macro_rules! cells {
         pub enum LMsg { Seen(usize, bool), $( $v(<$t as Experiment>::Msg) ),* }
         /// Every experiment's state, and which can be seen.
         #[derive(Clone, Default)]
-        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, $( pub $f: $t ),* }
+        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, /** The viewer asked for reduced motion: cells rest after `IDLE_S`. */ pub reduced: bool, $( pub $f: $t ),* }
         impl Lab {
             /// Cell `i`, keyed under `key`, telling when it comes into view.
             pub fn cell(&self, i: usize, key: &str) -> El<LMsg> {
@@ -30,9 +30,10 @@ macro_rules! cells {
                 if !matches!(m, LMsg::Seen(..)) { self.until = now + crate::experiment::IDLE_S; }
                 match m { LMsg::Seen(i, v) => self.seen[i] = v, $( LMsg::$v(m) => self.$f.update(m, now), )* }
             }
-            /// Step what can be seen; whether the view changed.
-            pub fn step(&mut self, now: f32) -> bool { let idle = now < self.until; let mut c = false; $( if self.seen[$i] && (idle || self.$f.moving()) { c |= self.$f.step(now); } )* c }
-            pub fn moving(&self, now: f32) -> bool { false $( || (self.seen[$i] && (now < self.until || self.$f.moving())) )* }
+            /// Step what can be seen, every frame (the living pieces); with motion reduced only for
+            /// `IDLE_S` after input and while settling. Whether the view changed.
+            pub fn step(&mut self, now: f32) -> bool { let live = !self.reduced || now < self.until; let mut c = false; $( if self.seen[$i] && (live || self.$f.moving()) { c |= self.$f.step(now); } )* c }
+            pub fn moving(&self, now: f32) -> bool { let live = !self.reduced || now < self.until; false $( || (self.seen[$i] && (live || self.$f.moving())) )* }
         }
     };
 }

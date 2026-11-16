@@ -14,8 +14,8 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 | name | default | range | what it is |
 |---|---|---|---|
-| `r₀` | 17 px | 4–40 | the pointer's ball |
-| `r` | 12 px | 4–40 | the drifting balls |
+| `r₀` | 22 px | 4–40 | the pointer's ball |
+| `r` | 16 px | 4–40 | the drifting balls |
 | `k` | 120 | 10–600 | spring stiffness |
 | `c` | 14 | 1–60 | spring damping |
 

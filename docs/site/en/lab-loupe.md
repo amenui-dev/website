@@ -1,6 +1,6 @@
 # Loupe: text on a sphere
 
-A block of text wrapped round a sphere. A glyph's place in the block is a longitude and latitude; the sphere turns, the glyph goes where its point projects, squeezed by the slope, dimmed with depth and left out on the far side. Drag to spin; let go and it coasts back to its idle turn.
+A block of text wrapped round a sphere. A glyph's place in the block is a longitude and latitude; the sphere turns, the glyph goes where its point projects, squeezed by the slope, dimmed with depth; the far side shows through, dim and mirrored. Drag to spin; let go and it coasts back to its idle turn.
 
 ## Formula
 
@@ -14,7 +14,7 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 | name | default | range | what it is |
 |---|---|---|---|
-| `R` | 66 px | 30–120 | sphere radius |
+| `R` | 0.46 ·h | 0.2–0.5 | sphere radius |
 | `ω₀` | 0.30 rad/s | 0–2 | idle turn |
 | `μ` | 1.6 /s | 0.1–8 | how fast a spin settles |
 

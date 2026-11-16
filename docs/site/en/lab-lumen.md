@@ -14,8 +14,8 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 | name | default | range | what it is |
 |---|---|---|---|
-| `L0` | 0.22 | 0.05–1 | tone at rest |
-| `r` | 46 px | 8–160 | the light's radius |
+| `L0` | 0.16 | 0.05–1 | tone at rest |
+| `r` | 54 px | 8–160 | the light's radius |
 | `ω` | 0.35 rad/s | 0–2 | speed of the idle path |
 
 ## How it is made

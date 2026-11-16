@@ -17,13 +17,15 @@ pub enum Msg { Deck(StackMsg), Num(usize, Edit) }
 impl Experiment for Stack {
     type Msg = Msg;
     fn view(&self, key: &str) -> El<Msg> {
-        // Dark cards drawn by their outlines; the one under the pointer in the accent.
+        // Cards in the lab's look: near the ground, drawn by their hairline outlines; the one under the
+        // pointer takes the accent.
         let mut d = self.deck.clone();
-        d.paints = (0..d.count).map(|i| if d.under() == Some(i) { Paint::ACCENT.alpha(0.9) } else { Paint::tone(0.16 - 0.02 * i as f32) }).collect();
-        d.outline = 1.0;
+        d.paints = (0..d.count).map(|i| if d.under() == Some(i) { Paint::ACCENT.alpha(0.55) } else { Paint::tone(0.07) }).collect();
+        d.outline = 1.2;
+        d.card = (0.95, 0.6);
         let piece = card_stack(&format!("{key}/deck"), &d, 300.0, 170.0, Msg::Deck);
         let formula = format!("angle(n) = {:.0}° × {:.2}^n,  delay(n) = {:.0} ms × n", d.angle0, d.falloff, d.delay_ms);
-        frame(key, "stack", "hover to fan", piece, formula, &self.p.caption(), Msg::Num, "springs per card · staggered")
+        frame(key, "stack", "hover to fan", piece, formula, &self.p, Msg::Num, "springs per card · staggered")
     }
     fn update(&mut self, m: Msg, now: f32) {
         match m {

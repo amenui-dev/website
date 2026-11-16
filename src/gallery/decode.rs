@@ -1,11 +1,10 @@
 //! The decode transition's page (DESIGN.md §1.28): a card decoding at the timeline's progress, the same
-//! plan exploded into its tiers in depth (a 3D view, one layer per tier, labelled), a timeline to drag,
+//! plan exploded into its tiers in depth (one oblique plane per tier, each with a leader and a label), a timeline to drag,
 //! the numbers, and a dialog that opens and closes by decoding.
 use super::{Gallery, Msg};
 use crate::decode::{Decode, Plan};
 use crate::draw::Drawing;
-use crate::el::{El, Font, Paint, Point, canvas, col, row, scene3d, space, text};
-use crate::mesh::{Camera, Light, Mat4, Mesh3d, MeshId, MeshInstances, Projection, Scene3d};
+use crate::el::{El, Font, Paint, Point, canvas, col, row, space, text};
 use crate::widgets::{CaptionParam, Edit, Spec, Variant, button_as, dialog};
 
 /// The card's size (logical px).
@@ -72,19 +71,45 @@ pub fn page(s: &Gallery) -> El<Msg> {
         .child(text("DECODE", 14.0, Paint::INK).font(Font::Mono))
         .child(text("Blocks over the true outline resolve 32 → 16 → 8 → 4, then the content.", 11.0, Paint::DIM).font(Font::Mono))
         .decode(Decode { hold: Some(d.u), ..d.spec.clone() });
-    // Exploded: one layer per tier, apart in depth, the blocks showing at this progress.
+    // Exploded: one plane per tier, apart in depth (an oblique view: each plane squashed to 0.42 of its
+    // height and sheared, the planes stepping down and right), the blocks showing at this progress on
+    // each, and the content at the bottom; a leader from each plane's right edge to its label.
     let n = d.spec.tiers.len().max(1);
-    let mut items = vec![];
-    for t in 0..n { for hue in 0..2u8 {
-        let tf: Vec<Mat4> = plan.at(d.u).filter(|b| b.tier as usize == t && b.hue == hue)
-            .map(|b| Mat4::translate((b.x + b.size * 0.5) / CARD.1 - CARD.0 / CARD.1 * 0.5, 0.5 - (b.y + b.size * 0.5) / CARD.1, t as f32 * 0.7).mul(&Mat4::scale(b.size / CARD.1 * 0.92, b.size / CARD.1 * 0.92, 0.01))).collect();
-        if !tf.is_empty() { items.push(MeshInstances { mesh: MeshId::CUBE, transforms: tf, paint: Paint::hue(hue), id: (t * 2 + hue as usize + 1) as u32 }); }
-    } }
-    let camera = Camera { projection: Projection::Perspective { fov: 30.0 }, yaw: -58.0, pitch: 20.0, distance: 6.4, target: [0.0, 0.0, 1.0], ..Camera::default() };
-    let exploded = scene3d(Scene3d { items, camera, light: Light::from_angles(-30.0, 50.0, 0.6), spec: Mesh3d { tones: 2.0, ..Mesh3d::default() }, picture: None }).key("decode/exploded").width(420.0).height(260.0);
     let (sw, ww, c) = d.spec.windows();
-    let labels = (0..n).fold(col().key("decode/labels").gap(10.0), |c2, t| c2.child(text(format!("tier {t} · {:.0} px · on {:.0}–{:.0}%  · {} now", d.spec.tiers[t], t as f32 * sw * 100.0, (t as f32 * sw + ww) * 100.0, plan.at(d.u).filter(|b| b.tier as usize == t).count()), 11.0, Paint::DIM).font(Font::Mono).key(format!("decode/label/{t}"))))
-        .child(text(format!("content from {:.0}%, last off {:.0}%", c * 100.0, (c + ww).min(1.0) * 100.0), 11.0, Paint::DIM).font(Font::Mono).key("decode/label/content"));
+    let (k, sq, shear, step) = (0.84, 0.42, 0.55, 74.0);
+    let ph = CARD.1 * k * sq;
+    let (x0, y0) = (8.0, 10.0);
+    let at = |layer: usize, x: f32, y: f32| { let ox = x0 + layer as f32 * 16.0; let oy = y0 + layer as f32 * step; (ox + x * k + (ph - y * k * sq) * shear, oy + y * k * sq) };
+    let (ew, eh) = (CARD.0 * k + ph * shear + 16.0 * n as f32 + 350.0, y0 + n as f32 * step + ph + 12.0);
+    let mut ex = Drawing::new(ew, eh);
+    let mut labels: Vec<El<Msg>> = vec![];
+    for t in 0..=n {
+        // The plane's outline, then what is on it.
+        let corners = [at(t, 0.0, 0.0), at(t, CARD.0, 0.0), at(t, CARD.0, CARD.1), at(t, 0.0, CARD.1), at(t, 0.0, 0.0)];
+        ex.polyline(&corners, 0.8, |_, _| if t == n { Paint::DIM } else { Paint::FAINT });
+        if t < n {
+            for b in plan.at(d.u).filter(|b| b.tier as usize == t) {
+                // A block is a bar across the plane: its top edge sheared, squashed to the plane.
+                let (bx, by) = at(t, b.x + b.size * 0.06, b.y + b.size * 0.5);
+                let (ex1, _) = at(t, b.x + b.size * 0.94, b.y + b.size * 0.5);
+                ex.line((bx, by), (ex1, by), b.size * k * sq * 0.86, Paint::hue(b.hue));
+            }
+        } else if plan.shows_content(d.u) {
+            for j in 0..3 { let y = 26.0 + j as f32 * 22.0; let (a1, b1) = (at(t, 16.0, y), at(t, if j == 0 { 90.0 } else { 230.0 }, y)); ex.line(a1, b1, 2.0, Paint::DIM); }
+        }
+        // The leader: from the plane's right edge, level, to the label beside it.
+        let (rx, ry) = at(t, CARD.0, CARD.1 * 0.5);
+        let lx = CARD.0 * k + ph * shear + x0 + 16.0 * n as f32 + 24.0;
+        ex.line((rx + 4.0, ry), (lx - 6.0, ry), 0.6, Paint::DIM);
+        ex.dot(rx + 4.0, ry, 2.4, Paint::INK);
+        let label = if t < n {
+            format!("tier {t} · {:.0} px · on {:.0}–{:.0}% · {} now", d.spec.tiers[t], t as f32 * sw * 100.0, (t as f32 * sw + ww) * 100.0, plan.at(d.u).filter(|b| b.tier as usize == t).count())
+        } else { format!("content · from {:.0}%, last off {:.0}%", c * 100.0, (c + ww).min(1.0) * 100.0) };
+        labels.push(text(label, 11.0, if t < n { Paint::TEXT } else { Paint::DIM }).font(Font::Mono).nowrap().key(format!("decode/label/{t}")).shift(lx, ry - 8.0));
+    }
+    let mut parts = vec![canvas(ex).key("decode/exploded").width(ew)];
+    parts.extend(labels);
+    let exploded = crate::el::layers(parts).key("decode/exploded-view").width(ew).height(eh);
     // The timeline: the tiers' windows, the content's, and where it is now; drag to scrub.
     let mut tl = Drawing::new(600.0, 40.0);
     for t in 0..n { let y = 6.0 + t as f32 * 6.0; tl.line((t as f32 * sw * 600.0, y), ((t as f32 * sw + ww) * 600.0, y), 2.0, Paint::DIM); }
@@ -97,7 +122,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
         .child(button_as("decode/close", &crate::i18n::tr("widget.dialog.close"), Variant::Default, m(DMsg::Open(false))));
     col().key("decode").gap(18.0).fill_width().min_width(0.0)
         .child(text("Decode", 30.0, Paint::INK).font(Font::Display).heading(1).key("decode/title"))
-        .child(row().key("decode/row").wrap().gap(28.0).child(col().gap(12.0).child(card).child(space(0.0, 4.0))).child(exploded).child(labels))
+        .child(row().key("decode/row").wrap().gap(28.0).child(col().gap(12.0).child(card).child(space(0.0, 4.0))).child(exploded))
         .child(timeline.caption_params("decode/cap", formula, &params, move |i, e| Msg::Decode(DMsg::Num(i, e))))
         .child(row().gap(12.0).child(button_as("decode/play", "Play", Variant::Default, m(DMsg::Play))).child(button_as("decode/open", "Open a dialog", Variant::Accent, m(DMsg::Open(true)))))
         .child(dialog("decode/dialog", d.open, "Decode", 380.0, 0.35, m(DMsg::Open(false)), body).decode(Decode { hold: None, ..d.spec.clone() }))

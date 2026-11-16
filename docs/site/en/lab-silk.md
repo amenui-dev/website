@@ -14,8 +14,8 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 | name | default | range | what it is |
 |---|---|---|---|
-| `N` | 1600 | 100–20000 | marks asked for |
-| `v` | 16 px/s | 0–60 | drift speed |
+| `N` | 1400 | 100–20000 | marks asked for |
+| `v` | 22 px/s | 0–60 | drift speed |
 | `s` | 60 px | 10–200 | noise feature size |
 | `τ` | 0.6 s | 0.05–3 | how long a stir lasts |
 
