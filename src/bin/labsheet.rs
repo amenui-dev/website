@@ -9,21 +9,24 @@ use lab::recipes::lab as x;
 
 fn faces() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("fonts") }
 const CW: u32 = 460;
-const CH: u32 = 470;
+const CH: u32 = 520;
 
 /// A cell alone: frames at rest, then the pointer moving over it (and pressing, for the drag cells).
-fn cell<E: Experiment>(o: &mut Offscreen, out: &str, name: &str, drag: bool) -> f64 {
+fn cell<E: Experiment>(o: &mut Offscreen, out: &str, name: &str, drag: bool, long: bool) -> f64 {
     let mut u = ui::<E>(faces(), CW, CH, 1.0);
     let look = u.look();
     let mut t = 0.0f32;
     let mut frames = vec![];
     let mut cost = (0.0f64, 0u32);
-    let piece = u.nodes().iter().find(|n| n.key.ends_with("/canvas") || n.key.ends_with("/piece") || n.key.ends_with("/deck")).map(|n| n.rect).unwrap_or(lab::ui::Rect::new(24.0, 60.0, 400.0, 250.0));
+    u.tick(0.0);
+    let piece = u.nodes().iter().find(|n| n.key.ends_with("/stage")).map(|n| n.rect).unwrap_or(lab::ui::Rect::new(24.0, 60.0, 400.0, 250.0));
     let (cx, cy, w, h) = (piece.x, piece.y, piece.w, piece.h);
-    for f in 0..300u32 {
+    // Long cells (one that changes shape by itself) run 25 s and show the turns; the others 5 s.
+    let (n, at): (u32, Vec<u32>) = if long { (1500, vec![60, 250, 420, 470, 700, 860, 900, 1200, 1490]) } else { (300, vec![20, 60, 140, 200, 260, 298]) };
+    for f in 0..n {
         t += 1.0 / 60.0;
         // 0..90: no pointer; then a slow figure over the piece (pressed while dragging for the drag cells).
-        if f >= 90 {
+        if (90..300).contains(&f) {
             let k = (f - 90) as f32 / 210.0;
             let (px, py) = (cx + w * (0.2 + 0.6 * k), cy + h * (0.5 + 0.3 * (k * 9.0).sin()));
             if f == 90 { u.pointer_move(px, py); if drag { u.press(px, py); } }
@@ -32,9 +35,10 @@ fn cell<E: Experiment>(o: &mut Offscreen, out: &str, name: &str, drag: bool) -> 
         }
         let t0 = std::time::Instant::now();
         u.tick(t);
+        if f >= 300 && !at.contains(&f) { continue; }
         let px = o.render(&mut u, &look);
-        if f >= 90 { cost.0 += t0.elapsed().as_secs_f64() * 1000.0; cost.1 += 1; }
-        if [20, 60, 140, 200, 260, 298].contains(&f) { frames.push(crop(&px, CW, CH, [0, 0, CW, CH])); }
+        if (90..300).contains(&f) { cost.0 += t0.elapsed().as_secs_f64() * 1000.0; cost.1 += 1; }
+        if at.contains(&f) { frames.push(crop(&px, CW, CH, [0, 0, CW, CH])); }
     }
     let (sw, sh, spx) = sheet(&frames, 3);
     save_png(&format!("{out}/{name}.png"), sw, sh, &spx);
@@ -47,7 +51,9 @@ fn page(out: &str, w: u32, h: u32, file: &str) {
     gallery::update(&mut g.state, Msg::Go(Page::Lab));
     g.relayout();
     let mut t = 0.0;
-    for f in 0..90 { t += 1.0 / 60.0; if f == 30 { g.pointer_move(w as f32 * 0.35, 360.0); } else if f > 30 { g.pointer_move(w as f32 * 0.35 + f as f32, 360.0 + f as f32 * 0.5); } g.tick(t); }
+    // The pointer comes into the first cell's stage and moves slowly across it, so its accent shows.
+    let st = g.nodes().iter().find(|n| n.key == "lab/lumen/stage").map(|n| n.rect).unwrap_or(lab::ui::Rect::new(300.0, 200.0, 300.0, 200.0));
+    for f in 0..150 { t += 1.0 / 60.0; if f >= 30 { let k = (f - 30) as f32 / 120.0; g.pointer_move(st.x + st.w * (0.25 + 0.4 * k), st.y + st.h * (0.45 + 0.1 * (k * 6.0).sin())); } g.tick(t); }
     let look = g.state.look();
     let px = o.render(&mut g, &look);
     save_png(&format!("{out}/{file}"), w, h, &px);
@@ -70,8 +76,8 @@ fn decode(out: &str) {
         let c = g.node("decode/card").expect("card").rect;
         flat.push(crop(&px, w, h, [(c.x - 12.0) as u32, (c.y - 12.0) as u32, (c.right() + 12.0) as u32, (c.bottom() + 12.0) as u32]));
         let e = g.node("decode/exploded").expect("exploded").rect;
-        let l = g.node("decode/labels").expect("labels").rect;
-        exploded.push(crop(&px, w, h, [e.x as u32, e.y.min(l.y) as u32, (e.right().max(l.right()) + 8.0).min(w as f32) as u32, (e.bottom().max(l.bottom()) + 8.0) as u32]));
+        let e = g.node("decode/exploded-view").map(|n| n.rect).unwrap_or(e);
+        exploded.push(crop(&px, w, h, [e.x as u32, e.y as u32, (e.right() + 8.0).min(w as f32) as u32, (e.bottom() + 8.0).min(h as f32) as u32]));
     }
     let (sw, sh, spx) = sheet(&flat, 4);
     save_png(&format!("{out}/decode.png"), sw, sh, &spx);
@@ -95,6 +101,83 @@ fn decode(out: &str) {
     save_png(&format!("{out}/decode-dialog.png"), sw, sh, &spx);
 }
 
+/// The Body scene: eight frames (text, gathering, the body turning, the pointer opening it, back) and
+/// one large still; and what a frame costs with one and with four copies of the passage.
+fn body(out: &str) {
+    use lab::recipes::scenes::body;
+    lab::i18n::set_current(lab::i18n::Locale::En);
+    let (w, h) = (1280u32, 800u32);
+    let mut o = Offscreen::new(w, h);
+    let mut u = body::ui(faces(), w, h, 1.0);
+    let look = body::look();
+    let mut t = 0.0f32;
+    let mut frames = vec![];
+    let step = |u: &mut lab::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
+    step(&mut u, &mut t, 30);
+    let r = u.node("body/text").expect("text").rect;
+    frames.push(o.render(&mut u, &look));
+    let (cx, cy) = r.center();
+    u.press(cx, cy); u.release(cx, cy);
+    u.pointer_leave();
+    step(&mut u, &mut t, 14); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 16); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 110); frames.push(o.render(&mut u, &look));
+    // A drag turns it.
+    u.pointer_move(cx - 120.0, cy); u.press(cx - 120.0, cy);
+    for k in 1..=12 { step(&mut u, &mut t, 1); u.pointer_move(cx - 120.0 + 16.0 * k as f32, cy + 3.0 * k as f32); }
+    u.release(cx + 72.0, cy + 36.0);
+    step(&mut u, &mut t, 50); frames.push(o.render(&mut u, &look));
+    // The pointer near: the words come back round it.
+    let (px, py) = (r.x + r.w * 0.36, r.y + r.h * 0.42);
+    for k in 0..30 { u.pointer_move(px + k as f32, py); step(&mut u, &mut t, 1); }
+    frames.push(o.render(&mut u, &look));
+    u.pointer_leave();
+    step(&mut u, &mut t, 40);
+    u.press(cx, cy); u.release(cx, cy); u.pointer_leave();
+    step(&mut u, &mut t, 24); frames.push(o.render(&mut u, &look));
+    step(&mut u, &mut t, 150); frames.push(o.render(&mut u, &look));
+    let small: Vec<(u32, u32, Vec<u8>)> = frames.iter().map(|px| crop(px, w, h, [0, 0, w, h])).collect();
+    let (sw, sh, spx) = sheet(&small, 4);
+    save_png(&format!("{out}/body.png"), sw, sh, &spx);
+    // One large still of the body, 1600 wide.
+    let (lw, lh) = (1600u32, 1000u32);
+    let mut ol = Offscreen::new(lw, lh);
+    let mut ul = body::ui(faces(), lw, lh, 1.0);
+    let mut t = 0.0;
+    step(&mut ul, &mut t, 10);
+    let c = ul.node("body/text").expect("text").rect.center();
+    ul.press(c.0, c.1); ul.release(c.0, c.1); ul.pointer_leave();
+    step(&mut ul, &mut t, 260);
+    let px = ol.render(&mut ul, &look);
+    save_png(&format!("{out}/body-large.png"), lw, lh, &px);
+    // The cost of a frame while it turns: one copy of the passage, and four.
+    // (a window tall enough for three copies to be drawn whole: several thousand glyphs)
+    for copies in [1usize, 3] {
+        let hh = if copies > 1 { 2700 } else { h };
+        let mut o = Offscreen::new(w, hh);
+        let mut u = body::ui(faces(), w, hh, 1.0);
+        u.state.copies = copies;
+        u.relayout();
+        let mut t = 0.0;
+        step(&mut u, &mut t, 10);
+        let c = u.node("body/text").expect("text").rect.center();
+        u.press(c.0, c.1); u.release(c.0, c.1); u.pointer_leave();
+        step(&mut u, &mut t, 200);
+        let n = u.instances_of("body/text").len();
+        let (mut tick, mut all) = (0.0f64, 0.0f64);
+        for _ in 0..60 {
+            t += 1.0 / 60.0;
+            let t0 = std::time::Instant::now();
+            u.tick(t);
+            tick += t0.elapsed().as_secs_f64() * 1000.0;
+            let _ = o.render(&mut u, &look);
+            all += t0.elapsed().as_secs_f64() * 1000.0;
+        }
+        let b = lab::budget::usage();
+        println!("body ×{copies} ({w}×{hh}): {n} glyphs, {:.1} ms/frame in the runtime (tick, poses, scene), {:.1} ms with both passes and readback on this adapter; budget scale {:.2}", tick / 60.0, all / 60.0, b.scale);
+    }
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
@@ -105,19 +188,20 @@ fn main() {
     if want("cells") || want("perf") {
         let mut o = Offscreen::new(CW, CH);
         let ms = [
-            ("lumen", cell::<x::lumen::Lumen>(&mut o, &out, "lumen", false)),
-            ("contours", cell::<x::contours::Contours>(&mut o, &out, "contours", false)),
-            ("silk", cell::<x::silk::Silk>(&mut o, &out, "silk", false)),
-            ("grown", cell::<x::grown::Grown>(&mut o, &out, "grown", true)),
-            ("mercury", cell::<x::mercury::Mercury>(&mut o, &out, "mercury", false)),
-            ("flow", cell::<x::flow::Flow>(&mut o, &out, "flow", false)),
-            ("loupe", cell::<x::loupe::Loupe>(&mut o, &out, "loupe", true)),
-            ("orbit", cell::<x::orbit::Orbit>(&mut o, &out, "orbit", false)),
-            ("spring", cell::<x::spring::Spring>(&mut o, &out, "spring", true)),
-            ("stack", cell::<x::stack::Stack>(&mut o, &out, "stack", false)),
+            ("lumen", cell::<x::lumen::Lumen>(&mut o, &out, "lumen", false, false)),
+            ("contours", cell::<x::contours::Contours>(&mut o, &out, "contours", false, false)),
+            ("silk", cell::<x::silk::Silk>(&mut o, &out, "silk", false, false)),
+            ("grown", cell::<x::grown::Grown>(&mut o, &out, "grown", true, true)),
+            ("mercury", cell::<x::mercury::Mercury>(&mut o, &out, "mercury", false, false)),
+            ("flow", cell::<x::flow::Flow>(&mut o, &out, "flow", false, false)),
+            ("loupe", cell::<x::loupe::Loupe>(&mut o, &out, "loupe", true, false)),
+            ("orbit", cell::<x::orbit::Orbit>(&mut o, &out, "orbit", false, false)),
+            ("spring", cell::<x::spring::Spring>(&mut o, &out, "spring", true, false)),
+            ("stack", cell::<x::stack::Stack>(&mut o, &out, "stack", false, false)),
         ];
         for (n, m) in ms { println!("{n:<10} {m:6.1} ms/frame (tick + scene + both passes + readback, {CW}x{CH}, pointer moving)"); }
     }
     if want("page") { page(&out, 1280, 2700, "lab.png"); page(&out, 390, 4200, "lab-narrow.png"); }
     if want("decode") { decode(&out); }
+    if want("body") { body(&out); }
 }

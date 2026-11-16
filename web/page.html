@@ -186,6 +186,9 @@ async function mount(stage, opts) {
     document.addEventListener('cut', e => { const t = w.cut(now()); if (t != null) { e.clipboardData.setData('text/plain', t); e.preventDefault(); after(); } });
     document.addEventListener('paste', e => { const t = e.clipboardData.getData('text/plain'); if (t && w.paste(t, now())) { e.preventDefault(); after(); } });
     (opts.keys || window).addEventListener('keyup', e => { w.key_up(e.key, now()); after(); });
+    // Reduced motion: the Lab's living pieces and the Body's idle turn rest (DESIGN.md §5.3).
+    const rm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    if (rm) { w.set_reduced_motion(rm.matches); if (rm.addEventListener) rm.addEventListener('change', e => { w.set_reduced_motion(e.matches); kick(); }); }
     window.addEventListener('hashchange', kick);
     new ResizeObserver(() => { fit(); w.resize(canvas.width, canvas.height, dpr); kick(); }).observe(stage);
     kick();

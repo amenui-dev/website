@@ -2,6 +2,7 @@
 //! components, the mark sets and the type; each component has a page with a live preview, every
 //! variant, its own numbers and its source. The top bar switches theme and material; the switch is
 //! committed from the control that was pressed. The old skeleton demo is one of the pages.
+pub mod body;
 pub mod craft;
 pub mod lab;
 pub mod decode;
@@ -35,7 +36,7 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 220.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Lab, Experiment(u8), Decode }
+pub enum Page { Film, Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Decode }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke", "led", "braille", "cubes", "hex", "stipple", "hatch", "truchet", "topo"];
 
@@ -57,6 +58,7 @@ impl Page {
         v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three]);
         v.push(Page::Type);
         v.push(Page::Demo);
+        v.push(Page::Body);
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
         v.extend([Page::Ai(0), Page::Ai(1), Page::Registry, Page::Ai(2)]);
@@ -84,6 +86,7 @@ impl Page {
             Page::Type => "type".into(),
             Page::Demo => "demo".into(),
             Page::Scenes => "scenes".into(),
+            Page::Body => "body".into(),
             Page::Scene(i) => scenes::hash(i as usize),
             Page::Lab => "lab".into(),
             Page::Experiment(i) => format!("lab-{}", lab::NAMES[i as usize]),
@@ -104,6 +107,7 @@ impl Page {
         match self {
             Page::Film => crate::i18n::tr("shell.film"),
             Page::Lab => crate::i18n::tr("nav.lab"),
+            Page::Body => crate::i18n::tr("nav.body"),
             Page::Experiment(i) => { let n = lab::NAMES[i as usize]; n[..1].to_uppercase() + &n[1..] }
             Page::Decode => crate::i18n::tr("nav.decode"),
             Page::Doc(i) => docs::title(i as usize, l),
@@ -121,7 +125,7 @@ impl Page {
     }
     fn name_zh(self) -> &'static str {
         match self {
-            Page::Film | Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode => "",
+            Page::Film | Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode | Page::Body => "",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -257,6 +261,7 @@ pub enum Msg {
     Craft(craft::CMsg),
     /// Something in a Lab cell.
     Lab(lab::LMsg),
+    Body(crate::recipes::scenes::body::Msg),
     /// Something on the decode transition's page.
     Decode(decode::DMsg),
 }
@@ -375,6 +380,8 @@ pub struct Gallery {
     /// The interaction previews (sheet, floating box, menus, loading, stack, chart, fields).
     pub craft: craft::Craft,
     pub lab: lab::Lab,
+    /// The Body scene (`#body`).
+    pub body: crate::recipes::scenes::body::Body,
     pub decode: decode::DecodePage,
 }
 
@@ -391,7 +398,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), craft: craft::Craft::default(), lab: lab::Lab::default(), decode: decode::DecodePage::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 7, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), film: film::Film::default(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -438,6 +445,7 @@ impl Gallery {
         scenes::look(self, &mut l);
         film::look(self, &mut l);
         lab::look(self, &mut l);
+        body::look(self, &mut l);
         l
     }
     /// Apply style preset `i`: everything at once; the theme and material switches still work after.
@@ -475,6 +483,7 @@ impl Gallery {
             Page::Presets => self.apply_style(self.pre_from),
             // The film opens on its chapter, in its preset.
             Page::Lab | Page::Experiment(_) => lab::enter(self),
+            Page::Body => self.body = body::fresh(self.lab.reduced),
             Page::Film => { self.film.entered = self.clock; self.film.ghost = 0; self.apply_style(film::CH[self.film.ch].style); }
             _ => {}
         }
@@ -603,6 +612,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Film(m) => film::update(s, m),
         Msg::Craft(m) => craft::update(s, m),
         Msg::Lab(m) => lab::update(s, m),
+        Msg::Body(m) => body::update(s, m),
         Msg::Decode(m) => decode::update(s, m),
         Msg::RipBurst => { s.rip_burst = Some((s.clock, 0)); burst_step(s, s.clock); }
         Msg::Text(t) => s.text = t,
@@ -635,6 +645,11 @@ pub fn view(s: &Gallery) -> El<Msg> {
     let th = s.theme();
     if s.page == Page::Film { return film::view(s); }
     // A scene has the whole window under the top bar.
+    // The Body scene fills the window under the top bar too.
+    if s.page == Page::Body {
+        return col().key("gallery").fonts(crate::style::LAB.roles()).fill_width().fill_height().child(top_bar(s).calm()).child(divider(th.hairline).key("top-rule"))
+            .child(col().key("main/body").grow(1.0).fill_width().child(body::page(s)));
+    }
     if let Page::Scene(i) = s.page {
         // On a scene the top bar is chrome, like the strip: fronts the scene makes pass it by.
         return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(top_bar(s).calm()).child(divider(th.hairline).key("top-rule"))
@@ -692,7 +707,7 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     let style_names: Vec<&str> = styles().iter().map(|t| t.name).collect();
     let material_now = MATERIALS.iter().position(|m| m.0 == s.material);
     let tr = crate::i18n::tr;
-    let name = if matches!(s.page, Page::Scene(_)) {
+    let name = if matches!(s.page, Page::Scene(_) | Page::Body) {
         button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
     } else { text("gui-lab", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
     let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
@@ -743,7 +758,7 @@ fn groups() -> Vec<(String, Vec<Page>)> {
         (tr("nav.annotation"), vec![Page::Gaze]),
         (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
         (tr("nav.type"), vec![Page::Type, Page::Demo]),
-        (tr("nav.scenes"), std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
+        (tr("nav.scenes"), [Page::Body, Page::Scenes].into_iter().chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
     ]);
     v
 }
@@ -821,7 +836,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let film = film::tick(s, t);
             let craft = craft::tick(s, t);
-            let lab = lab::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t));
+            let lab = lab::tick(s, t) | body::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t));
             scenes::tick(s, t) || changed || burst || coast || film || craft || lab
         })
         .on_look(|s| s.look())
@@ -836,6 +851,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let board = match (board, craft::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, if s.page == Page::Decode { decode::wake(s, t) } else { None }) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, lab::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, body::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
         })
         .on_unused_key(|s, k, shift| {

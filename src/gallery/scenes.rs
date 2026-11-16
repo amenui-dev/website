@@ -962,6 +962,14 @@ pub fn list(g: &Gallery) -> El<Msg> {
     let narrow = g.width < 720.0;
     let cw = if narrow { g.width - 36.0 } else { ((g.width - 220.0 - 80.0 - 40.0) / 3.0).clamp(240.0, 320.0) };
     let mut grid = row().key("scenes/grid").gap(20.0).wrap().fill_width();
+    // The first scene: a passage that gathers into a turning body of its own glyphs (`#body`).
+    grid = grid.child(col().key("scenes/body").width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
+        .on_press(Msg::Go(Page::Body))
+        .child(col().key("scenes/tbody/box").width(cw - 36.0).height(110.0).center().child(text_lh("·  ·  ·  ◦  ·\n·  ◦  ○  ◦  ·\n·  ·  ◦  ·  ·", 12.0, 26.0, Paint::ACCENT)))
+        .child(row().gap(10.0).align(AlignItems::BASELINE)
+            .child(text("00", 12.0, Paint::DIM).font(Font::Mono))
+            .child(text(crate::i18n::tr("nav.body"), 22.0, Paint::INK).font(Font::Display).key("scenes/title-body")))
+        .child(text_lh(crate::i18n::tr("body.label"), 13.0, 21.0, Paint::DIM)));
     for (i, (_, title, desc, st)) in SCENES.iter().enumerate() {
         grid = grid.child(col().key(format!("scenes/card{i}")).width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
             .on_press(Msg::Go(Page::Scene(i as u8)))
