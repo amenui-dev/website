@@ -41,7 +41,8 @@ impl Rig {
     /// Keep the current frame, cropped to the region's element.
     fn shot(&mut self) {
         if self.last.is_empty() { self.frame(); }
-        let r = self.ui.node(&self.region).unwrap_or_else(|| panic!("no {}", self.region)).rect;
+        // No region: the whole window.
+        let r = if self.region.is_empty() { lab::ui::Rect::new(0.0, 0.0, self.o.w as f32, self.o.h as f32) } else { self.ui.node(&self.region).unwrap_or_else(|| panic!("no {}", self.region)).rect };
         let p = self.pad;
         let (x, y) = ((r.x - p).max(0.0), (r.y - p).max(0.0));
         let (w, h) = ((r.w + 2.0 * p).min(W as f32 - x), (r.h + 2.0 * p).min(H as f32 - y));
@@ -187,7 +188,7 @@ fn study_zine(out: &str) {
     if ui.state.film.playing { gallery::update(&mut ui.state, Msg::Film(lab::gallery::film::FMsg::Play)); }
     lab::gallery::film::go(&mut ui.state, 6, None);
     ui.relayout();
-    let mut r = Rig { o: Offscreen::new(W, 640), ui, frames: vec![], last: vec![], region: "film/c06/body".into(), pad: 40.0 };
+    let mut r = Rig { o: Offscreen::new(W, 640), ui, frames: vec![], last: vec![], region: String::new(), pad: 0.0 };
     r.run(3.0);
     r.shot();
     let (x, y) = r.center("film/c06/sign");
