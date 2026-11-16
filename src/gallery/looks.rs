@@ -15,7 +15,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     }
 }
 
-pub const MATERIAL_DESC: [&str; 12] = [
+pub const MATERIAL_DESC: [&str; 9] = [
     "文字和形状不松开：按住的和新出现的东西变淡。底色是平的。",
     "全局点阵：松开的文字和形状变成点，每个点的大小是它底下墨的多少；底色上有一层随波前起伏的小点。",
     "松开时变成旋转的半色调网点，网点的大小由墨的多少决定；可以分成三个网屏，各自错开一点。",
@@ -24,23 +24,17 @@ pub const MATERIAL_DESC: [&str; 12] = [
     "只有墨和底两种颜色。松开时轮廓像用刀刻出来，边缘出现沿着轮廓的刀痕；越松开，刻痕带越宽。",
     "静止时没有变化。松开时一行行错开、颜色通道分离、色块重复；指针移到控件上或按下控件时，控件上短暂地出现同样的效果。",
     "形状只画轮廓、很淡的填充和内部的等距线，叠在一起的层互相透出；文字保持实心。松开时轮廓变成移动的虚线，文字变成空心。",
-    "大的形状和大字是有倒角的金属，映出天空、地平线和地面；小字保持平的。松开时倒角先变软，再化成一颗颗金属点。",
-    "大的形状像液体：彼此靠近到一定距离就融在一起，薄的边缘折射后面的东西，指针附近鼓起一块。松开时向下滴落。",
-    "混合材质：每个元素可以用自己的材质；形状的边缘像撕开的纸，带一圈浅色的纸边。",
     "把中间图画出来：离轮廓的远近画成一圈圈等距线，墨里是暖色，墨外是冷色；轮廓本身用墨色，松开的地方带一层颜色。",
 ];
 pub const LOOSE_SPEC: Spec = Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" };
 
-/// The fixed specimen: headline, paragraph, picture, a row of controls, a card. On the collage page its
-/// parts each carry another material.
+/// The fixed specimen: headline, paragraph, picture, a row of controls, a card.
 pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
     let sz = s.theme().sizes;
-    let collage = m == Material::Collage.id();
-    let over = |e: El<Msg>, id: Material| if collage { e.material(id.id()) } else { e };
     // On a narrow window both columns take what is left inside the specimen's margins.
     let fit = |w: f32| w.min((s.width - if s.width < super::NARROW { 36.0 + 72.0 } else { super::RAIL + 180.0 }).max(160.0));
     let left = col().key(format!("{h}/left")).width(fit(430.0)).gap(18.0)
-        .child(over(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/headline")), Material::Lino))
+        .child(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/headline")))
         .child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时，文字、形状和图片按各自的轮廓松开，再合拢回来。",
             sz.body, (sz.body * 1.7).round(), Paint::TEXT).key(format!("{h}/body")))
         .child(row().key(format!("{h}/controls")).gap(10.0).wrap().align(AlignItems::CENTER)
@@ -49,12 +43,12 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
             .child(segmented(&format!("{h}/seg"), &["日", "周", "月"], s.pick.min(2), 30.0, Msg::Pick)))
         .child(switch(format!("{h}/switch"), "显示网格", s.on, None, Msg::Switch).width(260.0));
     let right = col().key(format!("{h}/right")).width(fit(360.0)).gap(16.0)
-        .child(over(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).pic_fx(IMAGE_SLOT)), Material::Halftone))
-        .child(over(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(fit(360.0)), Material::Xray))
+        .child(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).pic_fx(IMAGE_SLOT)))
+        .child(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(fit(360.0)))
         .child(row().key(format!("{h}/shapes")).gap(14.0).align(AlignItems::CENTER)
-            .child(over(space(84.0, 84.0).radius(42.0).fill(Paint::ACCENT).key(format!("{h}/disc")), Material::Liquid))
-            .child(over(space(84.0, 84.0).radius(42.0).fill(Paint::hue(1)).key(format!("{h}/disc2")), Material::Liquid))
-            .child(over(space(110.0, 64.0).radius(8.0).fill(Paint::INK).key(format!("{h}/slab")), Material::Chrome)));
+            .child(space(84.0, 84.0).radius(42.0).fill(Paint::ACCENT).key(format!("{h}/disc")))
+            .child(space(84.0, 84.0).radius(42.0).fill(Paint::hue(1)).key(format!("{h}/disc2")))
+            .child(space(110.0, 64.0).radius(8.0).fill(Paint::INK).key(format!("{h}/slab"))));
     // The specimen shows how the material loosens everything, text included: it answers fronts fully.
     row().key(format!("{h}/specimen")).respond(Response::Loosen).legible(false).material(m).loosen(s.loose).fill_width().wrap().gap(40.0).pad(36.0, 32.0).radius(6.0).border(1.0, Paint::FAINT)
         .align(AlignItems::START).child(left).child(right)

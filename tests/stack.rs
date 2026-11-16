@@ -33,7 +33,7 @@ fn the_fan_follows_its_formula() {
 fn the_look_follows_the_material() {
     let mut g = lab::gallery::Gallery { material: lab::style::Material::Plain, ..Default::default() };
     assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Plain);
-    g.material = lab::style::Material::Chrome;
+    g.material = lab::style::Material::Print;
     assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Thick);
     g.material = lab::style::Material::Ascii;
     assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Marks(lab::style::Material::Ascii));

@@ -4,8 +4,8 @@ use super::pages::ratio;
 use super::{Gallery, Msg, STYLE_SLOT, Target};
 use crate::demo::{BUST, SKY, SPHERE, TERRAIN};
 use crate::el::{El, Font, Paint, Scope, col, picture, row, space, text, text_lh};
-use crate::style::{Material, styles};
-use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, slider, switch, tabs};
+use crate::style::styles;
+use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, slider, switch};
 use taffy::{AlignItems, JustifyContent};
 
 pub const STYLE_DESC: [&str; 12] = [
@@ -36,9 +36,7 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
         6 => manual(s, &h),
         7 => normcore(s, &h),
         8 => cyber(s, &h),
-        9 => bauhaus(s, &h),
-        10 => y2k(s, &h),
-        _ => mixed(s, &h),
+        _ => bauhaus(s, &h),
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
@@ -379,63 +377,3 @@ fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
             .child(choice(&format!("{h}/weight"), "网格", &["细", "粗"], s.choices[6].min(1), |i| Msg::Choose(6, i)))
             .child(button_as(format!("{h}/print"), "印一张", Variant::Accent, Msg::Press)))
 }
-
-// ── 11 Neo-Y2K: chrome type, liquid blobs, a player ─────────────────────────────────────────────────
-fn y2k(s: &Gallery, h: &str) -> El<Msg> {
-    let gap = s.slides[0];
-    let liquid = Material::Liquid.id();
-    let pct = Spec { min: 0.0, max: 100.0, step: 1.0, decimals: 0, unit: "" };
-    let near = 1.0 - gap;
-    // Blobs whose distance follows the slider; close enough, the liquid joins them.
-    let blob = |k: &str, d: f32, x: f32, y: f32, p: Paint| space(d, d).radius(d * 0.5).fill(p).material(liquid).key(format!("{h}/{k}")).absolute(Some(x), Some(y), None, None);
-    let blobs = col().key(format!("{h}/blobs")).width(500.0).height(300.0)
-        .child(blob("blob-a", 170.0, 10.0 + near * 110.0, 50.0, Paint::ACCENT))
-        .child(blob("blob-b", 130.0, 330.0 - near * 110.0, 70.0, Paint::hue(1)))
-        .child(blob("blob-c", 70.0, 220.0, 210.0 - near * 50.0, Paint::hue(2)))
-        .child(blob("blob-d", 54.0, 420.0 - near * 60.0, 200.0 - near * 40.0, Paint::ACCENT));
-    // A slider whose thumb is a drop of the liquid on a chrome-edged track.
-    let v = s.slides[4];
-    let liquid_slider = col().key(format!("{h}/drop")).width(300.0).height(60.0).on_drag(|x, _| Msg::Slide(4, x))
-        .on_key(move |k, _| match k { crate::el::Key::Left => Some(Msg::Slide(4, v - 0.05)), crate::el::Key::Right => Some(Msg::Slide(4, v + 0.05)), _ => None })
-        .child(space(300.0, 8.0).radius(4.0).fill(Paint::DIM).absolute(Some(0.0), Some(26.0), None, None))
-        .child(space(52.0, 52.0).radius(26.0).fill(Paint::hue(2)).material(liquid).key(format!("{h}/drop-thumb")).absolute(Some(v * 248.0), Some(4.0), None, None));
-    let pill = |k: &str, label: &str, m: Msg| row().key(format!("{h}/{k}")).height(52.0).pad(26.0, 0.0).radius(26.0).fill(Paint::INK).align(AlignItems::CENTER).on_press(m)
-        .child(text(label, 16.0, Paint::INK).weight(0.6));
-    let player = col().key(format!("{h}/player")).width(400.0).gap(16.0).pad(22.0, 22.0).radius(24.0).border(1.0, Paint::DIM)
-        .child(row().gap(16.0).align(AlignItems::CENTER)
-            // A chrome ring: a band wide enough to carry a bevel.
-            .child(space(84.0, 84.0).radius(42.0).border(20.0, Paint::INK).key(format!("{h}/ring")))
-            .child(col().gap(2.0).child(text("液态时间", 17.0, Paint::INK)).child(text("Y2K MIX · 04:12", 12.0, Paint::DIM).font(Font::Mono))))
-        .child(slider(&format!("{h}/progress"), s.slides[1] * 100.0, pct, 356.0, |v| Msg::Slide(1, v / 100.0)))
-        .child(row().gap(10.0).justify(JustifyContent::CENTER).fill_width()
-            .child(pill("prev", "上一首", Msg::Press))
-            .child(pill("play", if s.toggles[1] { "暂停" } else { "播放" }, Msg::Toggle(1)))
-            .child(pill("next", "下一首", Msg::Press)))
-        .child(row().gap(12.0).align(AlignItems::CENTER).child(text("音量", 13.0, Paint::DIM)).child(liquid_slider));
-    col().key(format!("{h}/comp")).gap(14.0)
-        .child(text_lh("液态金属", 150.0, 170.0, Paint::INK).font(Font::Display).weight(3.0).key(format!("{h}/headline")))
-        .child(row().key(format!("{h}/lower")).gap(40.0).align(AlignItems::START).wrap()
-            .child(col().gap(10.0).child(blobs)
-                .child(row().gap(12.0).align(AlignItems::CENTER).child(text("距离", 13.0, Paint::DIM))
-                    .child(slider(&format!("{h}/gap"), gap * 100.0, pct, 320.0, |v| Msg::Slide(0, v / 100.0)))))
-            .child(player))
-}
-
-// ── 12 Mixed media: a collage ────────────────────────────────────────────────────────────────────────
-fn mixed(s: &Gallery, h: &str) -> El<Msg> {
-    let tab = s.tab.min(2);
-    let panels = ["剪下来的东西都留着：车票、照片的一角、写坏的字。", "每一块用自己的材质：网点的照片，刻出来的标题，透明的标签。", "拼贴没有规矩，只要每一块都还认得出来。"];
-    let note = |k: &str, t: &str, p: Paint, w: f32| col().key(format!("{h}/{k}")).width(w).pad(18.0, 16.0).fill(p).child(text_lh(t, 14.0, 23.0, Paint::INK));
-    row().key(format!("{h}/comp")).gap(30.0).align(AlignItems::START).wrap()
-        .child(col().key(format!("{h}/left")).width(460.0).gap(22.0)
-            .child(col().key(format!("{h}/title-box")).pad(22.0, 14.0).fill(Paint::hue(2)).child(text_lh("剪贴簿", 88.0, 100.0, Paint::ACCENT).font(Font::Display).weight(2.0).key(format!("{h}/headline")).material(Material::Lino.id())))
-            .child(note("note1", "十一月　旧报纸、照片和一张车票。", Paint::hue(2), 300.0))
-            .child(tabs(&format!("{h}/tabs"), &["收集", "材质", "规矩"], tab, 18.0, 2.0, Msg::Tab, text_lh(panels[tab], 14.0, 24.0, Paint::TEXT).key(format!("{h}/panel{tab}"))).width(420.0)))
-        .child(col().key(format!("{h}/right")).width(420.0).gap(22.0)
-            .child(col().key(format!("{h}/photo-card")).pad(14.0, 14.0).fill(Paint::hue(2)).child(pic(h, "photo", BUST, 360.0)))
-            .child(row().gap(18.0).align(AlignItems::START)
-                .child(col().key(format!("{h}/label")).width(200.0).gap(6.0).pad(16.0, 14.0).radius(8.0).fill(Paint::hue(1)).material(Material::Xray.id())
-                    .child(text("标签　NO. 12", 13.0, Paint::INK).font(Font::Mono)).child(text_lh("透明的贴纸，下面的东西透出来。", 13.0, 21.0, Paint::TEXT)))
-                .child(space(120.0, 120.0).radius(60.0).fill(Paint::ACCENT).key(format!("{h}/stamp")).material(Material::Halftone.id()).loose(0.7))))
-}
-

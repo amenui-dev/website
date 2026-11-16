@@ -23,13 +23,13 @@ use super::mechanism::{self, MMsg, Mech};
 use super::{Gallery, Msg, Page, STYLE_SLOT};
 use crate::demo::{DUSK, SKY, TERRAIN};
 use crate::el::{Drag, El, Font, Key, Paint, Phase, Response, Scope, col, picture, row, space, stack, text, text_lh};
-use crate::morph::{Cmd, Ease, FlowSpec, MorphSpec};
+use crate::morph::{Cmd, FlowSpec, MorphSpec};
 use crate::style::{Gaze, GazeMode, Look, Material, gaze};
 use crate::widgets::{Edit, Spec, TextEdit, Variant, button_as, dialog, input, number, segmented, switch};
 use crate::wrap::{Around, Silhouette};
 use taffy::AlignItems;
 
-pub const CHAPTERS: usize = 14;
+pub const CHAPTERS: usize = 12;
 
 /// One chapter: the preset it is in (index into `style::styles()`) and its name. Its short title,
 /// caption (what it shows of the framework, in plain words) and hint (what you can do) are messages
@@ -45,7 +45,7 @@ pub const CH: [Chapter; CHAPTERS] = [
     Chapter { style: 7, name: "Normcore" }, Chapter { style: 8, name: "Cyberminimalism" }, Chapter { style: 6, name: "Tech-Manual" },
     Chapter { style: 0, name: "Algorithmic Gaze" }, Chapter { style: 1, name: "Neo-Dotmatrix" }, Chapter { style: 2, name: "Lo-Fi Print" },
     Chapter { style: 4, name: "Metamorphosis Linocut" }, Chapter { style: 3, name: "Glitch" }, Chapter { style: 5, name: "Transparent Electronics" },
-    Chapter { style: 9, name: "Bauhaus" }, Chapter { style: 10, name: "Neo-Y2K" }, Chapter { style: 11, name: "Mixed media" },
+    Chapter { style: 9, name: "Bauhaus" },
     Chapter { style: 6, name: "Mechanism" },
 ];
 /// A message in the current locale (the runtime sets it from the state while the view is built).
@@ -59,17 +59,14 @@ pub struct FilmSpec {
     pub idle_ms: f32,
     /// The shared parts' flight between chapters.
     pub flow_ms: f32,
-    /// Particles of the finale (up to 1,000,000; the default stays smooth on the WebGL2 tier).
-    pub particles: f32,
     /// How loose the prologue's picture is held on the material's side, so its marks show (0–1).
     pub split_loose: f32,
     /// How long before a cut the way on pulses, ms.
     pub cue_ms: f32,
 }
 impl Default for FilmSpec {
-    fn default() -> Self { Self { dwell_ms: 9000.0, idle_ms: 12000.0, flow_ms: 640.0, particles: 60000.0, split_loose: 1.0, cue_ms: 900.0 } }
+    fn default() -> Self { Self { dwell_ms: 9000.0, idle_ms: 12000.0, flow_ms: 640.0, split_loose: 1.0, cue_ms: 900.0 } }
 }
-pub const COUNT_SPEC: Spec = Spec { min: 1000.0, max: 1_000_000.0, step: 1000.0, decimals: 0, unit: "" };
 pub const N_SPEC: Spec = Spec { min: 0.0, max: 99.0, step: 1.0, decimals: 0, unit: "" };
 pub const GAP_SPEC: Spec = Spec { min: 0.0, max: 60.0, step: 1.0, decimals: 0, unit: "px" };
 pub const EXPLODE_SPEC: Spec = Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" };
@@ -104,9 +101,6 @@ pub enum FMsg {
     Knob(f32),
     Squares,
     Plane(usize),
-    MenuSel(usize),
-    Finale,
-    Count(Edit),
     Mech(MMsg),
     MechExplode(Edit),
 }
@@ -128,7 +122,7 @@ pub struct Film {
     pub ghost: usize,
     /// When input last paused autoplay (so the Space that did it is read as "pause").
     pub yielded: Option<f32>,
-    /// The note edited in chapter 1 and pinned up in the collage; the number; the sign's colours swapped.
+    /// The note edited in chapter 1; the number; the sign's colours swapped.
     pub note: TextEdit,
     pub n: f32,
     pub inverted: bool,
@@ -171,10 +165,6 @@ pub struct Film {
     pub squares: bool,
     pub plane: usize,
     // 11
-    pub menu_sel: usize,
-    // 12
-    pub finale: bool,
-    // 13
     pub mech: Mech,
 }
 impl Default for Film {
@@ -185,7 +175,7 @@ impl Default for Film {
             split: 0.32, split0: None, mat: 0, remind: true,
             query: TextEdit::default(), sel: 0, dia: 300.0, dia0: None, ident: None, known: vec![],
             rows: [12.0; 4], board_at: 0.0, lit: false, obj: (330.0, 40.0), gap: 8.0, form: 0, scrub_from: None, tear: None, locks: vec![], error: false,
-            exploded: false, size: 0.55, squares: false, plane: 0, menu_sel: 1, finale: false, mech: Mech::default(),
+            exploded: false, size: 0.55, squares: false, plane: 0, mech: Mech::default(),
         }
     }
 }
@@ -327,8 +317,6 @@ pub fn view(s: &Gallery) -> El<Msg> {
         8 => monitor(&cx),
         9 => device(&cx),
         10 => bauhaus(&cx),
-        11 => chrome(&cx),
-        12 => collage(&cx),
         _ => machine(&cx),
     };
     // Everything of a chapter lives inside the stage; its own presses reach the stage (DESIGN.md §1.15).
@@ -465,13 +453,13 @@ const TYPES: [Type; CHAPTERS] = [
     Type { d: 44.0, b: 18.0, c: 12.0 },
     Type { d: 44.0, b: 19.0, c: 13.0 }, Type { d: 30.0, b: 18.0, c: 13.0 }, Type { d: 30.0, b: 16.0, c: 12.0 }, Type { d: 44.0, b: 16.0, c: 12.0 },
     Type { d: 56.0, b: 30.0, c: 14.0 }, Type { d: 64.0, b: 18.0, c: 12.0 }, Type { d: 48.0, b: 120.0, c: 13.0 }, Type { d: 36.0, b: 16.0, c: 12.0 },
-    Type { d: 30.0, b: 15.0, c: 12.0 }, Type { d: 64.0, b: 18.0, c: 13.0 }, Type { d: 40.0, b: 20.0, c: 13.0 }, Type { d: 40.0, b: 16.0, c: 12.0 },
+    Type { d: 30.0, b: 15.0, c: 12.0 }, Type { d: 64.0, b: 18.0, c: 13.0 },
     Type { d: 40.0, b: 16.0, c: 12.0 },
 ];
 
 // ── 0 Prologue: one interface, as it is and in a material ───────────────────────────────────────
 /// The materials the prologue's chips choose for the right side, with their names' messages.
-pub const SPLIT_MATS: [Material; 9] = [Material::Halftone, Material::Dot, Material::Ascii, Material::Print, Material::Lino, Material::Glitch, Material::Xray, Material::Chrome, Material::Liquid];
+pub const SPLIT_MATS: [Material; 7] = [Material::Halftone, Material::Dot, Material::Ascii, Material::Print, Material::Lino, Material::Glitch, Material::Xray];
 /// The picture slot the prologue's material side uses, and the marks each material's chip shows the
 /// picture in (the material draws the ground and the loose; the marks are the picture's own).
 pub const SPLIT_SLOT: u8 = 5;
@@ -479,7 +467,7 @@ pub fn split_marks(mat: usize) -> crate::style::PicFx {
     use crate::style::{PicFx, set};
     let base = |s: u8, pitch: f32| PicFx { pitch, levels: 8.0, ground: 0.08, ..PicFx::with_set(s) };
     match mat { 0 => base(set::DOTS, 7.0), 1 => base(set::LED, 6.0), 2 => PicFx { levels: 16.0, ground: 0.0, ..base(set::CHARS, 8.0) }, 3 => base(set::STIPPLE, 7.0), 4 => base(set::HATCH, 8.0),
-        5 => base(set::PIXEL, 6.0), 6 => base(set::TOPO, 10.0), 7 => PicFx { relief: 1.0, ..base(set::CUBES, 11.0) }, _ => base(set::HEX, 9.0) }
+        5 => base(set::PIXEL, 6.0), _ => base(set::TOPO, 10.0) }
 }
 /// The frame the interface sits in (units): left, top, right, bottom.
 pub const FRAME: [f32; 4] = [MARGIN, TOP_Y, UNITS - MARGIN, 604.0];
@@ -1039,80 +1027,7 @@ fn bauhaus(x: &Cx) -> Parts {
     ], Some([c0 + (lw - r * 2.0) * f.size - 4.0, ly + 24.0 + 1.0, 38.0, 38.0]))
 }
 
-// ── 11 Neo-Y2K: a chrome sign over a liquid dock ─────────────────────────────────────────────────
-pub const MENU: [&str; 5] = ["film.c11.item0", "film.c11.item1", "film.c11.item2", "film.c11.item3", "film.c11.item4"];
-fn chrome(x: &Cx) -> Parts {
-    let f = x.f;
-    let liquid = Material::Liquid.id();
-    // The dock: blobs in a row whose fields touch; the hovered one swells into its neighbours, the
-    // chosen one rises out of the row. Labels sit on one line under them.
-    let pitch = 110.0;
-    let n = MENU.len() as f32;
-    let dx0 = (UNITS - pitch * n) * 0.5;
-    let base = 520.0;
-    let mut out = vec![];
-    for (i, name) in MENU.iter().enumerate() {
-        let k = x.key(&format!("item{i}"));
-        let hot = f.hover.as_deref() == Some(k.as_str());
-        let sel = i == f.menu_sel;
-        let r = if hot { 50.0 } else { 40.0 };
-        let lift = if sel { 34.0 } else { 0.0 };
-        let cx = dx0 + pitch * (i as f32 + 0.5);
-        let blob = space(x.u(r * 2.0), x.u(r * 2.0)).radius(x.u(r)).fill(if sel { Paint::hue(1) } else { Paint::hue(0) }).material(liquid).key(format!("{k}/blob")).respond(Response::Loosen);
-        let item = col().key(k).width(x.u(pitch)).height(x.u(150.0)).on_press(Msg::Film(FMsg::MenuSel(i))).label(l(name)).focusable(true)
-            .child(blob.absolute(Some(x.u(pitch * 0.5 - r)), Some(x.u(60.0 - r - lift)), None, None))
-            .child(col().key(format!("film/c11/item{i}/under")).width(x.u(pitch)).align(AlignItems::CENTER).absolute(Some(0.0), Some(x.u(118.0)), None, None)
-                .child(x.label(l(name), x.caption(), if sel { Paint::INK } else { Paint::TEXT }).key(format!("film/c11/item{i}/label"))));
-        out.push(x.at(item, cx - pitch * 0.5, base - 60.0));
-    }
-    let sd = 300.0;
-    out.push(x.at(x.sign(sd, Paint::INK, Paint::INK), (UNITS - sd * SIGN_W) * 0.5, TOP_Y - 10.0));
-    out.push(x.at(x.number(x.display(), Paint::INK).font(Font::Mono), colx(11.0), TOP_Y));
-    (out, Some([dx0 + pitch * 2.0 + 15.0, base - 40.0, pitch - 30.0, 80.0]))
-}
-
-// ── 12 Mixed media: the collage, and the finale ──────────────────────────────────────────────────
-fn collage(x: &Cx) -> Parts {
-    let f = x.f;
-    let m = |mat: Material| mat.id();
-    let paper = |el: El<Msg>, k: &str, mat: Material| col().key(x.key(k)).pad(x.u(14.0), x.u(12.0)).fill(Paint::tone(0.08)).material(m(mat)).child(el);
-    let frags: Vec<(El<Msg>, f32, f32)> = vec![
-        (paper(row().key(x.key("f1/r")).gap(10.0).align(AlignItems::CENTER).child(x.label(l("film.invert"), x.body(), Paint::TEXT)).child(switch(x.key("f1/switch"), "", f.inverted, None, Msg::Film(FMsg::Invert)).zoom(x.z())), "f1", Material::Plain), colx(0.0), TOP_Y),
-        (paper(x.mono("› go 05 neo-dotmatrix", x.body(), Paint::ACCENT).key(x.key("f2/t")), "f2", Material::Plain), colx(3.0), TOP_Y),
-        (paper(row().gap(6.0).key(x.key("f3/r")).child(space(x.u(90.0), 1.0).fill(Paint::INK)).child(x.mono("Ø 300.0", x.caption(), Paint::INK)), "f3", Material::Plain), colx(6.0), TOP_Y),
-        (paper(x.number(x.u(54.0), Paint::ACCENT).loose(0.0), "f5", Material::Dot), colx(0.0), 200.0),
-        (paper(text_lh(l("film.c12.ink"), x.body(), x.body() * 1.5, Paint::INK).width(x.u(220.0)).key(x.key("f6/t")), "f6", Material::Print), colx(2.0), 200.0),
-        (paper(text(l("film.c12.carve"), x.u(90.0), Paint::INK).font(Font::Display).weight(3.0).key(x.key("f7/t")).loose(0.6), "f7", Material::Lino), colx(5.0), 190.0),
-        (paper(row().gap(3.0).key(x.key("f8/w")).children((0..18).map(|i| space(3.0, x.u(12.0 + ((i * 7) % 11) as f32 * 4.0)).fill(Paint::INK).key(x.key(&format!("f8/b{i}"))))), "f8", Material::Glitch), colx(6.5), 200.0),
-        (paper(col().key(x.key("f9/p")).width(x.u(150.0)).height(x.u(100.0)).radius(x.u(14.0)).fill(Paint::INK), "f9", Material::Xray), colx(0.0), 360.0),
-        (paper(row().gap(x.u(8.0)).key(x.key("f10/r")).child(space(x.u(70.0), x.u(70.0)).radius(x.u(70.0)).fill(Paint::hue(0)).loose(0.8)).child(space(x.u(60.0), x.u(60.0)).fill(Paint::hue(1)).loose(0.8)), "f10", Material::Halftone), colx(2.0), 380.0),
-        (paper(row().gap(0.0).key(x.key("f11/r")).child(space(x.u(56.0), x.u(56.0)).radius(x.u(56.0)).fill(Paint::hue(0))).child(space(x.u(46.0), x.u(46.0)).radius(x.u(46.0)).fill(Paint::hue(0))), "f11", Material::Liquid), colx(4.0), 380.0),
-        // The note from the first chapter's form, pinned up in print.
-        (paper(text(x.note(), x.body() * 1.3, Paint::INK).key(x.key("note/t")).nowrap(), "note", Material::Print), colx(6.0), 400.0),
-    ];
-    let mut board = col().key("film/c12/board").width(x.u(UNITS)).height(x.u(STAGE_H)).respond(Response::Loosen);
-    for (el, fx, fy) in frags { board = board.child(x.at(el, fx, fy)); }
-    board = board.child(x.at(col().key(x.key("f12")).pad(x.u(18.0), x.u(18.0)).fill(Paint::tone(0.08)).material(m(Material::Lino)).child(x.sign(230.0, Paint::INK, Paint::hue(0)).loose(0.35)), colx(8.5), TOP_Y + 40.0));
-    // The finale: everything loosens into particles that make the sign, alone and large.
-    let finale = col().key("film/c12/finale").width(x.u(UNITS)).height(x.u(STAGE_H)).align(AlignItems::CENTER).justify(taffy::JustifyContent::CENTER)
-        .child(x.sign_keyed("film/c12/finale/sign", 380.0, Paint::INK, Paint::hue(0)));
-    let draft = x.g.film.drafts.as_ref().filter(|d| d.0 == 12).map(|d| d.1.as_str());
-    let mut out = vec![];
-    if f.finale {
-        out.push(x.at(finale, 0.0, 0.0));
-        out.push(x.at(board.hidden_until_morphed(true), 0.0, 0.0));
-    } else {
-        out.push(x.at(board, 0.0, 0.0));
-        out.push(x.at(finale.hidden_until_morphed(true), 0.0, 0.0));
-    }
-    let z = x.z();
-    out.push(x.at(row().key(x.key("controls")).gap(x.u(18.0)).align(AlignItems::CENTER)
-        .child(button_as(x.key("close"), &if f.finale { l("film.c12.open") } else { l("film.c12.close") }, Variant::Accent, Msg::Film(FMsg::Finale)).zoom(z))
-        .child(number(&x.key("count"), &l("film.c12.particles"), f.spec.particles, COUNT_SPEC, draft, |e| Msg::Film(FMsg::Count(e))).width(360.0).zoom(z)), colx(0.0), 560.0));
-    (out, Some([colx(0.0) - 4.0, 556.0, 110.0, 44.0]))
-}
-
-// ── 13 Mechanism: the one place that is three-dimensional ────────────────────────────────────────
+// ── 11 Mechanism: the one place that is three-dimensional ────────────────────────────────────────
 fn machine(x: &Cx) -> Parts {
     let f = x.f;
     let m = &f.mech;
@@ -1159,7 +1074,6 @@ pub fn go(g: &mut Gallery, i: usize, at: Option<(f32, f32)>) {
     f.hover = None;
     f.tear = None;
     f.error = false;
-    f.finale = false;
     f.scrub_from = None;
     f.ident = None;
     f.known.clear();
@@ -1207,7 +1121,7 @@ pub fn update(g: &mut Gallery, m: FMsg) {
         FMsg::Invert => g.film.inverted = !g.film.inverted,
         FMsg::Num(Edit::Draft(d)) => g.film.drafts = Some((if g.film.ch == 0 { 0 } else { 1 }, d)),
         FMsg::Num(Edit::Set(v)) => { g.film.n = N_SPEC.clamp(v); g.film.drafts = None; }
-        FMsg::Num(Edit::Cancel) | FMsg::Gap(Edit::Cancel) | FMsg::Count(Edit::Cancel) | FMsg::MechExplode(Edit::Cancel) => g.film.drafts = None,
+        FMsg::Num(Edit::Cancel) | FMsg::Gap(Edit::Cancel) | FMsg::MechExplode(Edit::Cancel) => g.film.drafts = None,
         FMsg::Query(t) => { g.film.query = t; g.film.sel = 0; }
         FMsg::Run(i) => run_command(g, i),
         FMsg::Size(d) => {
@@ -1250,18 +1164,8 @@ pub fn update(g: &mut Gallery, m: FMsg) {
         FMsg::Knob(v) => g.film.size = v.clamp(0.0, 1.0),
         FMsg::Squares => g.film.squares = !g.film.squares,
         FMsg::Plane(i) => { g.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 420.0, flow_loose: 0.3, out_ms: 120.0 })); g.film.plane = i.min(2); }
-        FMsg::MenuSel(i) => { g.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 380.0, flow_loose: 0.3, out_ms: 0.0 })); g.film.menu_sel = i.min(MENU.len() - 1); }
-        FMsg::Finale => {
-            let f = &g.film;
-            let spec = MorphSpec { duration_ms: 1800.0, loosen_ms: 420.0, tighten_ms: 520.0, count_max: f.spec.particles, curl: 90.0, stagger: 0.55, ease: Ease::InOutCubic, lattice: 2.0, ..MorphSpec::default() };
-            let (from, to) = if f.finale { ("film/c12/finale", "film/c12/board") } else { ("film/c12/board", "film/c12/finale") };
-            g.cmds.push(Cmd::Morph { from: from.into(), to: to.into(), spec });
-            g.film.finale = !g.film.finale;
-        }
-        FMsg::Count(Edit::Draft(d)) => g.film.drafts = Some((12, d)),
-        FMsg::Count(Edit::Set(v)) => { g.film.spec.particles = COUNT_SPEC.clamp(v); g.film.drafts = None; }
         FMsg::Mech(mm) => {
-            let key = "film/c13/machine";
+            let key = "film/c11/machine";
             let mut cmds = vec![];
             g.film.mech.update(mm, now, &mut cmds, key);
             g.cmds.extend(cmds);
@@ -1342,9 +1246,7 @@ fn script(c: usize) -> Vec<(f32, Ghost)> {
                  (4.4, Msg(FMsg::Tear(tear(Phase::Start, 0.45)))), (5.0, Msg(FMsg::Tear(tear(Phase::End, 0.45)))), (6.8, Press("film/c08/retry"))],
         9 => vec![(0.5, Ptr(0.3, 0.4)), (1.5, Ptr(0.7, 0.6)), (2.4, Msg(FMsg::Explode)), (4.0, Ptr(0.35, 0.3)), (5.2, Ptr(0.65, 0.7)), (6.4, Msg(FMsg::Explode)), (7.4, Ptr(0.5, 0.5))],
         10 => vec![(1.0, Msg(FMsg::Knob(0.9))), (2.4, Press("film/c10/toggle")), (3.6, Press("film/c10/plane1")), (5.0, Press("film/c10/plane2")), (6.4, Msg(FMsg::Knob(0.4))), (7.4, Press("film/c10/plane0"))],
-        11 => vec![(0.8, Hover(Some("film/c11/item2"))), (1.6, Ptr(0.2, 0.8)), (2.4, Hover(Some("film/c11/item3"))), (3.2, Press("film/c11/item3")), (4.4, Ptr(0.8, 0.8)), (5.0, Hover(Some("film/c11/item0"))), (6.0, Press("film/c11/item1")), (6.6, Hover(None))],
-        12 => vec![(2.2, Msg(FMsg::Finale))],
-        13 => vec![(0.6, Msg(FMsg::Mech(MMsg::Swing(40.0)))), (1.8, Msg(FMsg::Mech(MMsg::Spin(80.0)))), (3.2, Msg(FMsg::Mech(MMsg::Explode(1.0)))), (4.4, Msg(FMsg::Mech(MMsg::Loosen(6)))),
+        11 => vec![(0.6, Msg(FMsg::Mech(MMsg::Swing(40.0)))), (1.8, Msg(FMsg::Mech(MMsg::Spin(80.0)))), (3.2, Msg(FMsg::Mech(MMsg::Explode(1.0)))), (4.4, Msg(FMsg::Mech(MMsg::Loosen(6)))),
                    (6.2, Msg(FMsg::Mech(MMsg::Explode(0.0)))), (7.4, Msg(FMsg::Mech(MMsg::Spin(0.0)))), (7.6, Msg(FMsg::Mech(MMsg::Swing(-30.0))))],
         _ => vec![],
     }
@@ -1361,8 +1263,6 @@ fn act(g: &mut Gallery, a: Ghost) {
         Ghost::Hover(k) => g.film.hover = k.map(str::to_owned),
         Ghost::Ptr(x, y) => {
             g.film.ptr = (x, y);
-            // The chrome's reflection follows the pointer: the ghost moves it too.
-            if g.film.ch == 11 { let geo = geo(g.width, g.height); g.cmds.push(Cmd::Pointer { x: geo.sx + x * geo.sw, y: geo.sy + y * geo.sh }); }
         }
     }
 }
@@ -1389,7 +1289,7 @@ pub fn tick(g: &mut Gallery, t: f32) -> bool {
     let f = &mut g.film;
     // Identifying runs on the clock while it lasts.
     if f.ch == 4 && f.ident.as_ref().is_some_and(|(_, t0)| t - t0 < ID_LOOSEN + ID_SCAN + ID_FORM + 0.05) { changed = true; }
-    if f.ch == 13 && f.mech.step(t) {
+    if f.ch == 11 && f.mech.step(t) {
         changed = true;
         f.n = (f.mech.turn / 360.0).floor().rem_euclid(100.0);
     }
@@ -1406,7 +1306,7 @@ pub fn wake(g: &Gallery, t: f32) -> Option<f32> {
     if g.page != Page::Film { return None; }
     let f = &g.film;
     if f.ch == 4 && f.ident.as_ref().is_some_and(|(_, t0)| t - t0 < ID_LOOSEN + ID_SCAN + ID_FORM + 0.05) { return Some(t); }
-    if f.ch == 13 && f.mech.moving(t) { return Some(t); }
+    if f.ch == 11 && f.mech.moving(t) { return Some(t); }
     if f.playing {
         let mut w = f.entered + f.spec.dwell_ms / 1000.0;
         if let Some((at, _)) = script(f.ch).get(f.ghost) { w = w.min(f.entered + at); }
@@ -1440,9 +1340,8 @@ pub fn key(g: &mut Gallery, k: Key, _shift: bool) -> bool {
         Key::Char(' ') => update(g, FMsg::Play),
         Key::Char(c @ '1'..='9') => go(g, c as usize - '0' as usize, None),
         Key::Char('0') => go(g, 10, None),
+                Key::Home => go(g, 0, None),
         Key::Char('-') => go(g, 11, None),
-        Key::Char('=') => go(g, 12, None),
-        Key::Home => go(g, 0, None),
         Key::End => go(g, CHAPTERS - 1, None),
         Key::Escape => { super::update(g, Msg::Go(Page::Comp(0))); }
         _ => return false,
@@ -1488,7 +1387,7 @@ pub fn look(g: &Gallery, l: &mut Look) {
     let f = &g.film;
     if f.ch == 0 { l.pics[SPLIT_SLOT as usize] = split_marks(f.mat); }
     // The mechanism's marks follow its depth: the far parts' marks are smaller and fainter.
-    if f.ch == 13 { l.marks = crate::style::Marks { depth_scale: 0.45, depth_dim: 0.35 }; }
+    if f.ch == 11 { l.marks = crate::style::Marks { depth_scale: 0.45, depth_dim: 0.35 }; }
     if f.ch == 4 {
         // The detector boxes what is focused while the ghost plays, what the pointer is near otherwise.
         l.gaze = Gaze { mode: if f.playing { GazeMode::Focus } else if f.hover.is_some() { GazeMode::Hover } else { GazeMode::All }, kinds: gaze::FRAME | gaze::KIND | gaze::SIZE | gaze::CROSS, density: 6.0, ..l.gaze };

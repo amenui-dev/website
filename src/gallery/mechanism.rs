@@ -7,7 +7,7 @@
 //! Drag the background to orbit (it coasts), the wheel to dolly, drag a gear to turn the whole train;
 //! hover a part for its name (and tooth count) on a leader; press a part and it loosens into particles
 //! taken from its own surface and forms again; `explode` separates the parts along their axes; the
-//! material switch runs the whole machine as ASCII, dots, halftone, lino or chrome. Every one of these
+//! material switch runs the whole machine as ASCII, dots, halftone, or lino. Every one of these
 //! has a key (see `key`).
 use crate::el::{Drag, El, Key, Paint, Phase, Response, scene3d, space, stack, text};
 use crate::mesh::{self, Camera, Library, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
@@ -35,7 +35,7 @@ const GROUND: u32 = 99;
 
 /// The materials the switch offers: (name, material). The first is the two-tone drawing.
 /// (the name's message key, the material).
-pub const MATS: [(&str, Material); 6] = [("mech.mat0", Material::Plain), ("mech.mat1", Material::Ascii), ("mech.mat2", Material::Dot), ("mech.mat3", Material::Halftone), ("mech.mat4", Material::Lino), ("mech.mat5", Material::Chrome)];
+pub const MATS: [(&str, Material); 5] = [("mech.mat0", Material::Plain), ("mech.mat1", Material::Ascii), ("mech.mat2", Material::Dot), ("mech.mat3", Material::Halftone), ("mech.mat4", Material::Lino)];
 
 /// The gears: teeth, pitch radius, centre (x, y). They mesh: centre distances are the sums of the radii.
 const MODULE: f32 = 0.05;
@@ -285,7 +285,7 @@ pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, 
     if mat == Material::Plain { v = v.respond(Response::Ignore); }
     if mat != Material::Plain {
         v = v.material(mat.id());
-        if mat != Material::Chrome { v = v.loose(1.0).legible(false); }
+        v = v.loose(1.0).legible(false);
     }
     let mut layers = vec![v];
     // A loosening part: two copies of it alone, over the machine; the morph goes from one to the other.

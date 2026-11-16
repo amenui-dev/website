@@ -6,7 +6,7 @@
 //!     landing frame the target at looseness 1, within 2/255 over each element; mid-flight, under the
 //!     light theme, tiles are drawn outside and between the two elements.
 //!
-//!  5. Rest (step 5): for every material but chrome, liquid and near, body text at looseness 0 is drawn
+//!  5. Rest (step 5): for every material but near, body text at looseness 0 is drawn
 //!     exactly as `plain` draws it (print: within its paper grain; dot: the glyphs' own pixels, since
 //!     its ground has units at rest); with a control that loosened text
 //!     does differ.
@@ -18,7 +18,7 @@
 //!     still condensing, or under a front.
 //! 10. Every component page under every material but `near`, at rest (dark theme; light too for print
 //!     and lino): the glyph pixels of the preview and the variants equal plain's, except by as much as
-//!     the backing under them differs (an xray fill, a collage edge, the dot ground; print within its
+//!     the backing under them differs (an xray fill, the dot ground; print within its
 //!     grain). The glyph pixels are found by drawing the same frame with the glyphs hidden.
 //! 11. Selected and unselected states of the switch, the tabs and the choice (both kinds) differ by a
 //!     visible amount under every material.
@@ -326,7 +326,7 @@ fn main() {
         let plain = o.render(&mut ui, &Look { theme, material: Material::Plain, ..Look::default() });
         for m in 0..MATERIAL_COUNT as u8 {
             let mat = Material::from_id(m);
-            if matches!(mat, Material::Chrome | Material::Liquid | Material::Near | Material::Plain) { continue; }
+            if matches!(mat, Material::Near | Material::Plain) { continue; }
             let look = Look { theme, material: mat, ..Look::default() };
             let img = o.render(&mut ui, &look);
             // The dot material's ground has its units at rest (§1.6): there only the glyphs' own
@@ -336,7 +336,7 @@ fn main() {
             let allowed = if mat == Material::Print { 8 } else { 0 };
             eprintln!("   rest {} {:?}: body differs from plain by {d}/255", theme.name, mat);
             if d > allowed { eprintln!("FAIL rest: {:?} body text is not exact at rest ({d}/255)", mat); failed += 1; }
-            if theme.name == DARK.name && !matches!(mat, Material::Collage | Material::Xray) {
+            if theme.name == DARK.name && !matches!(mat, Material::Xray) {
                 // Control: loosened, the same comparison sees the material.
                 ui.state.loose = 1.0; ui.relayout(); ui.tick(100.0);
                 let d1 = diff(&plain, &o.render(&mut ui, &look), r);
@@ -487,7 +487,7 @@ fn main() {
         let whole = diff(&full, &half, lab::ui::Rect::new(0.0, 0.0, W as f32, H as f32));
         worst = worst.max(whole);
         if whole > 0 { eprintln!("FAIL quality 0.5: {:?} at rest differs from quality 1 by {whole}/255", mat); failed += 1; }
-        if !matches!(mat, Material::Chrome | Material::Liquid | Material::Near) {
+        if !matches!(mat, Material::Near) {
             let d = if mat == Material::Dot { diff_ink(&plain, &half, r, rgb8(DARK.ground)) } else { diff(&plain, &half, r) };
             let allowed = if mat == Material::Print { 8 } else { 0 };
             if d > allowed { eprintln!("FAIL quality 0.5: {:?} body text is not plain's at rest ({d}/255)", mat); failed += 1; }

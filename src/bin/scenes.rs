@@ -151,8 +151,6 @@ fn script(d: &mut Dir, i: usize) -> usize {
             d.snap("rest (Normcore)");
             d.click("st/s3"); d.wait(0.35); d.snap("Glitch spreading from the press");
             d.wait(1.5); d.snap("Glitch");
-            d.click("st/s10"); d.wait(0.4); d.snap("Neo-Y2K spreading");
-            d.wait(1.5); d.snap("Neo-Y2K");
             d.ui.key(Key::Right, false); d.wait(0.3); d.snap("→: Mixed media");
             3
         }
