@@ -91,7 +91,7 @@ fn widget_source(path: &str) -> &'static str {
         "badge.rs" => include_str!("../widgets/badge.rs"), "avatar.rs" => include_str!("../widgets/avatar.rs"), "skeleton.rs" => include_str!("../widgets/skeleton.rs"),
         "breadcrumb.rs" => include_str!("../widgets/breadcrumb.rs"), "pagination.rs" => include_str!("../widgets/pagination.rs"), "sheet.rs" => include_str!("../widgets/sheet.rs"),
         "context_menu.rs" => include_str!("../widgets/context_menu.rs"), "command.rs" => include_str!("../widgets/command.rs"), "toggle.rs" => include_str!("../widgets/toggle.rs"),
-        "bottom_sheet.rs" => include_str!("../widgets/bottom_sheet.rs"), "floating.rs" => include_str!("../widgets/floating.rs"), "caption.rs" => include_str!("../widgets/caption.rs"), "nested_menu.rs" => include_str!("../widgets/nested_menu.rs"),
+        "bottom_sheet.rs" => include_str!("../widgets/bottom_sheet.rs"), "floating.rs" => include_str!("../widgets/floating.rs"), "caption.rs" => include_str!("../widgets/caption.rs"), "nested_menu.rs" => include_str!("../widgets/nested_menu.rs"), "card_stack.rs" => include_str!("../widgets/card_stack.rs"),
         _ => "",
     }
 }

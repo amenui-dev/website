@@ -134,11 +134,46 @@ fn study_loading(out: &str) {
     r.save(out, "loading", 3);
 }
 
+fn study_stack(out: &str) {
+    // The same fan in the three looks: closed, fanning (three frames), fanned.
+    for look in 1..=3 {
+        let mut r = Rig::new("card-stack", "craft/stack/cards");
+        gallery::update(&mut r.ui.state, Msg::Craft(gallery::craft::CMsg::StackLook(look)));
+        r.ui.relayout();
+        r.run(0.5);
+        r.shot();
+        let b = r.ui.node("craft/stack/cards").unwrap().rect;
+        // Onto the top card: everything beneath fans out.
+        r.ui.pointer_move(b.x + b.w * 0.55, b.y + b.h * 0.6);
+        for _ in 0..3 { r.run(0.05); r.shot(); }
+        r.run(0.8); r.shot();
+        // Then onto the second card where it shows: the top two stay, the rest fan from there.
+        let (cx, cy) = (b.x + b.w * 0.5, b.y + b.h * 0.6);
+        let mut hit = None;
+        for k in 0..60 { let (x, y) = (cx - 60.0 - k as f32 * 3.0, cy - 80.0 - k as f32 * 2.0); r.ui.pointer_move(x, y); if r.ui.state.craft.stack.under() == Some(1) { hit = Some((x, y)); break; } }
+        if hit.is_some() { r.run(0.06); r.shot(); r.run(0.8); r.shot(); } else { eprintln!("look {look}: the second card was not found under the pointer"); r.shot(); r.shot(); }
+        r.save(out, &format!("stack-{look}"), 7);
+    }
+    // Stitch the three rows into one sheet.
+    let rows: Vec<(u32, u32, Vec<u8>)> = (1..=3).map(|l| read_png(&format!("{out}/stack-{l}.png"))).collect();
+    let (w, h, px) = sheet(&rows, 1);
+    save_png(&format!("{out}/stack.png"), w, h, &px);
+    for l in 1..=3 { let _ = std::fs::remove_file(format!("{out}/stack-{l}.png")); }
+}
+fn read_png(path: &str) -> (u32, u32, Vec<u8>) {
+    let d = png::Decoder::new(std::io::BufReader::new(std::fs::File::open(path).expect("png")));
+    let mut r = d.read_info().expect("png info");
+    let mut buf = vec![0; r.output_buffer_size()];
+    let info = r.next_frame(&mut buf).expect("png frame");
+    buf.truncate(info.buffer_size());
+    (info.width, info.height, buf)
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading"];
+    let all = ["sheet", "floating", "menu", "loading", "stack"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -146,6 +181,7 @@ fn main() {
             "floating" => study_floating(&out),
             "menu" => study_menu(&out),
             "loading" => study_loading(&out),
+            "stack" => study_stack(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

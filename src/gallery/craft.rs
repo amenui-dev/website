@@ -4,12 +4,14 @@
 //! from the same fields it reads.
 use super::{Gallery, Msg, Target};
 use crate::el::{El, Font, Paint, col, layers, row, space, text};
-use crate::widgets::{Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
+use crate::widgets::{Stack, StackLook, StackMsg, card_stack, segmented, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
 use taffy::AlignItems;
 
 /// The previews' state.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Craft { pub sheet: Sheet, pub pip: Floating, pub menu: Menu, pub picked: Vec<usize>, pub load: Loading, pub latency_ms: f32, pub now: f32 }
+pub struct Craft { pub sheet: Sheet, pub pip: Floating, pub menu: Menu, pub picked: Vec<usize>, pub load: Loading, pub latency_ms: f32, pub now: f32,
+    /// The stack and which look it is forced to (0: the material's).
+    pub stack: Stack, pub stack_look: usize }
 /// The sheet preview's phone-shaped frame, and the floating preview's area (logical px).
 pub const PHONE: (f32, f32) = (340.0, 560.0);
 pub const AREA: (f32, f32) = (520.0, 320.0);
@@ -20,12 +22,12 @@ impl Default for Craft {
         let mut pip = Floating::default();
         (pip.area, pip.size) = (AREA, (168.0, 100.0));
         pip.place(3);
-        Self { sheet, pip, menu: Menu::new(menu_items()), picked: vec![], load: Loading::default(), latency_ms: 900.0, now: 0.0 }
+        Self { sheet, pip, menu: Menu::new(menu_items()), picked: vec![], load: Loading::default(), latency_ms: 900.0, now: 0.0, stack: Stack::default(), stack_look: 0 }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CMsg { Reload, SheetOpen, Sheet(SheetMsg), Pip(FloatMsg), Menu(MenuMsg), SafeZone }
+pub enum CMsg { Stack(StackMsg), StackLook(usize), Reload, SheetOpen, Sheet(SheetMsg), Pip(FloatMsg), Menu(MenuMsg), SafeZone }
 
 /// The menu preview's rows (generic names; the labels are in the catalogs).
 fn menu_items() -> Vec<MenuItem> {
@@ -38,6 +40,8 @@ pub fn update(s: &mut Gallery, m: CMsg) {
     let now = s.clock;
     let c = &mut s.craft;
     match m {
+        CMsg::Stack(m) => c.stack.update(m, now),
+        CMsg::StackLook(i) => c.stack_look = i,
         CMsg::Reload => c.load.start(now),
         CMsg::SheetOpen => { c.sheet.present(now); s.cmds.push(crate::morph::Cmd::Focus { key: "craft/sheet/handle".into() }); }
         CMsg::Sheet(m) => c.sheet.update(m, now),
@@ -51,7 +55,7 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     let c = &mut s.craft;
     let a = c.sheet.step(t);
     let b = c.pip.step(t);
-    let m = c.menu.step(t);
+    let m = c.menu.step(t) | c.stack.step(t);
     // The loading comparison: the data comes `latency_ms` after the request.
     let loading = c.load.started().is_some_and(|st| c.load.arrived().is_none() || t < st + c.latency_ms / 1000.0 + 1.0);
     if let Some(st) = c.load.started() && c.load.arrived().is_none() && t >= st + c.latency_ms / 1000.0 { c.load.arrive(t); }
@@ -60,7 +64,7 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
 }
 /// Every frame while something springs; nothing at rest.
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
-    if s.craft.sheet.moving() || s.craft.pip.moving() { return Some(t); }
+    if s.craft.sheet.moving() || s.craft.pip.moving() || s.craft.stack.moving() { return Some(t); }
     // The loading comparison runs its spinner and bar while it waits.
     let c = &s.craft;
     if c.load.started().is_some_and(|st| c.load.arrived().is_none() || t < st + c.latency_ms / 1000.0 + 1.0) { return Some(t); }
@@ -84,13 +88,15 @@ fn defs(p: usize) -> &'static [(&'static str, Spec)] {
         ("submenu_delay_ms", spec(0.0, 1000.0, 10.0, 0, "ms")), ("close_delay_ms", spec(0.0, 2000.0, 10.0, 0, "ms")), ("row_h", spec(20.0, 60.0, 1.0, 0, "px")), ("width", spec(120.0, 320.0, 4.0, 0, "px")),
     ];
     const LOAD: [(&str, Spec); 3] = [("skeleton_after_ms", spec(0.0, 2000.0, 10.0, 0, "ms")), ("swap_stagger_ms", spec(0.0, 400.0, 5.0, 0, "ms")), ("latency_ms", spec(0.0, 5000.0, 50.0, 0, "ms"))];
-    match p { 0 => &SHEET, 1 => &PIP, 2 => &MENU, _ => &LOAD }
+    const STACK: [(&str, Spec); 4] = [("angle0", spec(0.0, 90.0, 1.0, 0, "°")), ("falloff", spec(0.0, 1.0, 0.05, 2, "")), ("delay_ms", spec(0.0, 300.0, 2.0, 0, "ms")), ("stiffness", spec(10.0, 2000.0, 10.0, 0, ""))];
+    match p { 0 => &SHEET, 1 => &PIP, 2 => &MENU, 3 => &LOAD, _ => &STACK }
 }
 /// Number `i` of preview `p`.
 fn get(c: &Craft, p: usize, i: usize) -> f32 {
     match (p, i) {
         (0, 0) => c.sheet.detents[0], (0, 1) => c.sheet.detents[1], (0, 2) => c.sheet.dismiss_velocity, (0, 3) => c.sheet.projection_decel,
         (0, 4) => c.sheet.backdrop, (0, 5) => c.sheet.spring.stiffness, (0, 6) => c.sheet.spring.damping, (0, _) => c.sheet.rubber.coeff,
+        (4, 0) => c.stack.angle0, (4, 1) => c.stack.falloff, (4, 2) => c.stack.delay_ms, (4, _) => c.stack.spring.stiffness,
         (3, 0) => c.load.skeleton_after_ms, (3, 1) => c.load.swap_stagger_ms, (3, _) => c.latency_ms,
         (2, 0) => c.menu.submenu_delay_ms, (2, 1) => c.menu.close_delay_ms, (2, 2) => c.menu.row_h, (2, _) => c.menu.width,
         (_, 0) => c.pip.corner_inset, (_, 1) => c.pip.projection_decel, (_, 2) => c.pip.spring.stiffness, (_, 3) => c.pip.spring.damping, _ => c.pip.rubber.coeff,
@@ -102,6 +108,7 @@ pub fn set(s: &mut Gallery, p: usize, i: usize, v: f32) {
         (0, 0) => c.sheet.detents[0] = v.min(c.sheet.detents[1]), (0, 1) => c.sheet.detents[1] = v.max(c.sheet.detents[0]), (0, 2) => c.sheet.dismiss_velocity = v,
         (0, 3) => c.sheet.projection_decel = v, (0, 4) => c.sheet.backdrop = v, (0, 5) => c.sheet.spring.stiffness = v, (0, 6) => c.sheet.spring.damping = v,
         (0, _) => c.sheet.rubber.coeff = v,
+        (4, 0) => c.stack.angle0 = v, (4, 1) => c.stack.falloff = v, (4, 2) => c.stack.delay_ms = v, (4, _) => c.stack.spring.stiffness = v,
         (3, 0) => c.load.skeleton_after_ms = v, (3, 1) => c.load.swap_stagger_ms = v, (3, _) => c.latency_ms = v,
         (2, 0) => c.menu.submenu_delay_ms = v, (2, 1) => c.menu.close_delay_ms = v, (2, 2) => c.menu.row_h = v, (2, _) => c.menu.width = v,
         (_, 0) => { c.pip.corner_inset = v; let k = c.pip.corner(); c.pip.place(k); }
@@ -123,6 +130,7 @@ pub fn live(s: &Gallery, name: &str) -> Option<El<Msg>> {
         "floating" => Some(pip_page(s)),
         "nested_menu" => Some(menu_page(s)),
         "skeleton" => Some(load_page(s)),
+        "card_stack" => Some(stack_page(s)),
         _ => None,
     }
 }
@@ -239,4 +247,27 @@ fn load_page(s: &Gallery) -> El<Msg> {
     let formula = format!("t < {a:.0} ms: static parts only  ·  t ≥ {a:.0} ms and no data: row.skeleton()  ·  data at {lat:.0} ms: row i at data + i·{st:.0} ms, same boxes",
         a = l.skeleton_after_ms, st = l.swap_stagger_ms, lat = c.latency_ms);
     cap(s, 3, "craft/load/cap", formula, demo)
+}
+
+/// The looks the stack page can force (0 follows the material).
+pub const STACK_LOOKS: [&str; 4] = ["craft.stack.auto", "craft.stack.plain", "craft.stack.thick", "craft.stack.marks"];
+/// The stack as the page shows it: its look from the material unless one is forced.
+pub fn stack_now(s: &Gallery) -> Stack {
+    let mut st = s.craft.stack.clone();
+    st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == crate::style::Material::Ascii { s.material } else { crate::style::Material::Dot }), _ => StackLook::of(s.material) };
+    st
+}
+fn stack_page(s: &Gallery) -> El<Msg> {
+    let tr = crate::i18n::tr;
+    let st = stack_now(s);
+    let names: Vec<String> = STACK_LOOKS.iter().map(|k| tr(k)).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let demo = col().key("craft/stack/demo").gap(12.0)
+        .child(card_stack("craft/stack/cards", &st, 520.0, 340.0, |m| Msg::Craft(CMsg::Stack(m))))
+        .child(segmented("craft/stack/look", &refs, s.craft.stack_look, 30.0, |i| Msg::Craft(CMsg::StackLook(i))));
+    let under = st.under().map_or("—".to_owned(), |k| k.to_string());
+    let angles: Vec<String> = (0..st.count.saturating_sub(1)).map(|n| format!("{:.1}°@{:.0}ms", st.angle(n), st.delay(n))).collect();
+    let formula = format!("angle(n) = {a:.0}° × {f:.2}^n,  delay(n) = {d:.0} ms × n  ·  under card {under}: {list}  ·  spring k={k:.0} c={c:.0}",
+        a = st.angle0, f = st.falloff, d = st.delay_ms, list = angles.join(", "), k = st.spring.stiffness, c = st.spring.damping);
+    cap(s, 4, "craft/stack/cap", formula, demo)
 }
