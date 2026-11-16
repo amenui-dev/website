@@ -4,7 +4,7 @@ Draw only when something changed; draw only what changed (two boxes); scrolling 
 
 ## The readout
 
-F2 (or `fps` in the film's bottom bar, or the Performance menu in the gallery's top bar) opens the readout; again shows every number; a third time closes it. It is drawn by the annotation layer at the bottom right in the monospaced pixel face. It changes only when a frame is drawn anyway, and once more a second after the last frame, to say `idle`; then it asks for no frames.
+F2 (or the Performance menu in the gallery's top bar) opens the readout; again shows every number; a third time closes it. It is drawn by the annotation layer at the bottom right in the monospaced pixel face. It changes only when a frame is drawn anyway, and once more a second after the last frame, to say `idle`; then it asks for no frames.
 
 | Number | Meaning |
 |---|---|

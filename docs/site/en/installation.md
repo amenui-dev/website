@@ -7,12 +7,12 @@ Pick the host your interface lives in. All three draw the same pixels: the frame
 You need the latest stable Rust and a GPU, or Mesa's lavapipe (Vulkan on the CPU).
 
 ```sh
-cargo run --release --bin window -- film
+cargo run --release --bin window -- body
 cargo test --release
 cargo run --release --bin check
 ```
 
-The window opens on the page named after `--`: `film`, a component such as `button`, or a `look:v1:` recipe.
+The window opens on the page named after `--`: `body` (the landing scene), a component such as `button`, or a `look:v1:` recipe.
 
 ## The web (wasm bundle)
 
@@ -34,7 +34,7 @@ One `<lab-view>` per document: the module holds one runtime and one renderer. A 
 
 | Attribute | What it does |
 |---|---|
-| `page` | The page to show: a component's name (`button`), `film`, any page's hash. |
+| `page` | The page to show: a component's name (`button`), `body`, any page's hash. |
 | `recipe` | A `look:v1:` recipe: the look it describes. |
 | `theme`, `material` | By name, as the render tool takes them (`dark`, `dot`). |
 | `locale` | `zh-Hans` or `en`. |

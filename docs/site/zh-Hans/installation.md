@@ -7,12 +7,12 @@
 需要最新的稳定版 Rust，以及一块 GPU，或者 Mesa 的 lavapipe（在 CPU 上跑的 Vulkan）。
 
 ```sh
-cargo run --release --bin window -- film
+cargo run --release --bin window -- body
 cargo test --release
 cargo run --release --bin check
 ```
 
-窗口打开 `--` 后面写的页面：`film`、一个组件（比如 `button`），或者一个 `look:v1:` 配方。
+窗口打开 `--` 后面写的页面：`body`（落地的场景）、一个组件（比如 `button`），或者一个 `look:v1:` 配方。
 
 ## 网页（wasm 包）
 
@@ -34,7 +34,7 @@ python3 web/build.py
 
 | 属性 | 作用 |
 |---|---|
-| `page` | 显示哪一页：组件名（`button`）、`film`，或任何页面的 hash。 |
+| `page` | 显示哪一页：组件名（`button`）、`body`，或任何页面的 hash。 |
 | `recipe` | 一个 `look:v1:` 配方：套用它描述的外观。 |
 | `theme`、`material` | 按名字，和渲染工具接受的一样（`dark`、`dot`）。 |
 | `locale` | `zh-Hans` 或 `en`。 |

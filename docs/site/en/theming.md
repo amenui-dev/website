@@ -13,4 +13,4 @@ A theme is a set of colours and the faces for display, body and monospace (`styl
 
 ## Restraint
 
-One accent per page. Dark themes do best with a near-black ground and a single saturated accent; the readout and the film's slate show the style.
+One accent per page. Dark themes do best with a near-black ground and a single saturated accent; the readout and the Body scene show the style.
