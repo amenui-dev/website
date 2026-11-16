@@ -3,7 +3,7 @@
 //
 //   <lab-view page="button" theme="dark" material="dot" locale="en" style="height: 480px"></lab-view>
 //
-// Attributes: `page` (a gallery page's hash, such as `button` or `film`), `recipe` (a `look:v1:…`
+// Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v1:…`
 // string; wins over the page's own look), `theme` and `material` (names as the render tool takes
 // them), `locale` (`zh-Hans`, `en`). Events: `lab-ready` once it draws, `lab-route` with
 // `detail.page` whenever the page changes inside it. Methods: `focus()`.
@@ -32,7 +32,7 @@
       }
       window.__labMounted = true;
       root.innerHTML = `<style>${CSS}</style><div class="stage"><canvas class="c" tabindex="0"></canvas><textarea class="ta" tabindex="-1" aria-label="text input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><div class="a11y"></div><div class="msg">…</div></div>`;
-      const first = this.getAttribute('recipe') || this.getAttribute('page') || 'film';
+      const first = this.getAttribute('recipe') || this.getAttribute('page') || 'body';
       this.ready = mount(root.querySelector('.stage'), {
         hash: '#' + first, ownsHash: false, keys: this,
         onRoute: page => this.dispatchEvent(new CustomEvent('lab-route', { detail: { page }, bubbles: true, composed: true })),
