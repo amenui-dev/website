@@ -249,3 +249,55 @@ fn gallery_flow_page_and_shell() {
     assert!(ui.flowing() > 0);
 }
 
+
+// ── Sampling follows transforms and poses (round 16, DESIGN.md §1.26) ──────────────────────────────
+
+#[derive(Default)]
+struct Posed { cmds: Vec<Cmd> }
+/// A word whose glyphs are moved 120 px right and down and turned a quarter: its tiles must start
+/// where it is drawn, not where the layout put it.
+fn posed(_: &Posed) -> El<()> {
+    col().key("root").pad(20.0, 20.0).gap(40.0)
+        .child(text("III", 48.0, Paint::INK).key("a").pose(|_| lab::el::Pose { dx: 120.0, dy: 140.0, angle: std::f32::consts::FRAC_PI_2, ..Default::default() }))
+        .child(space(80.0, 40.0).key("b").fill(Paint::ACCENT).hidden_until_morphed(true))
+}
+
+#[test]
+fn a_posed_glyph_loosens_from_where_it_is_drawn() {
+    let mut ui = Ui::new(Posed::default(), posed, |_, _| {}, fonts(), 600, 400, 1.0).on_commands(|s| std::mem::take(&mut s.cmds));
+    ui.tick(10.0);
+    let insts = ui.instances_of("a");
+    assert_eq!(insts.len(), 3);
+    // Every instance is turned (its own transform) and moved.
+    assert!(insts.iter().all(|i| i.xf != [0.0; 4]));
+    let laid = ui.node("a").unwrap().rect;
+    let src = morph::cells(&insts, 4.0, ui.atlas());
+    let inked: Vec<&morph::Cell> = src.iter().filter(|c| c.cover > 0.2).collect();
+    assert!(!inked.is_empty());
+    // The covered cells are near the posed place, not over the laid-out text.
+    for c in &inked {
+        assert!(c.x > laid.x + 60.0 && c.y > laid.y + 80.0, "a cell at ({}, {}) is where the layout put the text ({laid:?})", c.x, c.y);
+    }
+    // A vertical bar turned a quarter is a horizontal bar: the ink spans more across than down.
+    let (x0, x1) = inked.iter().fold((f32::MAX, f32::MIN), |a, c| (a.0.min(c.x), a.1.max(c.x)));
+    let (y0, y1) = inked.iter().fold((f32::MAX, f32::MIN), |a, c| (a.0.min(c.y), a.1.max(c.y)));
+    assert!(x1 - x0 > 1.5 * (y1 - y0), "turned glyphs lie across: {}×{}", x1 - x0, y1 - y0);
+    // The morph starts its tiles there too.
+    ui.morph("a", "b", MorphSpec::default());
+    let run = ui.morph_run().expect("a run");
+    let n = run.particles.len() as f32;
+    let cy = run.particles.iter().map(|p| p.ab[1]).sum::<f32>() / n;
+    assert!(cy > laid.y + 80.0, "tiles start at the posed glyphs (mean y {cy}, laid out at {})", laid.y);
+}
+
+#[test]
+fn a_turned_shape_covers_its_turned_box() {
+    let i = lab::scene::Instance { rect: [100.0, 100.0, 80.0, 10.0], paint: [1.0, 0.0, 1.0, lab::scene::SHAPE], clip: [-1e5, -1e5, 1e5, 1e5], xf: lab::scene::Instance::turned(std::f32::consts::FRAC_PI_2, 1.0, 1.0), ..Default::default() };
+    // Centre (140, 105): turned, it runs from y 65 to 145 at x 140.
+    assert!(morph::cover_at(&i, 140.0, 70.0, &[]) > 0.9);
+    assert!(morph::cover_at(&i, 105.0, 105.0, &[]) < 0.01, "the untransformed ends are empty");
+    // A fill in the ground's tone is an outline too; only `ink_at` leaves it out.
+    let ground = lab::scene::Instance { paint: [0.0, 0.0, 1.0, lab::scene::SHAPE], xf: [0.0; 4], ..i };
+    assert!(morph::cover_at(&ground, 140.0, 105.0, &[]) > 0.9);
+    assert_eq!(morph::ink_at(&ground, 140.0, 105.0, &[]), 0.0);
+}
