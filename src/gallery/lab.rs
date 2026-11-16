@@ -19,7 +19,7 @@ macro_rules! cells {
         pub enum LMsg { Seen(usize, bool), $( $v(<$t as Experiment>::Msg) ),* }
         /// Every experiment's state, and which can be seen.
         #[derive(Clone, Default)]
-        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, /** The viewer asked for reduced motion: cells rest after `IDLE_S`. */ pub reduced: bool, $( pub $f: $t ),* }
+        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, /** Whose turn it is when only some cells step. */ pub turn: usize, /** The viewer asked for reduced motion: cells rest after `IDLE_S`. */ pub reduced: bool, $( pub $f: $t ),* }
         impl Lab {
             /// Cell `i`, keyed under `key`, telling when it comes into view.
             pub fn cell(&self, i: usize, key: &str) -> El<LMsg> {
@@ -32,7 +32,21 @@ macro_rules! cells {
             }
             /// Step what can be seen, every frame (the living pieces); with motion reduced only for
             /// `IDLE_S` after input and while settling. Whether the view changed.
-            pub fn step(&mut self, now: f32) -> bool { let live = !self.reduced || now < self.until; let mut c = false; $( if self.seen[$i] && (live || self.$f.moving()) { c |= self.$f.step(now); } )* c }
+            /// The pieces draw from the frame budget: when frames run over it (`budget::usage().scale` < 1),
+            /// only that share of the seen cells steps each frame, in turn, so the page's cost falls with it.
+            pub fn step(&mut self, now: f32) -> bool {
+                let live = !self.reduced || now < self.until;
+                let seen = self.seen.iter().filter(|&&v| v).count();
+                let share = ((seen as f32 * crate::budget::usage().scale).ceil() as usize).clamp(1, COUNT);
+                let (mut c, mut k) = (false, 0usize);
+                self.turn = (self.turn + 1) % COUNT;
+                $( if self.seen[$i] && (live || self.$f.moving()) {
+                    k += 1;
+                    let mine = share >= seen || ((k - 1 + self.turn) % seen.max(1)) < share;
+                    if mine { c |= self.$f.step(now); }
+                } )*
+                c
+            }
             pub fn moving(&self, now: f32) -> bool { let live = !self.reduced || now < self.until; false $( || (self.seen[$i] && (live || self.$f.moving())) )* }
         }
     };
