@@ -82,7 +82,8 @@ fn text_edit_keys() {
 #[test]
 fn typing_into_the_input() {
     let mut ui = gallery_at(comp("input"));
-    let carets = |ui: &GalleryUi| ui.scene().instances.len();
+    // What the field draws (the hover and focus marks are not counted).
+    let carets = |ui: &GalleryUi| ui.instances_of("input/live").len();
     let before = carets(&ui);
     click(&mut ui, "input/live");
     assert_eq!(ui.focus(), Some("input/live"));
@@ -339,7 +340,7 @@ fn every_page_has_a_plain_hash() {
     // The components, the ten thousand rows, mark sets, materials, the annotation page, styles, morph,
     // flow and 3D, type and demo, the scene list and the scenes, the film; the documentation's prose
     // pages, the components without a gallery page of their own, the For-AI pages and the changelog.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + lab::style::set::COUNT + lab::style::MATERIAL_COUNT + 1 + 10 + 1 + 4 + 2 + 1 + 7 + 1 + lab::gallery::docs::DOCS.len() + lab::gallery::docs::widget_names().len() + 4 + 1 + lab::gallery::lab::COUNT + 1);
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + lab::style::set::COUNT + lab::style::MATERIAL_COUNT + 1 + 10 + 1 + 4 + 2 + 1 + 7 + 1 + 1 + lab::gallery::docs::DOCS.len() + lab::gallery::docs::widget_names().len() + 4 + 1 + lab::gallery::lab::COUNT + 1);
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");

@@ -207,3 +207,42 @@ fn pointer_shapes() {
     assert_eq!(ui.cursor(), Cursor::Grabbing);
     ui.release(x, y);
 }
+
+/// Two buttons side by side: the marks are on the one under the pointer in the frame the pointer gets
+/// there (before any tick), and in no frame between two targets do they trail behind (round 16).
+fn pair(_: &()) -> El<u8> {
+    lab::el::row().key("root").pad(40.0, 40.0).gap(200.0)
+        .child(lab::widgets::button("a", "A", 1u8))
+        .child(lab::widgets::button("b", "B", 2u8))
+}
+
+#[test]
+fn hover_marks_land_in_the_pointers_frame() {
+    let mut ui = Ui::new((), pair, |_, _| {}, fonts(), 600, 200, 1.0);
+    ui.tick(1.0);
+    let (a, b) = (ui.node("a").unwrap().rect, ui.node("b").unwrap().rect);
+    ui.pointer_move(a.center().0, a.center().1);
+    let (r, alpha) = ui.marks_frame().expect("marks on A at once");
+    assert_eq!(r, a);
+    assert!(alpha >= 0.5, "seen in the first frame: {alpha}");
+    let mut t = 1.0;
+    for _ in 0..10 { t += 1.0 / 60.0; ui.tick(t); }
+    // Straight onto B: the very same frame, no glide across the gap.
+    ui.pointer_move(b.center().0, b.center().1);
+    assert_eq!(ui.marks_frame().expect("marks").0, b);
+    let start = t;
+    let mut settled = None;
+    for _ in 0..12 {
+        t += 1.0 / 60.0;
+        ui.tick(t);
+        ui.frame_drawn();
+        assert_eq!(ui.marks_frame().expect("marks").0, b, "never between A and B");
+        if settled.is_none() && ui.marks_frame().expect("marks").1 >= 1.0 { settled = Some(t - start); }
+    }
+    let settled = settled.expect("the marks settle");
+    assert!(settled <= lab::ui::MARKS_SETTLE + 1.5 / 60.0 && lab::ui::MARKS_SETTLE < 0.08, "settled after {settled} s");
+    // Leaving: gone within the settle.
+    ui.pointer_move(300.0, 190.0);
+    for _ in 0..6 { t += 1.0 / 60.0; ui.tick(t); }
+    assert!(ui.marks_frame().is_none());
+}
