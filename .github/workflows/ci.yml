@@ -1,0 +1,35 @@
+# Lints and tests the site on every push and pull request. GPU tests draw with Mesa's lavapipe (Vulkan
+# on the CPU). The framework is taken from its main branch, as Cargo.lock pins it.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  # Test binaries without debug info: the runner's disk holds the framework's and the site's builds.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component clippy --target wasm32-unknown-unknown && rustup default stable
+      - name: lavapipe
+        run: sudo apt-get update -q && sudo apt-get install -yq mesa-vulkan-drivers
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy (native)
+        run: cargo clippy --all-targets
+      - name: Clippy (web)
+        run: cargo clippy --lib --target wasm32-unknown-unknown
+      - name: Tests
+        run: cargo test
