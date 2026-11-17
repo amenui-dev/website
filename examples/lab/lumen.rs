@@ -1,17 +1,22 @@
 //! Lab · lumen: a light over text. Every glyph keeps its whole outline; only its tone rises with the
 //! light's falloff, so the dim text at rest is still whole letters. The light follows the pointer on a
 //! spring and wanders slowly when nobody is there.
-use amenui::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
+use amenui::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text_lh};
 use amenui::experiment::{Experiment, Params, Pointer, frame, spec};
 use amenui::widgets::{Edit, Spec};
 
 const WORDS: &str = "Light falls off with distance. Each glyph is drawn whole and only its tone changes: what the beam leaves is dim, never dissolved. Move across the page and read what it touches. The rest stays a quiet texture of letters at rest. ";
 static DEFS: [(&str, Spec); 3] = [("L0", spec(0.05, 1.0, 0.01, 2, "")), ("r", spec(8.0, 160.0, 1.0, 0, "px")), ("ω", spec(0.0, 2.0, 0.05, 2, "rad/s"))];
 
+/// The text's size and line (px).
+pub const SIZE: f32 = 10.0;
+pub const LINE: f32 = 16.0;
+
+/// `rows`: how many whole lines the text is cut to (the host knows the stage's height; 0 fills it).
 #[derive(Clone, Debug, PartialEq)]
-pub struct Lumen { pub p: Params, pub ptr: Pointer, pub t: f32 }
+pub struct Lumen { pub p: Params, pub ptr: Pointer, pub t: f32, pub rows: usize }
 impl Default for Lumen {
-    fn default() -> Self { Self { p: Params::new(&DEFS, &[0.16, 54.0, 0.35]), ptr: Pointer::new(120.0, 60.0, 140.0, 20.0), t: 0.0 } }
+    fn default() -> Self { Self { p: Params::new(&DEFS, &[0.16, 54.0, 0.35]), ptr: Pointer::new(120.0, 60.0, 140.0, 20.0), t: 0.0, rows: 0 } }
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg { Point(Option<Point>), Num(usize, Edit) }
@@ -31,13 +36,16 @@ impl Experiment for Lumen {
     fn view(&self, key: &str) -> El<Msg> {
         let (l0, r, near) = (self.p.get(0), self.p.get(1), self.ptr.near);
         let me = self.clone();
-        // A dense block of small monospaced text, enough to fill the stage at any width.
-        let body = text(WORDS.repeat(9), 10.0, Paint::INK).font(Font::Mono).fill_width().fill_height().key(format!("{key}/text")).pose(move |g: GlyphAt| {
+        // A dense block of small monospaced text, enough to fill the stage at any width, cut at a whole
+        // line; the text is the picture (decoration), not a paragraph to read.
+        let body = text_lh(WORDS.repeat(9), SIZE, LINE, Paint::INK).font(Font::Mono).fill_width().legible(false).key(format!("{key}/text"));
+        let body = body.pose(move |g: GlyphAt| {
             let (lx, ly) = me.light(g.w, g.h);
             let k = (-((g.x - lx).powi(2) + (g.y - ly).powi(2)) / (r * r)).exp();
             // The beam's core is the accent where the pointer is; the rest is grey-white by distance.
             Pose { tone: l0 + (1.0 - l0) * k, accent: if near > 0.5 && k > 0.55 { 1.0 } else { 0.0 }, ..Pose::default() }
         });
+        let body = if self.rows > 0 { col().fill_width().height(self.rows as f32 * LINE).clip().child(body.height(self.rows as f32 * LINE)) } else { body.fill_height() };
         let piece = col().key(format!("{key}/piece")).fill_width().fill_height().clip().child(body).on_point(|p| Some(Msg::Point(p)));
         let formula = format!("L(d) = {l0:.2} + {:.2}·e^(−d²/{r:.0}²)", 1.0 - l0);
         frame(key, "lumen", "move to light", piece, formula, &self.p, Msg::Num, "tone by distance · outlines untouched")

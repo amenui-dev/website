@@ -65,6 +65,19 @@ pub fn two_lines(desc: &str, width: f32) -> String {
     format!("{}…", out.trim_end().trim_end_matches([',', '，']))
 }
 
+/// A card with its name on top and what it shows of its page under it, as the cards of links beside
+/// it in a row (their names on one baseline); pressing it opens the page.
+pub fn card_named(key: &str, n: usize, name: String, preview: Option<El<Msg>>, to: Page) -> El<Msg> {
+    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).gap(10.0).pad(16.0, 14.0).radius(6.0).border(1.0, Paint::FAINT)
+        .fill(Paint::GROUND).material(Material::Plain.id())
+        .on_press(Msg::Go(to)).role(Role::Link).label(&name)
+        .child(row().key(format!("{key}/name")).gap(10.0).align(AlignItems::BASELINE)
+            .child(text(format!("{n:02}"), 11.0, Paint::DIM).font(Font::Mono))
+            .child(text(name, 16.0, Paint::INK).flow(format!("card-name-{}", to.hash()))));
+    if let Some(e) = preview { c = c.child(col().key(format!("{key}/preview")).fill_width().min_width(0.0).height(PREVIEW_H).align(AlignItems::START).justify(taffy::JustifyContent::CENTER).child(e)); }
+    c
+}
+
 /// A card whose line is its pages, each a link (a Looks card on the Lab's index: every preset, mark
 /// set or material is one press away).
 pub fn card_links(key: &str, n: usize, name: String, links: Vec<Page>, to: Page) -> El<Msg> {

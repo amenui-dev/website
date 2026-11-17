@@ -6,10 +6,11 @@ use amenui::widgets::{Edit, Spec, Stack as Deck, StackMsg, card_stack};
 
 static DEFS: [(&str, Spec); 3] = [("angle0", spec(0.0, 90.0, 1.0, 0, "°")), ("falloff", spec(0.1, 1.0, 0.01, 2, "")), ("delay", spec(0.0, 200.0, 1.0, 0, "ms"))];
 
+/// `quiet`: no card takes the accent (a fan shown at rest, with no pointer on it).
 #[derive(Clone, Debug, PartialEq)]
-pub struct Stack { pub p: Params, pub deck: Deck }
+pub struct Stack { pub p: Params, pub deck: Deck, pub quiet: bool }
 impl Default for Stack {
-    fn default() -> Self { let d = Deck::default(); Self { p: Params::new(&DEFS, &[d.angle0, d.falloff, d.delay_ms]), deck: d } }
+    fn default() -> Self { let d = Deck::default(); Self { p: Params::new(&DEFS, &[d.angle0, d.falloff, d.delay_ms]), deck: d, quiet: false } }
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg { Deck(StackMsg), Num(usize, Edit) }
@@ -20,7 +21,7 @@ impl Experiment for Stack {
         // Cards in the lab's look: near the ground, drawn by their hairline outlines; the one under the
         // pointer takes the accent.
         let mut d = self.deck.clone();
-        d.paints = (0..d.count).map(|i| if d.under() == Some(i) { Paint::ACCENT.alpha(0.55) } else { Paint::tone(0.07) }).collect();
+        d.paints = (0..d.count).map(|i| if d.under() == Some(i) && !self.quiet { Paint::ACCENT.alpha(0.55) } else { Paint::tone(0.07) }).collect();
         d.outline = 1.2;
         d.card = (0.95, 0.6);
         let piece = card_stack(&format!("{key}/deck"), &d, 300.0, 170.0, Msg::Deck);

@@ -21,7 +21,8 @@ impl Experiment for Loupe {
     fn view(&self, key: &str) -> El<Msg> {
         let (rf, yaw, tilt, (mx, my), near) = (self.p.get(0), self.yaw, self.tilt, self.ptr.at(), self.ptr.near);
         let words = WORDS.repeat(7);
-        let globe = text(words, 8.0, Paint::INK).font(Font::Mono).key(format!("{key}/text")).pose(move |g: GlyphAt| {
+        // The text is the globe (decoration), not a paragraph to read.
+        let globe = text(words, 8.0, Paint::INK).font(Font::Mono).legible(false).key(format!("{key}/text")).pose(move |g: GlyphAt| {
             let s = g.span;
             let lon = ((g.x - s[0]) / (s[2] - s[0]).max(1.0) - 0.5) * std::f32::consts::TAU + yaw;
             let lat = ((g.y - s[1]) / (s[3] - s[1]).max(1.0) - 0.5) * 2.6;

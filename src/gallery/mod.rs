@@ -61,7 +61,7 @@ impl Page {
         v.push(Page::Gaze);
         v.extend((0..styles().len() as u8).map(Page::Style));
         v.push(Page::Presets);
-        v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three]);
+        v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three, Page::Decode]);
         v.push(Page::Type);
         v.push(Page::Demo);
         v.push(Page::Scenes);
@@ -803,8 +803,8 @@ fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
             let e = craft::live(s, n).or_else(|| docs::first_example(n)).unwrap_or_else(|| space(0.0, 0.0));
             col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(e)
         }
-        Page::Experiment(i) => col().key(format!("stage/{}", s.page.hash())).width((s.width - 32.0).clamp(200.0, 760.0))
-            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize])).map(Rc::new(Msg::Lab))),
+        Page::Experiment(i) => { let w = (s.width - 32.0).clamp(200.0, 760.0); col().key(format!("stage/{}", s.page.hash())).width(w)
+            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize]), w, false).map(Rc::new(Msg::Lab))) }
         Page::Scene(i) => col().key(format!("main/{}", s.page.hash())).fill_width().fill_height().child(scenes::page(s, i as usize)),
         _ => col().key(format!("main/{}", s.page.hash())).scroll().fill_width().fill_height().child(main_page(s, narrow)),
     }
@@ -871,7 +871,7 @@ pub fn lab_groups() -> Vec<(String, Vec<Page>)> {
         (tr("nav.experiments"), lab::experiments()),
         (tr("nav.looks"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style))
             .chain(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks)).chain((0..MATERIAL_COUNT as u8).map(Page::Material)).chain([Page::Gaze, Page::Type]).collect()),
-        (tr("nav.motion"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
+        (tr("nav.motion"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three, Page::Decode]),
     ]
 }
 
