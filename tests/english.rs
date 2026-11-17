@@ -43,7 +43,7 @@ fn scan_pages(l: Locale, pages: &dyn Fn(Page) -> bool, part: &dyn Fn(&str) -> Pa
 
 #[test]
 fn no_page_shows_cjk_in_english() {
-    let bad = scan(Locale::En, &|k| if k.starts_with("doc/ai-") || k.starts_with("doc/registry") { Part::Prose } else { Part::Same });
+    let bad = scan(Locale::En, &|_| Part::Same);
     assert!(bad.is_empty(), "{} places:\n{}", bad.len(), bad.join("\n"));
 }
 
@@ -55,11 +55,13 @@ fn the_demos_stay_english_in_chinese() {
     // framework's data).
     let part = |k: &str| {
         if k.ends_with("/preview-col") { Part::Page }
+        // The index pages' cards are chrome; what a card shows of its page is a demo.
+        else if k.starts_with("scenes/t") && k.ends_with("/box") || k.starts_with("index/") && k.ends_with("/preview") { Part::Demo }
         // (A scene's name on the list is the one its own page, in the interface language, flies it to.)
-        else if k.starts_with("scenes/title") || k.starts_with("scenes/card") || k == "scenes/body" || k == "theme" || k.contains("/doc/") || k.ends_with("/title") || k.ends_with("/desc") { Part::Prose }
+        else if k.starts_with("index/") || k.starts_with("labx/") || k == "scenes/head" || k.starts_with("scenes/title") || k.starts_with("scenes/card") || k == "scenes/body" || k == "theme" || k.contains("/doc/") || k.ends_with("/title") || k.ends_with("/desc") { Part::Prose }
         else if k.starts_with("doc/") { if k.ends_with("/preview") || k.ends_with("/box") || k.ends_with("/source") { Part::Demo } else { Part::Prose } }
         else { Part::Same }
     };
-    let bad = scan_pages(Locale::ZhHans, &|p| !matches!(p, Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Body), &part);
+    let bad = scan_pages(Locale::ZhHans, &|p| !matches!(p, Page::Body), &part);
     assert!(bad.is_empty(), "{} places:\n{}", bad.len(), bad.join("\n"));
 }

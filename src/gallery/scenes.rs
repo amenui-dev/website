@@ -960,7 +960,7 @@ fn strip(g: &Gallery, i: usize, pad: f32) -> El<Msg> {
 /// `#scenes`: the seven, as cards that open into their scene (the title flies there).
 pub fn list(g: &Gallery) -> El<Msg> {
     let narrow = g.width < 720.0;
-    let cw = if narrow { g.width - 36.0 } else { ((g.width - 220.0 - 80.0 - 40.0) / 3.0).clamp(240.0, 320.0) };
+    let cw = if narrow { g.width - 36.0 } else { ((g.width - 80.0 - 40.0) / 3.0).clamp(240.0, 360.0) };
     let mut grid = row().key("scenes/grid").gap(20.0).wrap().fill_width();
     // The first scene: a passage that gathers into a turning body of its own glyphs (`#body`).
     grid = grid.child(col().key("scenes/body").width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
@@ -981,8 +981,9 @@ pub fn list(g: &Gallery) -> El<Msg> {
             .child(text(format!("默认风格：{}", styles()[*st].name), 11.0, Paint::DIM).font(Font::Mono)));
     }
     col().key("scenes/page").fill_width().gap(18.0)
-        .child(text_lh("场景", 34.0, 44.0, Paint::INK).font(Font::Display))
-        .child(text_lh("七个用这个框架本身做成的场景。每一个都从安静的页面开始，用指针或键盘操作；Esc 回到这里。", 14.0, 22.0, Paint::DIM))
+        .child(col().key("scenes/head").gap(18.0)
+            .child(text_lh("场景", 34.0, 44.0, Paint::INK).font(Font::Display).heading(1))
+            .child(text_lh("七个用这个框架本身做成的场景。每一个都从安静的页面开始，用指针或键盘操作；Esc 回到这里。", 14.0, 22.0, Paint::DIM)))
         .child(grid)
 }
 

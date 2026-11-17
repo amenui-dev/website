@@ -14,6 +14,12 @@ fn gallery_at(p: Page) -> GalleryUi {
 fn go(ui: &mut GalleryUi, p: Page) { gallery::update(&mut ui.state, Msg::Go(p)); ui.relayout(); }
 fn centre(ui: &GalleryUi, k: &str) -> (f32, f32) { ui.node(k).unwrap_or_else(|| panic!("no node {k}")).rect.center() }
 fn click(ui: &mut GalleryUi, k: &str) {
+    // A rail item in a closed group: open its group first.
+    if ui.node(k).is_none() && let Some(g) = gallery::comp_groups().iter().position(|g| g.1.iter().any(|p| format!("nav/{}", p.hash()) == k)) {
+        let (x, y) = centre(ui, &format!("rail/group/{g}"));
+        ui.press(x, y);
+        ui.release(x, y);
+    }
     // The rail scrolls: bring a rail item into its view first.
     for _ in 0..60 {
         let n = ui.node(k).unwrap_or_else(|| panic!("no node {k}"));
@@ -81,7 +87,7 @@ fn dialog_traps_focus_and_dismisses() {
     assert!(seen.contains(&"dialog/dialog/close".to_owned()) && seen.contains(&"dialog/ok".to_owned()));
     ui.key(Key::Tab, true);
     // Nothing beneath can be pressed or hovered.
-    let (rx, ry) = centre(&ui, "nav/button");
+    let (rx, ry) = centre(&ui, "rail/group/0");
     ui.press(rx, ry);
     ui.release(rx, ry);
     assert_eq!(ui.state.page, comp("dialog"));
@@ -211,27 +217,25 @@ fn disabled_controls_ignore_input() {
 // ── Horizontal scroll, commits ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn narrow_rail_scrolls_sideways() {
+fn the_rail_is_a_sheet_on_a_phone_and_opens_one_group() {
     let mut ui = gallery::new_ui(fonts(), 600, 900, 1.0);
     go(&mut ui, comp("button"));
-    let rail = ui.node("rail").expect("rail row").rect;
-    assert_eq!(rail.w, 600.0);
-    assert!(ui.node("rail").unwrap().extent > 1000.0);
-    let x0 = ui.node("nav/number").unwrap().rect.x;
-    let (x, y) = rail.center();
-    ui.wheel(x, y, 120.0);
-    assert_eq!(ui.scroll_offset("rail"), 120.0);
-    assert_eq!(ui.node("nav/number").unwrap().rect.x, x0 - 120.0);
-    // Going to a page off to the right by keyboard brings its tab into view.
-    let last = format!("nav/{}", website::gallery::docs::widget_names().len().checked_sub(1).map_or("button".to_owned(), |i| Page::Widget(i as u8).hash()));
-    let r = ui.node(&last).unwrap().rect;
-    assert!(r.x > 600.0);
-    while ui.focus() != Some(last.as_str()) { ui.key(Key::Tab, false); }
-    let r = ui.node(&last).unwrap().rect;
-    assert!(r.right() <= 600.0, "{r:?}");
-    // On a wide window the rail is a column.
+    // On a phone: the strip, and the rail as a sheet opened from it.
+    assert!(ui.node("rail").is_none() && ui.node("strip/here").is_some());
+    click(&mut ui, "strip/sheet");
+    assert_eq!(ui.node("rail").expect("the sheet's rail").rect.w, 600.0);
+    click(&mut ui, "nav/switch");
+    assert_eq!(ui.state.page, comp("switch"));
+    assert!(ui.node("rail").is_none(), "the sheet closes on a page change");
+    // On a wide window the rail is a column; only the page's group is open, and a group's name opens it.
     ui.resize(1280, 900, 1.0);
     assert_eq!(ui.node("rail").unwrap().rect.w, gallery::RAIL);
+    let groups = gallery::comp_groups();
+    let here = groups.iter().position(|g| g.1.contains(&comp("switch"))).unwrap();
+    for (g, (_, pages)) in groups.iter().enumerate() { assert_eq!(ui.node(&format!("nav/{}", pages[0].hash())).is_some(), g == here, "group {g}"); }
+    let other = (here + 1) % groups.len();
+    click(&mut ui, &format!("rail/group/{other}"));
+    assert!(ui.node(&format!("nav/{}", groups[other].1[0].hash())).is_some() && ui.node("nav/switch").is_none());
 }
 
 #[test]
@@ -250,9 +254,10 @@ fn the_look_strip_changes_the_stage_and_a_style_page_the_whole_look() {
     // Reset gives the stage back its material.
     click(&mut ui, "doc/button/look/reset");
     assert_eq!(ui.state.stage_material, amenui::style::Material::Dottr);
-    // A style page changes everything, from the rail item pressed (the styles are in the Lab's rail).
-    go(&mut ui, Page::Presets);
-    click(&mut ui, "nav/style-bauhaus");
+    // A style page changes everything, from the link pressed (the Lab's path strip steps through them).
+    let i = amenui::style::styles().iter().position(|s| s.hash == "bauhaus").expect("bauhaus");
+    go(&mut ui, if i == 0 { Page::Presets } else { Page::Style(i as u8 - 1) });
+    click(&mut ui, "strip/next");
     assert!(ui.split().is_some());
     assert_eq!(ui.state.material, amenui::style::Material::Halftonr);
     assert_eq!(ui.state.theme().name, "包豪斯");
@@ -283,10 +288,10 @@ fn every_page_has_a_plain_hash() {
     let forbidden = ["settings", "sidebar", "customize", "upgrade", "downloads"];
     let pages = Page::all();
     // The components, the ten thousand rows, mark sets, materials, the annotation page, styles, morph,
-    // flow and 3D, type and demo, the scene list and the scenes, Body; the documentation's prose
-    // pages, the components without a gallery page of their own, the For-AI pages and the changelog;
-    // the lab and its experiments, decode, the field map.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::DOCS.len() + website::gallery::docs::widget_names().len() + 4 + 1 + website::gallery::lab::COUNT + 1 + 1);
+    // flow and 3D, type and demo, the scene list and the scenes, Body, the Components index; the
+    // components without a gallery page of their own; the lab and its experiments, the reader, decode,
+    // the field map.
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::widget_names().len() + 1 + website::gallery::lab::COUNT + 3);
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");
@@ -294,7 +299,7 @@ fn every_page_has_a_plain_hash() {
         assert_eq!(Page::from_hash(&h), Some(p));
         assert_eq!(Page::from_hash(&format!("#{h}")), Some(p));
     }
-    assert_eq!(Page::from_hash(""), Some(Page::Comp(0)));
+    assert_eq!(Page::from_hash(""), Some(Page::Components));
     assert_eq!(Page::from_hash("#nope"), None);
     let mut s = gallery::Gallery::default();
     assert!(s.route("#marks-chars"));

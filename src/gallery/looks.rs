@@ -32,7 +32,7 @@ pub const LOOSE_SPEC: Spec = Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2,
 pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
     let sz = s.theme().sizes;
     // On a narrow window both columns take what is left inside the specimen's margins.
-    let fit = |w: f32| w.min((s.width - if s.width < super::NARROW { 36.0 + 72.0 } else { super::RAIL + 180.0 }).max(160.0));
+    let fit = |w: f32| w.min((s.width - if s.width < super::NARROW { 36.0 + 72.0 } else { super::side(s) + 180.0 }).max(160.0));
     let left = col().key(format!("{h}/left")).width(fit(430.0)).gap(18.0)
         .child(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/headline")))
         .child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时，文字、形状和图片按各自的轮廓松开，再合拢回来。",

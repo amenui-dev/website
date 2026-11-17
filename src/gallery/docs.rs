@@ -1,15 +1,15 @@
-//! The documentation site (DESIGN.md §5): prose pages from `docs/site/<locale>/*.md`, the For-AI pages,
-//! the changelog, and one page per component in the same order every time — title and description,
-//! a preview with 预览 / 代码 tabs, installation (`amenui add`), usage, examples (each a preview and its
-//! code), the API from `registry.json`, keyboard and accessibility, and the component under every
-//! material. A right-hand outline follows the scroll; prev / next links close every page; ⌘K / Ctrl+K
-//! or `/` searches every page.
+//! The components' pages in the same order every time — title and description, a preview with
+//! 预览 / 代码 tabs, installation (`amenui add`), usage, examples (each a preview and its code), the API
+//! from `registry.json`, keyboard and accessibility, and the component under every material — with a
+//! right-hand outline that follows the scroll and prev / next links. The prose of `docs/site/` is the
+//! site's HTML docs; its Markdown is here for the `md` tool, and one page of it is set by the framework
+//! on the Lab's reader (`/lab/reader/`).
 use super::{Gallery, Msg, Page};
 use amenui::el::{El, Font, Paint, Role, col, row, space, text, text_lh};
 use amenui::i18n::{Locale, tr};
 use amenui::morph::Cmd;
 use amenui::style::{MATERIAL_COUNT, Material};
-use amenui::widgets::{SELECTED, TextEdit, Variant, button_as, command, command_matches, dialog};
+use amenui::widgets::{SELECTED, Variant, button_as};
 use taffy::AlignItems;
 
 /// The prose pages, by slug, in reading order: the first six are 开始 (with the command line and the
@@ -175,7 +175,7 @@ fn prev_next(s: &Gallery) -> El<Msg> {
 /// wide window) the outline; on a narrow window, the window less its two margins.
 pub fn doc_w(s: &Gallery, max: f32) -> f32 {
     if s.width < super::NARROW { return (s.width - 36.0).max(200.0); }
-    (s.width - 220.0 - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, max)
+    (s.width - super::side(s) - 80.0 - if s.width > 1180.0 { 220.0 } else { 0.0 }).clamp(280.0, max)
 }
 /// A page as raw Markdown (`<hash>.md`), for agents and for reading without the framework: a prose page
 /// is its source; a component's page is written out in the same order as it is shown (title and
@@ -183,8 +183,6 @@ pub fn doc_w(s: &Gallery, max: f32) -> f32 {
 /// drawn only (the Body scene, the mark and material pages, the scenes).
 pub fn markdown(page: Page, l: Locale) -> Option<String> {
     match page {
-        Page::Doc(i) => Some(source(i as usize, l).to_owned()),
-        Page::Ai(i) => Some(AI[i as usize].2.to_owned()),
         Page::Widget(_) | Page::Comp(_) => {
             let name = match page { Page::Widget(i) => widget_names()[i as usize].clone(), Page::Comp(c) => COMP_NAMES[c].replace('-', "_"), _ => unreachable!() };
             let all = items();
@@ -201,7 +199,6 @@ pub fn markdown(page: Page, l: Locale) -> Option<String> {
                 tr("docs.sec.api"), tr("docs.api.functions"), it.functions.join("`, `"), tr("docs.api.props"), header_line(src, "Props:"), tr("docs.api.files"), it.files.join("`, `"), tr("docs.kb.keys"), header_line(src, "Messages:")));
             Some(md)
         }
-        Page::Registry => Some(REGISTRY.to_owned()),
         _ => None,
     }
 }
@@ -213,32 +210,17 @@ fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) ->
     r
 }
 
-/// A prose page (开始, 概念).
-pub fn prose(s: &Gallery, i: usize) -> El<Msg> {
-    let src = source(i, s.locale);
+/// The page the reader sets: one docs page, in English as every Lab page is.
+const READER: &str = include_str!("../../docs/site/en/layout.md");
+/// The reader (`/lab/reader/`): one docs page set by the framework, with its outline and selection.
+pub fn reader(s: &Gallery) -> El<Msg> {
     let w = doc_w(s, 820.0);
-    let (body, out) = amenui::markdown::render(src, &format!("doc/{}/md", DOCS[i]), w, &|t| link(t));
-    // The outline lists the page's second-level headings, by their keys.
-    frame(s, DOCS[i], body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
+    let (body, out) = amenui::markdown::render(front_matter(READER).1, "doc/reader/md", w, &|t| link(t));
+    frame(s, "reader", body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
 }
-/// A For-AI page, the registry, or the changelog.
-pub fn ai(s: &Gallery, i: usize) -> El<Msg> {
-    let (hash, _, src) = AI[i];
-    let w = doc_w(s, 820.0);
-    // llms.txt is plain text: shown as a block of code.
-    let body = if hash == "ai-llms" { col().key("doc/ai-llms/md").gap(14.0).child(text(tr("docs.ai.llms"), 30.0, Paint::INK).font(Font::Display).heading(1)).child(code("doc/ai-llms/txt", src)) }
-        else { amenui::markdown::render(src, &format!("doc/{hash}/md"), w, &|t| link(t)).0 };
-    frame(s, hash, body, &[])
-}
-/// The registry as a table, and the recipes.
-pub fn registry(s: &Gallery) -> El<Msg> {
-    let mut md = format!("# {}\n\n{}\n\n| {} | {} | {} |\n|---|---|---|\n", tr("docs.ai.registry"), tr("docs.registry.lead"), tr("docs.api.name"), tr("docs.api.functions"), tr("docs.api.files"));
-    for it in items() { md.push_str(&format!("| [{}](#{}) | `{}` | `{}` |\n", it.name, page_hash(&it.name), it.functions.join(", "), it.files.join(", "))); }
-    md.push_str(&format!("\n## {}\n\n", tr("docs.recipes")));
-    for (n, _, what) in amenui::recipes::RECIPES { md.push_str(&format!("- [{n}](#recipe-{n}): {what}\n")); }
-    let w = doc_w(s, 900.0);
-    let (body, _) = amenui::markdown::render(&md, "doc/ai-registry/md", w, &|t| link(t));
-    frame(s, "ai-registry", body, &[])
+/// The first example of a component's recipe, as a preview.
+pub fn first_example(name: &str) -> Option<El<Msg>> {
+    amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| e.map(std::rc::Rc::new(|_| Msg::Nothing)))
 }
 /// A link target as a message: `#hash` goes to that page.
 pub(super) fn link(t: &str) -> Msg {
@@ -341,38 +323,13 @@ fn tab(h: &str, i: usize, label: &str, on: bool) -> El<Msg> {
     t
 }
 
-/// The search over every page (⌘K / Ctrl+K, or `/`): a palette in a dialog.
-pub fn search(s: &Gallery) -> El<Msg> {
-    let names: Vec<String> = Page::all().iter().map(|p| p.name().to_owned()).collect();
-    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
-    dialog("search", s.search, &tr("docs.search"), 460.0, 0.35, Msg::Search(false),
-        command("search/palette", &s.search_q, &refs, s.search_active, Msg::SearchQuery, Msg::SearchRun))
-}
-/// The page a search row runs.
-pub fn search_run(s: &mut Gallery, i: usize) {
-    let all = Page::all();
-    if let Some(p) = all.get(i) { s.search = false; s.search_q = TextEdit::default(); super::update(s, Msg::Go(*p)); }
-}
-/// Up / Down / Enter in the search's field.
-pub fn search_key(s: &mut Gallery, k: amenui::el::Key) -> bool {
-    if !s.search { return false; }
-    let names: Vec<String> = Page::all().iter().map(|p| p.name().to_owned()).collect();
-    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
-    let found = command_matches(&s.search_q.text, &refs);
-    match k {
-        amenui::el::Key::Down => { s.search_active = (s.search_active + 1).min(found.len().saturating_sub(1)); true }
-        amenui::el::Key::Up => { s.search_active = s.search_active.saturating_sub(1); true }
-        amenui::el::Key::Enter => { if let Some(&i) = found.get(s.search_active) { search_run(s, i); } true }
-        _ => false,
-    }
-}
 /// Where the outline is: the last section whose top has scrolled above the window's first fifth.
 pub fn scrolled(s: &mut Gallery, key: &str, _off: f32, at: &dyn Fn(&str) -> Option<f32>) -> bool {
     if !key.starts_with("main/") { return false; }
     let page = s.page;
     let keys: Vec<String> = match page {
         Page::Comp(_) | Page::Widget(_) => (0..7).map(|i| format!("doc/{}/sec{i}", page.hash())).collect(),
-        Page::Doc(i) => amenui::markdown::parse(source(i as usize, s.locale)).iter().enumerate().filter(|(_, b)| matches!(b, amenui::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/{}/md/h{j}", DOCS[i as usize])).collect(),
+        Page::Reader => amenui::markdown::parse(READER).iter().enumerate().filter(|(_, b)| matches!(b, amenui::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/reader/md/h{j}")).collect(),
         _ => return false,
     };
     let mut now = 0;

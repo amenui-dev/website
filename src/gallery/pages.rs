@@ -177,7 +177,8 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
     // its states and (button, list) the ripple and scroll sections go under the preview.
     let extra = col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(24.0)
         .children((c == BUTTON).then(|| section(h, "涟漪", ripple(s))))
-        .children((c == LIST).then(|| section(h, "滚动", scrolling(s))))
+        .children((c == LIST).then(|| section(h, "滚动", col().gap(12.0).child(scrolling(s))
+            .child(amenui::widgets::button_as(format!("{h}/10k"), &format!("{} →", Page::LongList.name()), amenui::widgets::Variant::Default, Msg::Go(Page::LongList))))))
         .child(section(h, "变体", variants(h, vars)))
         .child(section(h, "参数", params(s, c)))
         .child(section(h, "源码", source(h, comp.file, comp.source)));
@@ -268,6 +269,8 @@ fn ripple(s: &Gallery) -> El<Msg> {
 }
 
 /// The live preview of a component and its variants.
+/// Component `c`'s live preview (its specimen's stage).
+pub fn live(s: &Gallery, c: usize) -> El<Msg> { component(s, c).0 }
 fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
     let h = COMPONENTS[c].hash;
     let k = |n: &str| format!("{h}/{n}");
@@ -481,7 +484,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     // The comparison: a framed picture, the original left of a divider
     // with a round handle and the marks right of it, small capital tags in the top corners, and the
     // sets as a row of plain text chips along the frame's bottom edge, by family.
-    let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::RAIL - 120.0 }).clamp(240.0, 820.0);
+    let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::side(s) - 120.0 }).clamp(240.0, 820.0);
     let phh = pw * ph as f32 / w as f32;
     let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore);
     let hx = pw * s.wipe;

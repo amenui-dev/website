@@ -4,6 +4,9 @@
 use website::gallery::{Page, docs};
 use amenui::i18n::Locale;
 
+/// A page's Markdown in a language.
+type Md = Box<dyn Fn(Locale) -> String>;
+
 fn first_line(md: &str) -> String {
     let line = md.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with('|') && !l.starts_with("```") && !l.starts_with('-') && !l.starts_with('>')).unwrap_or("");
     let s = line.split_inclusive(['.', '。']).next().unwrap_or(line).trim();
@@ -13,13 +16,18 @@ fn first_line(md: &str) -> String {
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();
-    let pages: Vec<Page> = Page::all().into_iter().filter(|p| docs::markdown(*p, Locale::En).is_some()).collect();
+    // The prose pages by their older hash names, then every page with a Markdown form.
+    let prose: Vec<(String, Md)> = (0..docs::DOCS.len()).map(|i| (format!("docs-{}", docs::DOCS[i]), Box::new(move |l| docs::source(i, l).to_owned()) as Md))
+        .chain(docs::AI.iter().map(|&(h, _, src)| (h.to_owned(), Box::new(move |_| src.to_owned()) as Md))).collect();
+    let pages: Vec<(String, Md)> = prose.into_iter()
+        .chain(Page::all().into_iter().filter(|p| docs::markdown(*p, Locale::En).is_some()).map(|p| (p.hash(), Box::new(move |l| docs::markdown(p, l).unwrap_or_default()) as Md))).collect();
+    let title = |md: &str, h: &str| md.lines().find_map(|x| x.strip_prefix("# ")).unwrap_or(h).to_owned();
     if a.get(1).map(String::as_str) == Some("--llms") {
         amenui::i18n::set_current(Locale::En);
         let mut list = String::from("## Pages\n\nEvery documentation page as Markdown, at `md/en/<page>.md` and `md/zh-Hans/<page>.md` next to the web build (`cargo run --release --bin md -- dist/md`).\n\n");
-        for p in &pages {
-            let md = docs::markdown(*p, Locale::En).unwrap_or_default();
-            list.push_str(&format!("- [{}](md/en/{}.md): {}\n", p.name(), p.hash(), first_line(&md)));
+        for (h, md) in &pages {
+            let md = md(Locale::En);
+            list.push_str(&format!("- [{}](md/en/{h}.md): {}\n", title(&md, h), first_line(&md)));
         }
         // amenui's llms.txt, in a checkout of the framework (next to this one by default).
         let path = a.get(2).map_or("../amenui/llms.txt", String::as_str);
@@ -37,7 +45,7 @@ fn main() {
         amenui::i18n::set_current(l);
         let dir = format!("{out}/{}", l.tag());
         std::fs::create_dir_all(&dir).expect("out dir");
-        for p in &pages { std::fs::write(format!("{dir}/{}.md", p.hash()), docs::markdown(*p, l).unwrap_or_default()).expect("write"); }
+        for (h, md) in &pages { std::fs::write(format!("{dir}/{h}.md"), md(l)).expect("write"); }
     }
     eprintln!("{} pages × {} languages in {out}", pages.len(), website::LOCALES.len());
 }

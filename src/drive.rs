@@ -44,6 +44,8 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     ui.pointer_leave();
     if let Some(l) = locale { gallery::update(&mut ui.state, Msg::Locale(l)); }
     gallery::update(&mut ui.state, Msg::Go(p));
+    // `<path>#stage`: the page's stage alone, as a docs page's live stage shows it.
+    if state == "stage" { ui.state.stage_only = true; }
     // `body#walk` plays the full intro from the first frame, `body#short` the short path.
     if p == Page::Body && !state.is_empty() { match state { "walk" => ui.state.body.open("", 2), "short" => ui.state.body.open("", 1), _ => ui.state.body.open(state, 0) } }
     // The whole page's material (the look strip's material is a component stage's only).

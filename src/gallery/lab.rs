@@ -81,27 +81,59 @@ pub fn look(s: &Gallery, l: &mut Look) {
 }
 
 /// The grid: as many columns of at least 340 px as fit (one on a phone).
+/// The Experiments group: the ten cells, then the reader, the decode transition and the field map.
+pub fn experiments() -> Vec<super::Page> {
+    use super::Page;
+    (0..COUNT as u8).map(Page::Experiment).chain([Page::Reader, Page::Decode, Page::Stirr]).collect()
+}
+
+/// `/lab/`: three grids, Experiments (the live cells, each with its name under it), Looks and Motion
+/// (a card per page).
 pub fn page(s: &Gallery) -> El<Msg> {
+    use super::{Page, index};
     let tr = amenui::i18n::tr;
-    let mut grid = col().key("lab/grid").fill_width().min_width(0.0);
-    grid.style.display = taffy::Display::Grid;
-    // As many columns of at least 340 px as the page has room for; one on a phone.
-    let room = s.width - if s.width < super::NARROW { 28.0 } else { 300.0 };
-    let cols = ((room + 14.0) / (340.0 + 14.0)).floor().max(1.0) as usize;
-    grid.style.grid_template_columns = vec![taffy::prelude::minmax(taffy::prelude::length(0.0), taffy::prelude::fr(1.0)); cols];
-    grid.style.gap = taffy::prelude::Size { width: taffy::prelude::length(14.0), height: taffy::prelude::length(14.0) };
-    for (i, n) in NAMES.iter().enumerate() { grid = grid.child(s.lab.cell(i, &format!("lab/{n}")).map(Rc::new(Msg::Lab))); }
-    col().key("lab").fill_width().min_width(0.0).gap(18.0)
-        .child(text(tr("lab.title"), 13.0, Paint::TEXT).font(Font::Mono).key("lab/title"))
-        .child(text(tr("lab.intro"), 11.0, Paint::DIM).font(Font::Mono).key("lab/intro"))
-        .child(grid)
+    let groups = super::lab_groups();
+    let room = index::room(s);
+    let mut cells = index::grid("lab/grid", room, 340.0);
+    for (i, n) in NAMES.iter().enumerate() {
+        let p = Page::Experiment(i as u8);
+        cells = cells.child(col().key(format!("labx/{n}")).fill_width().min_width(0.0).gap(8.0)
+            .child(s.lab.cell(i, &format!("lab/{n}")).map(Rc::new(Msg::Lab)))
+            .child(amenui::el::row().key(format!("labx/{n}/name")).gap(10.0).on_press(Msg::Go(p)).role(amenui::el::Role::Link)
+                .child(text(format!("{:02}", i + 1), 11.0, Paint::DIM).font(Font::Mono))
+                .child(text(format!("{} →", p.name()), 11.0, Paint::TEXT).font(Font::Mono))));
+    }
+    // The other experiments, the Looks and the Motion pages as cards.
+    let mut more = index::grid("labx/more", room, 240.0);
+    for (k, p) in groups[0].1.iter().skip(COUNT).enumerate() { more = more.child(index::card(&format!("labx/{}", p.hash()), COUNT + k + 1, p.name(), String::new(), None, *p)); }
+    let looks = |s: &Gallery| {
+        let mut g = index::grid("labx/looks", room, 240.0);
+        let marks: Vec<Page> = groups[1].1.iter().copied().filter(|p| matches!(p, Page::Marks(_))).collect();
+        let mats: Vec<Page> = groups[1].1.iter().copied().filter(|p| matches!(p, Page::Material(_))).collect();
+        let styles: Vec<Page> = groups[1].1.iter().copied().filter(|p| matches!(p, Page::Style(_))).collect();
+        g = g.child(index::card_links("labx/look0", 1, Page::Presets.name(), styles, Page::Presets))
+            .child(index::card_links("labx/look1", 2, tr("nav.marks"), marks.clone(), marks[0]))
+            .child(index::card_links("labx/look2", 3, tr("nav.materials"), mats.clone(), mats[0]))
+            .child(index::card("labx/look3", 4, Page::Gaze.name(), String::new(), None, Page::Gaze))
+            .child(index::card("labx/look4", 5, Page::Type.name(), String::new(), None, Page::Type));
+        let _ = s;
+        g
+    };
+    let mut motion = index::grid("labx/motion", room, 240.0);
+    for (k, p) in groups[2].1.iter().enumerate() { motion = motion.child(index::card(&format!("labx/{}", p.hash()), k + 1, p.name(), String::new(), None, *p)); }
+    let sec = |k: &str, n: usize, name: &str, body: El<Msg>| col().key(format!("labx/{k}")).fill_width().min_width(0.0).gap(16.0).child(index::header(&format!("labx/{k}/head"), n, name)).child(body);
+    col().key("lab").fill_width().min_width(0.0).gap(28.0)
+        .child(text(tr("nav.lab"), 34.0, Paint::INK).font(Font::Display).heading(1).key("labx/title").flow("page-title"))
+        .child(sec("s1", 1, &groups[0].0, col().key("labx/s1/body").fill_width().min_width(0.0).gap(16.0).child(cells).child(more)))
+        .child(sec("s2", 2, &groups[1].0, looks(s)))
+        .child(sec("s3", 3, &groups[2].0, motion))
 }
 
 /// An experiment's page: its documentation, then the cell.
 pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
     let name = NAMES[i.min(COUNT - 1)];
     let src = doc(name, s.locale);
-    let w = (s.width - if s.width < super::NARROW { 28.0 } else { 300.0 }).clamp(200.0, 720.0);
+    let w = (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0);
     let (body, _) = amenui::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
     col().key(format!("lab/{name}/page")).fill_width().min_width(0.0).max_width(w).gap(18.0)
         .child(s.lab.cell(i, &format!("lab/{name}")).map(Rc::new(Msg::Lab)))

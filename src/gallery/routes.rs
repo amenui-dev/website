@@ -30,15 +30,12 @@ impl Page {
     pub fn path(self) -> String {
         match self {
             Page::Body => String::new(),
-            Page::Doc(i) => { let s = docs::DOCS[i as usize]; format!("docs/{}/{s}/", doc_group(s)) }
-            Page::Ai(0) => "docs/reference/agents/".into(),
-            Page::Ai(1) => "docs/reference/llms/".into(),
-            Page::Ai(_) => "docs/release-notes/".into(),
-            Page::Registry => "docs/reference/registry/".into(),
+            Page::Components => "components/".into(),
             Page::Comp(_) | Page::Widget(_) => format!("components/{}/", self.hash()),
             Page::LongList => "components/list/10k/".into(),
             Page::Lab => "lab/".into(),
             Page::Experiment(i) => format!("lab/{}/", lab::NAMES[i as usize]),
+            Page::Reader => "lab/reader/".into(),
             Page::Decode => "lab/decode/".into(),
             Page::Stirr => "lab/field-map/".into(),
             Page::Presets => "lab/looks/presets/".into(),
@@ -56,24 +53,18 @@ impl Page {
             Page::Scene(i) => format!("scenes/{}/", scenes::SCENES[i as usize].0),
         }
     }
-    /// The page a path names (with or without its slashes); the section roots `docs/` and
-    /// `components/` name their first page. `None` for a path that names none.
+    /// The page a path names (with or without its slashes). `None` for a path that names none (the
+    /// docs are HTML pages, not routes of the canvas application).
     pub fn from_path(p: &str) -> Option<Page> {
         let p = p.trim_matches('/');
-        match p {
-            "" => return Some(Page::Body),
-            "docs" => return Some(Page::Doc(0)),
-            "components" => return Some(Page::Comp(0)),
-            _ => {}
-        }
+        if p.is_empty() { return Some(Page::Body); }
         let want = format!("{p}/");
         Page::all().into_iter().find(|q| q.path() == want)
     }
     pub fn section(self) -> Section {
         match self {
             Page::Body => Section::Home,
-            Page::Doc(_) | Page::Ai(_) | Page::Registry => Section::Docs,
-            Page::Comp(_) | Page::Widget(_) | Page::LongList => Section::Components,
+            Page::Components | Page::Comp(_) | Page::Widget(_) | Page::LongList => Section::Components,
             Page::Scenes | Page::Scene(_) => Section::Scenes,
             _ => Section::Lab,
         }
@@ -81,4 +72,11 @@ impl Page {
 }
 
 /// The aliases the build writes a page for besides every page's own path: (path, page it shows).
-pub fn aliases() -> Vec<(&'static str, Page)> { vec![("docs/", Page::Doc(0)), ("components/", Page::Comp(0))] }
+pub fn aliases() -> Vec<(&'static str, Page)> { vec![] }
+/// The older hash names of the docs pages, which are HTML now, and the path each has: the prose pages
+/// (`#docs-layout`), the For-AI pages, the registry and the changelog.
+pub fn doc_redirects() -> Vec<(String, String)> {
+    let mut v: Vec<(String, String)> = docs::DOCS.iter().map(|s| (format!("docs-{s}"), format!("docs/{}/{s}/", doc_group(s)))).collect();
+    v.extend([("ai-agents", "docs/reference/agents/"), ("ai-llms", "docs/reference/llms/"), ("ai-registry", "docs/reference/registry/"), ("changelog", "docs/release-notes/")].map(|(h, p)| (h.to_owned(), p.to_owned())));
+    v
+}

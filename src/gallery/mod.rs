@@ -18,6 +18,7 @@ pub mod particles;
 pub mod presets;
 pub mod routes;
 pub mod english;
+mod index;
 
 use crate::demo::{self, Demo};
 use amenui::el::{El, Paint, col, row, space, text};
@@ -36,26 +37,23 @@ pub use pages::{COMPONENTS, Comp, FLOW_PARAMS, MORPH_NAMES, MORPH_PARAMS, ParamD
 
 /// Below this width (logical px) the rail becomes a row of tabs under the top bar.
 pub const NARROW: f32 = 720.0;
-pub const RAIL: f32 = 220.0;
+pub const RAIL: f32 = 232.0;
 /// The height of the page's HTML navigation bar, which a scene's canvas lies under.
 pub const BAR: f32 = 48.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Decode, Stirr }
+pub enum Page { Components, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Reader, Decode, Stirr }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke", "led", "braille", "cubes", "hex", "stipple", "hatch", "truchet", "topo"];
 
 impl Page {
     /// Every page, in rail order.
     pub fn all() -> Vec<Page> {
-        let mut v: Vec<Page> = vec![Page::Body];
-        v.extend((0..docs::DOCS.len() as u8).map(Page::Doc));
-        v.push(Page::Stirr);
-        v.push(Page::Lab);
-        v.extend((0..lab::COUNT as u8).map(Page::Experiment));
-        v.push(Page::Decode);
+        let mut v: Vec<Page> = vec![Page::Body, Page::Components];
         v.extend(comp_pages());
         v.extend((0..docs::widget_names().len() as u8).map(Page::Widget));
+        v.push(Page::Lab);
+        v.extend(lab::experiments());
         v.extend(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks));
         v.extend((0..MATERIAL_COUNT as u8).map(Page::Material));
         v.push(Page::Gaze);
@@ -64,18 +62,14 @@ impl Page {
         v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three]);
         v.push(Page::Type);
         v.push(Page::Demo);
-        v.push(Page::Body);
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
-        v.extend([Page::Ai(0), Page::Ai(1), Page::Registry, Page::Ai(2)]);
         v
     }
     /// The page's address on the web: plain ASCII words, so a page can be linked.
     pub fn hash(self) -> String {
         match self {
-            Page::Doc(i) => format!("docs-{}", docs::DOCS[i as usize]),
-            Page::Ai(i) => docs::AI[i as usize].0.into(),
-            Page::Registry => "ai-registry".into(),
+            Page::Components => "components".into(),
             Page::Widget(i) => docs::page_hash(&docs::widget_names()[i as usize]),
             Page::Comp(i) => COMPONENTS[i].hash.to_owned(),
             Page::LongList => "list-10k".into(),
@@ -95,6 +89,7 @@ impl Page {
             Page::Scene(i) => scenes::hash(i as usize),
             Page::Lab => "lab".into(),
             Page::Experiment(i) => format!("lab-{}", lab::NAMES[i as usize]),
+            Page::Reader => "lab-reader".into(),
             Page::Decode => "decode".into(),
             Page::Stirr => "stirr".into(),
         }
@@ -102,7 +97,7 @@ impl Page {
     /// From `#name` or `name`; an empty hash is the first page.
     pub fn from_hash(h: &str) -> Option<Page> {
         let h = h.trim_start_matches('#');
-        if h.is_empty() || h == "gallery" { return Some(Page::Comp(0)); }
+        if h.is_empty() || h == "gallery" { return Some(Page::Components); }
         Page::all().into_iter().find(|p| p.hash() == h)
     }
     /// The page's name in the current language.
@@ -116,9 +111,8 @@ impl Page {
             Page::Experiment(i) => { let n = lab::NAMES[i as usize]; n[..1].to_uppercase() + &n[1..] }
             Page::Decode => amenui::i18n::tr("nav.decode"),
             Page::Stirr => amenui::i18n::tr("nav.stirr"),
-            Page::Doc(i) => docs::title(i as usize, l),
-            Page::Ai(i) => amenui::i18n::tr(docs::AI[i as usize].1),
-            Page::Registry => amenui::i18n::tr("docs.ai.registry"),
+            Page::Components => amenui::i18n::tr("nav.components"),
+            Page::Reader => amenui::i18n::tr("nav.reader"),
             Page::Widget(i) => { let n = docs::widget_names()[i as usize].clone(); if en { n.replace('_', " ") } else { docs::items().into_iter().find(|it| it.name == n).map_or(n, |it| it.title) } }
             Page::Comp(i) if en => docs::COMP_NAMES[i].replace('-', " "),
             _ if en => match self {
@@ -131,7 +125,7 @@ impl Page {
     }
     fn name_zh(self) -> &'static str {
         match self {
-            Page::Doc(_) | Page::Ai(_) | Page::Registry | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode | Page::Stirr | Page::Body => "",
+            Page::Components | Page::Reader | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode | Page::Stirr | Page::Body => "",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -198,15 +192,15 @@ pub enum Target {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg {
     Go(Page),
+    /// Open or close a group of the Components rail; open or close the rail's sheet on a phone.
+    RailGroup(usize),
+    Sheet(bool),
     /// Switch the language (DESIGN.md §1.20): everything is laid out again; keyed text recomposes.
     Locale(amenui::i18n::Locale),
-    /// A component page's 预览 / 代码 tab; an outline entry (scroll to that key); the search over every
-    /// page (open, its query, run row `i`); a copy button (its text for the clipboard).
+    /// A component page's 预览 / 代码 tab; an outline entry (scroll to that key); a copy button (its
+    /// text for the clipboard).
     DocTab(usize),
     Outline(String),
-    Search(bool),
-    SearchQuery(TextEdit),
-    SearchRun(usize),
     Copy(String),
     Theme(usize),
     Material(usize),
@@ -313,13 +307,16 @@ pub struct Gallery {
     pub cmds: Vec<Cmd>,
     /// The language everything is shown in.
     pub locale: amenui::i18n::Locale,
-    /// The documentation: the component page's tab, the outline entry in view, the search, and text
-    /// a copy button asked the host to put on the clipboard.
+    /// The documentation: the component page's tab, the outline entry in view, and text a copy button
+    /// asked the host to put on the clipboard.
     pub doc_tab: usize,
     pub outline_at: usize,
-    pub search: bool,
-    pub search_q: TextEdit,
-    pub search_active: usize,
+    /// The Components rail's open group when one was opened or closed by hand on this page (else the
+    /// page's own), and whether its sheet is open on a phone.
+    pub rail_open: Option<Option<usize>>,
+    pub sheet: bool,
+    /// The page's stage alone, for a live stage on a docs page (`<path>#stage`).
+    pub stage_only: bool,
     pub clipboard: Option<String>,
     /// Which of the look strip's menus is open (0 = none).
     pub menu: u8,
@@ -411,7 +408,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -551,7 +548,8 @@ impl Gallery {
         match page {
             Some(p) => {
                 self.page = p; self.edit = None; self.enter(p);
-                if p == Page::Body && !state.is_empty() { self.body.open(state, 0); }
+                if state == "stage" { self.stage_only = true; }
+                else if p == Page::Body && !state.is_empty() { self.body.open(state, 0); }
                 true
             }
             None => false,
@@ -564,10 +562,12 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Go(p) => {
             // Parts the two pages share (the page title, the rail's selection) move rather than vanish.
             if p != s.page { s.cmds.push(Cmd::Flow(s.flow)); }
-            s.page = p; s.edit = None; s.dialog = 0;
+            s.page = p; s.edit = None; s.dialog = 0; s.rail_open = None; s.sheet = false;
             // A style page shows its style, a scene its own.
             s.enter(p);
         }
+        Msg::RailGroup(g) => { let open = s.rail_open.unwrap_or_else(|| comp_group_of(s.page)); s.rail_open = Some(if open == Some(g) { None } else { Some(g) }); }
+        Msg::Sheet(on) => s.sheet = on,
         Msg::Menu(k) => s.menu = k,
         Msg::Style(i) => { s.apply_style(i); s.menu = 0; }
         Msg::GazeMode(i) => s.gaze_page.mode = GAZE_MODES[i.min(GAZE_MODES.len() - 1)].0,
@@ -593,9 +593,6 @@ pub fn update(s: &mut Gallery, m: Msg) {
         }
         Msg::DocTab(i) => s.doc_tab = i.min(1),
         Msg::Outline(k) => docs::outline_go(s, k),
-        Msg::Search(on) => { s.search = on; s.search_active = 0; if on { s.cmds.push(Cmd::Focus { key: "search/palette/query".into() }); } }
-        Msg::SearchQuery(q) => { s.search_q = q; s.search_active = 0; }
-        Msg::SearchRun(i) => docs::search_run(s, i),
         Msg::Copy(t) => s.clipboard = Some(t),
         Msg::Theme(i) => { s.theme = i.min(THEMES.len() - 1); s.demo.theme = s.theme; s.faces = None; s.menu = 0; }
         Msg::Material(i) => { s.stage_material = MATERIALS[i.min(MATERIALS.len() - 1)].0; s.demo.material = s.stage_material; s.menu = 0; }
@@ -691,7 +688,6 @@ pub fn update(s: &mut Gallery, m: Msg) {
 pub fn view(s: &Gallery) -> El<Msg> {
     let e = view_in(s);
     match s.page {
-        Page::Ai(_) | Page::Registry if s.locale == amenui::i18n::Locale::En => english::tree(e, Rc::new(|k| k.starts_with("doc/ai-") || k.starts_with("doc/registry"))),
         _ if s.locale == amenui::i18n::Locale::En => english::tree(e, Rc::new(|_| false)),
         // The page under the chrome; inside it, the documentation's chrome and prose (`doc/…`) stay as
         // written except a component's previews and example boxes.
@@ -704,6 +700,10 @@ pub fn view(s: &Gallery) -> El<Msg> {
             // A scene's name on the list is the one its own page flies it to (scenes keep the
             // interface language in Chinese: their type is set to fit it).
             else if k.starts_with("scenes/title") { english::Part::Chrome }
+            // The index pages' cards are chrome (their names and lines follow the language); what a card
+            // shows of its page is a demo.
+            else if k.starts_with("scenes/t") && k.ends_with("/box") || k.starts_with("index/") && k.ends_with("/preview") { english::Part::Demo }
+            else if k.starts_with("scenes/card") || k == "scenes/body" || k == "scenes/head" || k.starts_with("index/") || k.starts_with("labx/") { english::Part::Chrome }
             else { english::Part::Same }
         })),
     }
@@ -711,10 +711,13 @@ pub fn view(s: &Gallery) -> El<Msg> {
 fn view_in(s: &Gallery) -> El<Msg> {
     let narrow = s.width < NARROW;
     let th = s.theme();
-    // A scene has the whole window under the top bar.
+    // A stage on a docs page (`<path>#stage`): the page's stage alone, filling the box.
+    if s.stage_only {
+        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().center().child(stage_view(s, narrow));
+    }
     // The Body scene is the whole window, full-bleed, no chrome: its own markings lead elsewhere.
     if s.page == Page::Body {
-        return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s)).child(docs::search(s));
+        return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s));
     }
     if let Page::Scene(i) = s.page {
         // The canvas lies under the page's navigation bar here, so the scene starts below it.
@@ -725,44 +728,69 @@ fn view_in(s: &Gallery) -> El<Msg> {
     let skip = skip_link("skip", &amenui::i18n::tr("shell.skip"), &format!("main/{}", s.page.hash()));
     let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(skip);
     let page = main_page(s, narrow);
-    if narrow {
-        // A phone's width: the page is set in the window's width, so its text wraps there; anything
-        // wider (an example, a code line) scrolls sideways in its own box.
-        let main = col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width()
-            .child(col().key("narrow").width(s.width).min_width(0.0).child(page));
-        root = root.child(rail_row(s)).child(divider(th.hairline).key("rail-rule")).child(main);
-    } else {
-        // `min_height(0)`: the row is as tall as the window allows, not as tall as the rail's contents (which
-        // made the page itself as tall as the rail, so the page never scrolled once the rail was longer
-        // than the window).
-        root = root.child(row().key("body").grow(1.0).min_height(0.0).fill_width().align(AlignItems::STRETCH)
-            .child(rail(s)).child(vdivider(th.hairline).key("rail-rule")).child(col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width().child(page).shrink()));
+    let main = |page: El<Msg>| col().key(format!("main/{}", s.page.hash())).scroll().bar().grow(1.0).fill_width().min_height(0.0)
+        .child(if narrow { col().key("narrow").width(s.width).min_width(0.0).child(page) } else { page }).shrink();
+    match s.page.section() {
+        // Components: the rail of six groups beside the page; on a phone the strip that opens it as a sheet.
+        Section::Components if narrow => {
+            root = root.child(comp_strip(s)).child(divider(th.hairline).key("rail-rule"));
+            root = if s.sheet { root.child(col().key("main/sheet").scroll().bar().grow(1.0).fill_width().min_height(0.0).child(rail_items(s, col().key("rail").fill_width().pad(4.0, 8.0).gap(2.0)))) } else { root.child(main(page)) };
+        }
+        Section::Components => {
+            // `min_height(0)`: the row is as tall as the window allows, not as tall as the rail's
+            // contents (which made the page as tall as the rail, so it never scrolled).
+            root = root.child(row().key("body").grow(1.0).min_height(0.0).fill_width().align(AlignItems::STRETCH)
+                .child(rail(s)).child(vdivider(th.hairline).key("rail-rule")).child(main(page)));
+        }
+        // The Lab: no rail; a page inside it has the path strip under the bar.
+        Section::Lab if s.page != Page::Lab => { root = root.child(lab_strip(s)).child(divider(th.hairline).key("strip-rule")).child(main(page)); }
+        _ => { root = root.child(main(page)); }
     }
-    root.child(docs::search(s))
+    root
+}
+
+/// What a docs page's live stage shows of a route: a component's preview, an experiment's cell, a
+/// scene; any other page as it is, without the rail.
+fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
+    match s.page {
+        Page::Comp(c) => col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(pages::live(s, c)),
+        Page::Widget(i) => {
+            let n = &docs::widget_names()[i as usize];
+            let e = craft::live(s, n).or_else(|| docs::first_example(n)).unwrap_or_else(|| space(0.0, 0.0));
+            col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(e)
+        }
+        Page::Experiment(i) => col().key(format!("stage/{}", s.page.hash())).width((s.width - 32.0).clamp(200.0, 760.0))
+            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize])).map(Rc::new(Msg::Lab))),
+        Page::Scene(i) => col().key(format!("main/{}", s.page.hash())).fill_width().fill_height().child(scenes::page(s, i as usize)),
+        _ => col().key(format!("main/{}", s.page.hash())).scroll().fill_width().fill_height().child(main_page(s, narrow)),
+    }
 }
 
 /// The page under the top bar, padded.
 fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
     let main = col().key(format!("page/{}", s.page.hash())).fill_width().min_width(0.0);
+    let pad = |m: El<Msg>| m.pad(if narrow { 18.0 } else { 40.0 }, 32.0);
     match s.page {
         Page::Demo => main.child(demo::view(&s.demo).map(Rc::new(Msg::Demo))),
-        Page::Lab => main.pad(if narrow { 14.0 } else { 32.0 }, 28.0).child(lab::page(s)),
-        Page::Decode => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(decode::page(s)),
-        Page::Stirr => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(stirr::page(s)),
+        Page::Lab => main.pad(if narrow { 16.0 } else { 32.0 }, 28.0).child(lab::page(s)),
+        Page::Components => pad(main).child(index::components(s)),
+        Page::Reader => pad(main).child(docs::reader(s)),
+        Page::Decode => pad(main).child(decode::page(s)),
+        Page::Stirr => pad(main).child(stirr::page(s)),
         Page::Experiment(i) => main.pad(if narrow { 14.0 } else { 40.0 }, 32.0).child(lab::experiment(s, i as usize)),
-        Page::Material(_) | Page::Gaze => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(looks::page(s)),
+        Page::Material(_) | Page::Gaze => pad(main).child(looks::page(s)),
         Page::Style(i) => main.child(styles::page(s, i as usize)),
-        Page::Three => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(three::page(s)),
-        Page::Particles => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(particles::page(s)),
-        Page::Presets => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(presets::page(s)),
-        Page::Doc(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::prose(s, i as usize)),
-        Page::Ai(i) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::ai(s, i as usize)),
-        Page::Registry => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::registry(s)),
-        Page::Widget(i) => { let n = &docs::widget_names()[i as usize]; main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(docs::component(s, n, craft::live(s, n), None)) }
-        Page::Scenes | Page::Scene(_) => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(scenes::list(s)),
-        _ => main.pad(if narrow { 18.0 } else { 40.0 }, 32.0).child(pages::page(s)),
+        Page::Three => pad(main).child(three::page(s)),
+        Page::Particles => pad(main).child(particles::page(s)),
+        Page::Presets => pad(main).child(presets::page(s)),
+        Page::Widget(i) => { let n = &docs::widget_names()[i as usize]; pad(main).child(docs::component(s, n, craft::live(s, n), None)) }
+        Page::Scenes | Page::Scene(_) => pad(main).child(scenes::list(s)),
+        _ => pad(main).child(pages::page(s)),
     }
 }
+
+/// The width the rail takes beside the page (none off the Components section and on a phone).
+pub fn side(s: &Gallery) -> f32 { if s.page.section() == Section::Components && s.width >= NARROW { RAIL } else { 0.0 } }
 
 /// The look strip at the top of a specimen's stage: the stage's material and `reset`. It is chrome:
 /// calm, and in the plain material whatever the stage is in. (The theme and the whole looks join it
@@ -776,72 +804,106 @@ pub fn look_strip(s: &Gallery, key: &str) -> El<Msg> {
         .child(button_as(format!("{key}/reset"), &tr("shell.reset"), Variant::Default, Msg::Reset))
 }
 
-/// The component pages: one per component, and the list's ten thousand rows right after the list.
+/// The component pages: one per component, and the list's ten thousand rows (by path only, from the
+/// list's page) right after the list.
 fn comp_pages() -> Vec<Page> {
     let mut v: Vec<Page> = (0..COMPONENTS.len()).map(Page::Comp).collect();
     v.insert(pages::LIST + 1, Page::LongList);
     v
 }
 
-/// The rail's groups and their pages: those of the current page's section only (the sections
-/// themselves are in the page's navigation bar).
-fn groups(section: Section) -> Vec<(String, Vec<Page>)> {
+/// The Components rail's six groups (registry.json's `group`, shadcn's way) and their components.
+pub fn comp_groups() -> Vec<(String, Vec<Page>)> {
     let tr = amenui::i18n::tr;
-    match section {
-        Section::Home => vec![],
-        Section::Docs => {
-            let mut v: Vec<(String, Vec<Page>)> = routes::DOC_GROUPS.iter().map(|(g, key)| (tr(key), (0..docs::DOCS.len() as u8).filter(|&i| routes::doc_group(docs::DOCS[i as usize]) == *g).map(Page::Doc).collect())).collect();
-            v[3].1.extend([Page::Registry, Page::Ai(0), Page::Ai(1)]);
-            v.push((tr("nav.release-notes"), vec![Page::Ai(2)]));
-            v
-        }
-        Section::Components => {
-            // The components in six groups (registry.json's `group`), shadcn's way.
-            let comps: Vec<Page> = (0..COMPONENTS.len()).map(Page::Comp).chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
-            let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
-            docs::GROUPS.iter().map(|(g, key)| (tr(key), comps.iter().filter(|p| docs::group_of(&name_of(p)) == *g).copied().collect())).collect()
-        }
-        Section::Lab => vec![
-            (tr("nav.experiments"), std::iter::once(Page::Lab).chain((0..lab::COUNT as u8).map(Page::Experiment)).chain([Page::Decode, Page::Stirr]).collect()),
-            (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style)).collect()),
-            (tr("nav.marks"), set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks).collect()),
-            (tr("nav.materials"), (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
-            (tr("nav.annotation"), vec![Page::Gaze, Page::Type]),
-            (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
-        ],
-        Section::Scenes => vec![(tr("nav.scenes"), std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect())],
-    }
+    let comps: Vec<Page> = (0..COMPONENTS.len()).map(Page::Comp).chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
+    let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
+    docs::GROUPS.iter().map(|(g, key)| (tr(key), comps.iter().filter(|p| docs::group_of(&name_of(p)) == *g).copied().collect())).collect()
+}
+/// The Lab's three groups and their pages, in the order the path strip steps through them. The
+/// skeleton demo is in none (it is reached by its path only).
+pub fn lab_groups() -> Vec<(String, Vec<Page>)> {
+    let tr = amenui::i18n::tr;
+    vec![
+        (tr("nav.experiments"), lab::experiments()),
+        (tr("nav.looks"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style))
+            .chain(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks)).chain((0..MATERIAL_COUNT as u8).map(Page::Material)).chain([Page::Gaze, Page::Type]).collect()),
+        (tr("nav.motion"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
+    ]
 }
 
+/// The group of the rail that holds the page.
+fn comp_group_of(p: Page) -> Option<usize> {
+    let p = if p == Page::LongList { Page::Comp(pages::LIST) } else { p };
+    comp_groups().iter().position(|g| g.1.contains(&p))
+}
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
-    let on = s.page == p;
+    let on = s.page == p || (p == Page::Comp(pages::LIST) && s.page == Page::LongList);
     let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripplr(amenui::el::Scope::Global)
         .child(text(p.name(), 14.0, if on { Paint::ACCENT } else { Paint::TEXT }));
-    // A style page changes the whole look: the change spreads from the item pressed.
-    if matches!(p, Page::Style(_) | Page::Scene(_)) { item = item.commit(); }
     // The selection is one thing that moves from item to item when the page changes.
     if on { item = item.fill(SELECTED).flow("rail-selection"); }
     item
 }
-
-fn rail(s: &Gallery) -> El<Msg> {
-    let mut r = col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0).calm().material(Material::Plain.id());
-    for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
-        if gi > 0 { r = r.child(space(1.0, 14.0)); }
-        r = r.child(row().key(format!("rail/group/{gi}")).pad(12.0, 4.0).child(text(name, 12.0, Paint::DIM)));
-        for p in pages { r = r.child(rail_item(s, p, 30.0)); }
+/// The rail's groups into `r`: each group's name, which opens or closes it; only one is open, the
+/// current page's unless another was opened.
+fn rail_items(s: &Gallery, mut r: El<Msg>) -> El<Msg> {
+    let open = s.rail_open.unwrap_or_else(|| comp_group_of(s.page));
+    for (gi, (name, pages)) in comp_groups().into_iter().enumerate() {
+        let is = open == Some(gi);
+        r = r.child(row().key(format!("rail/group/{gi}")).height(30.0).pad(12.0, 0.0).gap(8.0).align(AlignItems::CENTER).radius(4.0)
+            .on_press(Msg::RailGroup(gi)).role(amenui::el::Role::Button)
+            .child(text(name, 12.0, if is { Paint::INK } else { Paint::DIM }).font(amenui::el::Font::Mono))
+            .child(space(0.0, 0.0).grow(1.0))
+            .child(text(format!("{}", pages.len()), 11.0, Paint::DIM).font(amenui::el::Font::Mono)));
+        if is { for p in pages { r = r.child(rail_item(s, p, 30.0)); } }
     }
     r
 }
+fn rail(s: &Gallery) -> El<Msg> {
+    rail_items(s, col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0).calm().material(Material::Plain.id()))
+}
 
-/// The rail on narrow windows: one row that scrolls sideways, the group names as dim labels.
-fn rail_row(s: &Gallery) -> El<Msg> {
-    let mut r = row().key("rail").fill_width().scroll_x().bar().pad(12.0, 6.0).gap(4.0).align(AlignItems::CENTER).calm().material(Material::Plain.id());
-    for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
-        r = r.child(row().key(format!("rail/group/{gi}")).pad(if gi > 0 { 12.0 } else { 4.0 }, 0.0).child(text(name, 12.0, Paint::DIM)));
-        for p in pages { r = r.child(rail_item(s, p, 32.0)); }
+/// A link in a strip: dim, ink when it is where one is.
+fn strip_link(key: String, label: String, here: bool, m: Msg) -> El<Msg> {
+    // A style page changes the whole look: the change spreads from the link pressed.
+    let commit = matches!(m, Msg::Go(Page::Style(_) | Page::Scene(_)));
+    let l = row().key(key).height(36.0).align(AlignItems::CENTER).on_press(m).role(amenui::el::Role::Link)
+        .child(text(label, 11.0, if here { Paint::INK } else { Paint::TEXT }).font(amenui::el::Font::Mono));
+    if commit { l.commit() } else { l }
+}
+fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, Paint::DIM).font(amenui::el::Font::Mono) }
+/// The Lab's path strip: `lab / experiments / lumen` on the left, `← contours · silk →` on the right.
+fn lab_strip(s: &Gallery) -> El<Msg> {
+    let tr = amenui::i18n::tr;
+    let low = |t: String| t.to_lowercase();
+    let mut left = row().key("strip/path").gap(8.0).align(AlignItems::CENTER)
+        .child(strip_link("strip/lab".into(), low(tr("nav.lab")), false, Msg::Go(Page::Lab)));
+    let mut right = row().key("strip/steps").gap(8.0).align(AlignItems::CENTER);
+    let groups = lab_groups();
+    if let Some((name, pages)) = groups.iter().find(|g| g.1.contains(&s.page)) {
+        let at = pages.iter().position(|p| *p == s.page).unwrap_or(0);
+        left = left.child(sep("/")).child(strip_link("strip/group".into(), low(name.clone()), false, Msg::Go(Page::Lab)));
+        let n = pages.len();
+        let (prev, next) = (pages[(at + n - 1) % n], pages[(at + 1) % n]);
+        right = right.child(strip_link("strip/prev".into(), format!("← {}", low(prev.name())), false, Msg::Go(prev))).child(sep("·"))
+            .child(strip_link("strip/next".into(), format!("{} →", low(next.name())), false, Msg::Go(next)));
     }
-    r
+    // Where one is: the one part of the strip that changes, and moves, from page to page.
+    left = left.child(sep("/")).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here").flow("strip-here"));
+    row().key("strip").fill_width().height(36.0).pad(if s.width < NARROW { 16.0 } else { 32.0 }, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
+        .child(left).child(space(0.0, 0.0).grow(1.0)).child(if s.width < NARROW { space(0.0, 0.0) } else { right })
+}
+/// The Components strip on a phone: `components / inputs / button ▾`, which opens the rail as a sheet.
+fn comp_strip(s: &Gallery) -> El<Msg> {
+    let tr = amenui::i18n::tr;
+    let low = |t: String| t.to_lowercase();
+    let mut path = row().key("strip/path").gap(8.0).align(AlignItems::CENTER)
+        .child(strip_link("strip/components".into(), low(tr("nav.components")), s.page == Page::Components, Msg::Go(Page::Components)));
+    if let Some(g) = comp_group_of(s.page) { path = path.child(sep("/")).child(text(low(comp_groups()[g].0.clone()), 11.0, Paint::TEXT).font(amenui::el::Font::Mono)); }
+    if s.page != Page::Components { path = path.child(sep("/")).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here")); }
+    row().key("strip").fill_width().height(36.0).pad(16.0, 0.0).gap(8.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
+        .child(path).child(space(0.0, 0.0).grow(1.0))
+        .child(strip_link("strip/sheet".into(), if s.sheet { "▴".into() } else { "▾".into() }, s.sheet, Msg::Sheet(!s.sheet)))
 }
 
 pub type GalleryUi = amenui::ui::Ui<Gallery, Msg>;
@@ -908,12 +970,9 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
             if k == amenui::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
-            if docs::search_key(s, k) { return true; }
-            if k == amenui::el::Key::Char('/') && s.page != Page::Body { update(s, Msg::Search(true)); return true; }
             body::key(s, k) || scenes::key(s, k, shift)
         })
         .on_input(|g| scenes::heard(g) | body::heard(g))
         .on_key_up(scenes::key_up)
-        .on_shortcut(|s, c| { if c == 'k' { update(s, Msg::Search(!s.search)); true } else { false } })
         .on_scrolled(docs::scrolled)
 }

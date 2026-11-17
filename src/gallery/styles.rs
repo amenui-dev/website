@@ -288,7 +288,7 @@ const COMMANDS: [(&str, &str); 8] = [
 fn cyber(s: &Gallery, h: &str) -> El<Msg> {
     let q = s.query.text.to_lowercase();
     let hits: Vec<&(&str, &str)> = COMMANDS.iter().filter(|(c, d)| q.is_empty() || c.contains(&q) || d.contains(&q)).collect();
-    let w = (s.width - if s.width < super::NARROW { 40.0 } else { super::RAIL + 100.0 }).clamp(280.0, 560.0);
+    let w = (s.width - if s.width < super::NARROW { 40.0 } else { super::side(s) + 100.0 }).clamp(280.0, 560.0);
     let mut results = col().key(format!("{h}/results")).width(w).gap(0.0);
     let sel = s.row.unwrap_or(0).min(hits.len().saturating_sub(1));
     for (i, (c, d)) in hits.iter().enumerate() {

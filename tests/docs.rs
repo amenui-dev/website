@@ -66,7 +66,7 @@ fn every_internal_link_resolves() {
         for e in std::fs::read_dir(format!("{root}/{dir}")).unwrap() {
             let p = e.unwrap().path();
             for l in amenui::markdown::links(&std::fs::read_to_string(&p).unwrap()) {
-                if l.starts_with('#') { assert!(Page::from_hash(&l).is_some(), "{}: {l} is no page", p.display()); n += 1; }
+                if l.starts_with('#') { assert!(Page::from_hash(&l).is_some() || website::gallery::routes::doc_redirects().iter().any(|(h, _)| *h == l[1..]), "{}: {l} is no page", p.display()); n += 1; }
             }
         }
     }

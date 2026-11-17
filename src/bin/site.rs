@@ -28,6 +28,7 @@ fn main() {
     }
     let mut redirects = serde_json::Map::new();
     for p in Page::all() { redirects.insert(p.hash(), p.path().into()); }
+    for (h, path) in routes::doc_redirects() { redirects.insert(h, path.into()); }
     redirects.insert("gallery".into(), "components/".into());
     let b = body::Body::default();
     let listing = b.listing();

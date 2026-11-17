@@ -75,8 +75,8 @@ fn a_ripple_asks_for_frames_until_it_is_spent() {
     // Three idle seconds: nothing drawn.
     assert_eq!(run(&mut ui, 6.0), 0);
     // Plain ground sends no front (DESIGN.md §1.15).
-    ui.press(900.0, 700.0);
-    ui.release(900.0, 700.0);
+    ui.press(1250.0, 780.0);
+    ui.release(1250.0, 780.0);
     assert!(!ui.field().fronts.iter().any(|f| f[3] > 0.0), "a press on the ground sent a front");
     // A press on a button: a front over the button.
     let k = ui.nodes().iter().find(|n| n.pressable() && n.key.ends_with("live")).map(|n| n.key.clone()).expect("the live button");
