@@ -1,6 +1,6 @@
 # 等值线
 
-一个场的等值线：缓慢漂移的噪声加上指针下的一个鼓包，在 61 × 39 的网格上取样，用 marching squares 连成折线，画成笔画。
+一个场的等值线：缓慢漂移的噪声加上指针下的一个鼓包，在 61 × 46 的网格上取样，用 marching squares 连成折线，画成笔画。
 
 ## 公式
 
@@ -21,4 +21,6 @@ f(x, y) = n(x/s, y/s, t) + a · e^(−|p − m|²/r²)
 
 ## 怎么做的
 
-`field::Grid::sample` 和 `Grid::contours`；`Drawing::contours` 把它们变成笔画。 代码在 `examples/lab/contours.rs`。
+这个场由两部分相加：随时间缓慢漂移的 `field::Noise`，和指针下的高斯鼓包 `field::Bump`，鼓包的高度随指针进入和离开渐入渐出。`field::Grid::sample` 在每个节点上取样；`Grid::contours` 在 `n` 个层级上各跑一遍 marching squares，把线段连成折线，`Drawing::contours` 把它们变成笔画。
+
+被鼓包弯过的线用强调色，所以在漂移的噪声里也能看出指针的作用。`s` 小时线又密又碎，大时只剩几条宽缓的线。代码在 `examples/lab/contours.rs`。

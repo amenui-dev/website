@@ -21,4 +21,6 @@
 
 ## 怎么做的
 
-`field::Balls` 是一个标量场；`Drawing::dots` 和 `Drawing::contours` 画它。 代码在 `examples/lab/mercury.rs`。
+`field::Balls` 是一个标量场：三个漂移的球加上指针的球，对每个球求 rᵢ²/dᵢ² 再相加。`field::Grid::sample` 取样，`Drawing::contours` 在 1 处画表面、在 0.6 处画一条淡淡的外圈，`Drawing::dots` 用点填满内部，场越强点越大。
+
+指针的球骑在一个弹簧上（`k`、`c`）；指针离开时，它带着原来的速度弹回中间。靠近指针的线和点用强调色。公式那一行还显示指针处场的值，进入一个球时它越过 1。代码在 `examples/lab/mercury.rs`。

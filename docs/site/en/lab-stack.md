@@ -20,4 +20,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-Each card has its own spring with velocity hand-off (DESIGN.md §1.24). The code is `examples/lab/stack.rs`.
+Each card has its own spring with velocity hand-off (DESIGN.md §1.24): when the pointer moves to another card before the fan has settled, the springs keep the speed they had and turn toward the new target instead of starting again from rest. Card *n* starts *delay × n* after the first, so the fan opens from the top card down and closes the same way.
+
+The cards are drawn in the lab's look, near the ground with a hairline outline; the card under the pointer takes the accent. Turning `falloff` to 1 gives every card the same angle, and a `delay` of 0 moves them all at once. The code is `examples/lab/stack.rs`.

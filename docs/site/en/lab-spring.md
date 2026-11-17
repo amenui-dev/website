@@ -20,4 +20,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-`gesture::Animated::hold` follows the finger; `to(x₀, v, now)` hands the throw to the spring. The code is `examples/lab/spring.rs`.
+`gesture::Animated::hold` makes the mass follow the finger while it is pressed, and a velocity tracker measures how fast it was moving. On release, `to(x₀, v, now)` hands that speed to the spring, so a throw keeps its momentum instead of stopping dead. The spring is solved exactly at each frame, not stepped, so it is the same at any frame rate.
+
+The formula line shows the damping ratio ζ as it changes: below 1 the mass overshoots and rings, at 1 it returns as fast as it can without overshooting, above 1 it creeps back. The trace under the track is the last two seconds of position. The code is `examples/lab/spring.rs`.

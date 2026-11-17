@@ -1,6 +1,6 @@
 # Flow: text on a path
 
-One line of text on a travelling wave, with a bump the pointer pulls into it. Every glyph sits on the curve turned to its tangent.
+Four lines of text on a travelling wave, with a bump the pointer pulls into them. Every glyph sits on the curve turned to its tangent.
 
 ## Formula
 
@@ -21,4 +21,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-`El::pose` with `dy` and `angle`: the glyph's instance carries its own transform (`Instance::xf`). The code is `examples/lab/flow.rs`.
+`El::pose` gives each glyph a vertical offset `dy` and an `angle`: the glyph's instance carries its own transform (`Instance::xf`), so it is drawn turned with its true outline, not as a rotated picture. The angle is the arctangent of the curve's slope at the glyph's centre.
+
+Four lines spread down the stage, each riding the wave a little behind the one above. Near the pointer, the nearest line's baseline is pulled toward it with a Gaussian of width `σ`, and the pulled glyphs take the accent. An `A` of 0 flattens the wave and leaves only the pull. The code is `examples/lab/flow.rs`.

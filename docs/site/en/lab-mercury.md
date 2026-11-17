@@ -21,4 +21,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-`field::Balls` is a scalar field; `Drawing::dots` and `Drawing::contours` draw it. The code is `examples/lab/mercury.rs`.
+`field::Balls` is a scalar field: the sum of rᵢ²/dᵢ² over three drifting balls and the pointer's ball. `field::Grid::sample` samples it, `Drawing::contours` draws the surface at 1 and a faint outer line at 0.6, and `Drawing::dots` fills the inside with dots that grow as the field rises.
+
+The pointer's ball rides a spring (`k`, `c`); when the pointer leaves, it springs back to the middle with the speed it had. Near the pointer, lines and dots take the accent. The formula line also shows the field's value at the pointer, which passes 1 as you enter a ball. The code is `examples/lab/mercury.rs`.

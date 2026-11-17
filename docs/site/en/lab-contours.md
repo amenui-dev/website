@@ -1,6 +1,6 @@
 # Contours
 
-Iso-lines of a field: drifting noise plus a bump under the pointer, sampled on a 61 × 39 grid and traced by marching squares into polylines, drawn as strokes.
+Iso-lines of a field: drifting noise plus a bump under the pointer, sampled on a 61 × 46 grid and traced by marching squares into polylines, drawn as strokes.
 
 ## Formula
 
@@ -21,4 +21,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-`field::Grid::sample` and `Grid::contours`; `Drawing::contours` turns them into strokes. The code is `examples/lab/contours.rs`.
+The field is the sum of two parts: `field::Noise`, which drifts slowly with time, and `field::Bump`, a Gaussian under the pointer whose height fades in and out as the pointer arrives and leaves. `field::Grid::sample` samples it at every node; `Grid::contours` runs marching squares at each of the `n` levels and joins the segments into polylines, and `Drawing::contours` turns them into strokes.
+
+Where the bump bends a line, the line takes the accent, so the pointer's effect stays visible against the drifting noise. A small `s` gives tight, busy lines; a large one gives a few broad ones. The code is `examples/lab/contours.rs`.

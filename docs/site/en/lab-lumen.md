@@ -20,4 +20,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-`El::pose` asks each glyph's pose from its centre; the tone is multiplied, the outline untouched. The code is `examples/lab/lumen.rs`.
+The text is one block of small monospaced type. `El::pose` asks each glyph's pose from its centre, and the pose returns only a tone: the glyph's colour is multiplied by `L(d)`, while its outline and position are untouched. That is why the dim text is still readable letters, not dissolved ones.
+
+The light follows the pointer on a spring. When nobody is there, it wanders over the text in a slow figure of eight at speed `ω`. Where the pointer holds the light, the brightest part of the beam takes the accent. `L0` is the tone everything falls back to; at 1 the light has no effect. The code is `examples/lab/lumen.rs`.

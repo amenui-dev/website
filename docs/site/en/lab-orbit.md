@@ -21,4 +21,6 @@ Every number is a number control under the cell (type, arrow keys, drag sideways
 
 ## How it is made
 
-A drawing of dots and ring strokes (`Drawing::dot`, `Drawing::polyline`). The code is `examples/lab/orbit.rs`.
+Ninety dots sit on four elliptical rings. Each one's angle advances at its Kepler speed, so the inner rings lap the outer ones; on top of that every dot carries an offset with its own velocity, pushed by the pointer's pull and held by a damped spring (`k` and `c`). The `+ 64` in the pull keeps it finite when the pointer is right on a dot.
+
+When the pointer leaves, the pull fades and the springs bring every dot back onto its ring. Dots near the pointer take the accent. Everything is one drawing of dots and ring strokes (`Drawing::dot`, `Drawing::polyline`). The code is `examples/lab/orbit.rs`.
