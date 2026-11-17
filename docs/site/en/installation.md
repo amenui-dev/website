@@ -12,19 +12,20 @@ cargo test --release
 cargo run --release --bin check
 ```
 
-The window opens on the page named after `--`: `body` (the landing scene), a component such as `button`, or a `look:v1:` recipe.
+The window opens on the page named after `--`: `body` (the landing scene), a component such as `button`, or a `look:v2:` recipe.
 
 ## The web (wasm bundle)
 
-WebGPU when the browser has it, else WebGL2. The build writes one self-contained page, `dist/index.html`, with the module, the font subsets and the glue inlined.
+WebGPU when the browser has it, else WebGL2. The build writes the site to `dist/site/`: one small HTML page per address, the glue script, the module and the font subsets as separate files with content hashes in their names.
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
-wasm-bindgen --target no-modules --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/amenui.wasm
-python3 web/build.py
+wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+BASE=/ python3 web/build.py
+python3 -m http.server -d dist/site
 ```
 
-The page follows its address: `#button` opens a component, `#look:v1:…` applies a recipe.
+`BASE` is where the site is served (`/` on its own domain). The page follows its address: `/components/button/` opens a component, `/zh-Hans/…` the same page in Chinese, and `#look:v2:…` applies a recipe.
 
 ## Embedding: `<amenui-view>`
 
@@ -35,8 +36,8 @@ One `<amenui-view>` per document: the module holds one runtime and one renderer.
 | Attribute | What it does |
 |---|---|
 | `page` | The page to show: a component's name (`button`), `body`, any page's hash. |
-| `recipe` | A `look:v1:` recipe: the look it describes. |
-| `theme`, `material` | By name, as the render tool takes them (`dark`, `dot`). |
+| `recipe` | A `look:v2:` recipe: the look it describes. |
+| `theme`, `material` | By name, as the render tool takes them (`dark`, `dottr`). |
 | `locale` | `zh-Hans` or `en`. |
 
 It fires `amenui-ready` once it draws and `amenui-route` (with `detail.page`) whenever the page changes inside it, and it follows its own box as it is resized. One per document.

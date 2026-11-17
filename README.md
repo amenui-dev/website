@@ -50,9 +50,10 @@ wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir
 python3 web/build.py
 ```
 
-Open `dist/index.html`, optionally with a page name (`dist/index.html#dialog`). `dist/artifact.html` is
-the same content as a single file without the shell. The page has one canvas; the shell forwards
-pointer, wheel, keyboard, resize and the page name in the address to the framework.
+`BASE=/ python3 web/build.py` writes the site to `dist/site/` (BASE is where it is served; the
+default is `/website/`, for GitHub Pages). Serve it with `python3 -m http.server -d dist/site` and open
+a page by its path (`/components/dialog/`). The shell forwards pointer, wheel, keyboard, resize and the
+address to the framework.
 
 ## Tools
 
@@ -91,7 +92,7 @@ On macOS the window has only been type-checked (`cargo check --target aarch64-ap
 ## Deployment
 
 Every push to `main` runs `.github/workflows/deploy.yml`, which builds the web version and puts
-`index.html` and `embed-example.html` on the `gh-pages` branch. GitHub Pages serves that branch
+`dist/site/` (every page, the docs, the module and the fonts) on the `gh-pages` branch. GitHub Pages serves that branch
 directly ("Deploy from a branch → gh-pages / (root)").
 
 ## License

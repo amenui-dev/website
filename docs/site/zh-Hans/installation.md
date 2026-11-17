@@ -12,19 +12,20 @@ cargo test --release
 cargo run --release --bin check
 ```
 
-窗口打开 `--` 后面写的页面：`body`（落地的场景）、一个组件（比如 `button`），或者一个 `look:v1:` 配方。
+窗口打开 `--` 后面写的页面：`body`（落地的场景）、一个组件（比如 `button`），或者一个 `look:v2:` 配方。
 
 ## 网页（wasm 包）
 
-浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。构建写出一个自带一切的页面 `dist/index.html`：模块、字体子集和胶水都内嵌在里面。
+浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。构建把网站写到 `dist/site/`：每个地址一个小 HTML 页面，加上胶水脚本、模块和字体子集，各自是单独的文件，文件名里带内容哈希。
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
-wasm-bindgen --target no-modules --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/amenui.wasm
-python3 web/build.py
+wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+BASE=/ python3 web/build.py
+python3 -m http.server -d dist/site
 ```
 
-页面跟着地址走：`#button` 打开一个组件，`#look:v1:…` 套用一个配方。
+`BASE` 是网站所在的路径（在自己的域名上是 `/`）。页面跟着地址走：`/components/button/` 打开一个组件，`/zh-Hans/…` 是同一页的中文版，`#look:v2:…` 套用一个配方。
 
 ## 嵌进别的页面：`<amenui-view>`
 
@@ -35,8 +36,8 @@ python3 web/build.py
 | 属性 | 作用 |
 |---|---|
 | `page` | 显示哪一页：组件名（`button`）、`body`，或任何页面的 hash。 |
-| `recipe` | 一个 `look:v1:` 配方：套用它描述的外观。 |
-| `theme`、`material` | 按名字，和渲染工具接受的一样（`dark`、`dot`）。 |
+| `recipe` | 一个 `look:v2:` 配方：套用它描述的外观。 |
+| `theme`、`material` | 按名字，和渲染工具接受的一样（`dark`、`dottr`）。 |
 | `locale` | `zh-Hans` 或 `en`。 |
 
 它开始画时发出 `amenui-ready`，里面换页时发出 `amenui-route`（`detail.page` 是页面）；它跟着自己的盒子改变大小。一个文档里放一个。

@@ -1,5 +1,7 @@
 # Project structure
 
+Where things are in the amenui repository: the runtime, the renderer and its shader, the components and the tools.
+
 | Where | What |
 |---|---|
 | `src/el.rs` | the element tree and its builders |
