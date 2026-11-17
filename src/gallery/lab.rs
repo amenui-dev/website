@@ -106,7 +106,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     }
     // The other experiments, the Looks and the Motion pages as cards.
     let mut more = index::grid("labx/more", room, 240.0);
-    for (k, p) in groups[0].1.iter().skip(COUNT).enumerate() { more = more.child(index::card(&format!("labx/{}", p.hash()), COUNT + k + 1, p.name(), String::new(), None, *p)); }
+    for (k, p) in groups[0].1.iter().skip(COUNT).enumerate() { more = more.child(index::card(&format!("labx/{}", p.hash()), COUNT + k + 1, p.name(), String::new(), still(*p), *p)); }
     let looks = |s: &Gallery| {
         let mut g = index::grid("labx/looks", room, 240.0);
         let marks: Vec<Page> = groups[1].1.iter().copied().filter(|p| matches!(p, Page::Marks(_))).collect();
@@ -115,8 +115,8 @@ pub fn page(s: &Gallery) -> El<Msg> {
         g = g.child(index::card_links("labx/look0", 1, Page::Presets.name(), styles, Page::Presets))
             .child(index::card_links("labx/look1", 2, tr("nav.marks"), marks.clone(), marks[0]))
             .child(index::card_links("labx/look2", 3, tr("nav.materials"), mats.clone(), mats[0]))
-            .child(index::card("labx/look3", 4, Page::Gaze.name(), String::new(), None, Page::Gaze))
-            .child(index::card("labx/look4", 5, Page::Type.name(), String::new(), None, Page::Type));
+            .child(index::card("labx/look3", 4, Page::Gaze.name(), String::new(), still(Page::Gaze), Page::Gaze))
+            .child(index::card("labx/look4", 5, Page::Type.name(), String::new(), still(Page::Type), Page::Type));
         let _ = s;
         g
     };
@@ -146,4 +146,53 @@ pub fn doc(name: &str, l: amenui::i18n::Locale) -> &'static str {
     let en = l == amenui::i18n::Locale::En;
     macro_rules! pick { ($($n:literal),*) => { match name { $( $n => if en { include_str!(concat!("../../docs/site/en/lab-", $n, ".md")) } else { include_str!(concat!("../../docs/site/zh-Hans/lab-", $n, ".md")) }, )* _ => "" } } }
     pick!("lumen", "contours", "silk", "grown", "mercury", "flow", "loupe", "orbit", "spring", "stack")
+}
+
+/// What a Lab card without a cell of its own shows, drawn small and still: a few lines of the
+/// reader's page, the decode's blocks half way through, the field map's dots, a dimension line with
+/// its number (annotation), one word at three sizes (type).
+fn still(p: super::Page) -> Option<El<Msg>> {
+    use super::Page;
+    use amenui::draw::Drawing;
+    use amenui::el::{canvas, row, text_lh};
+    let (w, h) = (200.0, 96.0);
+    Some(match p {
+        Page::Reader => text_lh("The reader sets a page in one face at one measure. Lines break by whole words; a long one turns the page.", 11.0, 18.0, Paint::TEXT)
+            .font(Font::Mono).width(w).key("labx/reader/still"),
+        Page::Decode => {
+            let spec = amenui::decode::Decode { tiers: vec![24.0, 12.0, 6.0], stagger_ms: 110.0, duration_ms: 760.0, seed: 7, hold: None };
+            let cells: Vec<(f32, f32)> = (0..(h / 6.0) as usize).flat_map(|j| (0..(w / 6.0) as usize).map(move |i| (i as f32 * 6.0, j as f32 * 6.0)))
+                .filter(|&(x, y)| amenui::field::noise(x / 40.0, y / 40.0) > 0.45).collect();
+            let plan = spec.plan(&cells, 1.0);
+            let mut d = Drawing::new(w, h);
+            for b in plan.at(0.55) {
+                let paint = Paint { tone: 1.0, accent: 1.0, alpha: 1.0, hue: b.hue };
+                for r in 0..(b.size / 2.0).round().max(1.0) as u32 {
+                    let y = b.y + 1.0 + r as f32 * 2.0;
+                    d.line((b.x + 1.0, y), (b.x + b.size - 1.0, y), 2.0, paint);
+                }
+            }
+            canvas(d).width(w).key("labx/decode/still")
+        }
+        Page::Stirr => {
+            let mut d = Drawing::new(w, h);
+            let f = |x: f32, y: f32| amenui::field::noise(x / 36.0, y / 36.0);
+            d.dots(&f, 6.0, |v| (0.4 + 2.4 * v).clamp(0.0, 2.6), |_, _, _| Paint::INK);
+            canvas(d).width(w).key("labx/stirr/still")
+        }
+        Page::Gaze => {
+            // A dimension line: the extent between two ticks, its number above.
+            let mut d = Drawing::new(w, 14.0);
+            d.line((1.0, 7.0), (w - 1.0, 7.0), 1.0, Paint::TEXT);
+            for x in [1.0, w - 1.0] { d.line((x, 1.0), (x, 13.0), 1.0, Paint::TEXT); }
+            col().key("labx/gaze/still").width(w).gap(6.0).align(taffy::AlignItems::CENTER)
+                .child(text("200", 11.0, Paint::TEXT).font(Font::Mono))
+                .child(canvas(d).width(w))
+        }
+        Page::Type => row().key("labx/type/still").gap(14.0).align(taffy::AlignItems::BASELINE)
+            .child(text("Type", 12.0, Paint::TEXT).font(Font::Display))
+            .child(text("Type", 20.0, Paint::TEXT).font(Font::Display))
+            .child(text("Type", 34.0, Paint::INK).font(Font::Display)),
+        _ => return None,
+    })
 }

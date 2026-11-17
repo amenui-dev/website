@@ -42,6 +42,7 @@ nav.looks = 外观
 nav.motion = 动效
 nav.reader = 阅读器
 nav.components = 组件
+index.components.lead = 六组组件，每一个都是实时画出来的。打开一个，看它的变体、参数和源码。
 nav.styles = 风格 / 预设
 nav.ai = 给 AI
 nav.changelog = 更新记录

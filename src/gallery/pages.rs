@@ -271,6 +271,35 @@ fn ripple(s: &Gallery) -> El<Msg> {
 /// The live preview of a component and its variants.
 /// Component `c`'s live preview (its specimen's stage).
 pub fn live(s: &Gallery, c: usize) -> El<Msg> { component(s, c).0 }
+/// What a component's card on `/components/` draws: one instance at its natural size, small enough
+/// for the narrowest card (the number is its field and steps, the input one line, the choice one
+/// segmented control, the switch its track); the rest are their live previews.
+pub fn index_preview(s: &Gallery, c: usize) -> El<Msg> {
+    let k = |n: &str| format!("index/{}/{n}", COMPONENTS[c].hash);
+    let ratio = |id: u32| { let (w, h) = PICTURE_SIZES[id as usize]; h as f32 / w as f32 };
+    match c {
+        BUTTON => row().gap(12.0).align(AlignItems::CENTER)
+            .child(button_as(k("live"), "Press", Variant::Default, Msg::Press))
+            .child(button_as(k("live-accent"), "Save", Variant::Accent, Msg::Press)),
+        NUMBER => number(&k("live"), "", s.value, number_spec(s), s.draft(Target::Value), |e| Msg::Num(Target::Value, e)),
+        INPUT => input(&k("live"), &s.text, "Type some text", 200.0, s.param(INPUT, 1) as usize, Msg::Text),
+        SWITCH => switch_sized(k("live"), "", s.on, None, 22.0, Msg::Switch),
+        SLIDER => slider(&k("live"), s.level, slider_spec(s), 200.0, Msg::Level).label("Value"),
+        TABS => tabs(&k("live"), &["All", "Images", "Text"], s.tab.min(2), 14.0, 2.0, Msg::Tab, text("Content", 13.0, Paint::DIM).key(k("panel"))).width(200.0),
+        CHOICE => segmented(&k("live"), &["Small", "Medium", "Large"], s.pick, 30.0, Msg::Pick),
+        LIST => list(&k("live"), &[("Photo", "JPG"), ("Notes", "MD"), ("Voice", "M4A")], s.row, 28.0, 84.0, Msg::Row).width(200.0),
+        CARD => card(k("live"), Some("Title"), text("Related content, together.", 13.0, Paint::TEXT)).width(200.0),
+        DIALOG => button_as(k("open"), "Rename…", Variant::Default, Msg::Dialog(1)),
+        IMAGE => col().width((100.0 / ratio(BUST)).min(200.0)).child(picture(BUST, ratio(BUST)).key(k("live")).markr(IMAGE_SLOT)),
+        DIVIDER => col().width(200.0).gap(10.0).child(text("Above", 13.0, Paint::TEXT)).child(divider(1.0)).child(text("Below", 13.0, Paint::TEXT)),
+        SCROLL => {
+            let mut c = col().key(k("lines")).gap(6.0);
+            for i in 0..3 { c = c.child(text(format!("Line {} of the area.", i + 1), 13.0, Paint::TEXT)); }
+            scroll_area(&k("live"), 92.0, c).width(200.0)
+        }
+        _ => live(s, c),
+    }
+}
 fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
     let h = COMPONENTS[c].hash;
     let k = |n: &str| format!("{h}/{n}");

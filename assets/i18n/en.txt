@@ -42,6 +42,7 @@ nav.looks = Looks
 nav.motion = Motion
 nav.reader = Reader
 nav.components = Components
+index.components.lead = Every component in six groups, each drawn live. Open one for its variants, its parameters and its source.
 nav.styles = Styles and presets
 nav.ai = For AI
 nav.changelog = Changelog

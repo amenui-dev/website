@@ -904,7 +904,7 @@ fn rail_items(s: &Gallery, mut r: El<Msg>) -> El<Msg> {
     r
 }
 fn rail(s: &Gallery) -> El<Msg> {
-    rail_items(s, col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0).calm().material(Material::Plain.id()))
+    rail_items(s, col().key("rail").width(RAIL).fill(Paint::GROUND).scroll().bar().pad(12.0, 16.0).gap(2.0).calm().material(Material::Plain.id()))
 }
 
 /// A link in a strip: dim, ink when it is where one is.
