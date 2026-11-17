@@ -33,6 +33,8 @@ fn main() {
     let b = body::Body::default();
     let listing = b.listing();
     let locales: Vec<Value> = website::LOCALES.iter().map(|l| json!({ "tag": l.tag(), "name": l.name() })).collect();
-    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "listing": listing, "glyphs": b.glyphs() });
+    // A phone's listing by the body's radius: [lines, least radius px], most lines first.
+    let phone: Vec<Value> = body::phone_table().iter().map(|&(_, lines, r)| json!([lines, (r * 10.0).ceil() / 10.0])).collect();
+    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "listing": listing, "glyphs": b.glyphs(), "phone": phone });
     println!("{}", serde_json::to_string(&out).expect("json"));
 }

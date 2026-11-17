@@ -69,12 +69,14 @@ a { color: inherit; text-decoration: none; }
 ::view-transition-group(*) { animation-duration: 180ms; }
 @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
 /*/chrome*/
-/* The canvas: under the bar, or the whole window behind it on home and in Scenes. */
+/* The canvas: under the bar, or the whole window behind it on home and in Scenes. It draws its own
+   focus marks, so it has no outline of its own. */
 #stage { position: fixed; left: 0; right: 0; bottom: 0; top: 48px; }
 .home #stage { top: 0; }
 @media (max-width: 719px) { #stage { top: 44px; } }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; opacity: 0; transition: opacity .3s; }
 .ready canvas { opacity: 1; }
+canvas:focus-visible { outline: none; }
 .home canvas { transition: none; }
 /* The text agent (an invisible field at the caret while a text field has focus) and the accessibility
    mirror (the interface's roles and names, invisible but not hidden from assistive technology). */
@@ -83,7 +85,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
 
 /* Home: the text block in columns 1 to 5 (1 to 7 on a middle width, under the rail on a phone). */
-:root { --hw: min(520px, calc((var(--fw) - 2 * var(--m) - 11 * 24px) / 12 * 5 + 96px)); --st: clamp(210px, 38vh, 238px); --sx: calc(var(--fx) + var(--m) + var(--hw) + 48px); }
+:root { --hw: min(520px, calc((var(--fw) - 2 * var(--m) - 11 * 24px) / 12 * 5 + 96px)); --st: max(340px, 44vh); --sx: calc(var(--fx) + var(--m) + var(--hw) + 48px); }
 @media (max-width: 1079px) { :root { --hw: min(440px, calc((100vw - 2 * var(--m) - 11 * 24px) / 12 * 7 + 144px)); } }
 .hero { position: fixed; z-index: 2; left: calc(var(--fx) + var(--m)); top: 50%; transform: translateY(-50%); width: var(--hw); display: none; }
 .home .hero { display: block; }
@@ -166,11 +168,12 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .status [hidden] { display: none; }
 /* On a phone the open readout's quality choice takes the line's place (the readout shows its numbers). */
 @media (max-width: 719px) { .status.open .line { display: none; } .status .quality { margin-right: 0; } }
+/* On a phone's home page the status line is the page's last line, at its right, as on desktop. */
+@media (max-width: 719px) { .home .status { position: relative; order: 4; right: auto; bottom: auto; align-self: flex-end; margin: 0 16px 8px; } }
 /* Off home the canvas stops above the status line. */
 html:not(.home) #stage { bottom: 28px; }
 /* Off home the bar and the status line are bands of the ground, each with a hairline on the stage's side. */
 html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m)); justify-content: flex-end; background: var(--ground); border-top: 1px solid var(--hairline); box-sizing: border-box; }
-@media (max-width: 719px) { .home .status { position: absolute; top: 44px; bottom: auto; height: 20px; left: 16px; right: auto; } .home .status button { height: 20px; } }
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
 .fail a { color: var(--second); text-decoration: underline dotted; }
@@ -275,7 +278,10 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   };
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   let share = 0, face = false, caret = true, queued = 0;
-  A.lines = () => { const [x0, y0, x1, y1] = A.stage(); return [Math.min(src.length, Math.max(1, Math.floor((y1 - y0 - 30) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
+  // On a phone the body is made of fewer lines, as many as its radius shows at 11 px (`body::phone_table`):
+  // the radius as the canvas places it, above the caption at the stage's foot.
+  const phoneLines = (w, h) => { const t = A.phone || [], r = Math.min(0.385 * w, (h - 22) * 0.5 / 1.05); const e = t.find(e => r >= e[1]) || t[t.length - 1]; return e ? e[0] : src.length; };
+  A.lines = () => { const [x0, y0, x1, y1] = A.stage(), most = innerWidth < 720 ? phoneLines(innerWidth, y1 - y0) : src.length; return [Math.min(src.length, most, Math.max(1, Math.floor((y1 - y0 - 30) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
   // The text block's optical centre (vertical): the body's centre is level with it (not on a phone,
   // where the text is under the stage).
   const hero = D.querySelector('.hero');

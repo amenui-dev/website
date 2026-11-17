@@ -37,6 +37,13 @@ pub const MOTE_LIFE: f32 = 1.6;
 /// on a small body (the phone).
 pub const CHARS: usize = 2_700;
 pub const CHARS_SMALL: usize = 1_400;
+/// On a phone the text is cut to what the body can show in glyphs drawn at least `PHONE_GLYPH` px tall
+/// where they face the viewer: from the small body's count down, a line at a time (I.3: bigger glyphs
+/// and fewer of them).
+pub const CHARS_PHONE: usize = CHARS_SMALL;
+pub const PHONE_GLYPH: f32 = 11.0;
+/// How tall the listing's face draws a glyph for its em (its ink, as the audit measures it).
+pub const GLYPH_INK: f32 = 0.65;
 /// The listing's line height and its line numbers' gutter (three digits and a space) in px. The line
 /// height never changes: a shorter stage shows fewer lines.
 pub const LINE: f32 = 14.0;
@@ -566,6 +573,31 @@ pub fn em_for(radius_px: f32) -> (f32, bool) { if em_px(radius_px, 1.0 / 14.0) *
 /// A glyph's size on screen at the body's centre plane (px) for a silhouette radius and a size in
 /// units of the mean radius.
 pub fn em_px(radius_px: f32, em: f32) -> f32 { radius_px / SILHOUETTE * em }
+/// A phone's body radius as a share of the window's width.
+pub const PHONE_R: f32 = 0.385;
+/// A phone's text by the radius it needs: for each cut of this file from `CHARS_PHONE` down (whole
+/// lines), its characters, its lines and the least body radius (px) at which its glyphs, filling the
+/// body, draw `PHONE_GLYPH` px tall or more where they face the viewer. The shell reads the same table to
+/// write the same listing before the module has come.
+pub fn phone_table() -> &'static [(usize, usize, f32)] {
+    static T: std::sync::OnceLock<Vec<(usize, usize, f32)>> = std::sync::OnceLock::new();
+    T.get_or_init(|| {
+        let (mut out, mut n) = (vec![], CHARS_PHONE);
+        while n > 0 {
+            let t = stream(n);
+            if t.lines == 0 { break; }
+            out.push((t.listing.chars().count(), t.lines, PHONE_GLYPH / GLYPH_INK * SILHOUETTE / em_to_fill(t.cells)));
+            n = t.listing.chars().count().saturating_sub(1);
+        }
+        out
+    })
+}
+/// The most characters (whole lines, from `CHARS_PHONE` down) whose glyphs fill a body of `radius_px`
+/// at `PHONE_GLYPH` px or more (the fewest lines when none does).
+pub fn phone_chars(radius_px: f32) -> usize {
+    let t = phone_table();
+    t.iter().find(|e| radius_px >= e.2).or(t.last()).map_or(CHARS_PHONE, |e| e.0)
+}
 
 impl Body {
     /// At rest in the listing.
@@ -795,7 +827,8 @@ impl Body {
             Width::Narrow => { let y = Self::narrow_stage_bottom(h) + 16.0 + 88.0 + 16.0; [16.0, y, w - 16.0, h - 16.0] }
         }
     }
-    fn narrow_stage_bottom(h: f32) -> f32 { 64.0 + (h * 0.38).clamp(210.0, 17.0 * LINE) }
+    /// A phone's stage is at least 340 px tall, and 44 % of the window's height when that is more.
+    fn narrow_stage_bottom(h: f32) -> f32 { 64.0 + (h * 0.44).max(340.0) }
     /// The stage: the host's, or where the site's page puts it. Wide and middle: from 48 px right of
     /// the text block to the window's margin, 72 px from the top to 88 px above the bottom (the status
     /// line, the rail row and a gap). Narrow: inside 16 px margins from 64 px down.
@@ -819,7 +852,12 @@ impl Body {
         (rows, cols)
     }
     /// The caption's top (window px): 16 px under the listing's last line, in every state.
-    pub fn caption_y(&self) -> f32 { self.stage()[1] + self.grid().0 as f32 * LINE + CAPTION_GAP }
+    /// On a phone it is at the stage's foot, under the body, whatever the listing's length.
+    pub fn caption_y(&self) -> f32 {
+        let s = self.stage();
+        if self.width_class() == Width::Narrow { return s[3] - LINE; }
+        s[1] + self.grid().0 as f32 * LINE + CAPTION_GAP
+    }
     /// The caption's box (window px), as wide as its longest sentence.
     pub fn caption_box(&self) -> [f32; 4] { let (x, y) = (self.stage()[0], self.caption_y()); [x, y, x + GUTTER + ADVANCE * 44.0, y + LINE] }
     /// The optical centre of the text block, vertical (window px): the host's, or the middle of where
@@ -852,7 +890,7 @@ impl Body {
             }
             Width::Narrow => {
                 let half = (cap[1] - 8.0 - s[1]) * 0.5;
-                ((s[0] + s[2]) * 0.5, s[1] + half, (0.36 * w).min(half / 1.05))
+                ((s[0] + s[2]) * 0.5, s[1] + half, (PHONE_R * w).min(half / 1.05))
             }
         };
         (cx, cy, r.max(24.0))
@@ -869,11 +907,11 @@ impl Body {
     pub fn light(&self) -> [f32; 3] { [self.lamp[0].value, self.lamp[1].value, self.lamp[2].value] }
     /// Fill the cache for the current form, seed and glyph size.
     fn ensure(&self) {
-        let small = self.small();
-        let key = (self.form, self.seed, small as u32);
+        let chars = self.chars();
+        let key = (self.form, self.seed, chars as u32);
         let mut c = self.cache.borrow_mut();
         if c.key == key && !c.pts.is_empty() { return; }
-        c.text = stream(if small { CHARS_SMALL } else { CHARS });
+        c.text = stream(chars);
         c.em = em_to_fill(c.text.cells);
         c.pts = cells(self.form, self.seed, 0.62 * c.em, 1.45 * c.em);
         c.radius = mean_radius(self.form, self.seed);
@@ -883,8 +921,17 @@ impl Body {
     /// so the text (and with it the listing and the caption under it) is settled before the body is placed.
     pub fn small(&self) -> bool {
         let s = self.stage();
-        let r = match self.width_class() { Width::Narrow => (0.36 * self.size.0).min((s[3] - s[1]) * 0.5), _ => (0.34 * self.size.1).min(0.23 * self.frame().1) };
+        let r = match self.width_class() { Width::Narrow => (PHONE_R * self.size.0).min((s[3] - s[1]) * 0.5), _ => (0.34 * self.size.1).min(0.23 * self.frame().1) };
         em_for(r).1
+    }
+    /// How many characters of this file the body is made of: on a phone as many, from `CHARS_PHONE`
+    /// down, as keep the facing glyphs at `PHONE_GLYPH` px on a body of the phone's radius.
+    pub fn chars(&self) -> usize {
+        if self.width_class() != Width::Narrow { return if self.small() { CHARS_SMALL } else { CHARS }; }
+        let s = self.stage();
+        // The radius the stage gives, as `placement` finds it: above the caption at the stage's foot.
+        let r = (PHONE_R * self.size.0).min(((s[3] - s[1]) - LINE - 8.0) * 0.5 / 1.05);
+        phone_chars(r)
     }
     /// How many cells of the body the text takes (its glyphs and the spaces between words).
     pub fn glyphs(&self) -> usize { self.ensure(); self.cache.borrow().text.cells }
@@ -1144,7 +1191,9 @@ impl Body {
         // Once the card is on its way out, the button that sent it is another element: the focus marks
         // on it leave with it on the beat's first frame instead of standing over the arriving body.
         let gather = if matches!(self.at, 2 | 3) { "gather" } else { "gather-sent" };
-        let label = |t: &str| text_lh(t.to_owned(), SIZE, LINE, Paint::TEXT).font(Font::Mono).width(96.0);
+        // The labels' column: narrower on the narrowest phones, so the four materials fit the card.
+        let lw = if w < 320.0 { 68.0 } else { 96.0 };
+        let label = |t: &str| text_lh(t.to_owned(), SIZE, LINE, Paint::TEXT).font(Font::Mono).width(lw);
         let line = |name: &str, c: El<Msg>| row().key(k(&format!("row-{name}"))).fill_width().align(taffy::AlignItems::CENTER).child(label(name)).child(c);
         let names: Vec<&str> = SPEC_MATERIALS.iter().map(|m| m.0).collect();
         // The card hugs its rows: 20 px padding, 14 px between rows, 24 px above the button.
