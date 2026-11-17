@@ -340,27 +340,78 @@ fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
 }
 
 // ── 10 Loose Thread: a quiet page that frays where the pointer passes ──────────────────────────────
+/// Whether style page `i` is Loose Thread.
+pub fn is_loose_thread(i: usize) -> bool { i == 9 }
+/// How long the page's tangle takes to draw on when the page is entered (s; the preset's transition).
+const THREAD_DRAW_S: f32 = 0.7;
+/// Whether the tangle is still drawing on at `t`.
+pub fn drawing(s: &Gallery, t: f32) -> bool { s.thread_drawn.is_some_and(|d| t - d < THREAD_DRAW_S + 0.05) }
+/// A tangle made for a radius and a length (their bits) and its points.
+type Made = Option<((u32, u32), std::rc::Rc<Vec<[f32; 2]>>)>;
+/// The tangle (a knot and one long strand, DESIGN.md §4.4), made once.
+fn tangle(r: f32, len: f32) -> std::rc::Rc<Vec<[f32; 2]>> {
+    thread_local! { static MADE: std::cell::RefCell<Made> = const { std::cell::RefCell::new(None) }; }
+    let key = (r.to_bits(), len.to_bits());
+    MADE.with(|m| {
+        let mut m = m.borrow_mut();
+        if let Some((k, p)) = m.as_ref() && *k == key { return p.clone(); }
+        let p = std::rc::Rc::new(crate::strand::figure(17, r, len));
+        *m = Some((key, p.clone()));
+        p
+    })
+}
 fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
+    use crate::el::Role;
+    use crate::style::{THREAD, THREAD_PAPER, theme_index};
+    // English whatever the language (the demo pages show no Chinese).
+    let en = |k: &str| crate::i18n::Locale::En.tr(k);
     let narrow = s.width < super::NARROW;
     let w = if narrow { (s.width - 40.0).max(280.0) } else { 640.0 };
-    let pic_w = if narrow { w } else { 300.0 };
+    let (pic_w, side_w, height) = if narrow { (w, w, 760.0) } else { (300.0, 260.0, 480.0) };
     // The pointer stirs the field map where it passes: a point under it that stirs as it moves.
-    let stylus = s.thread_at.map(|(x, y)| space(1.0, 1.0).key(format!("{h}/stylus")).stirr(Stirr { energy: 1.0, radius: Some(36.0), scope: Scope::Container(Some(format!("{h}/comp"))) }).absolute(Some(x), Some(y), None, None));
-    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).pad(0.0, 0.0).gap(40.0).gaze_scope().on_move(|p| Some(Msg::ThreadAt(p)));
+    let stylus = s.thread_at.map(|(x, y)| space(1.0, 1.0).key(format!("{h}/stylus")).stirr(Stirr { energy: 1.0, radius: Some(72.0), scope: Scope::Container(Some(format!("{h}/comp"))) }).absolute(Some(x), Some(y), None, None));
+    // Its own scope for ripples, the map and the threads (they stop at its edge).
+    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).height(height).gap(0.0).gaze_scope().ripple_scope().on_move(|p| Some(Msg::ThreadAt(p)));
     comp.style.padding.right = taffy::prelude::length(72.0);
+    // The tangle: content, drawn under any material, over the picture's top right corner and from
+    // the top of the page to its foot, clear of the text to read.
+    if !narrow {
+        let (r, len) = (70.0, 0.9 * height);
+        let progress = s.thread_drawn.map_or(1.0, |d| ((s.clock - d) / THREAD_DRAW_S).clamp(0.0, 1.0));
+        let (cx, cy) = (pic_w + 6.0, 0.38 * len + 10.0);
+        let pts: Vec<[f32; 2]> = tangle(r, len).iter().map(|p| [p[0] + 90.0, p[1] + cy]).collect();
+        comp = comp.child(space(180.0, height).key(format!("{h}/tangle")).trace(crate::strand::Trace { points: std::rc::Rc::new(pts), progress, weight: 1.0, pull: 2.5, ..Default::default() }).absolute(Some(cx - 90.0), Some(0.0), None, None));
+    }
     if let Some(st) = stylus { comp = comp.child(st); }
+    let paper = s.theme == theme_index(THREAD_PAPER.name);
+    // The footer's controls: small quiet type, the one that is on in the accent; no boxes.
+    let word = |t: String, on: bool| text(t, 12.0, if on { Paint::ACCENT } else { Paint::TEXT }).whisper();
+    let grounds = [THREAD.name, THREAD_PAPER.name];
+    let pick = usize::from(paper);
+    let keys = move |k: crate::el::Key, _: bool| -> Option<Msg> {
+        use crate::el::Key;
+        let to = match k { Key::Left | Key::Up | Key::Home => 0, Key::Right | Key::Down | Key::End => 1, _ => return None };
+        (to != pick).then(|| Msg::Theme(theme_index(grounds[to])))
+    };
+    let ground = row().key(format!("{h}/ground")).gap(8.0).align(AlignItems::BASELINE).on_key(keys).role(Role::RadioGroup).label(en("thread.ground"))
+        .child(row().key(format!("{h}/ground:0")).on_press(Msg::Theme(theme_index(THREAD.name))).focusable(false).role(Role::Radio).selected(!paper).label(en("thread.black")).child(word(en("thread.black"), !paper)))
+        .child(text("·", 12.0, Paint::TEXT).whisper())
+        .child(row().key(format!("{h}/ground:1")).on_press(Msg::Theme(theme_index(THREAD_PAPER.name))).focusable(false).role(Role::Radio).selected(paper).label(en("thread.paper")).child(word(en("thread.paper"), paper)));
+    let flag = |k: &str, label: String, on: bool, f: u8| row().key(format!("{h}/{k}")).on_press(Msg::PostFlag(f)).role(Role::Switch).checked(on).label(label.clone()).child(word(label, on));
+    let footer = row().key(format!("{h}/footer")).width(w).gap(28.0).align(AlignItems::BASELINE).justify(JustifyContent::END).absolute(Some(0.0), None, None, Some(0.0))
+        .child(ground)
+        .child(flag("binary", en("thread.binary"), s.post.binary, 0))
+        .child(flag("invert", en("thread.invert"), s.post.invert, 1));
     comp
-        .child(text("Loose Thread", 11.0, Paint::TEXT).whisper().key(format!("{h}/kicker")))
-        .child(text_lh("线头", 56.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/title")).respond(crate::el::Response::Loosen).legible(false))
-        .child(row().key(format!("{h}/spread")).fill_width().gap(36.0).align(AlignItems::END).wrap()
+        .child(text(en("thread.kicker"), 11.0, Paint::TEXT).whisper().key(format!("{h}/kicker")))
+        .child(space(1.0, 22.0))
+        .child(text_lh(en("thread.title"), 30.0, 40.0, Paint::INK).font(Font::Whisper).tracking(0.3).key(format!("{h}/title")).respond(crate::el::Response::Loosen).legible(false))
+        .child(space(1.0, 34.0))
+        .child(row().key(format!("{h}/spread")).width(w).gap(if narrow { 24.0 } else { w - pic_w - side_w }).align(AlignItems::START).wrap()
             .child(col().key(format!("{h}/fig")).gap(10.0)
                 .child(pic(h, "pic", SPHERE, pic_w))
-                .child(text("fig. 1 — a sphere, at rest", 11.0, Paint::TEXT).whisper()))
-            .child(col().key(format!("{h}/side")).width(if narrow { w } else { 280.0 }).gap(18.0)
-                .child(text_lh("静止时这里只是字和图。指针拨过的地方，字散成线，过一会儿又收回原样。", 14.0, 26.0, Paint::TEXT))
-                .child(segmented(&format!("{h}/ground"), &["黑", "纸"], usize::from(s.theme == crate::style::theme_index(crate::style::THREAD_PAPER.name)), 28.0, |i| Msg::Theme(crate::style::theme_index([crate::style::THREAD.name, crate::style::THREAD_PAPER.name][i]))))
-                .child(switch(format!("{h}/binary"), "只用黑白", s.post.binary, None, Msg::PostFlag(0)).width(220.0))
-                .child(switch(format!("{h}/invert"), "反相", s.post.invert, None, Msg::PostFlag(1)).width(220.0))))
-        .child(space(1.0, 40.0))
-        .child(text("amenui · loose thread · 2026", 11.0, Paint::TEXT).whisper().key(format!("{h}/colophon")))
+                .child(text(en("thread.caption"), 11.0, Paint::TEXT).whisper().key(format!("{h}/caption"))))
+            .child(col().key(format!("{h}/side")).width(side_w).pad(0.0, 6.0)
+                .child(text_lh(en("thread.body"), 14.0, 24.0, Paint::TEXT).key(format!("{h}/body")))))
+        .child(footer)
 }

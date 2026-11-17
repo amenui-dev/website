@@ -148,3 +148,14 @@ body.gather = GATHER ·
 body.language = LANGUAGE
 body.to-lab = LAB ↗
 body.to-gallery = COMPONENTS ↗
+
+# Loose Thread's page (English whatever the language: DESIGN.md §4.4)
+thread.kicker = amenui — no. 10
+thread.title = loose thread
+thread.caption = fig. 1
+thread.body = At rest this page is only type and a picture. Where the pointer passes, the title comes apart into one thread, then gathers again.
+thread.ground = Ground
+thread.black = black
+thread.paper = paper
+thread.binary = 1-bit
+thread.invert = invert

@@ -401,7 +401,9 @@ fn main() {
     let img = o.render(&mut ui, &look);
     let mut frames = 0;
     for a in ui.annots() {
+        // The corners are set 6 px out from the rect (off the element's own ink).
         let (x0, y0, x1, y1) = device_rect(a.rect, 1.0);
+        let (x0, y0, x1, y1) = (x0 - 6, y0 - 6, x1 + 6, y1 + 6);
         let corners = [(x0, y0), (x1 - 1, y0), (x0, y1 - 1), (x1 - 1, y1 - 1)];
         let outside = [(x0 - 1, y0), (x0, y0 - 1), (x1, y1 - 1), (x1 - 1, y1)];
         let on = corners.iter().all(|&(x, y)| px(&img, W, x, y) == magenta);
@@ -1612,10 +1614,13 @@ fn readouts(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 // ── 20 (continued). Black and white only, and inverted ──────────────────────────────────────────────
 struct Fin { binary: bool, invert: bool }
 fn fin_page(_: &Fin) -> El<()> {
-    col().pad(40.0, 40.0).gap(24.0)
+    col().pad(40.0, 40.0).child(col().key("scope").gaze_scope().width(900.0).height(640.0).gap(20.0)
         .child(lab::el::text("Thread", 96.0, Paint::INK).font(Font::Display).key("title"))
         .child(lab::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
         .child(lab::el::text("静止时这里只是字和图。", 16.0, Paint::TEXT).key("body2"))
+        .child(lab::el::text("small type, tracked wide", 11.0, Paint::TEXT).whisper().key("small"))
+        .child(lab::el::text("A control's label", 13.0, Paint::DIM).key("label"))
+        .child(col().width(300.0).child(picture(SPHERE, PICTURE_SIZES[SPHERE as usize].1 as f32 / PICTURE_SIZES[SPHERE as usize].0 as f32).key("pic"))))
 }
 fn fin_look(s: &Fin) -> Look {
     let p = lab::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("Loose Thread");
@@ -1626,34 +1631,59 @@ fn fin_look(s: &Fin) -> Look {
 fn finishing(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let mut failed = 0;
     let mut o = Offscreen::new(W, H);
-    let mut ui = Ui::new(Fin { binary: false, invert: false }, fin_page, |_, _| {}, fonts(), W, H, 1.0).on_look(fin_look);
+    let mut ui = Ui::new(Fin { binary: false, invert: false }, fin_page, |_, _| {}, fonts(), W, H, 1.0).on_look(fin_look)
+        .on_gaze(|_| Gaze { mode: GazeMode::All, kinds: gaze::EDGE, ..Gaze::default() });
     ui.pointer_leave();
     ui.tick(10.0);
     let mut shot = |ui: &mut Ui<Fin, ()>, binary: bool, invert: bool| { ui.state.binary = binary; ui.state.invert = invert; ui.relayout(); ui.tick(10.0); let l = ui.look(); o.render(ui, &l) };
     let soft = shot(&mut ui, false, false);
     let bw = shot(&mut ui, true, false);
-    // 6. Binary: two colours; text at rest still reads (each glyph's ink within a fifth of its own).
+    // 6. Binary: two colours; at rest every piece of text still reads (each glyph's, each edge note's
+    //    ink by coverage within a fifth of its own: the share of a pixel toward its full colour at least
+    //    a half), and the picture is dithered (a fifth to four fifths of it ink).
     let colours: std::collections::HashSet<[u8; 3]> = bw.chunks(4).map(|p| [p[0], p[1], p[2]]).collect();
     if colours.len() != 2 { eprintln!("FAIL binary: {} colours", colours.len()); failed += 1; }
-    let ground = lab::style::THREAD.ground;
-    let ink_of = |img: &[u8], r: [f32; 4]| -> i32 {
+    let ground = rgb8(lab::style::THREAD.ground);
+    let bw_ground = px(&bw, W, 2, 2);
+    let span = |r: [f32; 4]| -> Vec<(u32, u32)> {
         let (x0, y0) = (r[0].floor().max(0.0) as u32, r[1].floor().max(0.0) as u32);
         let (x1, y1) = ((r[0] + r[2]).ceil().min(W as f32) as u32, (r[1] + r[3]).ceil().min(H as f32) as u32);
-        let g = rgb8(ground);
-        (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| { let p = px(img, W, x, y); (0..3).map(|i| (p[i] as i32 - g[i] as i32).abs()).sum::<i32>() > 3 * 127 }).count() as i32
+        (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).collect()
     };
+    let far = |p: [u8; 3], q: [u8; 3]| (0..3).map(|i| (p[i] as f32 - q[i] as f32).powi(2)).sum::<f32>().sqrt();
+    // Soft: pixels at least half way from the ground to the region's fullest colour. Binary: ink.
+    let soft_ink = |r: [f32; 4]| -> i32 {
+        let ps = span(r);
+        let full = ps.iter().map(|&(x, y)| far(px(&soft, W, x, y), ground)).fold(0.0, f32::max);
+        ps.iter().filter(|&&(x, y)| far(px(&soft, W, x, y), ground) >= 0.5 * full && full > 0.0).count() as i32
+    };
+    let bw_ink = |r: [f32; 4]| -> i32 { span(r).iter().filter(|&&(x, y)| px(&bw, W, x, y) != bw_ground).count() as i32 };
     let (mut glyphs, mut worst) = (0, 0.0f32);
+    let mut by_key: std::collections::BTreeMap<String, usize> = Default::default();
     for (i, inst) in ui.scene().instances.iter().enumerate() {
         if inst.paint[3] != lab::scene::GLYPH || inst.rect[2] < 4.0 { continue; }
         let Some(key) = ui.owner_key(i) else { continue };
-        if key != "body" && key != "body2" { continue; }
-        let (a, b) = (ink_of(&soft, inst.rect), ink_of(&bw, inst.rect));
+        if !["body", "body2", "small", "label"].contains(&key) { continue; }
+        let (a, b) = (soft_ink(inst.rect), bw_ink(inst.rect));
         if a < 4 { continue; }
         worst = worst.max((b - a).abs() as f32 / a as f32);
         glyphs += 1;
+        *by_key.entry(key.to_owned()).or_default() += 1;
     }
-    if glyphs < 20 || worst > 0.2 { eprintln!("FAIL binary: body glyphs' ink off by up to {:.0}% ({glyphs} glyphs)", worst * 100.0); failed += 1; }
-    eprintln!("20.6 binary: {} colours, {glyphs} body glyphs within {:.0}% of their ink", colours.len(), worst * 100.0);
+    let notes = ui.readout().notes.clone();
+    let mut note_worst = 0.0f32;
+    for (_, r) in &notes {
+        let r = [r.x, r.y, r.w, r.h];
+        let (a, b) = (soft_ink(r), bw_ink(r));
+        note_worst = note_worst.max((b - a).abs() as f32 / a.max(1) as f32);
+    }
+    let pic = ui.node("pic").expect("pic").rect;
+    let cells = span([pic.x + 1.0, pic.y + 1.0, pic.w - 2.0, pic.h - 2.0]);
+    let share = cells.iter().filter(|&&(x, y)| px(&bw, W, x, y) != bw_ground).count() as f32 / cells.len().max(1) as f32;
+    if glyphs < 60 || by_key.len() < 4 || worst > 0.2 { eprintln!("FAIL binary: glyphs' ink off by up to {:.0}% ({glyphs} glyphs, {by_key:?})", worst * 100.0); failed += 1; }
+    if notes.len() < 4 || note_worst > 0.2 { eprintln!("FAIL binary: edge notes' ink off by up to {:.0}% ({} notes)", note_worst * 100.0, notes.len()); failed += 1; }
+    if !(0.2..=0.8).contains(&share) { eprintln!("FAIL binary: the picture is {:.0}% ink", share * 100.0); failed += 1; }
+    eprintln!("20.6 binary: {} colours, {glyphs} glyphs within {:.0}% of their ink, {} edge notes within {:.0}%, the picture {:.0}% ink", colours.len(), worst * 100.0, notes.len(), note_worst * 100.0, share * 100.0);
     // 7. Invert: once, every pixel is 1 − colour (within 1/255); off again, byte for byte the original.
     let inv = shot(&mut ui, false, true);
     let back = shot(&mut ui, false, false);

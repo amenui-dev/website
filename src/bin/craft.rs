@@ -230,7 +230,20 @@ fn study_scribblr(out: &str) {
             ui.relayout();
             // A fifth of a second at 60 Hz between frames, so the map steps as it would; the last frame
             // after the map has settled (1.5 s), at rest.
-            for _ in 0..if k > 0.0 { 12 } else { 90 } { t += 1.0 / 60.0; ui.tick(t); }
+            for _ in 0..if k > 0.0 { 11 } else { 90 } { t += 1.0 / 60.0; ui.tick(t); }
+            // Topped up to the frame's looseness over the whole title just before it is drawn, so the
+            // knots have the energy they are drawn by (at 1, at least 0.8 everywhere on the title).
+            if k > 0.0 {
+                let (cx, cy) = ui.node("title").expect("title").rect.center();
+                let e = ui.fieldmap().energy_at(cx, cy);
+                ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([cx, cy]), v: [0.0, 0.0], energy: (k - e).max(0.0), radius: 900.0, scope: lab::el::Scope::Global });
+                ui.relayout();
+                t += 1.0 / 60.0;
+                ui.tick(t);
+                let r = ui.node("title").expect("title").rect;
+                let low = [r.x, r.center().0, r.right()].iter().map(|&x| ui.fieldmap().energy_at(x, cy)).fold(1.0, f32::min);
+                eprintln!("scribblr-{name}: looseness {k}, the map's energy on the title at least {low:.2}");
+            }
             let look = ui.look();
             let px = o.render(&mut ui, &look);
             frames.push((760, 260, px));
@@ -241,24 +254,31 @@ fn study_scribblr(out: &str) {
     }
 }
 
-/// Loose Thread (DESIGN.md §4.4): the style page at rest, with the pointer passing across the text and
-/// the picture (threads where it stirred, the edge notes, the waveform and the level bar), settled
-/// again; then on paper, in black and white only, and inverted.
+/// Loose Thread (DESIGN.md §4.4): the style page at rest (its tangle drawn), with the pointer passing
+/// through the title and down across the text and the controls (the title's thread, the edge notes and
+/// corner marks), a quarter second and a second later, settled again; then on paper, in black and
+/// white only, and inverted.
 fn study_loose_thread(out: &str) {
     let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
     r.pad = 24.0;
     r.run(1.0);
     r.shot();
     let b = r.ui.node("style-loose-thread/comp").expect("comp").rect;
+    let t = r.ui.node("style-loose-thread/title").expect("title").rect;
     let sweep = |r: &mut Rig| {
         // Through the title, then down across the text and the controls.
-        for i in 0..=30 { let k = i as f32 / 30.0; r.ui.pointer_move(b.x + 20.0 + b.w * 0.7 * k, b.y + 90.0 + 160.0 * k * k); r.frame(); }
+        for i in 0..=30 { let k = i as f32 / 30.0; r.ui.pointer_move(b.x + 10.0 + (t.w + 40.0) * k, t.y + t.h * 0.5 + 220.0 * k * k); r.frame(); }
     };
+    let loose = |r: &Rig| r.ui.looseness("style-loose-thread/title", r.ui.now());
     sweep(&mut r);
     r.shot();
+    eprintln!("loose-thread: the title {:.2} loose after the sweep", loose(&r));
     r.run(0.25); r.shot();
     r.ui.pointer_leave();
-    r.run(3.0); r.shot();
+    r.run(0.75); r.shot();
+    eprintln!("loose-thread: {:.2} a second after", loose(&r));
+    r.run(2.0); r.shot();
+    eprintln!("loose-thread: {:.2} three seconds after, {} threads", loose(&r), r.ui.strands().len());
     r.save(out, "loose-thread", 2);
     for (name, flips) in [("paper", vec![Msg::Theme(lab::style::theme_index(lab::style::THREAD_PAPER.name))]), ("binary", vec![Msg::PostFlag(0)]), ("invert", vec![Msg::PostFlag(1)])] {
         let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
@@ -271,6 +291,27 @@ fn study_loose_thread(out: &str) {
         r.ui.pointer_leave();
         r.run(3.0); r.shot();
         r.save(out, &format!("loose-thread-{name}"), 2);
+    }
+}
+
+/// Against the references: the style page with its title held fully loose (the map stirred over it
+/// every few frames), on black and on paper.
+fn study_thread_ref(out: &str) {
+    use lab::morph::{Cmd, StirAt};
+    for (name, paper) in [("black", false), ("paper", true)] {
+        let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
+        r.pad = 0.0;
+        if paper { gallery::update(&mut r.ui.state, Msg::Theme(lab::style::theme_index(lab::style::THREAD_PAPER.name))); r.ui.relayout(); }
+        r.run(1.0);
+        let c = r.ui.node("style-loose-thread/title").expect("title").rect.center();
+        for _ in 0..12 {
+            r.ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([c.0, c.1]), v: [1.0, 0.35], energy: 1.0, radius: 260.0, scope: lab::el::Scope::Global });
+            r.ui.relayout();
+            r.run(4.0 / 60.0);
+        }
+        eprintln!("thread-ref-{name}: the title {:.2} loose", r.ui.looseness("style-loose-thread/title", r.ui.now()));
+        r.shot();
+        r.save(out, &format!("thread-ref-{name}"), 1);
     }
 }
 
@@ -318,7 +359,7 @@ fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr", "scribblr", "loose-thread", "readouts"];
+    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr", "scribblr", "loose-thread", "readouts", "thread-ref"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -332,6 +373,7 @@ fn main() {
             "scribblr" => study_scribblr(&out),
             "loose-thread" => study_loose_thread(&out),
             "readouts" => study_readouts(&out),
+            "thread-ref" => study_thread_ref(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

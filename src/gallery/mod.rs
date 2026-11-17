@@ -395,6 +395,8 @@ pub struct Gallery {
     pub stirr: stirr::StirrPage,
     /// Where the pointer is over the Loose Thread composition: a point there stirs the field map.
     pub thread_at: Option<(f32, f32)>,
+    /// When the Loose Thread page was entered (state clock): its tangle draws on from then.
+    pub thread_drawn: Option<f32>,
 }
 
 impl Default for Gallery {
@@ -410,7 +412,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), map: crate::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), map: crate::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -490,7 +492,10 @@ impl Gallery {
     /// default.
     fn enter(&mut self, p: Page) {
         match p {
-            Page::Style(i) => self.apply_style(i as usize),
+            Page::Style(i) => {
+                self.apply_style(i as usize);
+                self.thread_drawn = (styles::is_loose_thread(i as usize)).then_some(self.clock);
+            }
             Page::Scene(i) => { let st = SCENES[i as usize].3; self.sc.look = st; self.apply_style(st); }
             // The 风格 page starts from its "from".
             Page::Presets => self.apply_style(self.pre_from),
@@ -851,7 +856,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let craft = craft::tick(s, t);
             let lab = lab::tick(s, t) | body::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
-            scenes::tick(s, t) || changed || burst || coast || craft || lab
+            let thread = matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t);
+            scenes::tick(s, t) || changed || burst || coast || craft || lab || thread
         })
         .on_look(|s| s.look())
         .on_locale(|s| s.locale)
@@ -864,6 +870,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let board = match (board, craft::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, if s.page == Page::Decode { decode::wake(s, t) } else { None }) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, if s.page == Page::Stirr { stirr::wake(s, t) } else { None }) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, (matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t)).then_some(t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, lab::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, body::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }

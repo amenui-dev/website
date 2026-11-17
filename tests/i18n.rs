@@ -1,6 +1,6 @@
 //! Text in more than one language (DESIGN.md §1.20): every key is in every shipped catalog (plural
-//! keys with every form the locale needs; the Body page's words are English only), the landing scene shows no
-//! missing key and no Chinese in either language, switching the language is a message that lays everything out again (keyed text
+//! keys with every form the locale needs; the Body and Loose Thread pages' words are English only), the landing scene and
+//! Loose Thread's composition show no missing key and no Chinese in either language, switching the language is a message that lays everything out again (keyed text
 //! recomposes), and a right-to-left row puts its first child on the right.
 use lab::el::{El, Paint, row, space};
 use lab::gallery::{self, Msg};
@@ -26,8 +26,8 @@ fn every_key_is_in_every_locale() {
     let all: BTreeSet<String> = Locale::ALL.iter().flat_map(|l| bases(*l).into_keys()).collect();
     for l in Locale::ALL {
         let b = bases(l);
-        // The Body page is English whatever the language (its words exist only in English).
-        let english_only = |k: &str| l != Locale::En && k.starts_with("body.") && k != "body.label";
+        // The Body and Loose Thread pages are English whatever the language (their words exist only in English).
+        let english_only = |k: &str| l != Locale::En && ((k.starts_with("body.") && k != "body.label") || k.starts_with("thread."));
         let missing: Vec<&String> = all.iter().filter(|k| !b.contains_key(*k) && !english_only(k)).collect();
         assert!(missing.is_empty(), "{} is missing {} keys: {missing:?}", l.tag(), missing.len());
         for (k, forms) in &b {
@@ -79,4 +79,43 @@ fn a_right_to_left_row_starts_at_the_right() {
     let (a, b) = (ui.node("first").unwrap().rect.x, ui.node("second").unwrap().rect.x);
     assert!(a > b, "right to left, the first child is on the right: {a} {b}");
     assert!(a + 50.0 > 299.0, "and starts at the row's right edge: {a}");
+}
+
+#[test]
+fn loose_thread_shows_no_chinese_in_either_language() {
+    let mut ui = gallery::new_ui(fonts(), 1280, 1000, 1.0);
+    ui.pointer_leave();
+    assert!(ui.state.route("style-loose-thread"));
+    let cjk = |s: &str| s.chars().any(|c| ('\u{3000}'..='\u{9fff}').contains(&c) || ('\u{ff00}'..='\u{ffef}').contains(&c));
+    let mut seen: Vec<Vec<String>> = vec![];
+    for l in [Locale::ZhHans, Locale::En] {
+        gallery::update(&mut ui.state, Msg::Locale(l));
+        ui.relayout();
+        let _ = i18n::misses();
+        let (mut now, end) = (ui.now(), ui.now() + 1.0);
+        while now < end { now += 1.0 / 60.0; ui.tick(now); }
+        let tree = ui.export_tree();
+        let comp = tree.find("style-loose-thread/comp").expect("the composition");
+        let mut texts = vec![];
+        fn walk(n: &lab::tree::TreeNode, out: &mut Vec<String>) { if let Some(t) = &n.text { out.push(t.clone()); }
+            if let Some(t) = &n.label { out.push(t.clone()); } for c in &n.children { walk(c, out); } }
+        walk(comp, &mut texts);
+        let chinese: Vec<&String> = texts.iter().filter(|t| cjk(t)).collect();
+        assert!(chinese.is_empty(), "{}: the composition shows {chinese:?}", l.tag());
+        assert!(i18n::misses().is_empty());
+        seen.push(texts);
+    }
+    assert_eq!(seen[0], seen[1], "the composition differs between the languages");
+    // The title is lowercase, in the bundled serif.
+    let title = ui.node("style-loose-thread/title").expect("title");
+    let lab::el::Content::Text { s, font, .. } = &title.content else { panic!("the title is text") };
+    assert_eq!(*s, s.to_lowercase());
+    assert_eq!(*font, lab::el::Font::Face(lab::text::SERIF));
+    // The controls can be reached from the keyboard, as a switch, a switch and a two-way choice.
+    let a11y = ui.a11y();
+    let role = |k: &str| a11y.iter().find(|n| n.key == format!("style-loose-thread/{k}")).map(|n| (n.role, n.focusable));
+    assert_eq!(role("binary"), Some((lab::el::Role::Switch, true)));
+    assert_eq!(role("invert"), Some((lab::el::Role::Switch, true)));
+    assert_eq!(role("ground"), Some((lab::el::Role::RadioGroup, true)));
+    assert_eq!(a11y.iter().filter(|n| n.key.starts_with("style-loose-thread/ground:") && n.role == lab::el::Role::Radio).count(), 2);
 }
