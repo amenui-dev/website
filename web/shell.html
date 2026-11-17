@@ -149,7 +149,18 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .status { position: fixed; z-index: 3; right: calc(var(--fx) + var(--m)); bottom: 0; height: 28px; display: flex; align-items: center; font: 11px/11px var(--mono); color: var(--dim); white-space: nowrap; transition: opacity .6s; }
 .status b { color: var(--ink); font-weight: normal; }
 .status.gone { opacity: 0; }
-@media (max-width: 719px) { .status { position: absolute; top: 44px; bottom: auto; height: 20px; left: 16px; right: auto; } }
+/* Its items: the line, `F2` (the full readout; the quality choice is beside the line while it is open). */
+.status .line { white-space: pre; }
+.status button { font: inherit; color: var(--dim); background: none; border: 0; padding: 0; height: 28px; cursor: pointer; }
+.status button:hover, .status button[aria-pressed="true"], .status .f2[aria-expanded="true"] { color: var(--ink); }
+.status .f2::before { content: " · "; color: var(--dim); white-space: pre; }
+.status .quality { margin-right: 24px; }
+.status [hidden] { display: none; }
+/* On a phone the open readout's quality choice takes the line's place (the readout shows its numbers). */
+@media (max-width: 719px) { .status.open .line { display: none; } .status .quality { margin-right: 0; } }
+/* Off home the canvas stops above the status line. */
+html:not(.home) #stage { bottom: 28px; }
+@media (max-width: 719px) { .home .status { position: absolute; top: 44px; bottom: auto; height: 20px; left: 16px; right: auto; } .home .status button { height: 20px; } }
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
 .fail a { color: var(--second); text-decoration: underline dotted; }
@@ -206,7 +217,7 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
   <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span>&nbsp;Seed&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
   <a class="door" href="{{href_docs}}" data-route="docs/">docs →</a>
 </nav>
-<div class="status" role="status" aria-live="polite"></div>
+<div class="status"><span class="quality" hidden>{{t_quality}} <button type="button" data-q="0">{{t_quality_auto}}</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="{{t_readout}}">F2</button></div>
 <script>
 // The page before the module: the bar, the home page's stage with the source listing (lines shown as
 // the module's bytes arrive), the boot line, and the downloads started at once (the module compiles
@@ -216,7 +227,8 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
   const D = document, root = D.documentElement;
   const status = D.querySelector('.status');
   // One run of text (in a flex box, the spaces round a bare <b> would be dropped).
-  A.line = h => { status.innerHTML = '<span>' + h + '</span>'; };
+  const line = status.querySelector('.line');
+  A.line = h => { line.innerHTML = h; };
   // Bar and sheet: the menu button, search (the canvas's, once it runs), copy.
   const sheet = D.getElementById('sheet'), mb = D.querySelector('.menu-btn');
   mb.addEventListener('click', () => { const o = sheet.classList.toggle('open'); mb.setAttribute('aria-expanded', o); });

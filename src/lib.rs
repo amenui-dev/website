@@ -66,6 +66,13 @@ pub fn readout() -> u8 { host(|s| s.ui.state.overlay).unwrap_or(0) }
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn set_readout(v: u8) { host(|s| { s.ui.state.overlay = v.min(2); s.ui.relayout(); }); }
+/// The material resolution the readout's quality choice sets: 0 automatic, else a level of `perf::LEVELS`.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn quality() -> f32 { host(|s| s.ui.state.quality).unwrap_or(1.0) }
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn set_quality(q: f32) { host(|s| { s.ui.state.quality = if q <= 0.0 { 0.0 } else { q.min(1.0) }; s.ui.relayout(); }); }
 
 #[cfg(target_arch = "wasm32")]
 mod site_exports {
@@ -89,9 +96,11 @@ mod site_exports {
     /// The graphics backend in use: `webgpu` or `webgl2`.
     #[wasm_bindgen]
     pub fn backend() -> String { host(|s| s.ui.perf().backend.to_lowercase()).unwrap_or_default() }
-    /// How many glyphs the home page's body is made of.
+    /// How many glyphs the page draws (on home, the body is made of).
     #[wasm_bindgen]
-    pub fn glyphs() -> u32 { host(|s| s.ui.state.body.glyphs() as u32).unwrap_or(0) }
+    pub fn glyphs() -> u32 {
+        host(|s| if s.ui.state.page == gallery::Page::Body { s.ui.state.body.glyphs() as u32 } else { s.ui.scene().instances.iter().filter(|i| i.paint[3] < 0.5).count() as u32 }).unwrap_or(0)
+    }
     /// The home page's stage (CSS px from the canvas's top left), laid out by the page, and the optical
     /// centre of its text block (vertical, same space; negative for none); a zero-sized stage gives the
     /// scene's own.

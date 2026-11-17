@@ -138,7 +138,7 @@ def page(lang, path, title, section, notfound=False):
         'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
         't_sections': tr('web.sections'), 't_docs': tr('web.docs'), 't_components': tr('web.components'), 't_lab': tr('web.lab'), 't_scenes': tr('web.scenes'),
         't_search': tr('web.search'), 't_menu': tr('web.menu'), 't_canvas': tr('web.canvas'), 't_text_input': tr('web.text-input'),
-        't_eyebrow': tr('web.eyebrow'), 't_lead': tr('web.lead'), 't_start': tr('web.start'), 't_copy': tr('web.copy'), 't_skip': tr('web.skip'),
+        't_eyebrow': tr('web.eyebrow'), 't_lead': tr('web.lead'), 't_start': tr('web.start'), 't_copy': tr('web.copy'), 't_skip': tr('web.skip'), 't_readout': tr('web.readout'), 't_quality': tr('web.quality'), 't_quality_auto': tr('web.quality.auto'),
         'listing': html.escape(listing, quote=False) if path == '' and not notfound else '', 'notfound': nf, 'mono_url': fonts[lang][2]['url'],
         'config': json.dumps(config, ensure_ascii=False, separators=(',', ':')),
         'app': '' if notfound else f'<script src="{BASE + app_fn}" defer></script>',

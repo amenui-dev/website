@@ -272,8 +272,13 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let shown = live.or_else(|| amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| as_msg(e).rekey(&format!("doc/{h}/live")))).unwrap_or_else(|| text("—", 14.0, Paint::DIM));
     let tabs = row().key(format!("doc/{h}/tabs")).gap(4.0).role(Role::TabList)
         .child(tab(&h, 0, &tr("docs.tab.preview"), s.doc_tab == 0)).child(tab(&h, 1, &tr("docs.tab.code"), s.doc_tab == 1));
+    // The look strip sits at the top of the stage, on the tabs' line, and changes the stage only.
+    let tabs = row().key(format!("doc/{h}/stage-top")).fill_width().wrap().gap(12.0).align(AlignItems::CENTER)
+        .child(tabs).child(space(0.0, 0.0).grow(1.0)).child(if s.doc_tab == 0 { super::look_strip(s, &format!("doc/{h}/look")) } else { space(0.0, 0.0) });
     let pane = if s.doc_tab == 1 { code(&format!("doc/{h}/source"), ex_src) }
-        else { col().key(format!("doc/{h}/preview")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 16.0 } else { 40.0 }, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(shown) };
+        else { col().key(format!("doc/{h}/preview")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 16.0 } else { 40.0 }, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START)
+            // The strip's material on what the stage shows; the frame and the page round it keep the site's.
+            .child(col().key(format!("doc/{h}/stage")).min_width(0.0).material(s.stage_material.id()).child(shown)) };
     let mut preview = col().key(format!("doc/{h}/preview-col")).gap(10.0).fill_width().min_width(0.0).child(tabs).child(pane);
     if let Some(p) = params { preview = preview.child(p); }
     // 2. Installation: the add command and the files it copies.

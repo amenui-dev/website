@@ -148,6 +148,7 @@ async function mount(stage, opts) {
     // Keys the input method is composing with are its own.
     if (e.isComposing || e.keyCode === 229) return;
     const cmd = e.ctrlKey || e.metaKey;
+    if (e.key === 'F2' && !ours()) { e.preventDefault(); w.set_readout((w.readout() + 1) % 3); after(); return; }
     if (!ours()) {
       // ⌘K / Ctrl+K and `/` open the search from anywhere on the page.
       if ((cmd && e.key.toLowerCase() === 'k') || (e.key === '/' && !cmd && !/^(INPUT|TEXTAREA)$/.test(active().tagName))) { e.preventDefault(); search(); }
@@ -252,12 +253,23 @@ function site() {
     D.title = path === '' ? 'amenui' : (t ? t + ' · amenui' : 'amenui');
     place(); showRail();
   };
-  const status = D.querySelector('.status');
+  const status = D.querySelector('.status'), f2 = status.querySelector('.f2'), quality = status.querySelector('.quality');
   let running = false, lastDrawn = -1;
+  // `F2` opens the full readout (the canvas draws it over the stage's bottom right); while it is open
+  // the quality choice is beside the line.
+  const keepReadout = () => {
+    if (!api) return;
+    const open = api.w.readout() === 2, q = api.w.quality();
+    f2.setAttribute('aria-expanded', String(open));
+    quality.hidden = !open;
+    status.classList.toggle('open', open);
+    for (const b of quality.querySelectorAll('button')) b.setAttribute('aria-pressed', String(+b.dataset.q === q));
+  };
+  f2.addEventListener('click', () => { if (!api) return; api.w.set_readout(api.w.readout() === 2 ? 0 : 2); keepReadout(); api.kick(); });
+  quality.addEventListener('click', e => { const b = e.target.closest('button'); if (!b || !api) return; api.w.set_quality(+b.dataset.q); keepReadout(); api.kick(); });
   const keepStatus = () => {
     if (!api || !running) return;
-    if (!isHome()) { status.classList.add('gone'); return; }
-    status.classList.remove('gone');
+    keepReadout();
     // The rate is there only while frames are being drawn; a field with nothing to report is left out.
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
@@ -277,11 +289,12 @@ function site() {
     },
     onRoute: (p, h) => routed(p, h),
     onResize: () => { place(); A.draw(); },
-    after: () => { showRail(); keepHash(); },
+    after: () => { showRail(); keepHash(); keepReadout(); },
     onFrame: () => {
       A.done(api.w.backend(), api.w.glyphs());
       if (intro) setTimeout(() => { intro = false; showRail(); keepHash(); }, 1400);
-      setTimeout(() => { running = true; keepStatus(); setInterval(keepStatus, 1000); }, 1200);
+      // The running line is read once, not every second.
+      setTimeout(() => { running = true; f2.hidden = false; status.querySelector('.line').setAttribute('aria-live', 'off'); keepStatus(); setInterval(keepStatus, 1000); }, 1200);
     },
   }).then(a => {
     api = a;

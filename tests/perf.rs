@@ -31,14 +31,10 @@ fn f2_shows_the_readout_in_the_annotation_layer() {
     let t = ui.now();
     assert!(ui.next_wake(t).is_none(), "idle: no more frames for the readout");
     assert!(!ui.needs_frame(t + 5.0));
-    // The menu item steps the same way: off again.
-    gallery::update(&mut ui.state, Msg::Perf(0));
+    // A third F2: off again.
+    assert!(ui.key(Key::F(2), false));
     ui.relayout();
     ui.tick(t + 0.1);
     assert_eq!(ui.state.look().overlay, 0);
     assert_eq!(ui.scene().annot.len(), before);
-    gallery::update(&mut ui.state, Msg::Perf(1));
-    assert_eq!(ui.state.look().quality, 0.0, "automatic");
-    gallery::update(&mut ui.state, Msg::Perf(4));
-    assert_eq!(ui.state.look().quality, 0.5);
 }

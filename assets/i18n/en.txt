@@ -19,20 +19,10 @@ mech.explode = Apart
 mech.keys = Drag to orbit · drag a gear to turn the train · wheel to dolly · arrows / [ ] / E apart / M material / , . part / Enter loosen
 
 # The gallery's shell
-shell.quality.auto = Quality auto
-shell.quality.1 = Quality 1
-shell.quality.075 = Quality 0.75
-shell.quality.05 = Quality 0.5
-shell.readout.show = Show readout
-shell.readout.hide = Hide readout
-shell.readout.more = All readout numbers
 shell.back-to-scenes = ‹ Scenes
-shell.perf = Performance
 shell.scenes = Scenes
 shell.language = Language
-shell.theme = Theme
 shell.material = Material
-shell.style = Style
 shell.reset = Reset
 shell.skip = Skip to content
 
@@ -157,6 +147,9 @@ web.start = Get started
 web.copy = copy
 web.copied = copied
 web.skip = Skip to content
+web.readout = Readout
+web.quality = Quality
+web.quality.auto = auto
 web.fail = This browser could not start WebGPU or WebGL2. The documentation can be read on GitHub without it: <a href="https://github.com/amenui-dev/website/tree/main/docs/site/en">docs ↗</a>
 web.description = amenui is a GUI framework in Rust that draws everything itself, on the desktop and on the web.
 web.not-found = Not found

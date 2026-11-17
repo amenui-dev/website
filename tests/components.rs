@@ -235,39 +235,31 @@ fn narrow_rail_scrolls_sideways() {
 }
 
 #[test]
-fn theme_switch_keeps_the_old_frame() {
+fn the_look_strip_changes_the_stage_and_a_style_page_the_whole_look() {
     let mut ui = gallery_at(comp("button"));
     assert!(ui.split().is_none());
-    // The theme menu opens over the page; its options are commits.
-    click(&mut ui, "theme");
-    assert_eq!(ui.modal(), Some("theme/layer"));
-    let old = ui.scene().instances.len();
-    let (x, y) = centre(&ui, "theme:1");
-    ui.press(x, y);
-    ui.release(x, y);
-    assert_eq!(ui.state.theme, 1);
+    // The strip's material menu opens over the page; picking changes the stage's material only, and is
+    // not a commit (no front leaves the stage).
+    click(&mut ui, "doc/button/look/material");
+    assert_eq!(ui.modal(), Some("doc/button/look/material/layer"));
+    click(&mut ui, "doc/button/look/material:2");
     assert_eq!(ui.modal(), None, "the menu closes");
-    let sp = ui.split().expect("split");
-    assert_eq!(sp.at, [x, y]);
-    assert_eq!(sp.scene.instances.len(), old);
-    let id = sp.id;
-    // Navigation is not a commit.
-    click(&mut ui, "nav/number");
-    assert_eq!(ui.split().unwrap().id, id);
-    // Keys commit too: in the open material menu, focus is on the first option.
-    let before = ui.split().unwrap().id;
-    click(&mut ui, "material");
-    assert_eq!(ui.focus(), Some("material:0"));
-    ui.key(Key::Tab, false);
-    ui.key(Key::Enter, false);
-    assert_eq!(ui.state.material, amenui::style::Material::Dot);
-    assert_eq!(ui.split().unwrap().id, before + 1);
+    assert_eq!(ui.state.stage_material, amenui::style::Material::Halftone);
+    assert_eq!(ui.state.look().material, amenui::style::Material::Dot, "the page around the stage keeps the site's material");
+    assert!(ui.split().is_none());
+    // Reset gives the stage back its material.
+    click(&mut ui, "doc/button/look/reset");
+    assert_eq!(ui.state.stage_material, amenui::style::Material::Dot);
     // A style page changes everything, from the rail item pressed (the styles are in the Lab's rail).
     go(&mut ui, Page::Presets);
     click(&mut ui, "nav/style-bauhaus");
-    assert_eq!(ui.split().unwrap().id, before + 2);
+    assert!(ui.split().is_some());
     assert_eq!(ui.state.material, amenui::style::Material::Halftone);
     assert_eq!(ui.state.theme().name, "包豪斯");
+    // Any page without a look of its own is in the site's look again.
+    go(&mut ui, comp("button"));
+    assert_eq!(ui.state.theme, 0);
+    assert_eq!(ui.state.material, amenui::style::Material::Dot);
 }
 
 #[test]

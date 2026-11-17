@@ -19,20 +19,10 @@ mech.explode = 拆开
 mech.keys = 拖动转动视角 · 拖齿轮转整个轮系 · 滚轮推拉 · 方向键 / [ ] / E 拆开 / M 材质 / , . 选零件 / Enter 散开
 
 # The gallery's shell
-shell.quality.auto = 质量 自动
-shell.quality.1 = 质量 1
-shell.quality.075 = 质量 0.75
-shell.quality.05 = 质量 0.5
-shell.readout.show = 显示读数
-shell.readout.hide = 隐藏读数
-shell.readout.more = 显示全部读数
 shell.back-to-scenes = ‹ 场景
-shell.perf = 性能
 shell.scenes = 场景
 shell.language = 语言
-shell.theme = 主题
 shell.material = 材质
-shell.style = 风格
 shell.reset = 恢复默认
 shell.skip = 跳到内容
 
@@ -140,6 +130,9 @@ web.start = 开始使用
 web.copy = 拷贝
 web.copied = 已拷贝
 web.skip = 跳到内容
+web.readout = 读数
+web.quality = 质量
+web.quality.auto = 自动
 web.fail = 这个浏览器无法启动 WebGPU 或 WebGL2。不用它也可以在 GitHub 上阅读文档：<a href="https://github.com/amenui-dev/website/tree/main/docs/site/zh-Hans">文档 ↗</a>
 web.description = amenui 是一个用 Rust 写的、自己绘制一切的图形界面框架，用于桌面和网页。
 web.not-found = 未找到

@@ -37,6 +37,8 @@ pub use pages::{COMPONENTS, Comp, FLOW_PARAMS, MORPH_NAMES, MORPH_PARAMS, ParamD
 /// Below this width (logical px) the rail becomes a row of tabs under the top bar.
 pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 220.0;
+/// The height of the page's HTML navigation bar, which a scene's canvas lies under.
+pub const BAR: f32 = 48.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page { Doc(u8), Ai(u8), Registry, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Decode, Stirr }
@@ -234,11 +236,8 @@ pub enum Msg {
     Ease(usize),
     /// Open a card of the page-change page, or go back to the list.
     Open(Option<usize>),
-    /// Open the theme (1), material (2), style (3) or performance (4) menu, or close it (0).
+    /// Open the look strip's material menu (2), or close it (0).
     Menu(u8),
-    /// The performance menu's item `i`: the readout on or off (0), a quality (1: automatic, then the
-    /// levels of `perf::LEVELS`).
-    Perf(usize),
     /// Apply style preset `i` (theme, material, its numbers, annotation, type).
     Style(usize),
     /// The annotation page: mode, and one kind on or off.
@@ -322,8 +321,10 @@ pub struct Gallery {
     pub search_q: TextEdit,
     pub search_active: usize,
     pub clipboard: Option<String>,
-    /// Which top-bar menu is open (0 = none).
+    /// Which of the look strip's menus is open (0 = none).
     pub menu: u8,
+    /// The material the look strip gives the specimen's stage (and only it).
+    pub stage_material: Material,
     /// Every material's numbers; the looseness the material pages hold their specimen at.
     pub mats: [MaterialParams; MATERIAL_COUNT],
     pub loose: f32,
@@ -344,8 +345,8 @@ pub struct Gallery {
     pub query: TextEdit,
     /// The showcase scenes' state.
     pub sc: Scenes,
-    /// The frame-time readout (F2, or the 性能 menu) and the material resolution (0 = automatic).
-    /// The performance readout: 0 off, 1 one line, 2 every number.
+    /// The performance readout (F2, or the status line): 0 off, 1 one line, 2 every number; and the
+    /// material resolution (0 = automatic).
     pub overlay: u8,
     pub quality: f32,
     /// The input page's multi-line field.
@@ -411,7 +412,7 @@ impl Default for Gallery {
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
             shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
-            menu: 0, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
+            menu: 0, stage_material: Material::Dot, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
@@ -504,8 +505,19 @@ impl Gallery {
             Page::Presets => self.apply_style(self.pre_from),
             Page::Lab | Page::Experiment(_) => lab::enter(self),
             Page::Body => self.body = body::fresh(self),
+            // Every other page is in the site's own look, whatever a preset or scene set before.
+            _ if self.style.is_some() => self.site_look(),
             _ => {}
         }
+    }
+    /// The site's own look: what `apply_style` sets, back to the defaults.
+    fn site_look(&mut self) {
+        let d = Gallery::default();
+        self.style = None;
+        (self.theme, self.demo.theme, self.faces, self.material, self.demo.material) = (d.theme, d.demo.theme, d.faces, d.material, d.demo.material);
+        (self.mats, self.gaze, self.loose_scale, self.demo.fx, self.style_pic) = (d.mats, d.gaze, d.loose_scale, d.demo.fx, d.style_pic);
+        (self.recompose, self.press_ms, self.roles, self.scroll, self.transition) = (d.recompose, d.press_ms, d.roles, d.scroll, d.transition);
+        (self.post, self.depth_marks, self.map, self.hold_ms) = (d.post, d.depth_marks, d.map, d.hold_ms);
     }
     /// The key of morph candidate `i` on the morph page.
     pub fn shape_key(i: usize) -> String { format!("morph/c{i}") }
@@ -557,8 +569,6 @@ pub fn update(s: &mut Gallery, m: Msg) {
             s.enter(p);
         }
         Msg::Menu(k) => s.menu = k,
-        Msg::Perf(0) => { s.overlay = (s.overlay + 1) % 3; s.menu = 0; }
-        Msg::Perf(i) => { s.quality = if i == 1 { 0.0 } else { amenui::perf::LEVELS[(i - 2).min(2)] }; s.menu = 0; }
         Msg::Style(i) => { s.apply_style(i); s.menu = 0; }
         Msg::GazeMode(i) => s.gaze_page.mode = GAZE_MODES[i.min(GAZE_MODES.len() - 1)].0,
         Msg::GazeKind(k) => s.gaze_page.kinds ^= k,
@@ -588,7 +598,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::SearchRun(i) => docs::search_run(s, i),
         Msg::Copy(t) => s.clipboard = Some(t),
         Msg::Theme(i) => { s.theme = i.min(THEMES.len() - 1); s.demo.theme = s.theme; s.faces = None; s.menu = 0; }
-        Msg::Material(i) => { s.material = MATERIALS[i.min(MATERIALS.len() - 1)].0; s.demo.material = s.material; s.menu = 0; }
+        Msg::Material(i) => { s.stage_material = MATERIALS[i.min(MATERIALS.len() - 1)].0; s.demo.material = s.stage_material; s.menu = 0; }
         Msg::Reset => {
             let d = Gallery::default();
             s.mats = d.mats; s.loose = d.loose; s.style = None; s.gaze = d.gaze; s.loose_scale = d.loose_scale; s.style_pic = d.style_pic; s.gaze_page = d.gaze_page;
@@ -597,6 +607,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
             s.demo = Demo { theme: s.theme, material: s.material, ..Demo::default() };
             s.morph = d.morph; s.flow = d.flow; s.three = d.three; s.presets = d.presets; s.faces = None; s.press_ms = d.press_ms; s.roles = d.roles; s.transition = d.transition; s.parts = d.parts; s.particles = d.particles;
             s.sc = Scenes::default();
+            s.stage_material = d.stage_material;
         }
         // Variants are shown as they are: typing into one does not change it.
         Msg::Num(Target::Shown, _) => {}
@@ -706,13 +717,13 @@ fn view_in(s: &Gallery) -> El<Msg> {
         return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s)).child(docs::search(s));
     }
     if let Page::Scene(i) = s.page {
-        // On a scene the top bar is chrome, like the strip: fronts the scene makes pass it by.
-        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(top_bar(s).calm()).child(divider(th.hairline).key("top-rule"))
+        // The canvas lies under the page's navigation bar here, so the scene starts below it.
+        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(space(0.0, BAR).key("bar-room"))
             .child(col().key(format!("main/{}", s.page.hash())).grow(1.0).fill_width().child(scenes::page(s, i as usize)));
     }
     // The first Tab stop: past the bar and the rail to the page.
     let skip = skip_link("skip", &amenui::i18n::tr("shell.skip"), &format!("main/{}", s.page.hash()));
-    let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(skip).child(top_bar(s)).child(divider(th.hairline).key("top-rule"));
+    let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(skip);
     let page = main_page(s, narrow);
     if narrow {
         // A phone's width: the page is set in the window's width, so its text wraps there; anything
@@ -753,33 +764,16 @@ fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
     }
 }
 
-/// The performance menu: the readout (its label says what pressing it does), then the qualities.
-const PERF_ITEMS: [&str; 5] = ["", "shell.quality.auto", "shell.quality.1", "shell.quality.075", "shell.quality.05"];
-fn perf_item(s: &Gallery) -> usize {
-    if s.quality == 0.0 { 1 } else { 2 + amenui::perf::LEVELS.iter().position(|&l| l == s.quality).unwrap_or(0) }
-}
-
-/// The canvas's own bar under the site's navigation: the controls that change the look of the page
-/// and the performance readout. (The site's name, its sections and the language are in the page's
-/// HTML navigation bar.)
-fn top_bar(s: &Gallery) -> El<Msg> {
-    let theme_names: Vec<&str> = THEMES.iter().map(|t| t.name).collect();
-    let material_names: Vec<&str> = MATERIALS.iter().map(|m| m.1).collect();
-    let style_names: Vec<&str> = styles().iter().map(|t| t.name).collect();
-    let material_now = MATERIALS.iter().position(|m| m.0 == s.material);
+/// The look strip at the top of a specimen's stage: the stage's material and `reset`. It is chrome:
+/// calm, and in the plain material whatever the stage is in. (The theme and the whole looks join it
+/// once a theme can be set on a subtree.)
+pub fn look_strip(s: &Gallery, key: &str) -> El<Msg> {
     let tr = amenui::i18n::tr;
-    let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
-    let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
-    row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 6.0).align(AlignItems::CENTER)
-        .child(space(0.0, 0.0).grow(1.0))
-        // On a phone's width the controls stay on one line that scrolls sideways; wider, they wrap.
-        .child({ let r = row().key("top/controls").gap(16.0).align(AlignItems::CENTER); if s.width < NARROW { r.scroll_x().fill_width().min_width(0.0) } else { r.wrap().shrink().min_width(0.0) } }
-            .child(menu("perf", &tr("shell.perf"), &perf,
-                Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
-            .child(menu("theme", &tr("shell.theme"), &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
-            .child(menu("material", &tr("shell.material"), &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
-            .child(menu("style", &tr("shell.style"), &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))
-            .child(button_as("reset", &tr("shell.reset"), Variant::Default, Msg::Reset)))
+    let names: Vec<&str> = MATERIALS.iter().map(|m| m.1).collect();
+    let now = MATERIALS.iter().position(|m| m.0 == s.stage_material);
+    row().key(key).gap(16.0).wrap().align(AlignItems::CENTER).calm().material(Material::Plain.id())
+        .child(menu(&format!("{key}/material"), &tr("shell.material"), &names, now, s.menu == 2, false, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
+        .child(button_as(format!("{key}/reset"), &tr("shell.reset"), Variant::Default, Msg::Reset))
 }
 
 /// The component pages: one per component, and the list's ten thousand rows right after the list.
@@ -831,7 +825,7 @@ fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
 }
 
 fn rail(s: &Gallery) -> El<Msg> {
-    let mut r = col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0);
+    let mut r = col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0).calm().material(Material::Plain.id());
     for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
         if gi > 0 { r = r.child(space(1.0, 14.0)); }
         r = r.child(row().key(format!("rail/group/{gi}")).pad(12.0, 4.0).child(text(name, 12.0, Paint::DIM)));
@@ -842,7 +836,7 @@ fn rail(s: &Gallery) -> El<Msg> {
 
 /// The rail on narrow windows: one row that scrolls sideways, the group names as dim labels.
 fn rail_row(s: &Gallery) -> El<Msg> {
-    let mut r = row().key("rail").fill_width().scroll_x().bar().pad(12.0, 6.0).gap(4.0).align(AlignItems::CENTER);
+    let mut r = row().key("rail").fill_width().scroll_x().bar().pad(12.0, 6.0).gap(4.0).align(AlignItems::CENTER).calm().material(Material::Plain.id());
     for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
         r = r.child(row().key(format!("rail/group/{gi}")).pad(if gi > 0 { 12.0 } else { 4.0 }, 0.0).child(text(name, 12.0, Paint::DIM)));
         for p in pages { r = r.child(rail_item(s, p, 32.0)); }
