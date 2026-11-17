@@ -19,13 +19,13 @@ fn find<'a>(t: &'a [A11yNode], role: Role, name: &str) -> Option<&'a A11yNode> {
 fn buttons_and_activation() {
     let mut ui = at("button");
     let t = ui.a11y();
-    let b = find(&t, Role::Button, "按下").expect("the live button");
+    let b = find(&t, Role::Button, "Press").expect("the live button");
     assert!(b.focusable && !b.disabled);
-    assert!(find(&t, Role::Button, "不可用").expect("a disabled one").disabled);
+    assert!(find(&t, Role::Button, "Unavailable").expect("a disabled one").disabled);
     assert!(find(&t, Role::Heading, "按钮").is_some_and(|h| h.level == 1), "the page title is a heading");
-    assert!(t.iter().any(|n| n.role == Role::Text && n.name == "按下了 0 次"), "text outside controls");
+    assert!(t.iter().any(|n| n.role == Role::Text && n.name == "Pressed 0 times"), "text outside controls");
     // Text inside a button is its name, not a separate element.
-    assert!(!t.iter().any(|n| n.role == Role::Text && n.name == "按下"));
+    assert!(!t.iter().any(|n| n.role == Role::Text && n.name == "Press"));
     let key = b.key.clone();
     let first = ui.a11y_diff();
     assert!(first.len() > 20);
@@ -34,7 +34,7 @@ fn buttons_and_activation() {
     assert_eq!(ui.state.presses, 1, "the same message as a press");
     assert_eq!(ui.focus(), Some(key.as_str()));
     let ops = ui.a11y_diff();
-    assert!(ops.iter().any(|o| matches!(o, A11yOp::Set(n) if n.name == "按下了 1 次")), "the count changed: {ops:?}");
+    assert!(ops.iter().any(|o| matches!(o, A11yOp::Set(n) if n.name == "Pressed 1 time")), "the count changed: {ops:?}");
     assert!(ops.iter().any(|o| matches!(o, A11yOp::Focus(Some(k)) if *k == key)));
     assert!(ops.len() < 6, "only what changed: {}", ops.len());
 }
@@ -48,7 +48,7 @@ fn a_dialog_alone_while_open() {
     assert!(d.modal);
     assert!(!d.name.is_empty());
     assert!(t.iter().all(|n| n.role == Role::Dialog || n.parent.is_some()), "everything else is inside it");
-    assert!(find(&t, Role::Button, "关闭").is_some());
+    assert!(find(&t, Role::Button, "Close").is_some());
     assert!(t.iter().any(|n| n.role == Role::TextBox), "its field");
     assert!(!t.iter().any(|n| n.role == Role::Heading && n.level == 1), "the page beneath is not there");
 }
@@ -57,7 +57,7 @@ fn a_dialog_alone_while_open() {
 fn states_of_the_widgets() {
     let ui = at("slider");
     let t = ui.a11y();
-    let s = find(&t, Role::Slider, "数值").expect("the slider");
+    let s = find(&t, Role::Slider, "Value").expect("the slider");
     let (v, lo, hi) = s.value.expect("a value");
     assert!(lo < hi && v >= lo && v <= hi);
     let ui = at("switch");

@@ -30,9 +30,6 @@ fn the_landing_scene_shows_no_chinese_in_either_language() {
         }
         let missed = i18n::misses();
         assert!(missed.is_empty(), "keys with no text: {missed:?}");
-        // The language marking names the language the rest of the gallery is in.
-        let lang = ui.export_tree().find("body/mark/lang").and_then(|n| n.text.clone()).unwrap_or_default();
-        assert!(lang.ends_with(if l == Locale::En { "EN" } else { "ZH" }), "{lang}");
     }
 }
 

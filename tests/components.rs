@@ -54,7 +54,7 @@ fn typing_into_the_input() {
     ui.key(Key::Char('!'), false);
     assert_eq!(ui.state.text.text, "hello, world!");
     assert_eq!(ui.node("input/live/text").and_then(|n| n.text()), Some("hello, world!"));
-    assert_eq!(ui.node("input/count").and_then(|n| n.text()), Some("13 个字"));
+    assert_eq!(ui.node("input/count").and_then(|n| n.text()), Some("13 characters"));
     // Space is typed, not a press.
     ui.key(Key::Char(' '), false);
     assert_eq!(ui.state.text.text, "hello, world! ");
@@ -213,6 +213,7 @@ fn disabled_controls_ignore_input() {
 #[test]
 fn narrow_rail_scrolls_sideways() {
     let mut ui = gallery::new_ui(fonts(), 600, 900, 1.0);
+    go(&mut ui, comp("button"));
     let rail = ui.node("rail").expect("rail row").rect;
     assert_eq!(rail.w, 600.0);
     assert!(ui.node("rail").unwrap().extent > 1000.0);
@@ -222,10 +223,11 @@ fn narrow_rail_scrolls_sideways() {
     assert_eq!(ui.scroll_offset("rail"), 120.0);
     assert_eq!(ui.node("nav/number").unwrap().rect.x, x0 - 120.0);
     // Going to a page off to the right by keyboard brings its tab into view.
-    let r = ui.node("nav/demo").unwrap().rect;
+    let last = format!("nav/{}", website::gallery::docs::widget_names().len().checked_sub(1).map_or("button".to_owned(), |i| Page::Widget(i as u8).hash()));
+    let r = ui.node(&last).unwrap().rect;
     assert!(r.x > 600.0);
-    while ui.focus() != Some("nav/demo") { ui.key(Key::Tab, false); }
-    let r = ui.node("nav/demo").unwrap().rect;
+    while ui.focus() != Some(last.as_str()) { ui.key(Key::Tab, false); }
+    let r = ui.node(&last).unwrap().rect;
     assert!(r.right() <= 600.0, "{r:?}");
     // On a wide window the rail is a column.
     ui.resize(1280, 900, 1.0);
@@ -260,7 +262,8 @@ fn theme_switch_keeps_the_old_frame() {
     ui.key(Key::Enter, false);
     assert_eq!(ui.state.material, amenui::style::Material::Dot);
     assert_eq!(ui.split().unwrap().id, before + 1);
-    // A style page changes everything, from the rail item pressed.
+    // A style page changes everything, from the rail item pressed (the styles are in the Lab's rail).
+    go(&mut ui, Page::Presets);
     click(&mut ui, "nav/style-bauhaus");
     assert_eq!(ui.split().unwrap().id, before + 2);
     assert_eq!(ui.state.material, amenui::style::Material::Halftone);

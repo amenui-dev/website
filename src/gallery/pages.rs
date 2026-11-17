@@ -505,8 +505,9 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     let pick: [u32; 7] = [demo::SPHERE, demo::SKY, demo::TERRAIN, demo::BUST, demo::DUSK, demo::PLANET, demo::FLOWER];
     let pick_names = ["球", "天空", "地形", "胸像", "黄昏", "行星", "花"];
     let at = pick.iter().position(|&i| i == s.shown).unwrap_or(0);
+    // In English the names are longer: on a phone the choice scrolls sideways.
     let view = col().fill_width().min_width(0.0).gap(14.0)
-        .child(row().child(segmented(&format!("{h}/picture-choice"), &pick_names, at, 30.0, move |i| Msg::Show(pick[i.min(6)]))))
+        .child(row().key(format!("{h}/picture-row")).fill_width().min_width(0.0).scroll_x().child(segmented(&format!("{h}/picture-choice"), &pick_names, at, 30.0, move |i| Msg::Show(pick[i.min(6)]))))
         .child(space(pw, 1.0).fill(Paint::FAINT).key(format!("{h}/rule-top")))
         .child(frame)
         .child(chips)
@@ -527,7 +528,7 @@ fn type_page(s: &Gallery) -> El<Msg> {
     // Departure Mono has no CJK, so it gets a Latin sample (anything else would be set in the fallback).
     let line = |key: String, label: String, size: f32, face: u8| row().key(key).gap(20.0).align(AlignItems::BASELINE)
         .child(row().width(150.0).child(text(label, 12.0, Paint::DIM).font(Font::Face(MONO))))
-        .child(text_lh(if face == MONO { "Departure Mono 0123 ABC abc" } else { "界面上的字 Type 0123" }, size, (size * 1.4).round(), Paint::INK).font(Font::Face(face)).grow(1.0));
+        .child(text_lh(if face == MONO { "Departure Mono 0123 ABC abc" } else { "Type 0123 Aa" }, size, (size * 1.4).round(), Paint::INK).font(Font::Face(face)).grow(1.0));
     let mut sans = col().key("type/sans").gap(10.0).fill_width();
     for (name, size) in [("显示", sz.display), ("标题", sz.title), ("正文", sz.body), ("小字", sz.small)] {
         sans = sans.child(line(format!("type/sans/{name}"), format!("{name} {size}"), size, SANS));
@@ -589,7 +590,7 @@ const PARAGRAPH: &str = "屏幕上的任何东西都能散成粒子，飞到别�
 fn shape(s: &Gallery, i: usize) -> El<Msg> {
     let k = Gallery::shape_key(i);
     let el = match i {
-        0 => { let z = if s.width < super::NARROW { 0.6 } else { 1.0 }; text_lh("变换", 120.0 * z, 150.0 * z, Paint::INK).font(Font::Display).key(k) }
+        0 => { let z = if s.width < super::NARROW { 0.4 } else { 1.0 }; text_lh("Morph", 120.0 * z, 150.0 * z, Paint::INK).font(Font::Display).key(k) }
         1 => col().key(k).width(460.0f32.min(s.width - 60.0)).child(text_lh(PARAGRAPH, 17.0, 30.0, Paint::TEXT)),
         2 => col().key(k).width(460.0).child(picture(SPHERE, 0.5).key("morph/picture").pic_fx(IMAGE_SLOT)),
         3 => space(220.0, 220.0).key(k).radius(110.0).fill(Paint::ACCENT),

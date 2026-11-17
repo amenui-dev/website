@@ -142,7 +142,8 @@ pub fn live(s: &Gallery, name: &str) -> Option<El<Msg>> {
 
 fn sheet_page(s: &Gallery) -> El<Msg> {
     let c = &s.craft;
-    let zh = amenui::i18n::current() == amenui::i18n::Locale::ZhHans;
+    // The demo's words are English whatever the interface language.
+    let zh = false;
     let mut page = col().key("craft/sheet/page").fill_width().fill_height().pad(20.0, 20.0).gap(12.0)
         .child(text(if zh { "相册" } else { "Album" }, 22.0, Paint::INK).font(Font::Display));
     for i in 0..5 {

@@ -124,7 +124,7 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
     let big = format!("{:02}:{:02}", (t / 3600.0).rem_euclid(24.0) as u32, (t / 60.0).rem_euclid(60.0) as u32);
     let secs = format!("{:02}", t.rem_euclid(60.0) as u32);
     let plat = s.slides[5].round().clamp(1.0, 9.0) as u32;
-    let msg = format!("{plat} 站台　·　请站在黄线以内候车　·　列车即将进站，请注意安全　·　下一班 08:47 北京 南　·　");
+    let msg = format!("Platform {plat}  ·  please wait behind the yellow line  ·  the train is arriving, please take care  ·  next 08:47 Beijing South  ·  ");
     // The ticker moves a character's width every second: the text is the view, the clock moves it.
     let step = (s.clock.floor() as usize) % 40;
     let shown: String = msg.chars().chain(msg.chars()).skip(step).take(60).collect();
