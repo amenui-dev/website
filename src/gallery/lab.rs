@@ -24,7 +24,8 @@ macro_rules! cells {
             /// Cell `i`, keyed under `key`, telling when it comes into view.
             pub fn cell(&self, i: usize, key: &str) -> El<LMsg> {
                 let c = match i { $( $i => self.$f.view(key).map(Rc::new(LMsg::$v)), )* _ => col() };
-                c.on_visible(move |v| Some(LMsg::Seen(i, v)))
+                // The same cell on the index and on its page: it flies from one to the other.
+                c.on_visible(move |v| Some(LMsg::Seen(i, v))).flow(format!("lab-cell-{i}"))
             }
             pub fn update(&mut self, m: LMsg, now: f32) {
                 if !matches!(m, LMsg::Seen(..)) { self.until = now + amenui::experiment::IDLE_S; }
@@ -98,7 +99,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     for (i, n) in NAMES.iter().enumerate() {
         let p = Page::Experiment(i as u8);
         cells = cells.child(col().key(format!("labx/{n}")).fill_width().min_width(0.0).gap(8.0)
-            .child(s.lab.cell(i, &format!("lab/{n}")).map(Rc::new(Msg::Lab)))
+            .child(s.lab.cell(i, &format!("labi/{n}")).map(Rc::new(Msg::Lab)))
             .child(amenui::el::row().key(format!("labx/{n}/name")).gap(10.0).on_press(Msg::Go(p)).role(amenui::el::Role::Link)
                 .child(text(format!("{:02}", i + 1), 11.0, Paint::DIM).font(Font::Mono))
                 .child(text(format!("{} →", p.name()), 11.0, Paint::TEXT).font(Font::Mono))));

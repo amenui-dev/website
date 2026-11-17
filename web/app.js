@@ -341,6 +341,10 @@ function site() {
       if (!l || l.dataset.skip || l.dataset.play || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       D.getElementById('sheet').classList.remove('open');
+      // The navigation's front starts at the hand (the link's centre for a keyboard activation).
+      const r = l.getBoundingClientRect(), c = D.querySelector('#stage .c'), k = c ? c.getBoundingClientRect() : { left: 0, top: 0 };
+      const [x, y] = e.detail === 0 ? [r.left + r.width / 2, r.top + r.height / 2] : [e.clientX, e.clientY];
+      if (a.w.pressed_at) a.w.pressed_at(x - k.left, y - k.top);
       a.route(l.dataset.route === '' ? '/' : l.dataset.route);
     });
     addEventListener('popstate', () => {

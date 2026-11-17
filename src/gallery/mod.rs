@@ -40,6 +40,8 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 232.0;
 /// The height of the page's HTML navigation bar, which a scene's canvas lies under.
 pub const BAR: f32 = 48.0;
+/// A change of section's front (px/s, F.6).
+pub const SECTION_FRONT: f32 = 2_800.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page { Components, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Reader, Decode, Stirr }
@@ -317,6 +319,13 @@ pub struct Gallery {
     pub sheet: bool,
     /// The page's stage alone, for a live stage on a docs page (`<path>#stage`).
     pub stage_only: bool,
+    /// The page before this one; where the pointer pressed the link of an in-app navigation (CSS px
+    /// on the canvas); whether the app has been routed once (the first route is the page loading, not
+    /// a navigation); until when a change of section's front runs at its own speed.
+    pub from: Page,
+    pub pressed_at: Option<(f32, f32)>,
+    pub routed: bool,
+    pub section_front: f32,
     pub clipboard: Option<String>,
     /// Which of the look strip's menus is open (0 = none).
     pub menu: u8,
@@ -408,7 +417,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -460,7 +469,36 @@ impl Gallery {
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
         body::look(self, &mut l);
+        // A change of section's front, at its own speed until it has crossed the window.
+        if self.clock < self.section_front { l.fx.wave_speed = SECTION_FRONT; }
         l
+    }
+    /// The flow to page `to`: from the Lab's index to an experiment the other cells do not leave as
+    /// ghosts (the live cell is the lead; the rest closes).
+    fn flow_to(&self, to: Page) -> FlowSpec {
+        if self.page == Page::Lab && matches!(to, Page::Experiment(_)) { FlowSpec { out_ms: 0.0, ..self.flow } } else { self.flow }
+    }
+    /// The title's flow id on a page: from the Components index, the pressed card's name (so it flies
+    /// to the title); otherwise the one id every page title shares (it flies from page to page).
+    pub fn title_flow(&self) -> String { if self.from == Page::Components { format!("card-name-{}", self.page.hash()) } else { "page-title".into() } }
+    /// What a navigation inside the running app does on the way from `from` to `to` (F.7): one lead —
+    /// a commit from the pressed point when the look changes, or the flow of the parts two pages share —
+    /// and everything else closes. None with reduced motion (a cut). The doors from home take the
+    /// table's fallback (front and close): a morph cannot yet start from the page being left.
+    fn transition(&mut self, from: Page, to: Page) {
+        let at = self.pressed_at.take();
+        if self.body.reduced || from == to { return; }
+        let (x, y) = at.unwrap_or((self.width * 0.5, BAR * 0.5));
+        let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, _ => 0 };
+        match (from, to) {
+            _ if look(from) != look(to) => {
+                if from.section() != to.section() { self.section_front = self.clock + (self.width.hypot(self.height) / SECTION_FRONT); }
+                self.cmds.push(Cmd::Commit { x, y });
+            }
+            // Inside a section (and between sections in one look): the shared parts flow.
+            _ if from.section() == to.section() => self.cmds.push(Cmd::Flow(self.flow_to(to))),
+            _ => {}
+        }
     }
     /// Apply style preset `i`: everything at once; the theme and material switches still work after.
     pub fn apply_style(&mut self, i: usize) {
@@ -547,6 +585,9 @@ impl Gallery {
         let page = if hash.contains('/') { Page::from_path(hash) } else { Page::from_hash(hash) };
         match page {
             Some(p) => {
+                if self.routed && p != self.page { self.transition(self.page, p); self.from = self.page; }
+                self.routed = true;
+                (self.rail_open, self.sheet, self.dialog) = (None, false, 0);
                 self.page = p; self.edit = None; self.enter(p);
                 if state == "stage" { self.stage_only = true; }
                 else if p == Page::Body && !state.is_empty() { self.body.open(state, 0); }
@@ -561,7 +602,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
     match m {
         Msg::Go(p) => {
             // Parts the two pages share (the page title, the rail's selection) move rather than vanish.
-            if p != s.page { s.cmds.push(Cmd::Flow(s.flow)); }
+            if p != s.page { s.cmds.push(Cmd::Flow(s.flow_to(p))); s.from = s.page; }
             s.page = p; s.edit = None; s.dialog = 0; s.rail_open = None; s.sheet = false;
             // A style page shows its style, a scene its own.
             s.enter(p);

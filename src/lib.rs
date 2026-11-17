@@ -127,6 +127,10 @@ mod site_exports {
     /// state on the stage (1 to 4).
     #[wasm_bindgen]
     pub fn hero_walk() -> Vec<u32> { host(|s| { let b = &s.ui.state.body; vec![b.walking() as u32, b.seen as u32, b.at as u32] }).unwrap_or_default() }
+    /// Where the next in-app navigation was pressed (CSS px on the canvas; a link's centre for a
+    /// keyboard activation): its front starts there.
+    #[wasm_bindgen]
+    pub fn pressed_at(x: f32, y: f32) { host(|s| s.ui.state.pressed_at = Some((x, y))); }
     /// The home page's form (0 rock, 1 cloud) and seed, for the rail row.
     #[wasm_bindgen]
     pub fn hero_form() -> Vec<u32> { host(|s| vec![s.ui.state.body.form, s.ui.state.body.seed]).unwrap_or_default() }

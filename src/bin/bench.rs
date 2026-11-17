@@ -191,7 +191,7 @@ fn lab(runs: usize) {
     for p in std::iter::once(Page::Lab).chain((0..website::gallery::lab::COUNT as u8).map(Page::Experiment)) {
         gallery::update(&mut ui.state, Msg::Go(p));
         ui.relayout();
-        let key = if let Page::Experiment(i) = p { format!("lab/{}", website::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
+        let key = if let Page::Experiment(i) = p { format!("lab/{}", website::gallery::lab::NAMES[i as usize]) } else { "labi/contours".into() };
         let r = ui.node(&key).map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 300.0));
         let mut t = ui.now();
         let mut total = 0.0;

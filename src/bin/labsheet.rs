@@ -52,7 +52,7 @@ fn page(out: &str, w: u32, h: u32, file: &str) {
     g.relayout();
     let mut t = 0.0;
     // The pointer comes into the first cell's stage and moves slowly across it, so its accent shows.
-    let st = g.nodes().iter().find(|n| n.key == "lab/lumen/stage").map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 200.0));
+    let st = g.nodes().iter().find(|n| n.key == "labi/lumen/stage").map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 200.0));
     for f in 0..150 { t += 1.0 / 60.0; if f >= 30 { let k = (f - 30) as f32 / 120.0; g.pointer_move(st.x + st.w * (0.25 + 0.4 * k), st.y + st.h * (0.45 + 0.1 * (k * 6.0).sin())); } g.tick(t); }
     let look = g.state.look();
     let px = o.render(&mut g, &look);

@@ -61,3 +61,55 @@ fn gallery_flow_page_and_shell() {
     assert_eq!(ui.state.page, Page::Three);
     assert_eq!(ui.node("strip").unwrap().rect, strip);
 }
+
+// ── Route transitions inside the running app (F.7) ───────────────────────────────────────────────
+
+fn routed(path: &str) -> GalleryUi {
+    let mut ui = gallery::new_ui(amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts"), 1440, 900, 1.0);
+    ui.pointer_leave();
+    assert!(ui.state.route(path));
+    ui.relayout();
+    ui.tick(3.0);
+    ui
+}
+fn nav(ui: &mut GalleryUi, path: &str, at: (f32, f32)) -> Vec<amenui::morph::Cmd> {
+    ui.state.pressed_at = Some(at);
+    assert!(ui.state.route(path), "{path}");
+    let cmds = ui.state.cmds.clone();
+    ui.relayout();
+    cmds
+}
+fn leads(cmds: &[amenui::morph::Cmd]) -> (usize, usize) {
+    use amenui::morph::Cmd;
+    (cmds.iter().filter(|c| matches!(c, Cmd::Morph { .. } | Cmd::Flow(_))).count(), cmds.iter().filter(|c| matches!(c, Cmd::Commit { .. } | Cmd::Ripplr { .. })).count())
+}
+
+#[test]
+fn a_change_of_section_commits_from_the_pressed_link_at_its_own_speed() {
+    let mut ui = routed("components/button/");
+    let cmds = nav(&mut ui, "lab/", (300.0, -24.0));
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Commit { x, y }] if *x == 300.0 && *y == -24.0), "{cmds:?}");
+    assert!(ui.split().is_some());
+    assert_eq!(ui.state.look().fx.wave_speed, gallery::SECTION_FRONT);
+    // Inside a section the shared parts flow, and there is no front.
+    let cmds = nav(&mut ui, "lab/lumen/", (200.0, 300.0));
+    assert_eq!(leads(&cmds), (1, 0));
+    assert!(ui.flowing() > 0, "the live cell flies to its page");
+}
+
+#[test]
+fn a_card_name_flies_to_the_specimen_title_and_reduced_motion_cuts() {
+    let mut ui = routed("components/");
+    let cmds = nav(&mut ui, "components/switch/", (600.0, 300.0));
+    assert_eq!(leads(&cmds), (1, 0));
+    assert!(ui.flowing() > 0);
+    // With reduced motion a route change is a cut.
+    ui.state.body.reduced = true;
+    let cmds = nav(&mut ui, "scenes/", (600.0, 300.0));
+    assert!(cmds.is_empty(), "{cmds:?}");
+    // From home every door has at most one lead and one front.
+    let mut ui = routed("/");
+    let cmds = nav(&mut ui, "components/", (900.0, 860.0));
+    let (l, f) = leads(&cmds);
+    assert!(l <= 1 && f <= 1, "{cmds:?}");
+}

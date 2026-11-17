@@ -246,7 +246,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let desc = if l == Locale::En && !it.desc_en.is_empty() { it.desc_en.clone() } else { it.desc.clone() };
     let head = col().key(format!("doc/{h}/head")).gap(10.0)
         .child(row().wrap().gap(14.0).align(AlignItems::BASELINE).key(format!("doc/{h}/title-row"))
-            .child(text(title, 34.0, Paint::INK).font(Font::Display).heading(1).key(format!("{h}/title")).flow("page-title"))
+            .child(text(title, 34.0, Paint::INK).font(Font::Display).heading(1).key(format!("{h}/title")).flow(s.title_flow()))
             .child(text(it.functions.join(" / "), 13.0, Paint::DIM).font(Font::Mono)))
         .child(text_lh(desc, 16.0, 27.0, Paint::DIM).key(format!("{h}/desc")));
     // 1. Preview / code.
