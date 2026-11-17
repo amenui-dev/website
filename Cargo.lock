@@ -154,7 +154,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "amenui"
 version = "0.0.1"
-source = "git+https://github.com/amenui-dev/amenui?branch=main#2fe96cd5321ebd9d6194153d0fe9b4590cd60bd5"
+source = "git+https://github.com/amenui-dev/amenui?branch=main#2c0142dc1e13e8ccfc0e0e9e46f0f58875156b2b"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -2726,10 +2726,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
