@@ -78,3 +78,10 @@ fn llms_lists_every_page_that_has_markdown() {
         }
     }
 }
+
+#[test]
+fn front_matter_is_read_and_left_out_of_the_page() {
+    use website::gallery::docs::front_matter;
+    assert_eq!(front_matter("---\nkind: howto\n---\n# Title\n"), (Some("howto"), "# Title\n"));
+    assert_eq!(front_matter("# Title\n"), (None, "# Title\n"));
+}

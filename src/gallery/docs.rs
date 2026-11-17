@@ -40,7 +40,16 @@ pub const AI: [(&str, &str, &str); 3] = [("ai-agents", "docs.ai.agents", amenui:
 const REGISTRY: &str = amenui::sources::REGISTRY;
 
 /// A prose page's source in a language (English when the language has none).
-pub fn source(i: usize, l: Locale) -> &'static str { match l { Locale::ZhHans => ZH[i], _ => EN[i] } }
+pub fn source(i: usize, l: Locale) -> &'static str { front_matter(match l { Locale::ZhHans => ZH[i], _ => EN[i] }).1 }
+/// A page's `kind` (`readme`, `howto`, `reference`, `explanation`) from its front matter, if it has one.
+pub fn kind(i: usize) -> Option<&'static str> { front_matter(EN[i]).0 }
+/// A Markdown file's front matter (a leading block between `---` lines): its `kind`, and the text after it.
+pub fn front_matter(md: &str) -> (Option<&str>, &str) {
+    let Some(rest) = md.strip_prefix("---\n") else { return (None, md) };
+    let Some(end) = rest.find("\n---\n") else { return (None, md) };
+    let kind = rest[..end].lines().find_map(|l| l.strip_prefix("kind:")).map(str::trim);
+    (kind, &rest[end + 5..])
+}
 /// A prose page's title: its first heading.
 pub fn title(i: usize, l: Locale) -> String { source(i, l).lines().find_map(|x| x.strip_prefix("# ")).unwrap_or(DOCS[i]).to_owned() }
 
