@@ -113,6 +113,11 @@ fn main() {
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
+    if std::env::args().nth(1).is_some_and(|a| a == "readouts") {
+        let f = readouts(&fonts);
+        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
+        return eprintln!("all checks passed");
+    }
     if std::env::args().nth(1).is_some_and(|a| a == "scribblr") {
         let f = scribblr(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
@@ -388,7 +393,7 @@ fn main() {
     // ── 7. Annotation frames on the layout rects ────────────────────────────────────────────────────
     let before = failed;
     let magenta = [255u8, 0, 255];
-    let g = Gaze { mode: GazeMode::All, kinds: gaze::FRAME, density: 20.0, draw_ms: 100.0, colour: [1.0, 0.0, 1.0], only_marked: false };
+    let g = Gaze { mode: GazeMode::All, kinds: gaze::FRAME, density: 20.0, draw_ms: 100.0, colour: [1.0, 0.0, 1.0], only_marked: false, ..Gaze::default() };
     let mut ui = Ui::new(g, framed, |_, _| {}, fonts(), W, H, 1.0).on_gaze(|g| *g);
     ui.pointer_leave();
     ui.tick(5.0);
@@ -405,6 +410,7 @@ fn main() {
         frames += 1;
     }
     if frames < 4 { eprintln!("FAIL only {frames} frames"); failed += 1; }
+    failed += readouts(&fonts);
     eprintln!("7. annotation frames: {frames} checked, {} failing", failed - before);
 
     // ── 8. Text keeps its gap from the obstacle's ink ───────────────────────────────────────────────
@@ -1482,7 +1488,182 @@ fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let (frames, bad) = trail_in_part(fonts, &mut o3, &[Material::Scribblr as usize]);
     failed += bad;
     eprintln!("20.5 threads drawn in part: {frames} frames, {bad} failing");
+    failed += finishing(fonts);
     eprintln!("20. scribblr: {failed} failing");
+    failed
+}
+
+// ── 7 (continued). Edge notes, the waveform and the level bar ─────────────────────────────────────
+struct Ed { g: Gaze, cmds: Vec<lab::morph::Cmd>, mat: Material }
+fn edged(_: &Ed) -> El<()> {
+    col().pad(40.0, 40.0)
+        .child(col().key("scope").gaze_scope().width(600.0).height(380.0).pad(20.0, 20.0)
+            .child(space(160.0, 40.0).fill(Paint::FAINT).key("e1")))
+}
+/// The annotation colour mixed with the ground by `a` (0–1), the nearest `a` and how far the pixel is.
+fn mix_of(p: [u8; 3], ground: [u8; 3], col: [u8; 3]) -> (f32, i32) {
+    let (mut best, mut far) = (0.0, i32::MAX);
+    for k in 0..=255 {
+        let a = k as f32 / 255.0;
+        let d = (0..3).map(|i| (p[i] as i32 - (ground[i] as f32 + (col[i] as f32 - ground[i] as f32) * a).round() as i32).abs()).max().unwrap_or(0);
+        if d < far { (best, far) = (a, d); }
+    }
+    (best, far)
+}
+fn readouts(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    let mut failed = 0;
+    let magenta = [255u8, 0, 255];
+    let g = Gaze { mode: GazeMode::All, kinds: gaze::EDGE | gaze::OSC | gaze::LEVEL, density: 20.0, draw_ms: 0.0, colour: [1.0, 0.0, 1.0], only_marked: false, ..Gaze::default() };
+    for (w, h, scale, mat) in [(W, H, 1.0f32, Material::Dot), (W, H, 1.0, Material::Plain), (W * 2, H * 2, 2.0, Material::Plain)] {
+        let mut o = Offscreen::new(w, h);
+        let mut ui = Ui::new(Ed { g, cmds: vec![], mat }, edged, |_, _| {}, fonts(), w, h, scale).on_gaze(|s| s.g).on_commands(|s| std::mem::take(&mut s.cmds))
+            .on_look(|s| Look { theme: DARK, material: s.mat, ..Look::default() });
+        ui.pointer_leave();
+        ui.tick(5.0);
+        let sc = ui.node("scope").expect("scope").rect;
+        // A stir in the middle, so the waveform has a hill.
+        ui.state.cmds.push(lab::morph::Cmd::Stir { at: lab::morph::StirAt::Point([sc.x + 300.0, sc.y + 190.0]), v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: lab::el::Scope::Global });
+        ui.relayout();
+        ui.tick(5.0 + 1.0 / 60.0);
+        let look = ui.look();
+        let img = o.render(&mut ui, &look);
+        let r = ui.readout().clone();
+        let t = scale.round() as u32;
+        let (x0, y0, x1, y1) = ((sc.x * scale).round() as u32, (sc.y * scale).round() as u32, (sc.right() * scale).round() as u32, (sc.bottom() * scale).round() as u32);
+        // The hairline: the scope's last device column, every row, and nothing just outside it.
+        let line = x1 - t;
+        let on = (y0..y1).all(|y| px(&img, w, line, y) == magenta);
+        let outside = (y0..y1).filter(|&y| px(&img, w, x1, y) == magenta).count();
+        // Between ticks (5 px past each 10), one device pixel wide.
+        let wide = (0..((sc.h / 10.0) as u32)).map(|k| y0 + ((10 * k + 5) as f32 * scale) as u32).filter(|&y| y < y1 && px(&img, w, line - 1, y) == magenta).count();
+        if !on || outside > 0 || wide > 0 || r.edge_x != Some(line as f32) { eprintln!("FAIL {scale}×: the edge line is not one device pixel on the scope's edge (on {on}, outside {outside}, wide {wide}, {:?})", r.edge_x); failed += 1; }
+        // The waveform: in each device column between the level bar and the notes, one run of the
+        // annotation colour exactly, one pixel thick where it is flat; and no pixel half-way.
+        let (cx0, cx1) = (x0 + (12.0 * scale) as u32, x1 - (60.0 * scale) as u32);
+        let base = ((sc.y + sc.h * g.osc_y) * scale).round() as u32;
+        let mut bad_cols = 0;
+        let mut flat = 0;
+        let mut mixed = 0;
+        for x in cx0..cx1 {
+            let rows: Vec<u32> = (y0..y1).filter(|&y| px(&img, w, x, y) == magenta).collect();
+            if rows.is_empty() || rows.windows(2).any(|p| p[1] != p[0] + 1) { bad_cols += 1; continue; }
+            if rows.len() == t as usize && rows[0] == base { flat += 1; }
+            // The pixels just above and below the run are whatever is under it, not a blend with the line.
+            for y in [rows[0].saturating_sub(1), rows[rows.len() - 1] + 1] {
+                let p = px(&img, w, x, y);
+                if p != magenta && p[0] > 200 && p[2] > 200 { mixed += 1; }
+            }
+        }
+        if bad_cols > 0 || flat == 0 || mixed > 0 { eprintln!("FAIL {scale}×: the waveform ({bad_cols} broken columns, {flat} flat, {mixed} blended)"); failed += 1; }
+        if r.osc.iter().all(|p| (p[1] - sc.y - sc.h * g.osc_y).abs() < 0.5) { eprintln!("FAIL {scale}×: control: the stir raised no hill in the waveform"); failed += 1; }
+        // The level bar: 6 px wide at the left, as high as the readout says.
+        let bar_h = (0..y1 - y0).filter(|&k| px(&img, w, x0 + t, y1 - 1 - k) == magenta).count() as f32;
+        if (bar_h - (r.level_h * scale).round()).abs() > 1.0 || r.level_h <= 0.0 { eprintln!("FAIL {scale}×: the level bar is {bar_h} px for {}", r.level_h * scale); failed += 1; }
+        // The edge notes: only the annotation colour over the ground (any mix of the two, nothing else),
+        // inside the scope, and clear: each note has pixels at full colour, and most of its ink is solid.
+        let ground = rgb8(DARK.ground);
+        // (Over plain: the dot material's ground is not one colour.)
+        for (note, b) in r.notes.iter().filter(|_| mat == Material::Plain) {
+            let (bx0, by0, bx1, by1) = device_rect(*b, scale);
+            let (mut off, mut inked, mut solid, mut peak) = (0, 0, 0, 0.0f32);
+            for y in by0..by1.min(h) {
+                for x in bx0..bx1.min(w) {
+                    let p = px(&img, w, x, y);
+                    let (a, d) = mix_of(p, ground, magenta);
+                    if d > 2 { off += 1; continue; }
+                    if a > 0.1 { inked += 1; }
+                    if a > 0.6 { solid += 1; }
+                    peak = peak.max(a);
+                }
+            }
+            let share = solid as f32 / inked.max(1) as f32;
+            if off > 0 || inked == 0 || peak < 0.9 || share < 0.3 { eprintln!("FAIL {scale}×: the note {note:?} ({off} px not ink or ground, {inked} inked, peak {peak:.2}, {:.0}% solid)", share * 100.0); failed += 1; }
+            if b.x < sc.x || b.right() > sc.right() || b.y < sc.y || b.bottom() > sc.bottom() { eprintln!("FAIL {scale}×: the note {note:?} is outside the scope"); failed += 1; }
+        }
+        if r.notes.len() < 5 { eprintln!("FAIL {scale}×: only {} notes", r.notes.len()); failed += 1; }
+        eprintln!("7.2 readouts at {scale}× ({}): {} notes, {flat} flat waveform columns, level bar {bar_h} px", mat.name(), r.notes.len());
+    }
+    // At 1080p (1920 × 1080, scale 1), the smallest notes read: as above, on a full HD frame.
+    let (w, h) = (1920u32, 1080u32);
+    let mut o = Offscreen::new(w, h);
+    let mut ui = Ui::new(Ed { g, cmds: vec![], mat: Material::Plain }, edged, |_, _| {}, fonts(), w, h, 1.0).on_gaze(|s| s.g).on_look(|s| Look { theme: DARK, material: s.mat, ..Look::default() });
+    ui.pointer_leave();
+    ui.tick(5.0);
+    let img = { let l = ui.look(); o.render(&mut ui, &l) };
+    let ground = rgb8(DARK.ground);
+    let mut worst = 1.0f32;
+    for (_, b) in &ui.readout().notes {
+        let (bx0, by0, bx1, by1) = device_rect(*b, 1.0);
+        let (mut inked, mut solid) = (0usize, 0usize);
+        for y in by0..by1 {
+            for x in bx0..bx1 {
+                let a = mix_of(px(&img, w, x, y), ground, magenta).0;
+                inked += usize::from(a > 0.1);
+                solid += usize::from(a > 0.6);
+            }
+        }
+        worst = worst.min(solid as f32 / inked.max(1) as f32);
+    }
+    if worst < 0.3 { eprintln!("FAIL at 1080p the edge notes are faint: {:.0}% of their ink solid", worst * 100.0); failed += 1; }
+    eprintln!("7.3 edge notes at 1080p: at least {:.0}% of each note's ink solid", worst * 100.0);
+    failed
+}
+
+// ── 20 (continued). Black and white only, and inverted ──────────────────────────────────────────────
+struct Fin { binary: bool, invert: bool }
+fn fin_page(_: &Fin) -> El<()> {
+    col().pad(40.0, 40.0).gap(24.0)
+        .child(lab::el::text("Thread", 96.0, Paint::INK).font(Font::Display).key("title"))
+        .child(lab::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
+        .child(lab::el::text("静止时这里只是字和图。", 16.0, Paint::TEXT).key("body2"))
+}
+fn fin_look(s: &Fin) -> Look {
+    let p = lab::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("Loose Thread");
+    let mut l = p.apply(&Look::default());
+    l.post = lab::post::PostSpec { binary: s.binary, invert: s.invert, ..p.post.clone() }.look();
+    l
+}
+fn finishing(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    let mut failed = 0;
+    let mut o = Offscreen::new(W, H);
+    let mut ui = Ui::new(Fin { binary: false, invert: false }, fin_page, |_, _| {}, fonts(), W, H, 1.0).on_look(fin_look);
+    ui.pointer_leave();
+    ui.tick(10.0);
+    let mut shot = |ui: &mut Ui<Fin, ()>, binary: bool, invert: bool| { ui.state.binary = binary; ui.state.invert = invert; ui.relayout(); ui.tick(10.0); let l = ui.look(); o.render(ui, &l) };
+    let soft = shot(&mut ui, false, false);
+    let bw = shot(&mut ui, true, false);
+    // 6. Binary: two colours; text at rest still reads (each glyph's ink within a fifth of its own).
+    let colours: std::collections::HashSet<[u8; 3]> = bw.chunks(4).map(|p| [p[0], p[1], p[2]]).collect();
+    if colours.len() != 2 { eprintln!("FAIL binary: {} colours", colours.len()); failed += 1; }
+    let ground = lab::style::THREAD.ground;
+    let ink_of = |img: &[u8], r: [f32; 4]| -> i32 {
+        let (x0, y0) = (r[0].floor().max(0.0) as u32, r[1].floor().max(0.0) as u32);
+        let (x1, y1) = ((r[0] + r[2]).ceil().min(W as f32) as u32, (r[1] + r[3]).ceil().min(H as f32) as u32);
+        let g = rgb8(ground);
+        (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| { let p = px(img, W, x, y); (0..3).map(|i| (p[i] as i32 - g[i] as i32).abs()).sum::<i32>() > 3 * 127 }).count() as i32
+    };
+    let (mut glyphs, mut worst) = (0, 0.0f32);
+    for (i, inst) in ui.scene().instances.iter().enumerate() {
+        if inst.paint[3] != lab::scene::GLYPH || inst.rect[2] < 4.0 { continue; }
+        let Some(key) = ui.owner_key(i) else { continue };
+        if key != "body" && key != "body2" { continue; }
+        let (a, b) = (ink_of(&soft, inst.rect), ink_of(&bw, inst.rect));
+        if a < 4 { continue; }
+        worst = worst.max((b - a).abs() as f32 / a as f32);
+        glyphs += 1;
+    }
+    if glyphs < 20 || worst > 0.2 { eprintln!("FAIL binary: body glyphs' ink off by up to {:.0}% ({glyphs} glyphs)", worst * 100.0); failed += 1; }
+    eprintln!("20.6 binary: {} colours, {glyphs} body glyphs within {:.0}% of their ink", colours.len(), worst * 100.0);
+    // 7. Invert: once, every pixel is 1 − colour (within 1/255); off again, byte for byte the original.
+    let inv = shot(&mut ui, false, true);
+    let back = shot(&mut ui, false, false);
+    let off = soft.chunks(4).zip(inv.chunks(4)).map(|(a, b)| (0..3).map(|i| (255 - a[i] as i32 - b[i] as i32).abs()).max().unwrap_or(0)).max().unwrap_or(0);
+    if back != soft { eprintln!("FAIL invert twice is not the original: {} px differ", back.chunks(4).zip(soft.chunks(4)).filter(|(a, b)| a != b).count()); failed += 1; }
+    if off > 1 { eprintln!("FAIL invert: a pixel is {off}/255 from 1 − colour"); failed += 1; }
+    let both = shot(&mut ui, true, true);
+    let n = both.chunks(4).map(|p| [p[0], p[1], p[2]]).collect::<std::collections::HashSet<_>>().len();
+    if n != 2 { eprintln!("FAIL binary and inverted: {n} colours"); failed += 1; }
+    eprintln!("20.7 invert: within {off}/255 of 1 − colour, back to the original byte for byte, {n} colours with binary");
     failed
 }
 

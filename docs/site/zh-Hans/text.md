@@ -10,3 +10,5 @@ let mut around = Around::new(vec![Silhouette::circle(120.0, 60.0, 40.0)], 8.0);
 around.justify_max = 0.3;            // 每个间隙最多加几个字号
 around.justify_latin_letters = true; // 没有空格的一段可以分到字母之间
 ```
+
+`El::tracking(em)` 设字距（−0.05–1.5），由 parley 排，宽度和选区都跟着。`El::whisper()` 是小声的字：小写、字距 0.6 em、一套小衬线体（Source Serif 4 的 8 pt 光学尺寸，只有西文）。

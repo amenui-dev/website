@@ -118,7 +118,10 @@ fn gaze_page(s: &Gallery) -> El<Msg> {
         .child(row().gap(12.0).align(AlignItems::START).child(row().height(26.0).align(AlignItems::CENTER).child(text("画什么", 13.0, Paint::DIM))).child(chips))
         .child(row().gap(10.0).wrap()
             .child(number("gaze/density", "最多几个", g.density, Spec { min: 0.0, max: 60.0, step: 1.0, decimals: 0, unit: "" }, s.draft(Target::Density), |e| Msg::Num(Target::Density, e)).width(330.0))
-            .child(number("gaze/draw", "画出时长", g.draw_ms, Spec { min: 0.0, max: 3000.0, step: 20.0, decimals: 0, unit: "ms" }, s.draft(Target::DrawMs), |e| Msg::Num(Target::DrawMs, e)).width(330.0)));
+            .child(number("gaze/draw", "画出时长", g.draw_ms, Spec { min: 0.0, max: 3000.0, step: 20.0, decimals: 0, unit: "ms" }, s.draft(Target::DrawMs), |e| Msg::Num(Target::DrawMs, e)).width(330.0))
+            .child(number("gaze/osc-amp", "波形高", g.osc_amp, Spec { min: 4.0, max: 120.0, step: 2.0, decimals: 0, unit: "px" }, s.draft(Target::OscAmp), |e| Msg::Num(Target::OscAmp, e)).width(330.0))
+            .child(number("gaze/osc-y", "波形基线", g.osc_y, Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" }, s.draft(Target::OscY), |e| Msg::Num(Target::OscY, e)).width(330.0))
+            .child(number("gaze/level-full", "电平满格", g.level_full, Spec { min: 0.01, max: 0.5, step: 0.01, decimals: 2, unit: "" }, s.draft(Target::LevelFull), |e| Msg::Num(Target::LevelFull, e)).width(330.0)));
     col().key("gaze/page").fill_width().max_width(1000.0).gap(34.0)
         .child(header(s, h, "标注层", "Gaze / El::annotate", "在材质之上按排版结果画出框、编号、尺寸、类型和引线，数字都是真的。“悬停”只标出指针下的元素和它的上级，“焦点路径”标出有焦点的元素和它的上级。元素出现时框线画出来，编号从零数上去。"))
         .child(section(h, "样例", sample(s)))

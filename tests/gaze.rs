@@ -113,3 +113,92 @@ fn frames_draw_on_and_numbers_count_up() {
     assert_eq!(u.annots().len(), 4);
     assert!(u.scene().annot.len() >= early);
 }
+
+// ── Edge notes and the field map's readouts (DESIGN.md §4.2, §4.3) ────────────────────────────────
+struct R { gaze: Gaze, cmds: Vec<lab::morph::Cmd> }
+fn readout_view(_: &R) -> El<()> {
+    col().key("root").pad(20.0, 20.0)
+        .child(col().key("scope").gaze_scope().width(520.0).height(420.0).pad(16.0, 16.0).gap(10.0)
+            .child(space(200.0, 60.0).key("deco").fill(Paint::INK).respond(lab::el::Response::Loosen))
+            .child(text("说明文字", 14.0, Paint::TEXT).key("c")))
+}
+fn readouts(kinds: u16) -> Ui<R, ()> {
+    let g = Gaze { mode: GazeMode::All, kinds, density: 10.0, draw_ms: 0.0, ..Gaze::default() };
+    let mut u = Ui::new(R { gaze: g, cmds: vec![] }, readout_view, |_, _| {}, fonts(), 800, 600, 1.0)
+        .on_gaze(|s| s.gaze).on_commands(|s| std::mem::take(&mut s.cmds))
+        .on_look(|_| lab::style::Look { material: lab::style::Material::Plain, ..lab::style::Look::default() });
+    u.pointer_leave();
+    u.tick(1.0);
+    u
+}
+fn stir(u: &mut Ui<R, ()>, x: f32, y: f32) {
+    u.state.cmds.push(lab::morph::Cmd::Stir { at: lab::morph::StirAt::Point([x, y]), v: [1.0, 0.0], energy: 1.0, radius: 40.0, scope: lab::el::Scope::Global });
+    u.relayout();
+}
+
+#[test]
+fn edge_notes_say_what_is_true_now() {
+    let mut u = readouts(kinds::EDGE);
+    let sc = u.node("scope").unwrap().rect;
+    let r = u.readout().clone();
+    assert_eq!(r.scope, sc);
+    let texts: Vec<&str> = r.notes.iter().map(|n| n.0.as_str()).collect();
+    assert_eq!(texts, [format!("{:.0} × {:.0}", sc.w, sc.h).as_str(), "x — y —", "plain · dark", "loose 0.00", "0 nodes"]);
+    // The hairline is on the scope's right edge, one device pixel inside it.
+    assert_eq!(r.edge_x, Some(sc.right() - 1.0));
+    // Every note inside the scope, none on another.
+    for (i, (_, a)) in r.notes.iter().enumerate() {
+        assert!(a.x >= sc.x && a.y >= sc.y && a.right() <= sc.right() && a.bottom() <= sc.bottom(), "note {i} at {a:?} is outside {sc:?}");
+        for (_, b) in &r.notes[i + 1..] { let o = a.intersect(b); assert!(o.w <= 0.0 || o.h <= 0.0, "{a:?} overlaps {b:?}"); }
+    }
+    // The pointer in the scope; a stir: the notes follow.
+    u.pointer_move(sc.x + 100.0, sc.y + 50.0);
+    stir(&mut u, sc.x + 120.0, sc.y + 40.0);
+    u.tick(1.05);
+    let r = u.readout().clone();
+    let now = u.now();
+    assert_eq!(r.notes[1].0, "x 100 y 50");
+    assert_eq!(r.mark_y, Some(sc.y + 50.0));
+    assert_eq!(r.notes[3].0, format!("loose {:.2}", u.looseness("root", now)));
+    assert!(u.looseness("root", now) > 0.0);
+    assert_eq!(r.notes[4].0, format!("{} nodes", u.fieldmap().nonzero()));
+    assert!(u.fieldmap().nonzero() > 0);
+}
+
+#[test]
+fn the_waveform_and_the_level_read_the_field_map() {
+    let mut u = readouts(kinds::OSC | kinds::LEVEL);
+    let g = Gaze::default();
+    let sc = u.node("scope").unwrap().rect;
+    // Nothing in the map: a straight line, no level, and no frames for two seconds.
+    let r = u.readout().clone();
+    assert!(!r.osc.is_empty());
+    let base = sc.y + sc.h * g.osc_y;
+    assert!(r.osc.iter().all(|p| p[1] == base), "flat at {base}: {:?}", &r.osc[..4]);
+    assert_eq!((r.level, r.level_h), (0.0, 0.0));
+    let (mut t, mut drawn) = (1.0, 0);
+    u.frame_drawn();
+    while t < 3.0 { t += 1.0 / 60.0; u.tick(t); if u.needs_frame(t) { drawn += 1; } u.frame_drawn(); }
+    assert_eq!(drawn, 0, "a still map asks for no frames");
+    // A stir at x: the highest point is within a cell of x, as high as the energy there × osc_amp.
+    let (x, y) = (sc.x + 300.0, sc.y + 200.0);
+    stir(&mut u, x, y);
+    u.tick(t + 1.0 / 60.0);
+    let r = u.readout().clone();
+    let m = u.fieldmap();
+    let top = r.osc.iter().copied().fold([0.0, f32::MAX], |a, p| if p[1] < a[1] { p } else { a });
+    assert!((top[0] - x).abs() <= m.cell, "peak at {} for a stir at {x}", top[0]);
+    let i = (top[0] / m.cell).round() as usize;
+    assert!(((base - top[1]) - m.byte_e(i, r.osc_row) * g.osc_amp).abs() <= 1.0);
+    assert!(r.osc_row.abs_diff((y / m.cell).round() as usize) <= 1, "the strongest row {} for a stir at {y}", r.osc_row);
+    // The level is the formula, and what the tree exports.
+    assert!(r.level > 0.0);
+    assert_eq!(r.level_h, gaze::level_height(sc.h, m.level(), g.level_full));
+    assert_eq!(u.export_tree().field.map(|f| f.level), Some(r.level));
+    // Settled: flat again.
+    t = u.now();
+    while u.fieldmap().nonzero() > 0 && t < 30.0 { t += 1.0 / 30.0; u.tick(t); }
+    u.tick(t + 1.0 / 30.0);
+    let r = u.readout().clone();
+    assert!(r.osc.iter().all(|p| p[1] == base) && r.level_h == 0.0, "settled by {t}");
+}

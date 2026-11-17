@@ -241,11 +241,84 @@ fn study_scribblr(out: &str) {
     }
 }
 
+/// Loose Thread (DESIGN.md §4.4): the style page at rest, with the pointer passing across the text and
+/// the picture (threads where it stirred, the edge notes, the waveform and the level bar), settled
+/// again; then on paper, in black and white only, and inverted.
+fn study_loose_thread(out: &str) {
+    let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
+    r.pad = 24.0;
+    r.run(1.0);
+    r.shot();
+    let b = r.ui.node("style-loose-thread/comp").expect("comp").rect;
+    let sweep = |r: &mut Rig| {
+        // Through the title, then down across the text and the controls.
+        for i in 0..=30 { let k = i as f32 / 30.0; r.ui.pointer_move(b.x + 20.0 + b.w * 0.7 * k, b.y + 90.0 + 160.0 * k * k); r.frame(); }
+    };
+    sweep(&mut r);
+    r.shot();
+    r.run(0.25); r.shot();
+    r.ui.pointer_leave();
+    r.run(3.0); r.shot();
+    r.save(out, "loose-thread", 2);
+    for (name, flips) in [("paper", vec![Msg::Theme(lab::style::theme_index(lab::style::THREAD_PAPER.name))]), ("binary", vec![Msg::PostFlag(0)]), ("invert", vec![Msg::PostFlag(1)])] {
+        let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
+        r.pad = 24.0;
+        for m in flips { gallery::update(&mut r.ui.state, m); }
+        r.ui.relayout();
+        r.run(1.0);
+        sweep(&mut r);
+        r.shot();
+        r.ui.pointer_leave();
+        r.run(3.0); r.shot();
+        r.save(out, &format!("loose-thread-{name}"), 2);
+    }
+}
+
+/// The field map's readouts (DESIGN.md §4.2, §4.3): edge notes, the waveform and the level bar over a
+/// Loose Thread page while a stir runs along a path across it, four frames, then settled.
+fn study_readouts(out: &str) {
+    use lab::el::{Paint, col, text};
+    use lab::morph::{Cmd, StirAt};
+    use lab::style::{Gaze, GazeMode, Look, gaze};
+    struct St { cmds: Vec<Cmd>, look: Look }
+    fn page(_: &St) -> lab::el::El<()> {
+        col().key("page").pad(48.0, 40.0).child(col().key("scope").gaze_scope().width(840.0).height(420.0).pad(40.0, 36.0).gap(22.0)
+            .child(text("readouts", 12.0, Paint::TEXT).whisper())
+            .child(text("Field", 72.0, Paint::INK).font(lab::el::Font::Display).key("title").respond(lab::el::Response::Loosen).legible(false))
+            .child(text("The waveform reads one row of the field map; the bar its mean.", 16.0, Paint::TEXT)))
+    }
+    let p = lab::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("preset");
+    let look = Look { gaze: Gaze { mode: GazeMode::All, kinds: gaze::EDGE | gaze::OSC | gaze::LEVEL, ..p.gaze }, ..p.apply(&Look::default()) };
+    let (w, h) = (940u32, 500u32);
+    let mut ui = lab::ui::Ui::new(St { cmds: vec![], look }, page, |_, _| {}, faces(), w, h, 1.0)
+        .on_look(|s| s.look).on_gaze(|s| s.look.gaze).on_commands(|s| std::mem::take(&mut s.cmds));
+    let mut o = Offscreen::new(w, h);
+    ui.pointer_leave();
+    ui.tick(2.0);
+    let path = std::rc::Rc::new(vec![[100.0, 160.0], [380.0, 120.0], [620.0, 260.0], [860.0, 200.0]]);
+    let mut frames = vec![];
+    let mut t = 2.0;
+    for f in 0..4 {
+        let (a, b) = (f as f32 / 4.0, (f + 1) as f32 / 4.0);
+        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path.clone(), from: a, to: b }, v: [1.0, 0.2], energy: 1.0, radius: 50.0, scope: lab::el::Scope::Global });
+        ui.relayout();
+        for _ in 0..8 { t += 1.0 / 60.0; ui.tick(t); }
+        let l = ui.look();
+        frames.push((w, h, o.render(&mut ui, &l)));
+    }
+    for _ in 0..240 { t += 1.0 / 60.0; ui.tick(t); }
+    let l = ui.look();
+    frames.push((w, h, o.render(&mut ui, &l)));
+    let (sw, sh, px) = sheet(&frames, 2);
+    save_png(&format!("{out}/readouts.png"), sw, sh, &px);
+    eprintln!("readouts: 5 frames");
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr", "scribblr"];
+    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr", "scribblr", "loose-thread", "readouts"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -257,6 +330,8 @@ fn main() {
             "chart" => study_chart(&out),
             "stirr" => study_stirr(&out),
             "scribblr" => study_scribblr(&out),
+            "loose-thread" => study_loose_thread(&out),
+            "readouts" => study_readouts(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

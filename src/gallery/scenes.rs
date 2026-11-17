@@ -272,7 +272,7 @@ pub fn look(g: &Gallery, l: &mut Look) {
         0 => {
             l.fx.pitch = q(3);
             // The operator's target is framed as it is reached.
-            l.gaze = Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::KIND, density: 2.0, draw_ms: 300.0, colour: l.theme.accent, only_marked: true };
+            l.gaze = Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::KIND, density: 2.0, draw_ms: 300.0, colour: l.theme.accent, only_marked: true, ..Gaze::default() };
         }
         2 => {
             for (k, f) in print_strips(q(0), q(1), l.theme.accent).into_iter().enumerate() { l.pics[k] = f; }
@@ -286,7 +286,7 @@ pub fn look(g: &Gallery, l: &mut Look) {
         4 => {
             l.params[Material::Near as usize].0[0] = q(2);
             l.gaze = if g.sc.apart {
-                Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::BOX | gaze::INDEX | gaze::SIZE | gaze::KIND, density: q(1), draw_ms: 420.0, colour: l.theme.accent, only_marked: true }
+                Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::BOX | gaze::INDEX | gaze::SIZE | gaze::KIND, density: q(1), draw_ms: 420.0, colour: l.theme.accent, only_marked: true, ..Gaze::default() }
             } else { Gaze { mode: GazeMode::Off, ..l.gaze } };
         }
         5 => {

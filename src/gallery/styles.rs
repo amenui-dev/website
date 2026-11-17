@@ -3,24 +3,22 @@
 use super::pages::ratio;
 use super::{Gallery, Msg, STYLE_SLOT, Target};
 use crate::demo::{BUST, SKY, SPHERE, TERRAIN};
-use crate::el::{El, Font, Paint, Scope, col, picture, row, space, text, text_lh};
+use crate::el::{El, Font, Paint, Scope, Stirr, col, picture, row, space, text, text_lh};
 use crate::style::styles;
 use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, switch};
 use taffy::{AlignItems, JustifyContent};
 
-pub const STYLE_DESC: [&str; 12] = [
+pub const STYLE_DESC: [&str; 10] = [
     "深色底，等宽字。标注层框出页面上的每个元素，标出编号、类型和尺寸，十字线跟着指针。",
     "黑底，琥珀色的灯。像素字，粗点距；松开时文字散成发光的点。",
     "米白的纸和一种专色。纸纹、套印错位，松开时像复印件一样起斑、洇墨。",
     "黑底和两种信号色。静止时干净；指针移到控件上，控件就短暂地错位。",
     "米色纸上的黑和红。粗重的标题像刻出来的，松开时边缘出现刀痕。",
-    "冷色、半透明。层叠的面板只画轮廓，互相透出；引线标出每个部件。",
     "白纸、黑线和一种信号色。部件带编号和引线，零件表的一行对应图上的一个部件。",
     "系统灰，默认字号。松开的幅度只有三成，几乎看不出材质。",
     "近黑的底，一条细的强调色。大片留白；只在指针下标出元素。",
     "三原色加黑，几何形和粗网格。松开时变成半色调网点。",
-    "银色的渐变底。大字是金属，圆斑是液体，靠近时融在一起。",
-    "牛皮纸上的拼贴：每一块用自己的材质，形状的边缘像撕开的纸。",
+    "黑底、白线和一种强调色。静止时是干净的字；指针拨过的地方散成线，沿边写着小字的读数。",
 ];
 
 pub fn page(s: &Gallery, i: usize) -> El<Msg> {
@@ -35,7 +33,8 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
         5 => manual(s, &h),
         6 => normcore(s, &h),
         7 => cyber(s, &h),
-        _ => bauhaus(s, &h),
+        8 => bauhaus(s, &h),
+        _ => loose_thread(s, &h),
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
@@ -338,4 +337,30 @@ fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
             .child(segmented(&format!("{h}/shape"), &["圆", "方", "条"], pick, 32.0, |i| Msg::Choose(5, i)))
             .child(choice(&format!("{h}/weight"), "网格", &["细", "粗"], s.choices[6].min(1), |i| Msg::Choose(6, i)))
             .child(button_as(format!("{h}/print"), "印一张", Variant::Accent, Msg::Press)))
+}
+
+// ── 10 Loose Thread: a quiet page that frays where the pointer passes ──────────────────────────────
+fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
+    let narrow = s.width < super::NARROW;
+    let w = if narrow { (s.width - 40.0).max(280.0) } else { 640.0 };
+    let pic_w = if narrow { w } else { 300.0 };
+    // The pointer stirs the field map where it passes: a point under it that stirs as it moves.
+    let stylus = s.thread_at.map(|(x, y)| space(1.0, 1.0).key(format!("{h}/stylus")).stirr(Stirr { energy: 1.0, radius: Some(36.0), scope: Scope::Container(Some(format!("{h}/comp"))) }).absolute(Some(x), Some(y), None, None));
+    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).pad(0.0, 0.0).gap(40.0).gaze_scope().on_move(|p| Some(Msg::ThreadAt(p)));
+    comp.style.padding.right = taffy::prelude::length(72.0);
+    if let Some(st) = stylus { comp = comp.child(st); }
+    comp
+        .child(text("Loose Thread", 11.0, Paint::TEXT).whisper().key(format!("{h}/kicker")))
+        .child(text_lh("线头", 56.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/title")).respond(crate::el::Response::Loosen).legible(false))
+        .child(row().key(format!("{h}/spread")).fill_width().gap(36.0).align(AlignItems::END).wrap()
+            .child(col().key(format!("{h}/fig")).gap(10.0)
+                .child(pic(h, "pic", SPHERE, pic_w))
+                .child(text("fig. 1 — a sphere, at rest", 11.0, Paint::TEXT).whisper()))
+            .child(col().key(format!("{h}/side")).width(if narrow { w } else { 280.0 }).gap(18.0)
+                .child(text_lh("静止时这里只是字和图。指针拨过的地方，字散成线，过一会儿又收回原样。", 14.0, 26.0, Paint::TEXT))
+                .child(segmented(&format!("{h}/ground"), &["黑", "纸"], usize::from(s.theme == crate::style::theme_index(crate::style::THREAD_PAPER.name)), 28.0, |i| Msg::Theme(crate::style::theme_index([crate::style::THREAD.name, crate::style::THREAD_PAPER.name][i]))))
+                .child(switch(format!("{h}/binary"), "只用黑白", s.post.binary, None, Msg::PostFlag(0)).width(220.0))
+                .child(switch(format!("{h}/invert"), "反相", s.post.invert, None, Msg::PostFlag(1)).width(220.0))))
+        .child(space(1.0, 40.0))
+        .child(text("amenui · loose thread · 2026", 11.0, Paint::TEXT).whisper().key(format!("{h}/colophon")))
 }

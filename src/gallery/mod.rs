@@ -171,6 +171,10 @@ pub enum Target {
     /// The annotation page's density and draw-on time.
     Density,
     DrawMs,
+    /// The readouts' numbers: waveform height and base line, the level bar's full mark.
+    OscAmp,
+    OscY,
+    LevelFull,
     /// A number on a style page (its own meaning per page).
     StyleNum(usize),
     /// Number `i` of scene `s` (see `scenes::PARAMS`), and the number on the opening scene's page.
@@ -241,6 +245,10 @@ pub enum Msg {
     Choose(usize, usize),
     /// A toggle on a style page.
     Toggle(usize),
+    /// The finishing pass's black-and-white switch (0) or its inversion (1), on the Loose Thread page.
+    PostFlag(u8),
+    /// The pointer over the Loose Thread composition (logical px from its top left), or gone.
+    ThreadAt(Option<(f32, f32)>),
     /// The launcher's query (cyberminimalism).
     Query(TextEdit),
     /// A slider on a style page.
@@ -385,6 +393,8 @@ pub struct Gallery {
     pub body: crate::recipes::scenes::body::Body,
     pub decode: decode::DecodePage,
     pub stirr: stirr::StirrPage,
+    /// Where the pointer is over the Loose Thread composition: a point there stirs the field map.
+    pub thread_at: Option<(f32, f32)>,
 }
 
 impl Default for Gallery {
@@ -400,7 +410,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), map: crate::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), map: crate::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -538,6 +548,11 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::GazeKind(k) => s.gaze_page.kinds ^= k,
         Msg::Choose(slot, i) => s.choices[slot.min(7)] = i,
         Msg::Toggle(slot) => s.toggles[slot.min(7)] = !s.toggles[slot.min(7)],
+        Msg::ThreadAt(p) => s.thread_at = p,
+        Msg::PostFlag(f) => {
+            let (binary, invert) = (s.post.binary ^ (f == 0), s.post.invert ^ (f == 1));
+            s.post = crate::post::PostSpec { binary, invert, ..crate::post::PostSpec::default() }.look();
+        }
         Msg::Query(t) => s.query = t,
         Msg::Scene(m) => scenes::update(s, m),
         Msg::Slide(slot, v) => s.slides[slot.min(7)] = v.clamp(0.0, 1.0),
@@ -587,6 +602,9 @@ pub fn update(s: &mut Gallery, m: Msg) {
                 Target::Loose => s.loose = v,
                 Target::Density => s.gaze_page.density = v,
                 Target::DrawMs => s.gaze_page.draw_ms = v,
+                Target::OscAmp => s.gaze_page.osc_amp = v,
+                Target::OscY => s.gaze_page.osc_y = v,
+                Target::LevelFull => s.gaze_page.level_full = v,
                 Target::StyleNum(i) => s.slides[i.min(7)] = v,
                 Target::Scene(k, i) => scenes::set(s, k, i, v),
                 Target::OpValue => s.sc.op_value = v,
