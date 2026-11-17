@@ -123,3 +123,7 @@ python3 web/build.py
 
 打开 `dist/index.html`（可以带页名，比如 `dist/index.html#dialog`）；`dist/artifact.html` 是同样内容、不带外壳标签的单文件。网页只有一个 canvas，负责把指针、滚轮、键盘、尺寸变化和地址里的页名转给框架。
 
+
+## 发布
+
+推到 main 以后，`.github/workflows/deploy.yml` 编出网页版，把 `index.html` 和 `embed-example.html` 放到 `gh-pages` 分支。GitHub Pages 和 Cloudflare Pages 都直接用这个分支，不需要再构建：GitHub Pages 选 “Deploy from a branch → gh-pages / (root)”；Cloudflare Pages 连这个仓库，生产分支选 `gh-pages`，构建命令留空，输出目录 `/`。

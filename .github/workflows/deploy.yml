@@ -1,0 +1,58 @@
+# Builds the web version on every push to main and puts it on the `gh-pages` branch, which GitHub Pages
+# serves (Settings → Pages → Deploy from a branch → gh-pages, / (root)). Any static host can serve that
+# branch as it is: no build step there.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust with the wasm target
+        run: rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: wasm-${{ hashFiles('Cargo.lock') }}
+          restore-keys: wasm-
+      - name: wasm-bindgen at the version Cargo.lock has
+        run: |
+          v=$(awk '/^name = "wasm-bindgen"$/{getline; print $3}' Cargo.lock | tr -d '"')
+          curl -sSL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$v/wasm-bindgen-$v-x86_64-unknown-linux-musl.tar.gz" | tar xz
+          echo "$PWD/wasm-bindgen-$v-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - name: fonttools
+        run: pip install fonttools
+      - name: Build
+        run: |
+          cargo build --release --lib --target wasm32-unknown-unknown
+          wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+          python3 web/build.py
+      - name: The site's files
+        run: |
+          mkdir out
+          cp dist/index.html dist/embed-example.html out/
+          touch out/.nojekyll
+      - name: Push to gh-pages
+        run: |
+          cd out
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "site: build of ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
