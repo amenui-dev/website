@@ -3,7 +3,6 @@
 //! in both languages; every code sample on it is compiled (the examples are modules of the library,
 //! and each `ex_*` is the preview it sits under); every internal link resolves to a page.
 use website::gallery::{self, Msg, Page, docs};
-use amenui::i18n::Locale;
 
 fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn texts(n: &amenui::tree::TreeNode, out: &mut Vec<String>) { if let Some(t) = &n.text { out.push(t.clone()); } for c in &n.children { texts(c, out); } }
@@ -11,7 +10,7 @@ fn texts(n: &amenui::tree::TreeNode, out: &mut Vec<String>) { if let Some(t) = &
 #[test]
 fn every_component_has_a_full_page_in_both_languages() {
     let mut ui = gallery::new_ui(fonts(), 1400, 900, 1.0);
-    for l in Locale::ALL {
+    for l in website::LOCALES {
         gallery::update(&mut ui.state, Msg::Locale(l));
         for it in docs::items() {
             let h = docs::page_hash(&it.name);
@@ -67,7 +66,7 @@ fn every_internal_link_resolves() {
         }
     }
     assert!(n > 4);
-    for (i, _) in docs::DOCS.iter().enumerate() { for l in Locale::ALL { assert!(!docs::title(i, l).is_empty()); } }
+    for (i, _) in docs::DOCS.iter().enumerate() { for l in website::LOCALES { assert!(!docs::title(i, l).is_empty()); } }
 }
 
 #[test]

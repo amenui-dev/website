@@ -733,8 +733,9 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     } else { text("amenui", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
     let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
     let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
-    let langs: Vec<&str> = amenui::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
-    let lang_now = amenui::i18n::Locale::ALL.iter().position(|l| *l == s.locale);
+    let names: Vec<String> = crate::LOCALES.iter().map(|l| l.name()).collect();
+    let langs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let lang_now = crate::LOCALES.iter().position(|l| *l == s.locale);
     row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 10.0).align(AlignItems::CENTER)
         .child(name)
         .child(space(0.0, 0.0).grow(1.0))
@@ -744,7 +745,7 @@ fn top_bar(s: &Gallery) -> El<Msg> {
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
             .child(button_as("top/body", &tr("nav.body"), Variant::Quiet, Msg::Go(Page::Body)))
             .child(button_as("top/scenes", &tr("shell.scenes"), Variant::Quiet, Msg::Go(Page::Scenes)))
-            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(amenui::i18n::Locale::ALL[i.min(1)])))
+            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(crate::LOCALES[i.min(crate::LOCALES.len() - 1)])))
             .child(menu("theme", &tr("shell.theme"), &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
             .child(menu("material", &tr("shell.material"), &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
             .child(menu("style", &tr("shell.style"), &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))

@@ -33,11 +33,11 @@ fn main() {
         return;
     }
     let out = a.get(1).cloned().unwrap_or_else(|| "dist/md".into());
-    for l in Locale::ALL {
+    for l in website::LOCALES {
         amenui::i18n::set_current(l);
         let dir = format!("{out}/{}", l.tag());
         std::fs::create_dir_all(&dir).expect("out dir");
         for p in &pages { std::fs::write(format!("{dir}/{}.md", p.hash()), docs::markdown(*p, l).unwrap_or_default()).expect("write"); }
     }
-    eprintln!("{} pages × {} languages in {out}", pages.len(), Locale::ALL.len());
+    eprintln!("{} pages × {} languages in {out}", pages.len(), website::LOCALES.len());
 }

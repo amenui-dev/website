@@ -40,7 +40,7 @@ pub const AI: [(&str, &str, &str); 3] = [("ai-agents", "docs.ai.agents", amenui:
 const REGISTRY: &str = amenui::sources::REGISTRY;
 
 /// A prose page's source in a language (English when the language has none).
-pub fn source(i: usize, l: Locale) -> &'static str { match l { Locale::ZhHans => ZH[i], Locale::En => EN[i] } }
+pub fn source(i: usize, l: Locale) -> &'static str { match l { Locale::ZhHans => ZH[i], _ => EN[i] } }
 /// A prose page's title: its first heading.
 pub fn title(i: usize, l: Locale) -> String { source(i, l).lines().find_map(|x| x.strip_prefix("# ")).unwrap_or(DOCS[i]).to_owned() }
 

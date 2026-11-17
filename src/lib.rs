@@ -12,6 +12,9 @@ pub const CATALOGS: [(amenui::i18n::Locale, &str, &str); 2] = [
     (amenui::i18n::Locale::ZhHans, "assets/i18n/zh-Hans.txt", include_str!("../assets/i18n/zh-Hans.txt")),
     (amenui::i18n::Locale::En, "assets/i18n/en.txt", include_str!("../assets/i18n/en.txt")),
 ];
+/// The languages the site is written in (amenui itself ships more).
+pub const LOCALES: [amenui::i18n::Locale; 2] = [amenui::i18n::Locale::ZhHans, amenui::i18n::Locale::En];
+
 /// Install the site's catalogs, once (`gallery::new_ui` and the Body scene call it).
 pub fn install_catalogs() {
     static ONCE: std::sync::Once = std::sync::Once::new();
