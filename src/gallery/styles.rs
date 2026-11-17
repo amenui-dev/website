@@ -346,16 +346,16 @@ pub fn is_loose_thread(i: usize) -> bool { i == 9 }
 const THREAD_DRAW_S: f32 = 0.7;
 /// Whether the tangle is still drawing on at `t`.
 pub fn drawing(s: &Gallery, t: f32) -> bool { s.thread_drawn.is_some_and(|d| t - d < THREAD_DRAW_S + 0.05) }
-/// A tangle made for a radius and a length (their bits) and its points.
-type Made = Option<((u32, u32), std::rc::Rc<Vec<[f32; 2]>>)>;
+/// A tangle made for a radius and the lengths above and below its knot (their bits) and its points.
+type Made = Option<((u32, u32, u32), std::rc::Rc<Vec<[f32; 2]>>)>;
 /// The tangle (a knot and one long strand, DESIGN.md §4.4), made once.
-fn tangle(r: f32, len: f32) -> std::rc::Rc<Vec<[f32; 2]>> {
+fn tangle(r: f32, above: f32, below: f32) -> std::rc::Rc<Vec<[f32; 2]>> {
     thread_local! { static MADE: std::cell::RefCell<Made> = const { std::cell::RefCell::new(None) }; }
-    let key = (r.to_bits(), len.to_bits());
+    let key = (r.to_bits(), above.to_bits(), below.to_bits());
     MADE.with(|m| {
         let mut m = m.borrow_mut();
         if let Some((k, p)) = m.as_ref() && *k == key { return p.clone(); }
-        let p = std::rc::Rc::new(crate::strand::figure(17, r, len));
+        let p = std::rc::Rc::new(crate::strand::figure(17, r, above, below));
         *m = Some((key, p.clone()));
         p
     })
@@ -373,13 +373,13 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     // Its own scope for ripples, the map and the threads (they stop at its edge).
     let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).height(height).gap(0.0).gaze_scope().ripple_scope().on_move(|p| Some(Msg::ThreadAt(p)));
     comp.style.padding.right = taffy::prelude::length(72.0);
-    // The tangle: content, drawn under any material, over the picture's top right corner and from
-    // the top of the page to its foot, clear of the text to read.
+    // The tangle: content, drawn under any material, its knot under the picture's bottom right corner
+    // (behind it) and its strand from the top of the page to just above the footer, clear of the text to read.
     if !narrow {
-        let (r, len) = (70.0, 0.9 * height);
+        let r = 70.0;
         let progress = s.thread_drawn.map_or(1.0, |d| ((s.clock - d) / THREAD_DRAW_S).clamp(0.0, 1.0));
-        let (cx, cy) = (pic_w + 6.0, 0.38 * len + 10.0);
-        let pts: Vec<[f32; 2]> = tangle(r, len).iter().map(|p| [p[0] + 90.0, p[1] + cy]).collect();
+        let (cx, cy) = (pic_w + 20.0, 0.66 * height);
+        let pts: Vec<[f32; 2]> = tangle(r, cy - 4.0, height - cy - 34.0).iter().map(|p| [p[0] + 90.0, p[1] + cy]).collect();
         comp = comp.child(space(180.0, height).key(format!("{h}/tangle")).trace(crate::strand::Trace { points: std::rc::Rc::new(pts), progress, weight: 1.0, pull: 2.5, ..Default::default() }).absolute(Some(cx - 90.0), Some(0.0), None, None));
     }
     if let Some(st) = stylus { comp = comp.child(st); }
@@ -398,7 +398,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
         .child(text("·", 12.0, Paint::TEXT).whisper())
         .child(row().key(format!("{h}/ground:1")).on_press(Msg::Theme(theme_index(THREAD_PAPER.name))).focusable(false).role(Role::Radio).selected(paper).label(en("thread.paper")).child(word(en("thread.paper"), paper)));
     let flag = |k: &str, label: String, on: bool, f: u8| row().key(format!("{h}/{k}")).on_press(Msg::PostFlag(f)).role(Role::Switch).checked(on).label(label.clone()).child(word(label, on));
-    let footer = row().key(format!("{h}/footer")).width(w).gap(28.0).align(AlignItems::BASELINE).justify(JustifyContent::END).absolute(Some(0.0), None, None, Some(0.0))
+    let footer = row().key(format!("{h}/footer")).width(w).gap(28.0).align(AlignItems::BASELINE).justify(JustifyContent::END).absolute(Some(0.0), Some(height - 22.0), None, None)
         .child(ground)
         .child(flag("binary", en("thread.binary"), s.post.binary, 0))
         .child(flag("invert", en("thread.invert"), s.post.invert, 1));

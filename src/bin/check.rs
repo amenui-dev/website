@@ -340,7 +340,7 @@ fn main() {
     // ── 5. Every material is restrained at rest ─────────────────────────────────────────────────────
     let before = failed;
     for theme in [DARK, LIGHT] {
-        let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Plain }, rest, |_, _| {}, fonts(), W, H, 1.0).on_look(|s| Look { material: s.mat, ..Look::default() });
+        let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Plain, deco: false }, rest, |_, _| {}, fonts(), W, H, 1.0).on_look(|s| Look { material: s.mat, ..Look::default() });
         ui.pointer_leave();
         ui.tick(100.0);
         let r = ui.node("body").expect("body").rect;
@@ -359,10 +359,11 @@ fn main() {
             eprintln!("   rest {} {:?}: body differs from plain by {d}/255", theme.name, mat);
             if d > allowed { eprintln!("FAIL rest: {:?} body text is not exact at rest ({d}/255)", mat); failed += 1; }
             if theme.name == DARK.name {
-                // Control: loosened, the same comparison sees the material.
-                ui.state.loose = 1.0; ui.relayout(); ui.tick(100.0);
+                // Control: loosened as decoration (text to read holds under scribblr), the same
+                // comparison sees the material.
+                (ui.state.loose, ui.state.deco) = (1.0, true); ui.relayout(); ui.tick(100.0);
                 let d1 = diff(&plain, &o.render(&mut ui, &look), r);
-                ui.state.loose = 0.0; ui.relayout(); ui.tick(100.0);
+                (ui.state.loose, ui.state.deco) = (0.0, false); ui.relayout(); ui.tick(100.0);
                 if d1 <= allowed { eprintln!("FAIL control: {:?} loosened looks like plain", mat); failed += 1; }
             }
         }
@@ -497,7 +498,7 @@ fn main() {
 
     // ── 12. The material at half resolution leaves rest pixels exact ────────────────────────────────
     let before = failed;
-    let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Dot }, rest, |_, _| {}, fonts(), W, H, 1.0);
+    let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Dot, deco: false }, rest, |_, _| {}, fonts(), W, H, 1.0);
     ui.pointer_leave();
     ui.tick(100.0);
     let r = ui.node("body").expect("body").rect;
@@ -626,13 +627,14 @@ fn diff(a: &[u8], b: &[u8], r: lab::ui::Rect) -> i32 {
 /// Body text on the ground, with a heading, a picture and a control around it.
 /// `mat`: the material the runtime is told (scribblr's thread is worked out on the CPU, so the runtime
 /// has to know it; the others are the renderer's alone).
-struct Rest { loose: f32, mat: Material }
+/// `deco`: the body set as decoration (not text to read), for the control that sees the material.
+struct Rest { loose: f32, mat: Material, deco: bool }
 fn rest(s: &Rest) -> El<()> {
     let (w, h) = PICTURE_SIZES[SKY as usize];
     col().pad(30.0, 20.0).gap(20.0).loosen(s.loose)
         .child(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).key("head"))
         .child(row().gap(30.0)
-            .child(col().width(330.0).child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时按轮廓松开。Body text 0123.", 16.0, 27.0, Paint::TEXT).key("body")))
+            .child(col().width(330.0).child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时按轮廓松开。Body text 0123.", 16.0, 27.0, Paint::TEXT).key("body").legible(!s.deco)))
             .child(col().width(260.0).child(picture(SKY, h as f32 / w as f32).key("pic"))))
         .child(space(120.0, 30.0).radius(4.0).fill(Paint::ACCENT))
 }

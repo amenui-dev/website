@@ -212,7 +212,7 @@ fn study_scribblr(out: &str) {
     struct St { k: f32, light: bool, cmds: Vec<Cmd> }
     fn page(st: &St) -> lab::el::El<()> {
         col().key("page").pad(40.0, 36.0).gap(18.0)
-            .child(text("Loose thread", 64.0, Paint::INK).font(lab::el::Font::Display).key("title").loose(st.k).respond(lab::el::Response::Loosen))
+            .child(text("Loose thread", 64.0, Paint::INK).font(lab::el::Font::Display).key("title").legible(false).loose(st.k).respond(lab::el::Response::Loosen))
             .child(text("One line writes the ink out and back.", 18.0, Paint::TEXT).key("body").loose(st.k.min(0.15)))
     }
     for (name, light) in [("dark", false), ("light", true)] {
@@ -234,14 +234,18 @@ fn study_scribblr(out: &str) {
             // Topped up to the frame's looseness over the whole title just before it is drawn, so the
             // knots have the energy they are drawn by (at 1, at least 0.8 everywhere on the title).
             if k > 0.0 {
-                let (cx, cy) = ui.node("title").expect("title").rect.center();
-                let e = ui.fieldmap().energy_at(cx, cy);
-                ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([cx, cy]), v: [0.0, 0.0], energy: (k - e).max(0.0), radius: 900.0, scope: lab::el::Scope::Global });
-                ui.relayout();
-                t += 1.0 / 60.0;
-                ui.tick(t);
                 let r = ui.node("title").expect("title").rect;
-                let low = [r.x, r.center().0, r.right()].iter().map(|&x| ui.fieldmap().energy_at(x, cy)).fold(1.0, f32::min);
+                let (cx, cy) = r.center();
+                let low = |ui: &lab::ui::Ui<St, ()>| [r.x, cx, r.right()].iter().map(|&x| ui.fieldmap().energy_at(x, cy)).fold(1.0, f32::min);
+                for _ in 0..8 {
+                    let e = low(&ui);
+                    if e >= 0.8 * k { break; }
+                    ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([cx, cy]), v: [0.0, 0.0], energy: k - e, radius: 900.0, scope: lab::el::Scope::Global });
+                    ui.relayout();
+                    t += 1.0 / 60.0;
+                    ui.tick(t);
+                }
+                let low = low(&ui);
                 eprintln!("scribblr-{name}: looseness {k}, the map's energy on the title at least {low:.2}");
             }
             let look = ui.look();

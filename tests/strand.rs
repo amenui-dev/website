@@ -57,7 +57,7 @@ fn nothing_at_rest_a_thread_behind_the_window_and_nothing_after() {
     let legible = |ui: &Ui<S, M>| -> Vec<([f32; 4], f32, f32)> { ui.scene().instances.iter().enumerate().filter(|(i, _)| ui.owner_key(*i) == Some("legible")).map(|(_, x)| (x.rect, x.paint[2], x.look[3])).collect() };
     let at_rest = legible(&ui);
     assert!(!at_rest.is_empty());
-    for i in 1..=40 {
+    for i in 1..=70 {
         t += 1.0 / 60.0;
         ui.pointer_move(x + i as f32 * 6.0, y + 20.0 + i as f32 * 0.5);
         ui.tick(t);
@@ -66,19 +66,23 @@ fn nothing_at_rest_a_thread_behind_the_window_and_nothing_after() {
         if let Some((_, k, segs)) = thread_of(&ui, "title") {
             assert!(*k > 0.0);
             // One line.
-            for w in segs.windows(2) { assert_eq!(w[0].b, w[1].a, "the title's thread is broken"); }
+            for (j, w) in segs.windows(2).enumerate() { assert_eq!(w[0].b, w[1].a, "the title's thread is broken at frame {i}, piece {j} of {}: {:?} {:?}", segs.len(), w[0], w[1]); }
             // The tail out of the end (the last run of tail pieces).
             let tail: Vec<_> = segs.iter().rev().take_while(|s| s.kind == Kind::Tail).collect::<Vec<_>>().into_iter().rev().collect();
-            // Counted where the map has a flow at the tail's root.
+            // Counted where the map has a flow at the tail's root and the window is not in its way.
             if let (Some(a), Some(b)) = (tail.first(), tail.last()) {
                 trailed = true;
                 let d = [b.b[0] - a.a[0], b.b[1] - a.a[1]];
                 let f = ui.fieldmap().flow_at(a.a[0], a.a[1]);
-                if f[0] * f[0] + f[1] * f[1] > 0.0025 { tails += 1; if d[0] * f[0] + d[1] * f[1] > 0.0 { tail_ok += 1; } }
+                // Where the window is not in the flow's way (a tail stops before it).
+                let fl = (f[0] * f[0] + f[1] * f[1]).sqrt();
+                let w = ui.node("float").expect("box").rect;
+                let blocked = (1..=15).any(|j| { let (px, py) = (a.a[0] + f[0] / fl.max(1e-6) * 10.0 * j as f32, a.a[1] + f[1] / fl.max(1e-6) * 10.0 * j as f32); px >= w.x && py >= w.y && px <= w.right() && py <= w.bottom() });
+                if fl > 0.05 && !blocked { tails += 1; if d[0] * f[0] + d[1] * f[1] > 0.0 { tail_ok += 1; } }
             }
         }
     }
-    ui.release(x + 240.0, y + 40.0);
+    ui.release(x + 420.0, y + 55.0);
     assert!(trailed && tails > 0, "the title never trailed off along a flow");
     assert!(tail_ok * 2 >= tails, "the tail ran with the flow in only {tail_ok} of {tails} frames");
     assert!(held, "text to read had a thread, faded, or was carried by the map");
