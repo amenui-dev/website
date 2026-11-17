@@ -44,13 +44,21 @@
 //!     the page in the target preset, byte for byte; mid-transition it differs from both ends (but for
 //!     Normcore, which has none).
 //!
-//! 17. (Retired with the film in round 16.)
+//! 17. Looks (§1.21): the finishing pass at zero is the frame it was, each effect changes it, dither and
+//!     palettes keep to their colours, drawn in part equals drawn whole with the pass on, depth marks.
+//!     (This was 19 until round 17; 17 had been retired with the film in round 16.)
 //!
 //! 18. Scrolling (§1.8.3): under every material, scrolling the button page slowly (one device pixel a
 //!     frame), each frame inside the scroller (away from its edges) is the previous frame moved up by one
 //!     pixel, byte for byte; a control shows the page did move.
 //!
-//! usage: check [components | recompose | mesh | dirty | presets | scroll]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
+//! 19. The field map (§1.29): with the map all zero, every material's button and image pages are the
+//!     frame drawn without it, byte for byte (control: after a stir they differ); the floating window on
+//!     the field map's page dragged, thrown and settling, 90 frames under every material, drawn in part
+//!     equals drawn whole; near.b read back at a decoration's centre decodes to `Ui::looseness` within
+//!     2/255; light theme, a trail over a fully loosened picture shows no page-ground pixel in it.
+//!
+//! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
 use lab::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use lab::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use lab::morph::MorphSpec;
@@ -97,6 +105,11 @@ fn main() {
     }
     if std::env::args().nth(1).is_some_and(|a| a == "looks") {
         let f = looks(&fonts);
+        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
+        return eprintln!("all checks passed");
+    }
+    if std::env::args().nth(1).is_some_and(|a| a == "fieldmap") {
+        let f = fieldmap(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
@@ -503,6 +516,7 @@ fn main() {
     failed += presets(&fonts);
     failed += scroll(&fonts);
     failed += looks(&fonts);
+    failed += fieldmap(&fonts);
 
     if failed > 0 { eprintln!("{failed} checks failed"); std::process::exit(1); }
     eprintln!("all checks passed");
@@ -1027,7 +1041,7 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     failed
 }
 
-// ── 19. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
+// ── 17. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
 fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     use lab::gallery::{self, Msg, Page};
     use lab::post::*;
@@ -1119,7 +1133,7 @@ fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let (mut darker, mut lighter) = (0, 0);
     for (a, b) in plain.chunks(4).zip(deep.chunks(4)) { let (x, y) = (lum(a), lum(b)); if y + 6 < x { darker += 1; } else if y > x + 6 { lighter += 1; } }
     if darker < 500 || lighter > darker / 10 { eprintln!("FAIL depth marks: {darker} px darker, {lighter} lighter"); failed += 1; }
-    eprintln!("19. looks: {} effects, palettes × dithers, drawn in part, depth marks ({darker} px darker); {failed} failing", effects.len());
+    eprintln!("17. looks: {} effects, palettes × dithers, drawn in part, depth marks ({darker} px darker); {failed} failing", effects.len());
     failed
 }
 
@@ -1170,4 +1184,140 @@ fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     }
     eprintln!("18. slow scroll is a moved picture: {failed} failing");
     failed
+}
+
+// ── 19. The field map ────────────────────────────────────────────────────────────────────────────
+struct Pic { cmds: Vec<lab::morph::Cmd> }
+fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(BUST, 1.0).key("pic").loose(1.0).respond(lab::el::Response::Loosen)) }
+fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    use lab::gallery::{self, Msg, Page};
+    use lab::morph::{Cmd, StirAt};
+    let (w, h) = (900u32, 640u32);
+    let mut o = Offscreen::new(w, h);
+    let mut failed = 0;
+    let stir = |at: StirAt| Cmd::Stir { at, v: [1.0, 0.3], energy: 1.0, radius: 320.0, scope: lab::el::Scope::Global };
+    // 1 and 2: all zero, the frame is the one drawn without the map; after a stir it is not.
+    let (mut same, mut stirred) = (0, 0);
+    for page in ["button", "image"] {
+        for (mi, (m, _)) in lab::style::MATERIALS.iter().enumerate() {
+            let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+            gallery::update(&mut ui.state, Msg::Go(Page::from_hash(page).expect("page")));
+            gallery::update(&mut ui.state, Msg::Material(mi));
+            ui.relayout();
+            ui.pointer_leave();
+            ui.tick(5.0);
+            let look = ui.state.look();
+            o.r.partial = false;
+            let with = o.render(&mut ui, &look);
+            o.r.no_map = true;
+            let without = o.render(&mut ui, &look);
+            o.r.no_map = false;
+            if ui.fieldmap().nonzero() != 0 { eprintln!("FAIL the map is not zero at rest on {page} under {m:?}"); failed += 1; }
+            if with != without { eprintln!("FAIL {page} under {m:?}: the all-zero map changes the frame"); failed += 1; } else { same += 1; }
+            ui.state.cmds.push(stir(StirAt::Point([w as f32 * 0.5, h as f32 * 0.45])));
+            ui.relayout();
+            let with = o.render(&mut ui, &look);
+            o.r.no_map = true;
+            let without = o.render(&mut ui, &look);
+            o.r.no_map = false;
+            o.r.partial = true;
+            if with == without { eprintln!("FAIL control: a stir changes nothing on {page} under {m:?}"); failed += 1; } else { stirred += 1; }
+        }
+    }
+    eprintln!("19.1–2 all zero is the frame without the map ({same} frames); a stir shows ({stirred})");
+    // 3: the window on the field map's page, dragged, thrown and settling; drawn in part = drawn whole.
+    let (mut frames, mut bad_runs) = (0, 0);
+    for mi in 0..lab::style::MATERIALS.len() {
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        gallery::update(&mut ui.state, Msg::Go(Page::Stirr));
+        gallery::update(&mut ui.state, Msg::Material(mi));
+        ui.relayout();
+        ui.pointer_leave();
+        let Some(f) = ui.node("stirr/float") else { eprintln!("FAIL no window on the field map's page"); failed += 1; break };
+        let (x, y) = f.rect.center();
+        let mut t = 3.0;
+        ui.tick(t);
+        let look = ui.state.look();
+        let mut bad = 0;
+        for step in 0..90 {
+            t += 1.0 / 60.0;
+            match step {
+                4 => ui.pointer_move(x, y),
+                6 => ui.press(x, y),
+                7..=20 => ui.pointer_move(x + 24.0 * (step - 6) as f32, y + 9.0 * (step - 6) as f32),
+                21 => ui.release(x + 340.0, y + 130.0),
+                _ => {}
+            }
+            ui.tick(t);
+            let a = o.render(&mut ui, &look);
+            o.r.partial = false;
+            ui.invalidate();
+            let b = o.render(&mut ui, &look);
+            o.r.partial = true;
+            frames += 1;
+            if a != b {
+                let n = a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p != q).count();
+                if bad == 0 { eprintln!("FAIL field map page, material {mi}, frame {step}: {n} pixels differ from the whole redraw"); }
+                bad += 1;
+            }
+        }
+        if bad > 0 { bad_runs += 1; failed += 1; }
+    }
+    eprintln!("19.3 the trail drawn in part: {frames} frames, {bad_runs} materials failing");
+    // 4: near.b at a decoration's centre is Ui::looseness.
+    let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::Stirr));
+    gallery::update(&mut ui.state, Msg::Material(0));
+    ui.relayout();
+    ui.pointer_leave();
+    let (x, y) = ui.node("stirr/float").expect("window").rect.center();
+    let mut t = 3.0;
+    ui.tick(t);
+    ui.press(x, y);
+    for i in 1..=12 { t += 1.0 / 60.0; ui.pointer_move(x + 20.0 * i as f32, y + 4.0 * i as f32); ui.tick(t); }
+    let look = ui.state.look();
+    o.r.partial = false;
+    o.render(&mut ui, &look);
+    o.r.partial = true;
+    let near = o.r.read_near();
+    let (mut worst, mut seen) = (0.0f32, 0);
+    for i in 0..6 {
+        let key = format!("stirr/deco/{i}");
+        let k = ui.looseness(&key, t);
+        let (cx, cy) = ui.node(&key).expect("decoration").rect.center();
+        let b = near[((cy as u32 * w + cx as u32) * 4 + 2) as usize] as f32;
+        let dec = if b >= 128.0 { (b - 128.0) / 127.0 } else { b / 125.0 };
+        if k > 0.05 { seen += 1; }
+        worst = worst.max((dec - k).abs());
+    }
+    ui.release(x + 240.0, y + 48.0);
+    if worst > 2.0 / 255.0 + 1e-4 { eprintln!("FAIL near.b against Ui::looseness: off by {:.4}", worst); failed += 1; }
+    if seen == 0 { eprintln!("FAIL control: no decoration was loosened by the trail"); failed += 1; }
+    eprintln!("19.4 near.b against Ui::looseness: worst {:.2}/255 over 6 decorations ({seen} loosened)", worst * 255.0);
+    // 5: a trail over a fully loosened picture, light theme: no page ground in it.
+    let ground = rgb8(LIGHT.ground);
+    let mut showing = 0;
+    for m in 0..MATERIAL_COUNT as u8 {
+        let mut ui = Ui::new(Pic { cmds: vec![] }, pic_page, |_, _| {}, fonts(), W, H, 1.0).on_commands(|s| std::mem::take(&mut s.cmds));
+        ui.pointer_leave();
+        ui.tick(100.0);
+        let r = ui.node("pic").expect("pic").rect;
+        let (x0, y0, x1, y1) = device_rect(r, 1.0);
+        let (x1, y1) = (x1.min(W), y1.min(H));
+        let path = std::rc::Rc::new(vec![[r.x - 40.0, r.y + r.h * 0.3], [r.right() + 40.0, r.y + r.h * 0.7]]);
+        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path, from: 0.0, to: 1.0 }, v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: lab::el::Scope::Global });
+        ui.relayout();
+        ui.tick(100.05);
+        let look = Look { theme: LIGHT, material: Material::from_id(m), ..Look::default() };
+        let img = o_small(&mut ui, &look);
+        let n = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| close(px(&img, W, x, y), ground)).count();
+        if n > 0 { eprintln!("FAIL ground shows in a loosened picture under a trail, {:?}: {n} px", Material::from_id(m)); failed += 1; } else { showing += 1; }
+    }
+    eprintln!("19.5 a trail over a loosened picture: {showing} of {MATERIAL_COUNT} materials keep the ground out");
+    eprintln!("19. field map: {failed} failing");
+    failed
+}
+fn o_small<S, M: Clone>(ui: &mut Ui<S, M>, look: &Look) -> Vec<u8> {
+    thread_local! { static O: std::cell::RefCell<Option<Offscreen>> = const { std::cell::RefCell::new(None) }; }
+    O.with(|o| o.borrow_mut().get_or_insert_with(|| Offscreen::new(W, H)).render(ui, look))
 }

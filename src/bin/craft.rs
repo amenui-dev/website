@@ -1,7 +1,7 @@
 //! Filmstrips of the interaction previews (DESIGN.md §1.8.4, §5.2), drawn off-screen with a fixed 60 Hz
 //! clock and scripted pointer input, one sheet per study: `sheet` (bottom sheet: present, a slow drag that
 //! returns, a pull past the top, a flick that dismisses), `floating` (a slow drag back, a flick to the far
-//! corner), and the later studies as they are added.
+//! corner), `stirr` (the field map's trail, four materials), and the later studies as they are added.
 //!
 //! usage: craft <out_dir> [<study> …]   (every study when none is named); plain unless LAB_MATERIAL names another (dot, ascii…)
 use lab::gallery::{self, GalleryUi, Msg, Page};
@@ -15,11 +15,11 @@ fn faces() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("f
 /// A gallery page, the renderer, the clock, and the frames kept so far.
 struct Rig { o: Offscreen, ui: GalleryUi, frames: Vec<(u32, u32, Vec<u8>)>, last: Vec<u8>, region: String, pad: f32 }
 impl Rig {
-    fn new(page: &str, region: &str) -> Self {
+    fn new(page: &str, region: &str) -> Self { Self::with(page, region, &std::env::var("LAB_MATERIAL").unwrap_or_else(|_| "plain".into())) }
+    fn with(page: &str, region: &str, m: &str) -> Self {
         let mut ui = gallery::new_ui(faces(), W, H, 1.0);
         let p = Page::from_hash(page).unwrap_or_else(|| panic!("no page {page}"));
         gallery::update(&mut ui.state, Msg::Go(p));
-        let m = std::env::var("LAB_MATERIAL").unwrap_or_else(|_| "plain".into());
         if let Some(i) = lab::style::MATERIALS.iter().position(|x| x.1 == m) { gallery::update(&mut ui.state, Msg::Material(i)); }
         ui.relayout();
         ui.pointer_leave();
@@ -181,11 +181,31 @@ fn study_chart(out: &str) {
     r.drag("craft/chart/dots/knot1", 0.0, -60.0, 10, &[10]);
     r.save(out, "chart", 3);
 }
+/// The field map (DESIGN.md §1.29): the window dragged across the decoration, the picture and the text,
+/// let go, gliding, and the place settled; plain, dot, print and glitch, eight frames each.
+fn study_stirr(out: &str) {
+    for m in ["plain", "dot", "print", "glitch"] {
+        let mut r = Rig::with("stirr", "stirr/stage", m);
+        r.shot();
+        // Across the row of shapes, then down over the picture and the text.
+        r.drag("stirr/float", 300.0, 30.0, 20, &[10, 20]);
+        let (x, y) = r.center("stirr/float");
+        r.ui.press(x, y);
+        for i in 1..=14 { r.ui.pointer_move(x + 6.0 * i as f32, y + 14.0 * i as f32); r.frame(); if i == 14 { r.shot(); } }
+        r.ui.release(x + 90.0, y + 200.0);
+        r.run(0.12); r.shot();
+        r.run(0.3); r.shot();
+        r.run(0.5); r.shot();
+        r.run(2.5); r.shot();
+        r.save(out, &format!("stirr-{m}"), 4);
+    }
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading", "stack", "chart"];
+    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -195,6 +215,7 @@ fn main() {
             "loading" => study_loading(&out),
             "stack" => study_stack(&out),
             "chart" => study_chart(&out),
+            "stirr" => study_stirr(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

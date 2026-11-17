@@ -11,9 +11,12 @@
 //!     and wait) of a hover onto a button, the caret blinking in a field, and one press of the counter,
 //!     drawn whole and drawn in boxes, plain and dot; with the share of the window the boxes cover.
 //!
+//!  6. the field map (DESIGN.md §1.29) at 1280 × 800: one step of 1/60 s with a trail being laid (the
+//!     stir, the step, the bytes), and the bytes' upload to a texture and its wait (budget 0.2 ms).
+//!
 //! Each line is the mean over the runs, ms. Numbers are only comparable on one machine.
 //!
-//! usage: bench [runs] [gpu | dirty]     (`gpu` runs only the particle rows, `dirty` only 5)
+//! usage: bench [runs] [gpu | dirty | map]     (`gpu` runs only the particle rows, `dirty` only 5, `map` only 6)
 use lab::el::{El, Paint, col, row, space, text, text_lh};
 use lab::gallery::{self, Msg, Page};
 use lab::ui::Ui;
@@ -87,6 +90,7 @@ fn main() {
     if std::env::args().nth(2).is_some_and(|a| a == "gpu") { particles(runs); return; }
     if std::env::args().nth(2).is_some_and(|a| a == "dirty") { dirty(); return; }
     if std::env::args().nth(2).is_some_and(|a| a == "lab") { lab(runs); return; }
+    if std::env::args().nth(2).is_some_and(|a| a == "map") { fieldmap(runs); return; }
     let (w, h) = (1280u32, 800u32);
 
     // 1. Gallery button page: press the live button.
@@ -202,4 +206,31 @@ fn lab(runs: usize) {
         let vw = t0.elapsed().as_secs_f64() * 100.0;
         println!("{:<16} {:6.2} ms/frame (CPU: input, update, view, layout, scene); one relayout {rl:.2} ms, of it the view {vw:.2} ms; {} nodes", p.hash(), total / runs as f64, ui.nodes().len());
     }
+}
+
+/// 6. The field map: a step with a trail being laid, then the upload.
+fn fieldmap(runs: usize) {
+    use lab::fieldmap::{EVERYWHERE, FieldMap, MapFx};
+    let fx = MapFx::default();
+    let mut m = FieldMap::new(1280.0, 800.0, fx.cell);
+    let n = runs.max(200);
+    let step = time(n, |i| {
+        let x = 100.0 + (i % 100) as f32 * 10.0;
+        m.stir_along([x, 400.0], [x + 10.0, 404.0], fx.stirr, fx.flow, fx.stirr_radius + 48.0, EVERYWHERE);
+        m.advance(1.0 / 60.0, &fx);
+    });
+    let (cols, rows) = (m.cols, m.rows);
+    println!("field map step          {step:8.3} ms   ({cols} × {rows} nodes, {} not zero; stir, step, bytes)", m.nonzero());
+    let Ok(o) = lab::offscreen::Offscreen::try_new(64, 64) else { println!("field map upload        (no GPU adapter)"); return };
+    let (device, queue) = (o.r.device(), o.r.queue());
+    let tex = device.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: 512, height: 512, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
+        dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[] });
+    let bytes = m.snapshot().bytes.clone();
+    let up = time(n, |_| {
+        queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, &bytes,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(cols as u32 * 4), rows_per_image: Some(rows as u32) }, wgpu::Extent3d { width: cols as u32, height: rows as u32, depth_or_array_layers: 1 });
+        queue.submit([]);
+    });
+    device.poll(wgpu::PollType::wait_indefinitely()).expect("poll");
+    println!("field map upload        {up:8.3} ms   ({} KB a frame; step + upload {:.3} ms, budget 0.2)", bytes.len() / 1024, step + up);
 }
