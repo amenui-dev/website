@@ -1,0 +1,187 @@
+/* The docs pages (site design D.5): sidebar 232 px, text at most 720 px, contents 200 px, 48 px
+   between; a light scheme that follows the system (D.2). Inlined into every docs page after the
+   chrome's rules from shell.html. */
+html.doc { color-scheme: dark light; --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace; scroll-padding-top: 72px; }
+@media (prefers-color-scheme: light) {
+  html.doc { --ground: #e9e8e3; --raised: #dfded8; --hairline: #c4c3bc; --dim: #626466; --text: #2a2b2d; --ink: #17181a; --accent: #db4d14; --second: #1a5cc7; --warn: #8a6500; }
+}
+html.doc, .doc body { height: auto; }
+.doc body { overflow: visible; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+.doc .bar, .doc .sheet, .doc .docs .side, .doc .path, .doc .title, .doc .toc, .doc .pn, .doc h2, .doc h3, .doc figcaption, .doc th, .doc .foot, .doc .stage figcaption { -webkit-font-smoothing: none; }
+.doc .bar { background: var(--ground); }
+.sheet .close { display: none; }
+.doc .sheet:target { display: flex; }
+.doc .sheet .close { display: flex; position: absolute; right: var(--m); top: 0; height: 44px; font-size: 22px; border: 0; }
+
+/* The three columns, centred in the 1,320 px content width. */
+.docs { display: grid; grid-template-columns: 232px minmax(0, 720px) 200px; column-gap: 48px; justify-content: center; max-width: 1320px; margin: 0 auto; padding: 48px var(--m) 0; }
+.side, .toc { position: sticky; top: 48px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.side-in { padding: 32px 0 48px; }
+.toc-in { padding: 104px 0 48px; }
+.doc-main { min-width: 0; padding: 32px 0 72px; }
+
+/* Sidebar: groups 11 px uppercase dim with their numbers; pages 11 px uppercase in 28 px rows. */
+.side, .toc, .path, .title .num, .pn, .foot, .only-en { font: 11px/14px var(--mono); letter-spacing: .06em; }
+.side .g { margin: 24px 0 4px; color: var(--dim); text-transform: uppercase; }
+.side .g:first-of-type { margin-top: 0; }
+.side .g small, .sheet small { font-size: inherit; margin-right: 12px; }
+.side ul { list-style: none; margin: 0; padding: 0; }
+.side li a, .side summary { position: relative; display: flex; align-items: center; min-height: 28px; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.side li a:hover, .side summary:hover { color: var(--ink); }
+.side a[aria-current] { color: var(--accent); }
+.side .here, .toc .here { position: absolute; left: 0; font-style: normal; view-transition-name: here; }
+.side summary { cursor: pointer; list-style: none; color: var(--dim); }
+.side summary::-webkit-details-marker { display: none; }
+.side summary::before { content: "+"; position: absolute; left: 0; }
+.side details[open] > summary::before { content: "−"; }
+.side summary small { font-size: inherit; margin-left: 8px; }
+.side .sub ul { padding-left: 12px; }
+.side-close { display: none; }
+
+/* Title block: the path in 11 px dim, the title at 33 px with the page number at the right. */
+.path { margin: 0 0 24px; color: var(--dim); text-transform: uppercase; }
+.path a { color: var(--dim); } .path a:hover { color: var(--ink); }
+.path-open { display: none; }
+.title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 24px; }
+.title h1 { min-width: 0; overflow-wrap: anywhere; font: 33px/33px var(--mono); color: var(--ink); margin: 0; -webkit-font-smoothing: none; }
+html[lang="zh-Hans"] .title h1 { font-family: var(--mono), var(--cjk); }
+.title .num { color: var(--dim); flex: none; }
+.only-en { color: var(--dim); margin: -12px 0 24px; text-transform: uppercase; }
+
+/* Text: Source Serif 4 at 17 px for English, the system's CJK sans at 16 px for Chinese. */
+.prose { font: 17px/1.6 var(--serif); color: var(--text); overflow-wrap: break-word; }
+html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
+.prose p, .prose ul, .prose ol { margin: 0 0 16px; }
+.prose ul, .prose ol { padding-left: 24px; }
+.prose li { margin: 0 0 4px; }
+.prose li > ul, .prose li > ol { margin: 4px 0 0; }
+.prose .lead { color: var(--ink); }
+.prose strong { font-weight: normal; color: var(--ink); }
+.prose em { font-style: italic; }
+.prose a { color: var(--second); text-decoration: underline dotted 1px; text-underline-offset: 3px; }
+.prose a:hover { text-decoration-style: solid; }
+.prose h2 a, .prose h3 a, .prose h4 a { color: inherit; text-decoration: none; }
+/* Second level: 22 px, set into a hairline like a section header. Third: 11 px uppercase in ink. */
+.prose h2 { display: flex; align-items: center; gap: 16px; font: 22px/22px var(--mono); color: var(--ink); margin: 48px 0 24px; }
+html[lang="zh-Hans"] .prose h2, html[lang="zh-Hans"] .prose h3 { font-family: var(--mono), var(--cjk); }
+.prose h2::before { content: ""; flex: 0 0 24px; height: 1px; background: var(--hairline); }
+.prose h2::after { content: ""; flex: 1 1 24px; min-width: 24px; height: 1px; background: var(--hairline); }
+.prose h3, .prose h4 { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin: 32px 0 12px; }
+.prose hr { border: 0; border-top: 1px solid var(--hairline); margin: 32px 0; }
+.prose img { max-width: 100%; height: auto; }
+.prose code { font: .92em var(--code); background: var(--raised); padding: 1px 4px; }
+
+/* Code blocks: raised ground, hairline frame, a 28 px header with the language and copy. */
+.code { margin: 24px 0; background: var(--raised); border: 1px solid var(--hairline); }
+.code figcaption { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px; border-bottom: 1px solid var(--hairline);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.code .copy { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--dim); background: none; border: 0; padding: 0 0 0 16px; height: 28px; cursor: pointer; }
+.code .copy:hover { color: var(--ink); }
+.js .code .copy { display: inline; }
+.code pre { margin: 0; padding: 12px 16px; overflow-x: auto; font: 13.5px/1.55 var(--code); color: var(--ink); tab-size: 4; }
+.prose .code code { font: inherit; background: none; padding: 0; }
+.code pre.num code { counter-reset: l; }
+.code .l { counter-increment: l; }
+.code .l::before { content: counter(l); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--dim); -webkit-user-select: none; user-select: none; }
+.code .c { color: var(--dim); } .code .s, .code .n { color: var(--second); } .code .hl { color: var(--accent); }
+@media (min-width: 1080px) { .prose .code { margin-right: -24px; } }
+
+/* Tables: header row 11 px uppercase dim, a hairline under each row, scrolling in their own box. */
+.table { overflow-x: auto; margin: 24px 0; }
+.prose table { border-collapse: collapse; min-width: 100%; font-size: 15px; line-height: 1.5; }
+html[lang="zh-Hans"] .prose:not([lang]) table { font-size: 14px; }
+.prose th { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
+.prose td { padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.prose .r { text-align: right; font-variant-numeric: tabular-nums; }
+.prose table.kv th { width: 30%; vertical-align: top; padding-top: 12px; }
+.prose td code { white-space: nowrap; }
+
+/* Notes: a character in the margin, the text indented 24 px, no box. */
+.note { position: relative; padding-left: 24px; margin: 24px 0; }
+.note .mark { position: absolute; left: 0; top: 0; font: 11px/27px var(--mono); color: var(--dim); }
+.note.warn .mark { color: var(--warn); }
+
+/* Page end: two cells, each a hairline frame 72 px high. */
+.pn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 72px; }
+.pn a { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 72px; padding: 0 16px; border: 1px solid var(--hairline); color: var(--ink); text-transform: uppercase; }
+.pn a:hover { border-color: var(--ink); }
+.pn small { font-size: inherit; color: var(--dim); }
+.pn .next { text-align: right; align-items: flex-end; grid-column: 2; }
+.pn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Table of contents: second-level headings; the one in view in the accent. */
+.toc .label { margin: 0 0 8px; color: var(--dim); text-transform: uppercase; }
+.toc ol { list-style: none; margin: 0 0 24px; padding: 0; }
+.toc li a { position: relative; display: block; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.toc li a:hover { color: var(--ink); }
+.toc li a.on { color: var(--accent); }
+.toc li a.on::before { content: "▸"; position: absolute; left: 0; }
+.toc .links a { display: block; padding: 7px 0; color: var(--text); text-transform: uppercase; }
+.toc .links a:hover { color: var(--ink); }
+.toc-inline { display: none; margin: 0 0 32px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.toc-inline summary { cursor: pointer; color: var(--dim); list-style: none; height: 28px; display: flex; align-items: center; }
+.toc-inline summary::-webkit-details-marker { display: none; }
+.toc-inline ol { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 1px solid var(--hairline); }
+.toc-inline a { display: block; padding: 7px 0; color: var(--text); }
+
+/* The live stage: 16:10, full width, hairline frame on the raised colour, a 28 px caption strip. */
+.stage { margin: 32px 0; view-transition-name: stage; }
+.stage .box { position: relative; aspect-ratio: 16 / 10; background: var(--raised); border: 1px solid var(--hairline); overflow: hidden; }
+html:not(.js) .stage .run { cursor: default; }
+.stage .run { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; }
+.stage .box img, .stage .box .live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage .live canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.stage .live .a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+.stage .live .a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
+.stage .live .ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
+.stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; height: 28px; font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.stage figcaption a, .stage figcaption button { color: var(--text); font: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
+.stage figcaption a:hover, .stage figcaption button:hover { color: var(--ink); }
+.stage.on .state { color: var(--accent); }
+.stage .acts { display: flex; gap: 16px; }
+
+/* The docs index: groups behind section headers (D.4). */
+.prose h2.sec small { font: inherit; color: var(--dim); margin-right: 16px; }
+.idx { list-style: none; padding: 0; margin: 0 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); column-gap: 24px; }
+.idx li { min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.idx a { display: flex; gap: 12px; color: var(--ink); text-decoration: none; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; -webkit-font-smoothing: none; }
+.idx a:hover { color: var(--accent); }
+.idx small { font-size: inherit; color: var(--dim); flex: none; width: 40px; }
+.idx p { margin: 6px 0 0 52px; font-size: 15px; line-height: 1.5; color: var(--text); }
+.idx.compact li { padding: 8px 0; }
+.idx .subhead { grid-column: 1 / -1; border: 0; padding: 16px 0 4px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+
+/* The footer: GitHub and the version, which leave the bar below 1,080 px. */
+.foot { max-width: 1320px; margin: 0 auto; padding: 24px var(--m) 32px; display: flex; gap: 24px; color: var(--dim); text-transform: uppercase; border-top: 1px solid var(--hairline); }
+.foot a { color: var(--text); } .foot a:hover { color: var(--ink); }
+
+/* 1,080 to 1,279 px: the contents fold into a line under the title. */
+@media (max-width: 1279px) {
+  .docs { grid-template-columns: 232px minmax(0, 720px); }
+  .toc { display: none; }
+  .toc-inline { display: block; }
+}
+/* Below 1,080 px: the sidebar is a sheet opened from the path line. */
+@media (max-width: 1079px) {
+  .docs { grid-template-columns: minmax(0, 720px); }
+  .side { display: none; position: fixed; z-index: 9; inset: 48px 0 0 0; max-height: none; background: var(--ground); padding: 0 var(--m); }
+  .side:target, .side.open { display: block; }
+  .side-close { display: flex; position: sticky; top: 0; justify-content: flex-end; align-items: center; height: 44px; font: 22px/22px var(--mono); color: var(--text); margin-bottom: -12px; }
+  .path-open { display: inline; } .path-text { display: none; }
+}
+@media (max-width: 719px) {
+  .docs { padding-top: 44px; }
+  .side { inset: 44px 0 0 0; }
+  .doc-main { padding-top: 24px; }
+  .title h1 { font-size: 22px; line-height: 22px; }
+  .prose h2 { font-size: 22px; margin-top: 40px; }
+  .pn { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pn .next { grid-column: 1; }
+  .idx { grid-template-columns: 1fr; }
+  .prose table { font-size: 14px; }
+}
+
+/* View transitions (F.8, with the chrome's): the sidebar holds and its marker glides. */
+.doc .side { view-transition-name: side; }
+@media print { .bar, .side, .toc, .pn, .foot, .stage { display: none !important; } .docs { display: block; padding: 0; } }

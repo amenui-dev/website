@@ -10,6 +10,7 @@
 {{redirect}}<link rel="preload" href="{{wasm_url}}" as="fetch" crossorigin>
 <link rel="preload" href="{{mono_url}}" as="fetch" crossorigin>
 <style>
+/*chrome*/
 /* The page around the canvas: the navigation bar, the home page's text, its stage with the source
    listing and the rail row, and the boot line. Everything here is in the first response; nothing
    blocks the first paint. */
@@ -62,6 +63,12 @@ a { color: inherit; text-decoration: none; }
 .sheet .row { display: flex; gap: 24px; padding-top: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .sheet .row a, .sheet .row button { height: 44px; font-size: 11px; border: 0; background: none; color: var(--text); font-family: inherit; text-transform: inherit; letter-spacing: inherit; padding: 0; }
 
+/* Cross-document view transitions (F.8): the bar holds while the page under it changes. */
+@view-transition { navigation: auto; }
+.bar { view-transition-name: bar; }
+::view-transition-group(*) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/*/chrome*/
 /* The canvas: under the bar, or the whole window behind it on home and in Scenes. */
 #stage { position: fixed; left: 0; right: 0; bottom: 0; top: 48px; }
 .home #stage, .scenes #stage { top: 0; }
@@ -170,7 +177,7 @@ html:not(.home) #stage { bottom: 28px; }
 </style>
 </head>
 <body>
-<a class="skip" href="#main">{{t_skip}}</a>
+<!--bar--><a class="skip" href="#main">{{t_skip}}</a>
 <header class="bar">
   <a class="word" href="{{home_href}}" data-route="" aria-label="amenui">amenui<i></i></a>
   <nav class="nav" aria-label="{{t_sections}}">
@@ -193,7 +200,8 @@ html:not(.home) #stage { bottom: 28px; }
   <a href="{{href_lab}}" data-route="lab/" data-section="lab"><small>03</small>{{t_lab}}</a>
   <a href="{{href_scenes}}" data-route="scenes/" data-section="scenes"><small>04</small>{{t_scenes}}</a>
   <div class="row"><button type="button" class="search">/ {{t_search}}</button><span class="lang">{{lang_switch}}</span><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
-</div>
+  <a class="close" href="#" aria-label="{{t_close}}">×</a>
+</div><!--/bar-->
 <div id="stage">
   <canvas class="c" id="main" tabindex="0" aria-label="{{t_canvas}}"></canvas>
   <textarea class="ta" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="{{t_text_input}}"></textarea>
@@ -231,11 +239,10 @@ html:not(.home) #stage { bottom: 28px; }
   // One run of text (in a flex box, the spaces round a bare <b> would be dropped).
   const line = status.querySelector('.line');
   A.line = h => { line.innerHTML = h; };
-  // Bar and sheet: the menu button, search (the canvas's, once it runs), copy.
+  // Bar and sheet: the menu button and copy (search is the search script's, below).
   const sheet = D.getElementById('sheet'), mb = D.querySelector('.menu-btn');
   mb.addEventListener('click', () => { const o = sheet.classList.toggle('open'); mb.setAttribute('aria-expanded', o); });
   D.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet.classList.contains('open')) { sheet.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); } });
-  for (const b of D.querySelectorAll('.search')) b.addEventListener('click', () => { sheet.classList.remove('open'); if (A.search) A.search(); });
   // The skip link focuses the page's canvas (without touching the address, which holds the home page's state).
   D.querySelector('.skip').addEventListener('click', e => { e.preventDefault(); D.getElementById('main').focus(); });
   const copy = D.querySelector('.copy');
@@ -327,6 +334,6 @@ html:not(.home) #stage { bottom: 28px; }
   };
 })();
 </script>
-{{app}}
+{{search}}{{app}}
 </body>
 </html>

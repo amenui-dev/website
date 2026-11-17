@@ -133,7 +133,29 @@ web.skip = 跳到内容
 web.readout = 读数
 web.quality = 质量
 web.quality.auto = 自动
-web.fail = 这个浏览器无法启动 WebGPU 或 WebGL2。不用它也可以在 GitHub 上阅读文档：<a href="https://github.com/amenui-dev/website/tree/main/docs/site/zh-Hans">文档 ↗</a>
+web.fail = 这个浏览器无法启动 WebGPU 或 WebGL2。文档是普通网页，不用它也能阅读：<a href="{docs}">文档 ↗</a>
 web.description = amenui 是一个用 Rust 写的、自己绘制一切的图形界面框架，用于桌面和网页。
 web.not-found = 未找到
 web.not-found-text = 这个地址没有页面。
+# The docs pages and the search (web/docs.py, web/search.js).
+web.close = 关闭
+web.docs.title = 文档
+web.docs.lead = 开始、指南、概念、每个组件和参考，都是普通网页。每个组件的页面里有它的实时舞台。
+web.docs.edit = 在 GitHub 上编辑
+web.docs.source = 在 GitHub 上查看源码
+web.docs.raw = 原始 .md
+web.docs.design = 设计
+web.docs.english = 本页只有英文。
+web.docs.pages = 上一页和下一页
+web.docs.stage = 实时 · 由 amenui 绘制 · 点击运行
+web.docs.stage-still = 由 amenui 绘制
+web.docs.starting = 正在启动…
+web.docs.live = 运行中
+web.docs.unavailable = 这个浏览器无法启动 WebGPU 或 WebGL2
+web.docs.open = 打开
+web.docs.run = 运行舞台
+web.search.placeholder = 搜索文档、组件、实验室和场景
+web.search.results = 结果
+web.search.none = 没有结果
+web.search.loading = 正在载入索引…
+web.search.hint = ↑ ↓ 移动 · 回车打开 · esc 关闭

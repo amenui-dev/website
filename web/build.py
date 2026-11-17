@@ -1,12 +1,16 @@
 # Assemble the site from the wasm-bindgen output in dist/pkg: one small HTML page per address (in
-# English at the root and in Simplified Chinese under zh-Hans/), the glue script, the module and the
-# font subsets as separate files with content hashes in their names, a 404 page and the embedding
-# example. Written to dist/site/.
+# English at the root and in Simplified Chinese under zh-Hans/), the docs as plain HTML pages
+# (web/docs.py), the search index, the glue script, the module and the font subsets as separate
+# files with content hashes in their names, a 404 page and the embedding example. Written to
+# dist/site/.
 #
 #   BASE=/website/ python3 web/build.py      (BASE: where the site is served; "/" on its own domain)
 #
 # Needs: fontTools; `wasm-opt` on PATH is used when it makes the module smaller to transfer.
 import gzip, hashlib, html, json, os, pathlib, re, shutil, subprocess, sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import docs as docs_html
 
 root = pathlib.Path(__file__).resolve().parent.parent
 BASE = os.environ.get('BASE', '/website/')
@@ -50,6 +54,7 @@ def hashed(name, data):
     h = hashlib.sha256(data).hexdigest()[:10]
     stem, dot, ext = name.rpartition('.')
     fn = f'{stem}.{h}.{ext}'
+    (out / fn).parent.mkdir(parents=True, exist_ok=True)
     (out / fn).write_bytes(data)
     return fn
 
@@ -84,8 +89,10 @@ def cjk(c): return '⺀' <= c <= '鿿' or '豈' <= c <= '﫿' or '＀' <= c <= '
 chars = {t: set() for t in langs}
 for p in sorted((root / 'assets/i18n').glob('*.txt')) + sorted((fw / 'assets/i18n').glob('*.txt')):
     for k in chars: chars[k] |= set(p.read_text())
+# Of the docs, the canvas draws only the Lab's and the body scene's text (the rest are HTML pages).
 for p in sorted((root / 'docs/site').rglob('*.md')):
-    for k in chars: chars[k] |= set(front(p.read_text()))
+    if p.stem.startswith(('lab-', 'scene-')):
+        for k in chars: chars[k] |= set(front(p.read_text()))
 # The shell's own text in the mono face: the bar, the rail row, the boot line, the listing's caret.
 chrome = set('█▸‹›→·°|') | set((root / 'web/shell.html').read_text())
 for k in chars: chars[k] |= literals | shown | {c for c in chrome if not cjk(c)}
@@ -107,49 +114,170 @@ for lang, cs in chars.items():
 for lang in langs: fonts[lang][2] = fonts['en'][2]
 
 cats = {t: catalog(root / f'assets/i18n/{t}.txt') for t in langs}
+def tr(lang, k): return cats[lang].get(k) or cats['en'][k]
 template = (root / 'web/shell.html').read_text()
-redirects = data['redirects']
+# The chrome the docs pages share with the canvas pages: the rules between /*chrome*/ and /*/chrome*/,
+# and the skip link, the bar and the phone's sheet between <!--bar--> and <!--/bar-->.
+chrome_css = re.search(r'/\*chrome\*/(.*?)/\*/chrome\*/', template, re.S).group(1)
+bar_template = re.search(r'<!--bar-->(.*?)<!--/bar-->', template, re.S).group(1)
 # The listing the home page shows while the module loads: the first lines of the text the body is made
 # of (`body::Body::listing`), which must be the first lines of examples/body.rs as they are.
 listing = data['listing']
 file_lines = [l.rstrip() for l in (root / 'examples/body.rs').read_text().split('\n')]
 assert listing.split('\n') == file_lines[:len(listing.split('\n'))], 'the listing is not the start of examples/body.rs'
 
-def page(lang, path, title, section, notfound=False):
-    t = cats[lang]
-    tr = lambda k: t.get(k) or cats['en'][k]
+def chrome_vars(lang, path):
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
     # The language switch: each language by its short name, the current one marked.
     lang_switch = '<span>·</span>'.join('<b>%s</b>' % SHORT.get(l, l) if l == lang else '<a href="%s" lang="%s" hreflang="%s">%s</a>' % (BASE + ('' if l == 'en' else l + '/') + path, l, l, SHORT.get(l, l)) for l in langs)
+    t = lambda k: tr(lang, k)
+    return {
+        'lang': lang, 'home_href': href(''), 'href_docs': href('docs/'), 'href_components': href('components/'), 'href_lab': href('lab/'), 'href_scenes': href('scenes/'),
+        'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
+        't_sections': t('web.sections'), 't_docs': t('web.docs'), 't_components': t('web.components'), 't_lab': t('web.lab'), 't_scenes': t('web.scenes'),
+        't_search': t('web.search'), 't_menu': t('web.menu'), 't_skip': t('web.skip'), 't_close': t('web.close'),
+    }
+
+def fill(s, v): return re.sub(r'\{\{(\w+)\}\}', lambda m: str(v[m.group(1)]), s)
+
+def current(s, section):
+    """The current section marked in the bar and the sheet without the script (it keeps it after)."""
+    return re.sub(r'(<a [^>]*data-section="%s")' % re.escape(section), r'\1 aria-current="page"', s) if section in ('docs', 'components', 'lab', 'scenes') else s
+
+# The search (A.7): one script, loaded on first use, and one index per language (written after the
+# docs, from them and from the canvas routes); every page carries the few lines that open it.
+search_fn = hashed('search.js', (root / 'web/search.js').read_bytes())
+SEARCH_TOKEN = '@@SEARCH-INDEX@@'
+def search_boot(lang, index_url):
+    t = lambda k: tr(lang, k)
+    cfg = {'js': BASE + search_fn, 'index': index_url, 'base': BASE + ('' if lang == 'en' else lang + '/'),
+           't': {'search': t('web.search'), 'placeholder': t('web.search.placeholder'), 'results': t('web.search.results'), 'none': t('web.search.none'), 'loading': t('web.search.loading'), 'hint': t('web.search.hint')}}
+    return ('<script>window.SEARCH=%s;(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});'
+            'D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);'
+            'if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);'
+            'for(const b of D.querySelectorAll(".search"))b.addEventListener("click",()=>{const s=D.getElementById("sheet");if(s)s.classList.remove("open");open()})})()</script>\n') % json.dumps(cfg, ensure_ascii=False, separators=(',', ':'))
+
+# The docs pages (web/docs.py) in the chrome above.
+docs_css = (root / 'web/docs.css').read_text()
+docs_js_fn = hashed('docs.js', (root / 'web/docs.js').read_bytes())
+serif = fw / 'assets/SourceSerif4-8pt-subset.ttf'
+serif_fn = f'fonts/source-serif.{hashlib.sha256(serif.read_bytes()).hexdigest()[:10]}.ttf'
+(out / 'fonts').mkdir(exist_ok=True)
+(out / serif_fn).write_bytes(serif.read_bytes())
+mono_url = fonts['en'][2]['url']
+faces_css = ('@font-face{font-family:"Departure Mono";src:url(%s) format("opentype");font-display:swap}'
+             '@font-face{font-family:"Source Serif 4";src:url(%s) format("truetype");font-display:swap}') % (mono_url, BASE + serif_fn)
+def doc_frame(lang, path, title, description, main):
+    v = chrome_vars(lang, path)
+    bar = current(fill(bar_template, v), 'docs')
+    # Without the script the phone's menu is a link to the sheet (`:target`); docs.js opens it in place.
+    bar = re.sub(r'<button type="button" class="menu-btn"([^>]*)>(.*?)</button>', r'<a class="menu-btn" href="#sheet"\1>\2</a>', bar)
+    alt = ''.join(f'<link rel="alternate" hreflang="{l}" href="{BASE + ("" if l == "en" else l + "/") + path}">' for l in langs)
+    t = lambda k: tr(lang, k)
+    cfg = {'files': {'wasm': BASE + wasm_fn, 'fonts': fonts[lang], 'app': BASE + app_fn}, 'copied': t('web.copied'), 'live': t('web.docs.live'), 'starting': t('web.docs.starting'), 'fail': t('web.docs.unavailable'), 'canvas': t('web.canvas')}
+    foot = (f'<footer class="foot"><a href="{v["href_release"]}">amenui v{version}</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>')
+    return ('<!doctype html>\n'
+            f'<html lang="{lang}" class="doc">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+            f'<title>{html.escape(title)}</title>\n<meta name="description" content="{html.escape(description)}">\n<meta name="color-scheme" content="dark light">\n<link rel="icon" href="data:,">\n{alt}\n'
+            f'<link rel="preload" href="{mono_url}" as="font" type="font/otf" crossorigin>\n'
+            f'<style>{faces_css}{chrome_css}{docs_css}</style>\n<script>document.documentElement.classList.add("js")</script>\n</head>\n<body>\n'
+            f'{bar}\n{main}\n{foot}\n'
+            f'<script>window.DOCS={json.dumps(cfg, ensure_ascii=False, separators=(",", ":"))}</script>\n<script src="{BASE + docs_js_fn}" defer></script>\n'
+            f'{SEARCH_TOKEN}</body>\n</html>\n')
+
+# Build-time stills of the live stages (`STILLS`: a directory of `<route with - for />.png`, made by
+# the offscreen renderer); without them a stage is an empty frame until it is run.
+stills_dir = os.environ.get('STILLS')
+stills = {}
+if stills_dir:
+    for f in sorted(pathlib.Path(stills_dir).glob('*.png')):
+        b = f.read_bytes()
+        stills[f.stem.replace('~', '/')] = hashed('stills/' + f.stem.replace('~', '-').strip('-') + '.png', b)
+def stage_html(p, lang, href):
+    t = lambda k: tr(lang, k)
+    route = p.stage if p.stage is not None else p.canvas
+    still = stills.get(route)
+    img = f'<img src="{BASE + still}" alt="" width="1440" height="900" decoding="async">' if still else ''
+    return (f'<figure class="stage" data-route="{html.escape(route or "/")}"><div class="box"><button type="button" class="run" aria-label="{html.escape(t("web.docs.run"))}">{img}</button></div>'
+            f'<figcaption><span class="state">{html.escape(t("web.docs.stage"))}</span><span class="acts"><a href="{href(route)}">{html.escape(t("web.docs.open"))}&nbsp;↗</a></span></figcaption></figure>')
+
+(out / 'stills').mkdir(exist_ok=True)
+built = docs_html.build({'root': root, 'fw': fw, 'out': out, 'base': BASE, 'langs': langs, 'cats': cats, 'data': data, 'version': version, 'frame': doc_frame, 'stage_html': stage_html})
+redirects = built['redirects']
+
+# The search index: every docs page by its sections, and every canvas route by its title.
+reg = json.loads((fw / 'registry.json').read_text())
+desc = {i['name'].replace('_', '-'): i for i in reg['items']}
+def plain(h): return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', h))).strip()
+index_urls = {}
+for lang in langs:
+    entries = []
+    for w in built['pages']:
+        if w['lang'] != lang: continue
+        secs, at = [], 0
+        body = re.sub(r'<figure class="stage".*?</figure>|<figcaption>.*?</figcaption>', '', w['body'], flags=re.S)
+        heads = list(re.finditer(r'<h([234]) id="([^"]+)"><a [^>]*>(.*?)</a></h\1>', body, re.S))
+        secs.append(['', '', plain(body[:heads[0].start()] if heads else body)])
+        for j, m in enumerate(heads):
+            end = heads[j + 1].start() if j + 1 < len(heads) else len(body)
+            secs.append([plain(m.group(3)), m.group(2), plain(body[m.end():end])])
+        secs = [s for s in secs if s[0] or s[2]]
+        entries.append([w['url'], w['title'], w['crumb'], w['keywords'], 0, secs])
+    names = {'components': tr(lang, 'nav.components'), 'lab': tr(lang, 'nav.lab'), 'scenes': tr(lang, 'nav.scenes'), 'home': 'amenui'}
+    for p in data['pages']:
+        if p['section'] == 'docs' or p.get('alias') and p['path'].startswith('docs'): continue
+        sec = p['section']
+        title = p['title'][lang] or p['title']['en'] or 'amenui'
+        kw = ' '.join([p['hash']] + p['path'].strip('/').split('/'))
+        text = ''
+        if sec == 'components':
+            it = desc.get(p['path'].strip('/').split('/')[-1])
+            if it: text = it.get('description_en') if lang == 'en' else it.get('description', '')
+        entries.append([p['path'], title, names.get(sec, sec), kw, 1, [['', '', text]] if text else []])
+    b = json.dumps(entries, ensure_ascii=False, separators=(',', ':')).encode()
+    index_urls[lang] = BASE + hashed(f'search/{lang}.json', b)
+    print(f'search index {lang}: {len(entries)} entries, {len(b)} bytes, gzip {gz(b)}')
+# The docs pages, with their search line now that the index has its name.
+doc_sizes = []
+for w in built['pages']:
+    f = out / ('' if w['lang'] == 'en' else w['lang']) / w['url'] / 'index.html'
+    b = f.read_text().replace(SEARCH_TOKEN, search_boot(w['lang'], index_urls[w['lang']])).encode()
+    f.write_bytes(b)
+    doc_sizes.append((gz(b), w['lang'] + '/' + w['url']))
+
+def page(lang, path, title, section, notfound=False):
+    t = lambda k: tr(lang, k)
+    prefix = '' if lang == 'en' else lang + '/'
+    href = lambda p: BASE + prefix + p
     files = None if notfound else {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
-    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, 't': {'copied': tr('web.copied'), 'fail': tr('web.fail')}}
+    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, 't': {'copied': t('web.copied'), 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root and the
     # 404 page can receive them.
     redirect = ''
     if path == '' or notfound:
         redirect = '<script>(()=>{const m=%s,h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace(%s+m[h]);})()</script>\n' % (json.dumps(redirects, separators=(',', ':')), json.dumps(BASE))
     classes = ' '.join(c for c in ['home' if path == '' and not notfound else '', 'scenes' if path.startswith('scenes/') and path != 'scenes/' else ''] if c)
-    nf = '<main class="nf"><h1>%s</h1><p>%s</p></main>\n' % (html.escape(tr('web.not-found')), html.escape(tr('web.not-found-text'))) if notfound else ''
-    v = {
-        'lang': lang, 'classes': classes, 'title': html.escape(title), 'description': html.escape(tr('web.description')),
-        'redirect': redirect, 'wasm_url': BASE + wasm_fn, 'home_href': href(''),
-        'href_docs': href('docs/'), 'href_components': href('components/'), 'href_lab': href('lab/'), 'href_scenes': href('scenes/'),
-        'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
-        't_sections': tr('web.sections'), 't_docs': tr('web.docs'), 't_components': tr('web.components'), 't_lab': tr('web.lab'), 't_scenes': tr('web.scenes'),
-        't_search': tr('web.search'), 't_menu': tr('web.menu'), 't_canvas': tr('web.canvas'), 't_text_input': tr('web.text-input'),
-        't_eyebrow': tr('web.eyebrow'), 't_lead': tr('web.lead'), 't_start': tr('web.start'), 't_copy': tr('web.copy'), 't_skip': tr('web.skip'), 't_readout': tr('web.readout'), 't_quality': tr('web.quality'), 't_quality_auto': tr('web.quality.auto'),
+    nf = '<main class="nf"><h1>%s</h1><p>%s</p></main>\n' % (html.escape(t('web.not-found')), html.escape(t('web.not-found-text'))) if notfound else ''
+    v = chrome_vars(lang, path) | {
+        'classes': classes, 'title': html.escape(title), 'description': html.escape(t('web.description')),
+        'redirect': redirect, 'wasm_url': BASE + wasm_fn,
+        't_canvas': t('web.canvas'), 't_text_input': t('web.text-input'),
+        't_eyebrow': t('web.eyebrow'), 't_lead': t('web.lead'), 't_start': t('web.start'), 't_copy': t('web.copy'), 't_readout': t('web.readout'), 't_quality': t('web.quality'), 't_quality_auto': t('web.quality.auto'),
         'listing': html.escape(listing, quote=False) if path == '' and not notfound else '', 'notfound': nf, 'mono_url': fonts[lang][2]['url'],
         'config': json.dumps(config, ensure_ascii=False, separators=(',', ':')),
+        'search': search_boot(lang, index_urls[lang]),
         'app': '' if notfound else f'<script src="{BASE + app_fn}" defer></script>',
     }
-    s = re.sub(r'\{\{(\w+)\}\}', lambda m: str(v[m.group(1)]), template)
+    s = current(fill(template, v), section)
     if notfound:
         s = s.replace(f'<link rel="preload" href="{BASE + wasm_fn}" as="fetch" crossorigin>\n', '').replace(f'<link rel="preload" href="{fonts[lang][2]["url"]}" as="fetch" crossorigin>\n', '')
     return s
 
+# The canvas pages: every address but the docs, which are the HTML pages above.
 sizes = []
-for p in data['pages']:
+canvas_pages = [p for p in data['pages'] if p['section'] != 'docs' and not p['path'].startswith('docs/')]
+for p in canvas_pages:
     for lang in langs:
         t = p['title'][lang] or p['title']['en']
         title = 'amenui' if p['path'] == '' else f'{t} · amenui'
@@ -169,9 +297,14 @@ home = (out / 'index.html').read_bytes()
 # The build check: the listing written into the home page is the body's text, byte for byte.
 m = re.search(r'<template id="source">(.*?)</template>', home.decode(), re.S)
 assert m and html.unescape(m.group(1)) == listing, "the home page's listing differs from body::Body::listing"
+# Every old docs address still has its page, and no docs page is over 60 KB gzip (A.6).
+for h, path in redirects.items():
+    if path.startswith('docs/'): assert (out / path / 'index.html').exists(), f'#{h} redirects to {path}, which has no page'
+assert max(doc_sizes)[0] <= 60 * 1024, f'docs page over 60 KB gzip: {max(doc_sizes)}'
 
-print(f'{len(data["pages"])} addresses × {len(langs)} languages; base {BASE}')
+print(f'{len(canvas_pages)} canvas addresses and {len(doc_sizes) // len(langs)} docs pages × {len(langs)} languages; base {BASE}')
 print(f'shell (home, en): {len(home)} bytes, gzip {gz(home)}; largest shell gzip {max(sizes)[0]} ({max(sizes)[1]})')
+print(f'docs pages gzip: largest {max(doc_sizes)[0]} ({max(doc_sizes)[1]}), median {sorted(doc_sizes)[len(doc_sizes) // 2][0]}')
 print(f'wasm {len(wasm)} bytes, gzip {gz(wasm)}; glue {len(glue)} bytes, gzip {gz(glue.encode())}')
 for lang in fonts: print(f'fonts {lang}: ' + ', '.join(f'{f["name"]} {f["size"]} (gzip {gz((out / f["url"][len(BASE):]).read_bytes())})' for f in fonts[lang]))
 en_total = gz(home) + gz(wasm) + gz(glue.encode()) + sum(gz((out / f['url'][len(BASE):]).read_bytes()) for f in fonts['en'])

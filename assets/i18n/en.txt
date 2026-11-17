@@ -150,7 +150,29 @@ web.skip = Skip to content
 web.readout = Readout
 web.quality = Quality
 web.quality.auto = auto
-web.fail = This browser could not start WebGPU or WebGL2. The documentation can be read on GitHub without it: <a href="https://github.com/amenui-dev/website/tree/main/docs/site/en">docs ↗</a>
+web.fail = This browser could not start WebGPU or WebGL2. The documentation is plain HTML and reads without it: <a href="{docs}">docs ↗</a>
 web.description = amenui is a GUI framework in Rust that draws everything itself, on the desktop and on the web.
 web.not-found = Not found
 web.not-found-text = There is no page at this address.
+# The docs pages and the search (web/docs.py, web/search.js).
+web.close = Close
+web.docs.title = Documentation
+web.docs.lead = Start, guides, concepts, every component and the reference, as plain pages. Each component page holds its specimen as a live stage.
+web.docs.edit = edit on github
+web.docs.source = source on github
+web.docs.raw = raw .md
+web.docs.design = Design
+web.docs.english = This page is in English only.
+web.docs.pages = Previous and next page
+web.docs.stage = live · drawn by amenui · click to run
+web.docs.stage-still = drawn by amenui
+web.docs.starting = starting…
+web.docs.live = live
+web.docs.unavailable = this browser could not start WebGPU or WebGL2
+web.docs.open = open
+web.docs.run = Run the stage
+web.search.placeholder = Search the docs, components, lab and scenes
+web.search.results = Results
+web.search.none = No results
+web.search.loading = Loading the index…
+web.search.hint = ↑ ↓ to move · enter to open · esc to close

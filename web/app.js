@@ -143,22 +143,17 @@ async function mount(stage, opts) {
   // Keys go to the canvas only while focus is on it (or on nothing): the page's own links and buttons
   // keep Tab, Enter and the rest.
   const ours = () => { const a = active(); return !a || a === canvas || a === ta || a === document.body || ax.contains(a); };
-  const search = () => { w.open_search(); canvas.focus({ preventScroll: true }); after(); };
   (opts.keys || window).addEventListener('keydown', e => {
-    // Keys the input method is composing with are its own.
-    if (e.isComposing || e.keyCode === 229) return;
+    // Keys the input method is composing with are its own; keys the page has taken (the search's `/`
+    // and ⌘K / Ctrl+K) are not the canvas's.
+    if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
     const cmd = e.ctrlKey || e.metaKey;
     if (e.key === 'F2' && !ours()) { e.preventDefault(); w.set_readout((w.readout() + 1) % 3); after(); return; }
-    if (!ours()) {
-      // ⌘K / Ctrl+K and `/` open the search from anywhere on the page.
-      if ((cmd && e.key.toLowerCase() === 'k') || (e.key === '/' && !cmd && !/^(INPUT|TEXTAREA)$/.test(active().tagName))) { e.preventDefault(); search(); }
-      return;
-    }
+    if (!ours()) return;
     if (cmd) {
       const k = e.key.toLowerCase();
-      // Copy, cut and paste arrive as clipboard events; ⌘K / Ctrl+K is the page's search; other
-      // shortcuts belong to the browser.
-      if (!['a', 'z', 'y', 'k'].includes(k)) return;
+      // Copy, cut and paste arrive as clipboard events; other shortcuts belong to the browser.
+      if (!['a', 'z', 'y'].includes(k)) return;
       if (w.key_mods(e.key, e.shiftKey, true, e.altKey, now())) e.preventDefault();
       after(); return;
     }
@@ -194,7 +189,6 @@ async function mount(stage, opts) {
     route: h => { if (!home(h)) w.pictures(); const ok = w.route(h); after(); return ok; },
     look: (theme, material) => { w.set_look(theme || '', material || ''); after(); },
     locale: tag => { w.set_locale(tag || ''); after(); },
-    search,
     focus: () => canvas.focus({ preventScroll: true }),
   };
 }
@@ -263,6 +257,8 @@ function site() {
   D.addEventListener('keydown', e => { if (e.key === 'Escape' && api && isHome() && (intro || walk()[0] === 1)) skip(); });
   addEventListener('scroll', () => { if (api && isHome() && scrollY > 8 && (intro || walk()[0] === 1)) skip(); }, { passive: true });
   const routed = (path, hash) => {
+    // The docs are HTML pages: a docs address reached inside the app is a navigation to its page.
+    if (path.startsWith('docs/')) { location.assign(full(path)); return; }
     A.mark(path);
     if (location.pathname !== full(path)) history.pushState({ path }, '', full(path) + (location.hash.startsWith('#look:') ? location.hash : ''));
     const t = api ? api.w.title() : '';
@@ -329,7 +325,10 @@ function site() {
     },
   }).then(a => {
     api = a;
-    A.search = a.search;
+    // The module is in this browser's cache now: a docs page's stage can start as it is scrolled to.
+    try { localStorage.setItem('amenui.module', A.files.wasm); } catch (e) {}
+    // The search takes a canvas route inside the running app.
+    A.go = p => { a.route(p === '' ? '/' : p); };
     a.locale(A.locale);
     if (location.hash.startsWith('#look:')) a.route(location.hash);
     routed(a.w.path(), a.w.hash());
@@ -337,6 +336,8 @@ function site() {
     // with a modifier key or another button they open as links do.
     D.addEventListener('click', e => {
       const l = e.target.closest && e.target.closest('a[data-route]');
+      // Links to the docs (HTML pages) navigate as links do.
+      if (l && l.dataset.route.startsWith('docs/')) return;
       if (!l || l.dataset.skip || l.dataset.play || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       D.getElementById('sheet').classList.remove('open');
