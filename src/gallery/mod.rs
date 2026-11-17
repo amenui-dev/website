@@ -24,7 +24,7 @@ use amenui::el::{El, Paint, col, row, space, text};
 use amenui::morph::{Cmd, Ease, FlowSpec, MorphSpec};
 use amenui::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, PicFx, THEMES, Theme, gaze, set, styles};
 use amenui::text::Face;
-use amenui::widgets::{Edit, SELECTED, Spec, TextEdit, Variant, button_as, divider, menu, vdivider};
+use amenui::widgets::{Edit, SELECTED, Spec, TextEdit, Variant, button_as, divider, menu, skip_link, vdivider};
 use std::rc::Rc;
 use taffy::AlignItems;
 
@@ -710,7 +710,9 @@ fn view_in(s: &Gallery) -> El<Msg> {
         return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(top_bar(s).calm()).child(divider(th.hairline).key("top-rule"))
             .child(col().key(format!("main/{}", s.page.hash())).grow(1.0).fill_width().child(scenes::page(s, i as usize)));
     }
-    let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(top_bar(s)).child(divider(th.hairline).key("top-rule"));
+    // The first Tab stop: past the bar and the rail to the page.
+    let skip = skip_link("skip", &amenui::i18n::tr("shell.skip"), &format!("main/{}", s.page.hash()));
+    let mut root = col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(skip).child(top_bar(s)).child(divider(th.hairline).key("top-rule"));
     let page = main_page(s, narrow);
     if narrow {
         // A phone's width: the page is set in the window's width, so its text wraps there; anything

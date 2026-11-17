@@ -49,6 +49,8 @@ pub const INTRO_DELAY: f32 = 0.5;
 /// the caret, at this speed (px/s).
 pub const FRONT_DELAY: f32 = 0.15;
 pub const FRONT_SPEED: f32 = 1_400.0;
+/// The widest the home page lays out (px); a wider window centres it.
+pub const FRAME: f32 = 1_600.0;
 /// With reduced motion a change of state is an opacity change this long (s): out, then in. The first
 /// one (the listing giving way to the body) is a little longer.
 pub const FADE: f32 = 0.15;
@@ -482,12 +484,14 @@ impl Body {
     }
     /// How opaque everything is during a reduced-motion change of state (1 otherwise).
     pub fn dim(&self) -> f32 { self.fade.map_or(1.0, |(t0, _, d)| (1.0 - 2.0 * ((self.t - t0) / d).clamp(0.0, 1.0)).abs()) }
+    /// The home page's frame: at most 1,600 px wide, centred (its left edge and its width).
+    pub fn frame(&self) -> (f32, f32) { let fw = self.size.0.min(FRAME); ((self.size.0 - fw) * 0.5, fw) }
     pub fn width_class(&self) -> Width { let w = self.size.0; if w >= 1080.0 { Width::Wide } else if w >= 720.0 { Width::Middle } else { Width::Narrow } }
     /// Where the site's page puts its text block by its grid (for the default stage).
     pub fn text_box(&self) -> [f32; 4] {
         let (w, h) = self.size;
         match self.width_class() {
-            Width::Wide => { let col = (w - 64.0 - 11.0 * 24.0) / 12.0; [32.0, h * 0.5 - 190.0, 32.0 + (5.0 * col + 96.0).min(520.0), h * 0.5 + 190.0] }
+            Width::Wide => { let (fx, fw) = self.frame(); let col = (fw - 64.0 - 11.0 * 24.0) / 12.0; [fx + 32.0, h * 0.5 - 190.0, fx + 32.0 + (5.0 * col + 96.0).min(520.0), h * 0.5 + 190.0] }
             Width::Middle => { let col = (w - 48.0 - 11.0 * 24.0) / 12.0; [24.0, h * 0.5 - 200.0, 24.0 + (7.0 * col + 144.0).min(440.0), h * 0.5 + 200.0] }
             Width::Narrow => { let y = Self::narrow_stage_bottom(h) + 16.0 + 88.0 + 16.0; [16.0, y, w - 16.0, h - 16.0] }
         }
@@ -500,7 +504,7 @@ impl Body {
         if let Some(s) = self.stage { return s; }
         let (w, h) = self.size;
         match self.width_class() {
-            Width::Wide => [(self.text_box()[2] + 48.0).round(), 72.0, w - 32.0, h - 88.0],
+            Width::Wide => { let (fx, fw) = self.frame(); [(self.text_box()[2] + 48.0).round(), 72.0, fx + fw - 32.0, h - 88.0] }
             Width::Middle => [(self.text_box()[2] + 48.0).round(), 72.0, w - 24.0, h - 88.0],
             Width::Narrow => [16.0, 64.0, w - 16.0, Self::narrow_stage_bottom(h)],
         }
@@ -537,7 +541,7 @@ impl Body {
         let (cx, cy, r) = match self.width_class() {
             Width::Wide => {
                 let (cx, cy) = ((s[0] + s[2]) * 0.5, self.text_centre());
-                let r = (0.34 * h).min(0.23 * w).min(sw * 0.5 / 1.25).min((cy - s[1]) / 1.05).min((s[3] - cy) / 1.05).min(off_caption(cx, cy));
+                let r = (0.34 * h).min(0.23 * self.frame().1).min(sw * 0.5 / 1.25).min((cy - s[1]) / 1.05).min((s[3] - cy) / 1.05).min(off_caption(cx, cy));
                 (cx, cy, r)
             }
             Width::Middle => {
@@ -580,7 +584,7 @@ impl Body {
     /// so the text (and with it the listing and the caption under it) is settled before the body is placed.
     pub fn small(&self) -> bool {
         let s = self.stage();
-        let r = match self.width_class() { Width::Narrow => (0.36 * self.size.0).min((s[3] - s[1]) * 0.5), _ => (0.34 * self.size.1).min(0.23 * self.size.0) };
+        let r = match self.width_class() { Width::Narrow => (0.36 * self.size.0).min((s[3] - s[1]) * 0.5), _ => (0.34 * self.size.1).min(0.23 * self.frame().1) };
         em_for(r).1
     }
     /// How many cells of the body the text takes (its glyphs and the spaces between words).

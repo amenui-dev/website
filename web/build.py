@@ -65,6 +65,8 @@ if opt:
     print(f'wasm-opt -Oz: {len(wasm)} -> {len(ob)} bytes; gzip {gz(wasm)} -> {gz(ob)}')
     if gz(ob) < gz(wasm): wasm = ob
 wasm_fn = hashed('amenui.wasm', wasm)
+# Its size as a server compressing it sends it: the boot line's total when there is no Content-Length.
+wasm_gz = gz(wasm)
 
 # The glue: wasm-bindgen's, then the site's.
 glue = (pkg / 'website.js').read_text() + '\n' + (root / 'web/app.js').read_text()
@@ -120,7 +122,7 @@ def page(lang, path, title, section, notfound=False):
     href = lambda p: BASE + prefix + p
     # The language switch: each language by its short name, the current one marked.
     lang_switch = '<span>·</span>'.join('<b>%s</b>' % SHORT.get(l, l) if l == lang else '<a href="%s" lang="%s" hreflang="%s">%s</a>' % (BASE + ('' if l == 'en' else l + '/') + path, l, l, SHORT.get(l, l)) for l in langs)
-    files = None if notfound else {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'fonts': fonts[lang]}
+    files = None if notfound else {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
     config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, 't': {'copied': tr('web.copied'), 'fail': tr('web.fail')}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root and the
     # 404 page can receive them.
@@ -136,7 +138,7 @@ def page(lang, path, title, section, notfound=False):
         'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
         't_sections': tr('web.sections'), 't_docs': tr('web.docs'), 't_components': tr('web.components'), 't_lab': tr('web.lab'), 't_scenes': tr('web.scenes'),
         't_search': tr('web.search'), 't_menu': tr('web.menu'), 't_canvas': tr('web.canvas'), 't_text_input': tr('web.text-input'),
-        't_eyebrow': tr('web.eyebrow'), 't_lead': tr('web.lead'), 't_start': tr('web.start'), 't_copy': tr('web.copy'),
+        't_eyebrow': tr('web.eyebrow'), 't_lead': tr('web.lead'), 't_start': tr('web.start'), 't_copy': tr('web.copy'), 't_skip': tr('web.skip'),
         'listing': html.escape(listing, quote=False) if path == '' and not notfound else '', 'notfound': nf, 'mono_url': fonts[lang][2]['url'],
         'config': json.dumps(config, ensure_ascii=False, separators=(',', ':')),
         'app': '' if notfound else f'<script src="{BASE + app_fn}" defer></script>',

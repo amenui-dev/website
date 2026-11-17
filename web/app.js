@@ -253,14 +253,16 @@ function site() {
     place(); showRail();
   };
   const status = D.querySelector('.status');
-  let running = false;
+  let running = false, lastDrawn = -1;
   const keepStatus = () => {
     if (!api || !running) return;
     if (!isHome()) { status.classList.add('gone'); return; }
     status.classList.remove('gone');
-    const c = api.w.frame_costs();
-    const fps = c[3] > 0 ? Math.round(1000 / c[3]) : 0;
-    status.innerHTML = `<b>${api.w.backend()}</b>&nbsp;·&nbsp;<b>${fps || '—'}</b>&nbsp;fps&nbsp;·&nbsp;<b>${api.w.glyphs().toLocaleString('en')}</b>&nbsp;glyphs`;
+    // The rate is there only while frames are being drawn; a field with nothing to report is left out.
+    const drawn = api.w.frames()[0], c = api.w.frame_costs();
+    const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
+    lastDrawn = drawn;
+    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> fps · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> glyphs`);
   };
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   mount(stage, {

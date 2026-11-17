@@ -34,6 +34,7 @@ shell.theme = 主题
 shell.material = 材质
 shell.style = 风格
 shell.reset = 恢复默认
+shell.skip = 跳到内容
 
 # The documentation
 nav.start = 开始
@@ -138,6 +139,7 @@ web.lead = amenui 是一个自己绘制一切的图形界面框架。文字、�
 web.start = 开始使用
 web.copy = 拷贝
 web.copied = 已拷贝
+web.skip = 跳到内容
 web.fail = 这个浏览器无法启动 WebGPU 或 WebGL2。不用它也可以在 GitHub 上阅读文档：<a href="https://github.com/amenui-dev/website/tree/main/docs/site/zh-Hans">文档 ↗</a>
 web.description = amenui 是一个用 Rust 写的、自己绘制一切的图形界面框架，用于桌面和网页。
 web.not-found = 未找到
