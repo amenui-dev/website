@@ -21,6 +21,9 @@ impl Driven for Gallery {
     fn needs_frame(&self, t: f32) -> bool { self.0.needs_frame(t) }
     fn draw(&mut self, o: &mut Offscreen, look: &Look) -> Vec<u8> { o.render(&mut self.0, look) }
     fn recipe(&self) -> Option<String> { Some(self.0.state.recipe()) }
+    fn ongoing(&self) -> bool { amenui::drive::Driven::ongoing(&self.0) }
+    fn frame_drawn(&mut self) { amenui::drive::Driven::frame_drawn(&mut self.0) }
+    fn audit(&mut self, o: &mut Offscreen, look: &Look, px: &[u8]) -> Vec<amenui::audit::Finding> { amenui::drive::Driven::audit(&mut self.0, o, look, px) }
 }
 
 /// Open a site page by its hash or path (the home page's state may follow after `#`: `body#source`), or
@@ -49,4 +52,8 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
 /// Open, play, draw: the whole `render` tool as a function, for site pages and recipes.
 pub fn render(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) -> Result<Rendered, DriveError> {
     amenui::drive::render_with(spec, faces, o, &open_in)
+}
+/// `render` and the audit of the frame drawn (`amenui::audit`), for site pages and recipes.
+pub fn audit(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) -> Result<(Rendered, Vec<amenui::audit::Finding>), DriveError> {
+    amenui::drive::audit_with(spec, faces, o, &open_in)
 }

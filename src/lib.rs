@@ -92,10 +92,13 @@ mod site_exports {
     /// How many glyphs the home page's body is made of.
     #[wasm_bindgen]
     pub fn glyphs() -> u32 { host(|s| s.ui.state.body.glyphs() as u32).unwrap_or(0) }
-    /// The home page's stage (CSS px from the canvas's top left), laid out by the page; a zero-sized
-    /// one gives the scene's own.
+    /// The home page's stage (CSS px from the canvas's top left), laid out by the page, and the optical
+    /// centre of its text block (vertical, same space; negative for none); a zero-sized stage gives the
+    /// scene's own.
     #[wasm_bindgen]
-    pub fn set_stage(x0: f32, y0: f32, x1: f32, y1: f32) { host(|s| { s.ui.state.body.set_stage(Some([x0, y0, x1, y1])); s.ui.relayout(); }); }
+    pub fn set_stage(x0: f32, y0: f32, x1: f32, y1: f32, centre: f32) {
+        host(|s| { s.ui.state.body.set_stage(Some([x0, y0, x1, y1])); s.ui.state.body.set_text_centre((centre >= 0.0).then_some(centre)); s.ui.relayout(); });
+    }
     /// The home page's state for the address (`source`, `body/cloud/08`, empty for the defaults).
     #[wasm_bindgen]
     pub fn hero() -> String { host(|s| s.ui.state.body.state()).unwrap_or_default() }

@@ -4,18 +4,22 @@
 //! dots behind and over it, springs for the motion.
 //!
 //! - Two rest states: the source listing (01) and the body (04), joined by one spring (`gather`).
-//! - The listing fills a stage rectangle the host gives (`set_stage`): 14 px lines, as many as fit
-//!   up to 44, each cut at the last whole word that fits. The web page draws the same listing in
-//!   HTML while the module loads, at the same pixels.
-//! - Glyph i of the file sits in one cell of a spiral on the surface; spaces take a cell.
+//! - The text is the first 2,700 characters of this file, ending at a line end (1,400 on a small body).
+//! - The listing fills a stage rectangle the host gives (`set_stage`): 14 px lines, as many of the
+//!   text's lines as fit above the caption, each cut at the last whole word that fits. The web page
+//!   draws the same listing in HTML while the module loads, at the same pixels.
+//! - Glyph i of the text sits in one cell of a spiral on the surface; spaces take a cell. The glyph
+//!   size is the one at which the text fills the surface.
 //! - Glyphs are one size in body space; only perspective changes their size on screen.
-//! - The lamp is a point light; one continuous ramp from dim accent to ink, no bands.
+//! - The lamp is a point light; one continuous ramp from dim accent to ink, no bands: opacity keeps the
+//!   text legible everywhere, the colour carries the light.
 //! - Dragging turns the body; a click leaves it as it is. Two readouts name what is under the lamp
 //!   and how far the body has turned.
 use amenui::draw::Drawing;
-use amenui::el::{El, Font, GlyphAt, Key, Paint, Point, Pose, canvas, layers, text_lh};
+use amenui::el::{El, Font, GlyphAt, Key, Paint, Point, Pose, Reveal, canvas, layers, text_lh};
 use amenui::experiment::Experiment;
 use amenui::field::hash;
+use amenui::form::FormFx;
 use amenui::gesture::{Animated, Spring, Velocity};
 use amenui::widgets::Edit;
 use std::cell::RefCell;
@@ -29,18 +33,30 @@ pub const ADVANCE: f32 = 7.0;
 /// Marks in the body's volume (the far shell and the inside), asked of the frame budget.
 pub const VOLUME: usize = 1_500;
 pub const MOTE_LIFE: f32 = 1.6;
-/// Lines of the listing at most, its line height and its line numbers' gutter (three digits and a
-/// space) in px. The line height never changes: a shorter stage shows fewer lines.
-pub const LINES: usize = 44;
+/// How much of this file the body is made of (characters, spaces included, cut at a line end), and
+/// on a small body (the phone).
+pub const CHARS: usize = 2_700;
+pub const CHARS_SMALL: usize = 1_400;
+/// The listing's line height and its line numbers' gutter (three digits and a space) in px. The line
+/// height never changes: a shorter stage shows fewer lines.
 pub const LINE: f32 = 14.0;
+/// The gap between the listing's last line and the caption (px).
+pub const CAPTION_GAP: f32 = 16.0;
 pub const GUTTER: f32 = 28.0;
 /// The short path: after the first frame the listing waits this long (s), then gathers.
 pub const INTRO_DELAY: f32 = 0.5;
+/// On the short path the front across the listing starts this long after the first frame (s), from
+/// the caret, at this speed (px/s).
+pub const FRONT_DELAY: f32 = 0.15;
+pub const FRONT_SPEED: f32 = 1_400.0;
 /// With reduced motion a change of state is an opacity change this long (s): out, then in. The first
 /// one (the listing giving way to the body) is a little longer.
 pub const FADE: f32 = 0.15;
 pub const FADE_INTRO: f32 = 0.2;
 pub const REST_LIGHT: [f32; 3] = [-0.9, 0.9, 1.6];
+/// How the text is drawn on the form: nothing turned away, glyphs fading out from facing 0.5 (gone at
+/// 0.3), a glyph more than a third covered by nearer ones left out, the far side dimmer.
+pub const FORM_FX: FormFx = FormFx { back: 0.0, edge: 0.5, overlap: 0.35, fog: 0.6 };
 
 /// One cell of the surface: where (unit body space), its outward normal, the line's tangent there.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -49,14 +65,17 @@ pub struct SurfacePoint { pub p: [f32; 3], pub n: [f32; 3], pub t: [f32; 3], pub
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VolumePoint { pub p: [f32; 3], pub n: [f32; 3], pub size: f32 }
 
-/// The text on the body for one cell count: the listing (whole lines of `SOURCE`) and, for each of
-/// its glyphs (characters that are not white space), the cell it sits in. A run of white space
-/// (indentation, a line end) takes one cell.
+/// The text on the body: the listing (the whole lines of `SOURCE` in its first `chars` characters)
+/// and, for each of its glyphs (characters that are not white space), the cell it sits in. A run of
+/// white space (indentation, a line end) takes one cell; `cells` is how many the text takes. `mid`
+/// gives each glyph the middle glyph of its word.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Stream { pub listing: String, pub lines: usize, pub cell: Vec<usize> }
-pub fn stream(cells: usize) -> Stream {
+pub struct Stream { pub listing: String, pub lines: usize, pub cell: Vec<usize>, pub cells: usize, pub mid: Vec<usize> }
+pub fn stream(chars: usize) -> Stream {
     let (mut listing, mut cell, mut at, mut lines) = (String::new(), vec![], 0usize, 0usize);
     for line in SOURCE.lines() {
+        let line = line.trim_end();
+        if listing.chars().count() + (lines > 0) as usize + line.chars().count() > chars { break; }
         let mut add = vec![];
         let mut k = at;
         let mut gap = lines > 0;
@@ -67,14 +86,19 @@ pub fn stream(cells: usize) -> Stream {
             add.push(k);
             k += 1;
         }
-        if k > cells { break; }
         if lines > 0 { listing.push('\n'); }
-        listing.push_str(line.trim_end());
+        listing.push_str(line);
         cell.extend(add);
         at = k;
         lines += 1;
     }
-    Stream { listing, lines, cell }
+    // Words: runs of glyphs in consecutive cells.
+    let mut mid = vec![0; cell.len()];
+    let mut a = 0;
+    for i in 1..=cell.len() {
+        if i == cell.len() || cell[i] != cell[i - 1] + 1 { for m in &mut mid[a..i] { *m = (a + i - 1) / 2; } a = i; }
+    }
+    Stream { listing, lines, cell, cells: at, mid }
 }
 
 
@@ -89,10 +113,9 @@ pub fn cut(line: &str, cols: usize) -> &str {
 }
 
 /// The listing as a stage shows it: its first `rows` lines, each cut to `cols` cells (`text`), the
-/// glyphs left out (`rest`, no white space), and for each glyph of either, its index among the
-/// stream's glyphs.
+/// stream's glyphs it shows (`map`) and those it leaves out (`rest_map`).
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Shown { pub text: String, pub rows: usize, pub map: Vec<usize>, pub rest: String, pub rest_map: Vec<usize> }
+pub struct Shown { pub text: String, pub rows: usize, pub map: Vec<usize>, pub rest_map: Vec<usize> }
 pub fn shown(s: &Stream, rows: usize, cols: usize) -> Shown {
     let mut out = Shown::default();
     let mut g = 0;
@@ -105,7 +128,7 @@ pub fn shown(s: &Stream, rows: usize, cols: usize) -> Shown {
         }
         for (b, c) in line.char_indices() {
             if c.is_whitespace() { continue; }
-            if b < keep { out.map.push(g); } else { out.rest.push(c); out.rest_map.push(g); }
+            if b < keep { out.map.push(g); } else { out.rest_map.push(g); }
             g += 1;
         }
     }
@@ -121,7 +144,7 @@ pub fn thousands(n: usize) -> String {
 /// What the poses and the drawings share across frames: the cells for (form, seed, glyph size), the
 /// volume for (form, seed, count), the text for the cell count.
 #[derive(Default)]
-pub struct Cache { pub key: (u32, u32, u32), pub pts: Vec<SurfacePoint>, pub radius: f32, pub vkey: (u32, u32, usize), pub vol: Vec<VolumePoint>, pub text: Stream }
+pub struct Cache { pub key: (u32, u32, u32), pub pts: Vec<SurfacePoint>, pub radius: f32, pub em: f32, pub vkey: (u32, u32, usize), pub vol: Vec<VolumePoint>, pub text: Stream }
 
 /// A mote shed from the rim while the body turns: where (window px), velocity, age (s).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -142,15 +165,23 @@ pub struct Body {
     pub yaw: f32, pub pitch: f32, pub spin: f32, pub tip: f32,
     /// The pointer over the picture (window px) and the lamp following it (view space).
     pub ptr: Option<(f32, f32)>, pub lamp: [Animated; 3],
+    /// The glyph of the text drawn under the pointer (its number among the text's glyphs).
+    pub under: Option<usize>,
     grab: Option<(f32, f32, f32, f32)>, vel: Velocity, dragged: bool,
     pub motes: Vec<Mote>, made: u32,
     /// The window (logical px), and the stage (x0, y0, x1, y1): the rectangle the host's page lays
     /// out for the scene, which the listing fills and the body and its readouts stay in.
     pub size: (f32, f32), pub stage: Option<[f32; 4]>,
+    /// The optical centre of the page's text block (window px, vertical), which the body's centre is
+    /// level with; none for where the site's grid puts it.
+    pub text_centre: Option<f32>,
     pub entered: f32,
     pub reduced: bool,
     /// The short path is to play: waiting for the first frame (`intro_pending`), then at a time.
     pub intro_pending: bool, pub intro_at: Option<f32>,
+    /// The front across the listing on the short path: when it is to start, the place it starts from
+    /// (window px, for the host to send as a front, `take_front`), and when it started.
+    pub front_at: Option<f32>, pub front: Option<(f32, f32)>, pub fronted: Option<f32>,
     /// With reduced motion, a change of state under way: (start, target, length).
     pub fade: Option<(f32, f32, f32)>,
     /// When the state last changed (the caption's dimming counts from it).
@@ -167,9 +198,9 @@ impl Default for Body {
         let lamp = |v: f32| Animated::new(v, Spring { ..LAMP });
         Self {
             form: 0, seed: DEFAULT_SEED, omega: 0.16, gather: Animated::new(1.0, Spring { ..GATHER }), yaw: -0.4, pitch: -0.22, spin: 0.16, tip: 0.0,
-            ptr: None, lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
+            ptr: None, under: None, lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, vel: Velocity::default(), dragged: false, motes: vec![], made: 0,
-            size: (1440.0, 900.0), stage: None, entered: 0.0, reduced: false, intro_pending: false, intro_at: None, fade: None, changed: 0.0,
+            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, cache: Rc::default(),
         }
     }
@@ -235,7 +266,6 @@ fn norm(v: [f32; 3]) -> [f32; 3] { let l = dot3(v, v).sqrt().max(1e-6); [v[0] / 
 fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] { [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] }
 fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 { a[0] * b[0] + a[1] * b[1] + a[2] * b[2] }
 fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] { [a[0] - b[0], a[1] - b[1], a[2] - b[2]] }
-fn smoothstep(a: f32, b: f32, x: f32) -> f32 { let t = ((x - a) / (b - a)).clamp(0.0, 1.0); t * t * (3.0 - 2.0 * t) }
 fn gradient(form: u32, seed: u32, p: [f32; 3]) -> [f32; 3] {
     let e = 1e-3;
     let g = |a: usize| { let mut q = p; q[a] += e; let mut w = p; w[a] -= e; sdf(form, seed, q) - sdf(form, seed, w) };
@@ -263,6 +293,22 @@ pub fn mean_radius(form: u32, seed: u32) -> f32 {
         let (p, _) = on_surface(form, seed, [s * a.cos(), z, s * a.sin()]);
         dot3(p, p).sqrt()
     }).sum::<f32>() / n as f32
+}
+
+/// How many cells the spiral of `cells` has for a step and a pitch (no surface needed: the spiral is
+/// laid on the sphere of directions).
+pub fn spiral_count(step: f32, pitch: f32) -> usize {
+    let tau = std::f32::consts::TAU;
+    let (mut th, mut n) = (pitch * 0.5, 0);
+    while th < std::f32::consts::PI - pitch * 0.25 { n += 1; th += step / (1.0 + (tau / pitch * th.sin()).powi(2)).sqrt(); }
+    n
+}
+/// The largest glyph size (units of the mean radius) whose cells (0.62 × 1.45 em) hold `cells` cells:
+/// the text fills the surface.
+pub fn em_to_fill(cells: usize) -> f32 {
+    let (mut lo, mut hi) = (0.02f32, 0.25f32);
+    for _ in 0..24 { let m = (lo + hi) * 0.5; if spiral_count(0.62 * m, 1.45 * m) >= cells { lo = m; } else { hi = m; } }
+    lo
 }
 
 /// The cells: one spiral from the top to the bottom whose turns are `pitch` apart and whose cells are
@@ -340,12 +386,36 @@ pub fn lit(l: [f32; 3], p: [f32; 3], n: [f32; 3]) -> f32 {
     let d2 = dot3(to, to);
     let lam = dot3(n, norm(to)).max(0.0);
     let wrap = 0.5 * lam + 0.5 * lam * lam;
-    (0.10 + 2.2 * wrap / (1.0 + 1.2 * d2)).clamp(0.0, 1.0)
+    (0.28 + 2.0 * wrap / (1.0 + 0.6 * d2)).clamp(0.0, 1.0)
 }
-/// The paint of a glyph lit `l`: the accent up to 0.75, then towards the ink (85 % ink at 1).
+/// The paint of a glyph lit `l`: the accent up to 0.5, then towards the ink (85 % ink at 1). The
+/// opacity has a high floor and a short range: it keeps the text legible, the colour shows the light.
 pub fn lit_paint(l: f32) -> Paint {
-    let accent = if l <= 0.75 { 1.0 } else { 1.0 - 0.85 * (l - 0.75) / 0.25 };
-    Paint { tone: 1.0, accent, alpha: 0.22 + 0.78 * l, hue: 0 }
+    let accent = if l <= 0.5 { 1.0 } else { 1.0 - 0.85 * (l - 0.5) / 0.5 };
+    Paint { tone: 1.0, accent, alpha: 0.70 + 0.30 * l, hue: 0 }
+}
+
+/// How a cell's glyph looks on the body: its lit paint, how it faces the viewer (the camera is 4
+/// units in front), its opacity as drawn (the paint's, faded by `FORM_FX` for its facing), and how much
+/// the line's tangent (`run`) and the line's height across it (`gap`) are foreshortened on screen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CellLook { pub paint: Paint, pub alpha: f32, pub run: f32, pub gap: f32, pub facing: f32 }
+pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint) -> CellLook {
+    let (p, n, t) = (v.rot(sp.p), v.rot(sp.n), v.rot(sp.t));
+    let paint = lit_paint(lit(light, p, n));
+    let run = (t[0] * t[0] + t[1] * t[1]).sqrt();
+    // Across the line: the part of the projected bitangent square to the projected line.
+    let b = cross(n, t);
+    let gap = ((b[0] * t[1] - b[1] * t[0]) / run.max(1e-4)).abs();
+    let facing = dot3(n, norm(sub([0.0, 0.0, 4.0], p)));
+    let alpha = paint.alpha * FORM_FX.facing_alpha(facing);
+    CellLook { paint, alpha, run, gap, facing }
+}
+
+/// How the word of glyph `gi` faces the viewer: as its middle cell does.
+fn word_facing(v: &View, c: &Cache, gi: usize) -> f32 {
+    let m = c.text.mid.get(gi).copied().unwrap_or(gi);
+    c.text.cell.get(m).and_then(|&k| c.pts.get(k)).map_or(0.0, |sp| { let (p, n) = (v.rot(sp.p), v.rot(sp.n)); dot3(n, norm(sub([0.0, 0.0, 4.0], p))) })
 }
 
 /// How far glyph `i` of `n` has gone at gather `g`: reading order leads; exactly 0 at 0 and 1 at 1.
@@ -371,6 +441,8 @@ impl Body {
     pub fn resize(&mut self, w: f32, h: f32) { self.size = (w.max(1.0), h.max(1.0)); }
     /// The stage the host laid out (window px), or none for the default one.
     pub fn set_stage(&mut self, r: Option<[f32; 4]>) { self.stage = r.filter(|r| r[2] > r[0] + 1.0 && r[3] > r[1] + 1.0); }
+    /// The optical centre of the page's text block (window px, vertical), or none for the site's grid.
+    pub fn set_text_centre(&mut self, y: Option<f32>) { self.text_centre = y; }
     /// The pointer's place as a fraction of the window from its centre (-0.5..0.5): the lamp goes there.
     pub fn look_at(&mut self, x: f32, y: f32) { let (w, h) = self.size; self.point_lamp(Some(((x + 0.5) * w, (y + 0.5) * h))); }
     fn toggle(&mut self, now: f32) { let to = if self.target() >= 0.5 { 0.0 } else { 1.0 }; self.go(to, now, FADE); }
@@ -433,28 +505,52 @@ impl Body {
             Width::Narrow => [16.0, 64.0, w - 16.0, Self::narrow_stage_bottom(h)],
         }
     }
-    /// The listing's lines and their width in cells: whole 7 px cells, and whole 14 px lines up to 44
-    /// that end above the caption (whose line is the stage's last 10 px and the 4 px under it).
+    /// The listing's lines and their width in cells: whole 7 px cells, and as many of the text's lines
+    /// (whole, 14 px) as fit in the stage with the caption 16 px under the last.
     pub fn grid(&self) -> (usize, usize) {
         let s = self.stage();
-        let rows = (((s[3] - s[1] - LINE) / LINE).floor().max(1.0) as usize).min(LINES);
+        self.ensure();
+        let lines = self.cache.borrow().text.lines.max(1);
+        let rows = (((s[3] - s[1] - CAPTION_GAP - LINE) / LINE).floor().max(1.0) as usize).min(lines);
         let cols = ((s[2] - s[0] - GUTTER) / ADVANCE).floor().max(1.0) as usize;
         (rows, cols)
     }
-    /// The caption's top (window px): 12 px above the rail row, which is 16 px under the stage.
-    pub fn caption_y(&self) -> f32 { self.stage()[3] + 16.0 - 12.0 - LINE }
-    /// Where the body is in the stage: centre (window px) and visible radius (px). Wide: centred in
-    /// it. Middle: the body may run off the right edge by a third of its radius. Narrow: centred.
-    /// The readouts' room (a quarter of the radius each side) stays inside the stage.
+    /// The caption's top (window px): 16 px under the listing's last line, in every state.
+    pub fn caption_y(&self) -> f32 { self.stage()[1] + self.grid().0 as f32 * LINE + CAPTION_GAP }
+    /// The caption's box (window px), as wide as its longest sentence.
+    pub fn caption_box(&self) -> [f32; 4] { let (x, y) = (self.stage()[0], self.caption_y()); [x, y, x + GUTTER + ADVANCE * 44.0, y + LINE] }
+    /// The optical centre of the text block, vertical (window px): the host's, or the middle of where
+    /// the site's grid puts it.
+    pub fn text_centre(&self) -> f32 { self.text_centre.unwrap_or_else(|| { let b = self.text_box(); (b[1] + b[3]) * 0.5 }) }
+    /// Where the body is in the stage: centre (window px) and visible radius (px). Wide: centred
+    /// across the stage, level with the text block's optical centre. Middle: the same height; the body
+    /// may run off the right edge by a third of its radius. Narrow: centred in the stage above the
+    /// caption. The readouts' room (a quarter of the radius each side) stays inside the stage, and the
+    /// body's circle (1.05 of its radius) stays in the stage and off the caption.
     pub fn placement(&self) -> (f32, f32, f32) {
         let (w, h) = self.size;
         let s = self.stage();
-        let (sw, sh) = (s[2] - s[0], s[3] - s[1] - LINE);
-        let cy = s[1] + sh * 0.5;
-        let (cx, r) = match self.width_class() {
-            Width::Wide => ((s[0] + s[2]) * 0.5, (0.34 * h).min(0.23 * w).min(sw * 0.5 / 1.25).min(sh * 0.5 / 1.05)),
-            Width::Middle => { let r = (0.26 * w).min((w - s[0]) / (1.25 + 2.0 / 3.0)).min(sh * 0.5 / 1.05); (s[0] + 1.25 * r, r) }
-            Width::Narrow => ((s[0] + s[2]) * 0.5, (0.36 * w).min(sh * 0.5 / 1.05)),
+        let cap = self.caption_box();
+        let sw = s[2] - s[0];
+        // The largest radius whose circle round (cx, cy) keeps off the caption.
+        let off_caption = |cx: f32, cy: f32| { let (dx, dy) = ((cap[0] - cx).max(cx - cap[2]).max(0.0), (cap[1] - cy).max(cy - cap[3]).max(0.0)); dx.hypot(dy) / 1.05 };
+        let (cx, cy, r) = match self.width_class() {
+            Width::Wide => {
+                let (cx, cy) = ((s[0] + s[2]) * 0.5, self.text_centre());
+                let r = (0.34 * h).min(0.23 * w).min(sw * 0.5 / 1.25).min((cy - s[1]) / 1.05).min((s[3] - cy) / 1.05).min(off_caption(cx, cy));
+                (cx, cy, r)
+            }
+            Width::Middle => {
+                let cy = self.text_centre();
+                let mut r = (0.26 * w).min((w - s[0]) / (1.25 + 2.0 / 3.0)).min((cy - s[1]) / 1.05).min((s[3] - cy) / 1.05);
+                // The centre moves with the radius: shrink until the circle is off the caption.
+                for _ in 0..8 { r = r.min(off_caption(s[0] + 1.25 * r, cy)); }
+                (s[0] + 1.25 * r, cy, r)
+            }
+            Width::Narrow => {
+                let half = (cap[1] - 8.0 - s[1]) * 0.5;
+                ((s[0] + s[2]) * 0.5, s[1] + half, (0.36 * w).min(half / 1.05))
+            }
         };
         (cx, cy, r.max(24.0))
     }
@@ -470,71 +566,70 @@ impl Body {
     pub fn light(&self) -> [f32; 3] { [self.lamp[0].value, self.lamp[1].value, self.lamp[2].value] }
     /// Fill the cache for the current form, seed and glyph size.
     fn ensure(&self) {
-        let (_, _, r) = self.placement();
-        let (em, small) = em_for(r);
+        let small = self.small();
         let key = (self.form, self.seed, small as u32);
         let mut c = self.cache.borrow_mut();
         if c.key == key && !c.pts.is_empty() { return; }
-        let mean = mean_radius(self.form, self.seed);
-        c.pts = cells(self.form, self.seed, 0.62 * em, 1.45 * em);
-        c.radius = mean;
-        c.text = stream(c.pts.len());
+        c.text = stream(if small { CHARS_SMALL } else { CHARS });
+        c.em = em_to_fill(c.text.cells);
+        c.pts = cells(self.form, self.seed, 0.62 * c.em, 1.45 * c.em);
+        c.radius = mean_radius(self.form, self.seed);
         c.key = key;
     }
-    /// How many glyphs the body is made of.
-    pub fn glyphs(&self) -> usize { self.ensure(); self.cache.borrow().text.cell.len() }
+    /// The small-window case (fewer, larger glyphs). It depends on the stage, not on the body's radius,
+    /// so the text (and with it the listing and the caption under it) is settled before the body is placed.
+    pub fn small(&self) -> bool {
+        let s = self.stage();
+        let r = match self.width_class() { Width::Narrow => (0.36 * self.size.0).min((s[3] - s[1]) * 0.5), _ => (0.34 * self.size.1).min(0.23 * self.size.0) };
+        em_for(r).1
+    }
+    /// How many cells of the body the text takes (its glyphs and the spaces between words).
+    pub fn glyphs(&self) -> usize { self.ensure(); self.cache.borrow().text.cells }
     /// The text on the body (whole lines of this file).
     pub fn listing(&self) -> String { self.ensure(); self.cache.borrow().text.listing.clone() }
     /// The listing as the stage shows it now.
     pub fn shown(&self) -> Shown { self.ensure(); let (rows, cols) = self.grid(); shown(&self.cache.borrow().text, rows, cols) }
 
-    /// The pose of every glyph of one text element: from its place in the listing to its cell on the
-    /// body. `map` gives each of its glyphs' index in the stream; `shown` whether the listing shows it
-    /// (the rest wait unseen in the stage).
-    fn poser(&self, origin: (f32, f32), map: Rc<Vec<usize>>, shown: bool) -> impl Fn(GlyphAt) -> Pose + 'static {
+    /// The pose of every glyph of the text: from its place in the listing to its cell on the body, with
+    /// its depth and how it faces the viewer for `El::form`. `shown` says which glyphs the listing
+    /// shows; the rest wait unseen where they would have been.
+    fn poser(&self, origin: (f32, f32), shown: Rc<Vec<bool>>) -> impl Fn(GlyphAt) -> Pose + 'static {
         let (g, v, l, cache, dim) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light(), self.cache.clone(), self.dim());
         let (_, _, rpx) = self.placement();
-        let em_px = em_px(rpx, em_for(rpx).0);
-        let flat_alpha = if shown { dim } else { 0.0 };
+        let em_px = em_px(rpx, self.cache.borrow().em);
         move |a: GlyphAt| {
             let c = cache.borrow();
             let (fx, fy) = (a.x + origin.0, a.y + origin.1);
             let n = c.text.cell.len();
-            let gi = if a.n == map.len() { map[a.i] } else { a.i * n / a.n.max(1) };
+            let gi = if a.n == n { a.i } else { a.i * n / a.n.max(1) };
+            let flat_alpha = if shown.get(gi).copied().unwrap_or(false) { dim } else { 0.0 };
             let Some(sp) = c.text.cell.get(gi).and_then(|&k| c.pts.get(k)) else { return Pose { alpha: flat_alpha, ..Pose::default() } };
-            let cell = c.text.cell[gi];
             let e = progress(g, gi, n);
             if e <= 0.0 { return Pose { alpha: flat_alpha, ..Pose::default() }; }
-            let (p, n, t) = (v.rot(sp.p), v.rot(sp.n), v.rot(sp.t));
+            let (p, t) = (v.rot(sp.p), v.rot(sp.t));
             let ([sx, sy], k) = v.project(p);
-            let f = n[2];
-            let fade = smoothstep(0.10, 0.45, f);
-            let paint = lit_paint(lit(l, p, n));
-            // Turned to the line's tangent and squeezed by its slope; one size on the body.
+            let CellLook { paint, run, gap, .. } = cell_look(&v, l, sp);
+            // A word faces the viewer as its middle does, so it comes and goes whole by its middle
+            // (by its end, a long word would leave a hole in the line).
+            let facing = word_facing(&v, &c, gi);
+            // Turned to the line's tangent and foreshortened as the surface is seen there; one size on
+            // the body (cells are set onto the form along their direction, so where the form is nearer
+            // the centre, on a facet, they are closer and the glyphs as much smaller).
             let ang = (-t[1]).atan2(t[0]);
-            let run = (t[0] * t[0] + t[1] * t[1]).sqrt();
-            let squeeze = run.max(0.3);
-            // Across the line, foreshortened the same way: the glyph lies on the surface. (The part of the
-            // projected bitangent square to the projected line.)
-            let b = cross(n, t);
-            let gap = ((b[0] * t[1] - b[1] * t[0]) / run.max(1e-4)).abs();
-            let across = gap.max(0.3);
-            // Cells are spaced on a sphere and set onto the form along their direction, so where the form
-            // is nearer the centre (a facet) they are closer: the glyphs there are smaller by as much.
             let s = em_px * k / SIZE * sp.k;
-            // Never wider than the cell's real spacing on screen (perspective draws the cells together
-            // towards the limbs more than the tangent's own foreshortening says).
-            // The nearer neighbour counts: the spacing is uneven where the line crosses a facet's edge.
+            // Never wider than the cell's real spacing on screen: where the line crosses a facet's edge
+            // or runs towards the limb the cells are drawn together more than the tangent says. (The
+            // nearer neighbour counts.)
+            let cell = c.text.cell[gi];
             let near = |j: usize| c.pts.get(j).map(|q| { let o = v.project(v.rot(q.p)).0; (o[0] - sx).hypot(o[1] - sy) });
             let room = cell.checked_sub(1).and_then(near).unwrap_or(f32::INFINITY).min(near(cell + 1).unwrap_or(f32::INFINITY));
-            // A line that runs into the depth (at the limbs) is unreadable: its glyphs fade out there.
-            let alpha = paint.alpha * fade * smoothstep(0.25, 0.5, run) * smoothstep(0.25, 0.5, gap) * dim;
             Pose {
                 dx: (sx - fx) * e, dy: (sy - fy) * e, angle: ang * e,
-                sx: 1.0 + ((s * squeeze).min(room * 0.97 / ADVANCE) - 1.0) * e, sy: 1.0 + (s * across - 1.0) * e,
-                alpha: flat_alpha + (alpha - flat_alpha) * e,
+                sx: 1.0 + ((s * run).min(room * 0.97 / ADVANCE) - 1.0) * e, sy: 1.0 + (s * gap - 1.0) * e,
+                alpha: flat_alpha + (paint.alpha * dim - flat_alpha) * e,
                 accent: paint.accent * e, hue: if e > 0.5 { 0.0 } else { -1.0 },
-                // The tone, and fields amenui may add later, keep their defaults.
+                // Depth toward the viewer (px) and facing, for `El::form`: flat in the listing.
+                z: p[2] * v.r * e, facing: 1.0 + (facing - 1.0) * e,
                 ..Pose::default()
             }
         }
@@ -574,16 +669,17 @@ impl Body {
                 if fade > 0.0 { d.dot(x + (hash(i as u32) - 0.5) * 4.0, ry, q.size * 0.75, Paint { alpha: (paint.alpha * 0.8 * fade).min(0.3), ..paint }); }
             }
         }
-        // Cells that face away or graze the silhouette are one dot each, in the second colour: the
-        // outline reads as a dotted contour instead of crushed letters.
+        // Where a cell's glyph has faded out at the rim, the cell is one dot in the colour the light
+        // gives it: the lines continue as a dotted contour instead of crushed letters. The far side
+        // is the volume's.
         let dot_r = 0.006 * rv;
-        let n_text = c.text.cell.last().map_or(c.pts.len(), |&k| k + 1);
-        for sp in c.pts.iter().take(n_text) {
-            let n = v.rot(sp.n);
-            if n[2] >= 0.10 { continue; }
-            let ([x, y], k) = v.project(v.rot(sp.p));
-            let a = if n[2] > -0.25 { 0.35 } else { 0.10 };
-            d.dot(x, y, dot_r * k, Paint { tone: 1.0, accent: 1.0, alpha: a * g, hue: 1 });
+        for (gi, &k) in c.text.cell.iter().enumerate() {
+            let Some(sp) = c.pts.get(k) else { continue };
+            if v.rot(sp.n)[2] < -0.25 { continue; }
+            let look = cell_look(&v, l, sp);
+            if look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi)) >= 0.15 { continue; }
+            let ([x, y], s) = v.project(v.rot(sp.p));
+            d.dot(x, y, dot_r * s, Paint { tone: 1.0, accent: look.paint.accent, alpha: 0.30 * g, hue: 0 });
         }
         d
     }
@@ -594,7 +690,7 @@ impl Body {
         for m in &self.motes { let f = 1.0 - m.age / MOTE_LIFE; d.dot(m.x, m.y, 0.6 + 0.9 * f, Paint { tone: 1.0, accent: 0.6, alpha: 0.6 * f, hue: 0 }); }
         for l in labels {
             if l.alpha <= 0.0 { continue; }
-            let p = Paint { tone: 0.45, accent: 0.0, alpha: l.alpha * 0.8, hue: 0 };
+            let p = Paint::DIM.alpha(l.alpha);
             d.line(l.from, l.elbow, 0.5, p);
             d.line(l.elbow, l.to, 0.5, p);
             d.dot(l.from.0, l.from.1, 1.4, Paint { tone: 1.0, ..p });
@@ -604,13 +700,10 @@ impl Body {
     /// The glyph nearest the point the pointer's ray meets on the body: its index in the stream, the
     /// character, and where its cell is on screen.
     pub fn glyph_under_lamp(&self) -> Option<(usize, char, (f32, f32))> {
-        let (x, y) = self.ptr?;
+        self.ptr?;
+        let gi = self.under?;
         let v = self.view();
-        let (hit, _) = self.hit((x - v.c.0) / v.r, -(y - v.c.1) / v.r, &v)?;
-        let q = v.unrot(hit);
         let c = self.cache.borrow();
-        let d2 = |k: usize| { let d = sub(c.pts[k].p, q); dot3(d, d) };
-        let gi = (0..c.text.cell.len()).filter(|&i| c.text.cell[i] < c.pts.len()).min_by(|&a, &b| d2(c.text.cell[a]).total_cmp(&d2(c.text.cell[b])))?;
         let ch = c.text.listing.chars().filter(|c| !c.is_whitespace()).nth(gi)?;
         let p = v.project(v.rot(c.pts[c.text.cell[gi]].p)).0;
         Some((gi, ch, (p[0], p[1])))
@@ -680,48 +773,65 @@ impl Body {
         let (w, h) = self.size;
         self.ensure();
         let st = self.stage();
-        let (_, cols) = self.grid();
         let s = self.shown();
         let (lx, ly) = (st[0] + GUTTER, st[1]);
         let (g, dim) = (self.gather.value.clamp(0.0, 1.0), self.dim());
         let ink = Paint { tone: 1.0, accent: 0.0, alpha: 1.0, hue: 0 };
         let mono = |t: String, lh: f32, p: Paint, k: &str| text_lh(t, SIZE, lh, p).font(Font::Mono).nowrap().key(format!("{key}/{k}"));
-        let code = mono(s.text.clone(), LINE, ink, "text").absolute(Some(lx), Some(ly), None, None).pose(self.poser((lx, ly), Rc::new(s.map), true));
-        // The glyphs the listing leaves out wait unseen in the stage, in rows of its width (a glyph
-        // outside the window would not be drawn at all).
-        let rest: Vec<char> = s.rest.chars().collect();
-        let rest_rows = rest.len().div_ceil(cols.max(1)).max(1);
-        let rest_lh = ((st[3] - st[1]) / rest_rows as f32).min(LINE);
-        let rest_text = rest.chunks(cols.max(1)).map(|c| c.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        let rest = mono(rest_text, rest_lh, ink, "rest").absolute(Some(lx), Some(ly), None, None).pose(self.poser((lx, ly), Rc::new(s.rest_map), false));
+        // The whole text in one element: the listing shows its first lines cut at whole words; the
+        // glyphs it leaves out wait unseen where they would have been (the ends of cut lines to the
+        // right of the stage, the lines that do not fit under it).
+        let mut flat = vec![false; s.map.len() + s.rest_map.len()];
+        for &i in &s.map { flat[i] = true; }
+        // Its box is the listing's (the cut ends run past it, unseen).
+        let cols = self.grid().1;
+        let code = mono(self.listing(), LINE, ink, "text").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE)
+            .pose(self.poser((lx, ly), Rc::new(flat))).form(FORM_FX).reveal_by(Reveal::Word);
         let numbers: String = (1..=s.rows).map(|i| format!("{i:>3}")).collect::<Vec<_>>().join("\n");
-        let numbers = mono(numbers, LINE, Paint { tone: 0.45, accent: 0.0, alpha: (1.0 - g).clamp(0.0, 1.0) * 0.8 * dim, hue: 0 }, "lines").absolute(Some(st[0]), Some(ly), None, None);
+        let numbers = mono(numbers, LINE, Paint::DIM.alpha((1.0 - g).clamp(0.0, 1.0) * dim), "lines").absolute(Some(st[0]), Some(ly), None, None);
         let marks = self.readouts();
         let mut parts = vec![
             canvas(self.back()).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
             numbers,
             code,
-            rest,
             canvas(self.front(&marks)).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
         ];
         for m in &marks {
-            parts.push(mono(m.text.clone(), LINE, Paint { tone: 0.6, accent: 0.0, alpha: m.alpha, hue: 0 }, &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
+            parts.push(mono(m.text.clone(), LINE, Paint::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
         }
         // The caption: the state's number in the dim colour, its sentence in the text colour; in the
-        // body it dims to 60 % after 4 s without a change.
+        // body the sentence dims to the dim colour after 4 s without a change (no further: that is the
+        // faintest text that still reads).
         let body = self.target() >= 0.5 && !self.intro_pending && self.intro_at.is_none();
         let (num, sentence) = if body { ("04", "Posed in 3D. Your pointer is the lamp.".to_owned()) } else { ("01", format!("Source. {} characters of Rust.", thousands(self.glyphs()))) };
-        let rest_a = if body && self.t - self.changed > 4.0 { 0.6 } else { 1.0 };
+        let quiet = body && self.t - self.changed > 4.0;
         let cy = self.caption_y();
-        parts.push(mono(num.into(), LINE, Paint { tone: 0.45, accent: 0.0, alpha: 0.8 * rest_a, hue: 0 }, "caption/n").absolute(Some(st[0]), Some(cy), None, None));
-        parts.push(mono(sentence, LINE, Paint { alpha: rest_a, ..ink }, "caption").absolute(Some(st[0] + GUTTER), Some(cy), None, None));
+        parts.push(mono(num.into(), LINE, Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None));
+        // A screen reader hears it as it changes.
+        parts.push(mono(sentence, LINE, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + GUTTER), Some(cy), None, None).live(amenui::el::Live::Polite));
         let grabbing = self.grab.is_some() && self.dragged;
-        layers(parts).key(key.to_owned()).width(w).height(h).clip()
+        let mut stage = layers(parts).key(key.to_owned()).width(w).height(h).clip();
+        // The idle turn moves on purpose.
+        if self.turning() { stage = stage.ongoing(); }
+        stage
             .on_point(|p| Some(Msg::Point(p)))
             .on_key(|k, _| Self::takes(k).then_some(Msg::Key(k)))
             .cursor(if grabbing { amenui::el::Cursor::Grabbing } else { amenui::el::Cursor::Grab })
             .role(amenui::el::Role::Img).label(tr("body.label"))
     }
+    /// Where the listing's caret is (window px): one cell after the last line shown.
+    pub fn caret(&self) -> (f32, f32) {
+        let s = self.shown();
+        let st = self.stage();
+        let last = s.text.rsplit('\n').next().unwrap_or("").chars().count();
+        (st[0] + GUTTER + ADVANCE * (last as f32 + 1.5), st[1] + LINE * (s.rows.max(1) as f32 - 0.5))
+    }
+    /// The front for the host to send now, once (`front`).
+    pub fn take_front(&mut self) -> Option<(f32, f32)> { self.front.take() }
+    /// A front across the listing is under way (its speed is `FRONT_SPEED`).
+    pub fn fronting(&self) -> bool { self.front_at.is_some() || self.front.is_some() || self.fronted.is_some_and(|t| self.t - t < 1.4) }
+    /// The body turns by itself (the idle turn), and so asks for every frame.
+    pub fn turning(&self) -> bool { self.target() >= 0.5 && !self.reduced && self.omega > 0.0 }
     /// The scene's keys: 1 and 4 the states, Space and Enter between them, F the form, [ and ] the
     /// seed, ← → a turn.
     pub fn takes(k: Key) -> bool { matches!(k, Key::Char(' ' | '1' | '4' | 'f' | 'F' | '[' | ']') | Key::Enter | Key::Left | Key::Right) }
@@ -786,6 +896,15 @@ impl Experiment for Body {
             Msg::Num(..) => {}
             Msg::Point(p) => {
                 self.ptr = p.map(|q| (q.x, q.y));
+                // The glyph drawn under the pointer, as the runtime found it (`Ui::glyph_at`); while
+                // dragging none is given, and the last one stays.
+                // Between glyphs the last one stays while the pointer is on the body.
+                match p {
+                    Some(q) if q.down => {}
+                    Some(q) if q.glyph.is_some() => self.under = q.glyph,
+                    Some(q) => { let v = self.view(); if self.hit((q.x - v.c.0) / v.r, -(q.y - v.c.1) / v.r, &v).is_none() { self.under = None; } }
+                    None => self.under = None,
+                }
                 self.point_lamp(self.ptr);
                 match (p, self.grab) {
                     (Some(q), Some((x0, y0, yaw0, pitch0))) if q.down => {
@@ -814,7 +933,13 @@ impl Experiment for Body {
         // The short path: the first frame shows the listing; half a second later it gathers (with
         // reduced motion it gives way to the body by an opacity change at once).
         let mut changed = false;
-        if self.intro_pending { self.intro_pending = false; self.intro_at = Some(now + if self.reduced { 0.0 } else { INTRO_DELAY }); changed = true; }
+        if self.intro_pending {
+            self.intro_pending = false;
+            self.intro_at = Some(now + if self.reduced { 0.0 } else { INTRO_DELAY });
+            if !self.reduced { self.front_at = Some(now + FRONT_DELAY); }
+            changed = true;
+        }
+        if let Some(t0) = self.front_at && now >= t0 { self.front_at = None; self.front = Some(self.caret()); self.fronted = Some(now); changed = true; }
         if let Some(t0) = self.intro_at && now >= t0 { self.intro_at = None; self.go(1.0, now, FADE_INTRO); }
         if let Some((t0, to, d)) = self.fade {
             if now - t0 >= d * 0.5 && self.gather.target != to { self.gather = Animated::new(to, Spring { ..GATHER }); }
@@ -861,7 +986,7 @@ impl Experiment for Body {
     fn moving(&self) -> bool {
         self.gather.moving() || self.lamp.iter().any(Animated::moving) || !self.motes.is_empty() || self.grab.is_some()
             || self.spin != 0.0 || self.tip != 0.0 || (self.target() >= 0.5 && !self.reduced && self.omega > 0.0)
-            || self.intro_pending || self.intro_at.is_some() || self.fade.is_some()
+            || self.intro_pending || self.intro_at.is_some() || self.front_at.is_some() || self.fade.is_some()
     }
 }
 

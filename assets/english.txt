@@ -222,6 +222,7 @@
 照片 = Photo
 状态 = Status
 电平 = Level
+墨框 = Ink box
 界面 = Interface
 盲文 = Braille
 相位 = Phase

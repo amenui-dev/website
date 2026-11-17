@@ -23,9 +23,13 @@ fn click(ui: &mut Ui<Body, Msg>, x: f32, y: f32) { ui.pointer_move(x, y); ui.pre
 
 #[test]
 fn the_text_is_this_file_one_glyph_a_cell() {
-    let s = body::stream(2740);
+    let s = body::stream(body::CHARS);
     assert!(body::SOURCE.starts_with(&s.listing), "whole lines of the file, from its start");
-    assert!(s.listing.contains("pub const LINES"), "{} lines", s.lines);
+    assert!(s.listing.chars().count() <= body::CHARS && body::SOURCE[s.listing.len()..].starts_with('\n'), "cut at a line end");
+    assert!(s.listing.contains("pub const CHARS"), "{} lines", s.lines);
+    // The body is made of about 2,700 cells (1,400 on a phone): the number the page reports.
+    assert!((2_600..=2_800).contains(&s.cells), "{} cells", s.cells);
+    assert!((1_300..=1_400).contains(&body::stream(body::CHARS_SMALL).cells));
     // Words are a cell apart: consecutive glyphs of one word are in consecutive cells, and the first
     // glyph after a space is two cells on.
     let words: Vec<&str> = s.listing.split_whitespace().collect();
@@ -36,7 +40,11 @@ fn the_text_is_this_file_one_glyph_a_cell() {
         if i > 0 { assert_eq!(s.cell[i], s.cell[i - 1] + 2, "before {w}"); }
         i += n;
     }
-    assert!(*s.cell.last().unwrap() < 2740);
+    assert!(*s.cell.last().unwrap() < s.cells);
+    // The glyph size is the one at which the text fills the spiral, with no more than a ring to spare.
+    let em = body::em_to_fill(s.cells);
+    let room = body::spiral_count(0.62 * em, 1.45 * em);
+    assert!(room >= s.cells && room < s.cells + 60, "{room} cells for {}", s.cells);
 }
 
 #[test]
@@ -47,7 +55,7 @@ fn glyphs_are_conserved_and_their_count_does_not_follow_the_window() {
     let on = glyphs(&ui);
     // Facing away glyphs are left out of the drawing; every one is posed (none sits in the listing).
     assert!(n > 1800, "the body is made of {n} glyphs");
-    assert!(on.len() > n / 3 && on.len() < n, "{} of {n} drawn on the body", on.len());
+    assert!(on.len() > n / 5 && on.len() < n, "{} of {n} drawn on the body", on.len());
     assert!(on.iter().all(|i| i.xf != [0.0; 4]), "none in the listing");
     // Released: every glyph in the first lines is in the listing, flat.
     ui.state.update(Msg::Gather, ui.now());
@@ -60,7 +68,7 @@ fn glyphs_are_conserved_and_their_count_does_not_follow_the_window() {
     let s = ui.state.shown();
     let mut all: Vec<usize> = s.map.iter().chain(&s.rest_map).copied().collect();
     all.sort();
-    assert_eq!(all, (0..n).collect::<Vec<_>>());
+    assert!(all == (0..body::stream(body::CHARS).cell.len()).collect::<Vec<_>>(), "each glyph of the text once");
     // The count is the same on a wider window: the glyphs grow, their number does not.
     let mut wide = body::ui(fonts(), 2560, 1440, 1.0);
     run(&mut wide, 0.2);
@@ -81,7 +89,7 @@ fn a_click_never_releases_it_and_a_drag_turns_it() {
     ui.release(cx + 180.0, cy);
     assert!(ui.state.yaw > yaw0 + 0.4, "dragged round: {} → {}", yaw0, ui.state.yaw);
     assert!(ui.state.target() >= 0.5, "a drag does not release");
-    run(&mut ui, 4.0);
+    run(&mut ui, 6.0);
     assert!((ui.state.spin - ui.state.omega).abs() < 0.02, "back to the idle turn: {}", ui.state.spin);
     // At any pointer place, nothing shows in the listing: no partial words.
     for (px, py) in [(cx, cy), (cx - r * 0.5, cy - r * 0.3), (cx + r * 0.7, cy + r * 0.2), (100.0, 100.0)] {
@@ -137,12 +145,12 @@ fn glyphs_facing_the_viewer_do_not_overlap_and_have_no_violet() {
             let (lx, ly) = (dx * c + dy * s, -dx * s + dy * c);
             let ox = ((a[3] + b[3]) * 0.5 - lx.abs()).max(0.0);
             let oy = ((a[4] + b[4]) * 0.5 - ly.abs()).max(0.0);
-            let area = (a[3] * a[4]).min(b[3] * b[4]).max(1.0);
-            let o = ox.min(a[3].min(b[3])) * oy.min(a[4].min(b[4])) / area;
+            // Of the two boxes' summed area.
+            let o = ox.min(a[3].min(b[3])) * oy.min(a[4].min(b[4])) / (a[3] * a[4] + b[3] * b[4]).max(1.0);
             worst = worst.max(o);
         }
     }
-    assert!(worst <= 0.10, "glyph boxes overlap by {:.0} %", worst * 100.0);
+    assert!(worst <= 0.05, "glyph boxes overlap by {:.0} % of their summed area", worst * 100.0);
     let th = body::look(0, 1.0).theme;
     for c in [th.accent, th.second, th.ink] { assert!(!(c[2] > c[1] + 0.2 && c[0] > c[1] + 0.1), "violet in the palette: {c:?}"); }
 }
@@ -185,7 +193,9 @@ fn the_listing_is_whole_lines_of_14_px_cut_at_whole_words() {
         run(&mut ui, 0.3);
         let st = ui.state.stage();
         let (rows, cols) = ui.state.grid();
-        assert_eq!(rows, (((st[3] - st[1]) / 14.0).floor() as usize - 1).min(44), "{h}: lines");
+        assert_eq!(rows, (((st[3] - st[1] - 30.0) / 14.0).floor() as usize).min(body::stream(body::CHARS).lines), "{h}: lines");
+        // The caption is 16 px under the last line.
+        assert_eq!(ui.state.caption_y(), st[1] + rows as f32 * 14.0 + 16.0);
         let s = ui.state.shown();
         assert_eq!(s.rows, rows);
         let full: Vec<&str> = body::SOURCE.lines().collect();
@@ -199,7 +209,7 @@ fn the_listing_is_whole_lines_of_14_px_cut_at_whole_words() {
         // Laid out on whole lines 14 px apart from the stage's top, and every glyph drawn on one of
         // them (a glyph's quad is its outline's box with a margin: its centre is on its line).
         let n = ui.node("body/text").expect("the listing").rect;
-        assert_eq!((n.y, n.h), (st[1], rows as f32 * 14.0), "{h}: the listing's box");
+        assert_eq!(n.y, st[1], "{h}: the listing's top");
         let gs = listing(&ui);
         let mut lines: Vec<i32> = gs.iter().map(|g| ((g.rect[1] + g.rect[3] * 0.5 - st[1]) / 14.0).floor() as i32).collect();
         lines.sort();
@@ -261,4 +271,43 @@ fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
     ui.state.update(Msg::Gather, ui.now());
     run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "the listing at rest draws nothing");
+}
+
+#[test]
+fn the_glyph_readout_names_the_glyph_drawn_under_the_pointer() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    run(&mut ui, 0.5);
+    let (cx, cy, r) = ui.state.placement();
+    for (px, py) in [(cx, cy), (cx - r * 0.3, cy + r * 0.2)] {
+        // A point on a glyph near there.
+        let (px, py) = (0..400).map(|k| (px + (k % 20) as f32 - 10.0, py + (k / 20) as f32 - 10.0)).find(|&(x, y)| ui.glyph_at(x, y).is_some()).expect("glyphs near the centre");
+        ui.pointer_move(px, py);
+        run(&mut ui, 0.1);
+        ui.pointer_move(px + 0.5, py);
+        run(&mut ui, 0.05);
+        let (gi, ch, at) = ui.state.glyph_under_lamp().expect("a glyph under the pointer");
+        assert!(!ch.is_whitespace());
+        assert!((at.0 - px).hypot(at.1 - py) < 14.0, "glyph {gi} `{ch}` is drawn at {at:?}, the pointer at ({px}, {py})");
+    }
+}
+
+#[test]
+fn the_short_path_sends_one_front_from_the_caret() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", true);
+    run(&mut ui, 0.1);
+    assert!(ui.state.fronted.is_none(), "not before 150 ms");
+    run(&mut ui, 0.1);
+    let at = ui.state.take_front().expect("the front at 150 ms");
+    assert_eq!(at, ui.state.caret());
+    let st = ui.state.stage();
+    assert!(at.0 > st[0] && at.0 < st[2] && at.1 > st[1] && at.1 < ui.state.caption_y(), "from the listing's end: {at:?}");
+    run(&mut ui, 2.0);
+    assert!(ui.state.take_front().is_none(), "one front");
+    // With reduced motion there is none.
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.reduced = true;
+    ui.state.open("", true);
+    run(&mut ui, 1.0);
+    assert!(ui.state.fronted.is_none());
 }

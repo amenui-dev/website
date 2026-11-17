@@ -210,9 +210,9 @@ function site() {
   // The home page's stage, laid out by the page: the canvas draws in the same rectangle.
   const place = () => {
     if (!api) return;
-    if (!isHome()) { api.w.set_stage(0, 0, 0, 0); return; }
-    const c = stage.getBoundingClientRect(), [x0, y0, x1, y1] = A.stage();
-    api.w.set_stage(x0 - c.left, y0 - c.top, x1 - c.left, y1 - c.top);
+    if (!isHome()) { api.w.set_stage(0, 0, 0, 0, -1); return; }
+    const c = stage.getBoundingClientRect(), [x0, y0, x1, y1] = A.stage(), cy = A.centre();
+    api.w.set_stage(x0 - c.left, y0 - c.top, x1 - c.left, y1 - c.top, cy < 0 ? -1 : cy - c.top);
     api.kick();
   };
   // The rail row: the state, the body's form and seed, the door to the current state's section.

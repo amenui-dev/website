@@ -13,7 +13,15 @@ pub fn update(s: &mut Gallery, m: scene::Msg) {
     let now = s.clock;
     s.body.update(m, now);
 }
-pub fn tick(s: &mut Gallery, t: f32) -> bool { s.page == Page::Body && s.body.step(t) }
+/// The scene's clock; the front across its listing, when it asks for one, goes out from where it says.
+pub fn tick(s: &mut Gallery, t: f32) -> bool {
+    if s.page != Page::Body { return false; }
+    let changed = s.body.step(t);
+    match s.body.take_front() {
+        Some((x, y)) => { s.cmds.push(amenui::morph::Cmd::Front { x, y, strength: 1.0 }); true }
+        None => changed,
+    }
+}
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.page == Page::Body && s.body.moving()).then_some(t) }
 /// The scene's look on its page: its form's palette on a dark ground, a bloom, a vignette.
 pub fn look(s: &Gallery, l: &mut Look) {
@@ -22,12 +30,13 @@ pub fn look(s: &Gallery, l: &mut Look) {
     l.theme = b.theme;
     l.material = b.material;
     l.post = b.post;
+    if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
 }
 pub fn page(s: &Gallery) -> El<Msg> { s.body.view_in("body").map(Rc::new(Msg::Body)) }
 /// A fresh scene, sized to the window, in the stage the host gave the last one.
 pub fn fresh(s: &Gallery) -> Body {
     let mut b = Body::default();
-    (b.reduced, b.stage, b.form, b.seed) = (s.lab.reduced, s.body.stage, s.body.form, s.body.seed);
+    (b.reduced, b.stage, b.text_centre, b.form, b.seed) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.form, s.body.seed);
     // With reduced motion the body starts still (no idle turn to ease out of).
     if b.reduced { b.spin = 0.0; }
     b.resize(s.width, s.height);

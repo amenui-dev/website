@@ -30,7 +30,7 @@ fn main() {
     for p in Page::all() { redirects.insert(p.hash(), p.path().into()); }
     redirects.insert("gallery".into(), "components/".into());
     let b = body::Body::default();
-    let listing = b.listing().split('\n').take(body::LINES).collect::<Vec<_>>().join("\n");
+    let listing = b.listing();
     let locales: Vec<Value> = website::LOCALES.iter().map(|l| json!({ "tag": l.tag(), "name": l.name() })).collect();
     let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "listing": listing, "glyphs": b.glyphs() });
     println!("{}", serde_json::to_string(&out).expect("json"));

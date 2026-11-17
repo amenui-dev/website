@@ -101,7 +101,7 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
    share of its bytes that has arrived; the canvas then draws the same lines at the same pixels. */
 .listing { position: fixed; z-index: 1; margin: 0; font: 11px/14px "Departure Mono", monospace; color: var(--ink); white-space: pre; pointer-events: none; display: none; }
 .home .listing { display: block; }
-.listing .n { color: #595a5a; }
+.listing .n { color: #999a98; } /* Paint::DIM as the canvas draws it on this ground: the two listings are the same pixels */
 .listing .caret { animation: blink 1s steps(1) infinite; }
 .listing.gone { opacity: 0; transition: opacity 120ms linear; }
 .failed .listing .caret { display: none; }
@@ -215,8 +215,8 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
   // The stage, in whole px (the canvas is given the same rectangle).
   const hs = D.getElementById('hstage'), pre = D.querySelector('.listing');
   A.stage = () => { const r = hs.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; };
-  // The listing: as the canvas lays it out, 14 px lines up to 44 that end above the caption, each cut
-  // at the last whole word that fits in whole 7 px cells.
+  // The listing: as the canvas lays it out, as many of its 14 px lines as fit with the caption 16 px
+  // under the last, each cut at the last whole word that fits in whole 7 px cells.
   const src = D.getElementById('source').content.textContent.split('\n');
   const cut = (l, cols) => {
     l = l.replace(/\s+$/, '');
@@ -229,7 +229,11 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
   };
   const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   let share = 0, face = false, caret = true, queued = 0;
-  A.lines = () => { const [x0, y0, x1, y1] = A.stage(); return [Math.min(44, Math.max(1, Math.floor((y1 - y0 - 14) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
+  A.lines = () => { const [x0, y0, x1, y1] = A.stage(); return [Math.min(src.length, Math.max(1, Math.floor((y1 - y0 - 30) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
+  // The text block's optical centre (vertical): the body's centre is level with it (not on a phone,
+  // where the text is under the stage).
+  const hero = D.querySelector('.hero');
+  A.centre = () => { if (innerWidth < 720 || !hero) return -1; const r = hero.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
   const draw = () => {
     queued = 0;
     if (!face || !pre.isConnected || A.route !== '') return;
