@@ -25,8 +25,9 @@ async function mount(stage, opts) {
   const w = wasm_bindgen;
   const [sans, pixel, mono] = (await got.fonts).map(b => new Uint8Array(b));
   const home = r => r === '' || r === '/' || r.startsWith('/#');
-  if (!home(opts.route || '/')) w.pictures();
   await w.start(canvas, sans, pixel, mono, dpr, opts.route || '/');
+  // After start: the pictures go to the renderer, which start makes.
+  if (!home(opts.route || '/')) w.pictures();
   if (opts.started) opts.started(w);
   canvas.focus({ preventScroll: true });
   const now = () => performance.now() / 1000;
@@ -36,10 +37,15 @@ async function mount(stage, opts) {
   sync();
   // Frames on demand: the animation-frame loop runs only while the framework needs frames; when it
   // does not, the loop stops, and input or a timed wake (the caret's blink, a clock) starts it again.
-  let raf = 0, timer = 0, first = true;
+  let raf = 0, timer = 0, first = true, moving = false;
   const loop = () => {
     raf = 0; if (timer) { clearTimeout(timer); timer = 0; }
-    const d = w.frame(now());
+    const drawn = w.frames()[0];
+    let d = w.frame(now());
+    // Motion keeps the clock's time: when a late frame finds it over and draws nothing, the screen
+    // still holds the last frame drawn in it, so the frame at rest is drawn now.
+    if (moving && d !== 0 && w.frames()[0] === drawn) { w.redraw(); d = w.frame(now()); }
+    moving = d === 0;
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
     if (d === 0) raf = requestAnimationFrame(loop);

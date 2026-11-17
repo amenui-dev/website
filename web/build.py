@@ -276,33 +276,29 @@ for w in built['pages']:
     f.write_bytes(b)
     doc_sizes.append((gz(b), w['lang'] + '/' + w['url']))
 
-def page(lang, path, title, section, notfound=False):
+def page(lang, path, title, section):
     t = lambda k: tr(lang, k)
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
-    files = None if notfound else {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
+    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
     config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, 't': {'copied': t('web.copied'), 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
-    # Older addresses (`#button`) go to the page's path before anything loads; only the root and the
-    # 404 page can receive them.
+    # Older addresses (`#button`) go to the page's path before anything loads; only the root can
+    # receive them here.
     redirect = ''
-    if path == '' or notfound:
+    if path == '':
         redirect = '<script>(()=>{const m=%s,h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace(%s+m[h]);})()</script>\n' % (json.dumps(redirects, separators=(',', ':')), json.dumps(BASE))
-    classes = ' '.join(c for c in ['home' if path == '' and not notfound else '', 'scenes' if path.startswith('scenes/') and path != 'scenes/' else ''] if c)
-    nf = '<main class="nf"><h1>%s</h1><p>%s</p></main>\n' % (html.escape(t('web.not-found')), html.escape(t('web.not-found-text'))) if notfound else ''
+    classes = ' '.join(c for c in ['home' if path == '' else '', 'scenes' if path.startswith('scenes/') and path != 'scenes/' else ''] if c)
     v = chrome_vars(lang, path) | {
         'classes': classes, 'title': html.escape(title), 'description': html.escape(t('web.description')),
         'redirect': redirect, 'wasm_url': BASE + wasm_fn,
         't_canvas': t('web.canvas'), 't_text_input': t('web.text-input'),
         't_eyebrow': t('web.eyebrow'), 't_lead': t('web.lead'), 't_start': t('web.start'), 't_copy': t('web.copy'), 't_readout': t('web.readout'), 't_quality': t('web.quality'), 't_quality_auto': t('web.quality.auto'),
-        'listing': html.escape(listing, quote=False) if path == '' and not notfound else '', 'notfound': nf, 'mono_url': fonts[lang][2]['url'],
+        'listing': html.escape(listing, quote=False) if path == '' else '', 'mono_url': fonts[lang][2]['url'],
         'config': json.dumps(config, ensure_ascii=False, separators=(',', ':')),
         'search': search_boot(lang, index_urls[lang]),
-        'app': '' if notfound else f'<script src="{BASE + app_fn}" defer></script>',
+        'app': f'<script src="{BASE + app_fn}" defer></script>',
     }
-    s = current(fill(template, v), section)
-    if notfound:
-        s = s.replace(f'<link rel="preload" href="{BASE + wasm_fn}" as="fetch" crossorigin>\n', '').replace(f'<link rel="preload" href="{fonts[lang][2]["url"]}" as="fetch" crossorigin>\n', '')
-    return s
+    return current(fill(template, v), section)
 
 # The canvas pages: every address but the docs, which are the HTML pages above.
 sizes = []

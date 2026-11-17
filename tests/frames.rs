@@ -151,3 +151,54 @@ fn the_labs_pieces_run_while_seen_and_stop_when_scrolled_out() {
     let t = ui.now();
     assert_eq!(run(&mut ui, t + 1.0), 0, "reduced motion rests");
 }
+
+/// The home page's walk from its first frame (`body#walk`).
+fn walk() -> GalleryUi {
+    let mut ui = gallery::new_ui(fonts(), 1440, 900, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::Body));
+    ui.state.body.open("", 2);
+    ui.relayout();
+    ui
+}
+
+#[test]
+fn the_walk_keeps_the_clock_at_ten_frames_a_second() {
+    // Every frame drawn at 10 Hz: the beats are on the clock, so it lands when it does at 60 Hz.
+    for hz in [60.0, 10.0] {
+        let mut ui = walk();
+        let mut ended = None;
+        for k in 0..(8.0 * hz) as u32 {
+            let t = k as f32 / hz;
+            ui.tick(t);
+            ui.frame_drawn();
+            if ended.is_none() && ui.state.body.walking() == 0 { ended = Some(t); }
+        }
+        let ended = ended.expect("the walk ends");
+        assert!((ended - 6.5).abs() <= 0.15, "at {hz} Hz the walk ended at {ended:.2} s, not 6.5 ± 0.15");
+        assert_eq!(ui.state.body.at, 4, "it lands on the body");
+    }
+}
+
+#[test]
+fn the_focus_marks_leave_with_the_gather_button() {
+    let mut ui = walk();
+    let mut t = 0.0f32;
+    let mut seen_before = false;
+    while t < 6.0 {
+        t += 1.0 / 60.0;
+        ui.tick(t);
+        ui.frame_drawn();
+        if (4.5..4.69).contains(&t) && ui.marks_frame().is_some() { seen_before = true; }
+        if t >= 4.8 { assert!(ui.marks_frame().is_none(), "focus marks still drawn at {t:.2} s: {:?}", ui.marks_frame()); }
+    }
+    assert!(seen_before, "the marks frame the gather button before its press");
+}
+
+#[test]
+fn with_reduced_motion_nothing_condenses_from_dots() {
+    let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
+    (ui.state.body.reduced, ui.state.lab.reduced) = (true, true);
+    gallery::update(&mut ui.state, Msg::Go(Page::Components));
+    ui.relayout();
+    assert_eq!(ui.state.look().fx.enter, 0.0, "a page is at rest from its first frame");
+}

@@ -84,9 +84,14 @@ mod site_exports {
     #[wasm_bindgen]
     pub fn pictures() {
         thread_local! { static MADE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
-        if MADE.with(|m| m.replace(true)) { return; }
-        host(|s| super::setup(&mut s.r));
+        // Made once, and only once there is a renderer to take them.
+        if MADE.with(|m| m.get()) { return; }
+        if host(|s| super::setup(&mut s.r)).is_some() { MADE.with(|m| m.set(true)); }
     }
+    /// Draw the next frame even though nothing moves: a frame that came after the end of a motion (a
+    /// slow machine) shows where the clock says, not the last frame drawn in it.
+    #[wasm_bindgen]
+    pub fn redraw() { host(|s| s.ui.invalidate()); }
     /// The current page's path under the site's base (`components/button/`; empty for home).
     #[wasm_bindgen]
     pub fn path() -> String { host(|s| s.ui.state.page.path()).unwrap_or_default() }

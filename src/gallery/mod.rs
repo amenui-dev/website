@@ -469,6 +469,8 @@ impl Gallery {
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
         body::look(self, &mut l);
+        // With reduced motion nothing condenses from dots: a page is at rest from its first frame.
+        if self.body.reduced { l.fx.enter = 0.0; }
         // A change of section's front, at its own speed until it has crossed the window.
         if self.clock < self.section_front { l.fx.wave_speed = SECTION_FRONT; }
         l
@@ -752,9 +754,10 @@ pub fn view(s: &Gallery) -> El<Msg> {
 fn view_in(s: &Gallery) -> El<Msg> {
     let narrow = s.width < NARROW;
     let th = s.theme();
-    // A stage on a docs page (`<path>#stage`): the page's stage alone, filling the box.
+    // A stage on a docs page (`<path>#stage`): the page's stage alone, filling the box, on the raised
+    // ground (D.2) in plain, so no ambient dots cross it.
     if s.stage_only {
-        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().center().child(stage_view(s, narrow));
+        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().center().fill(RAISED).material(Material::Plain.id()).child(stage_view(s, narrow));
     }
     // The Body scene is the whole window, full-bleed, no chrome: its own markings lead elsewhere.
     if s.page == Page::Body {
@@ -948,6 +951,8 @@ fn comp_strip(s: &Gallery) -> El<Msg> {
 }
 
 pub type GalleryUi = amenui::ui::Ui<Gallery, Msg>;
+/// D.2's raised colour (code blocks, stages, sheets): `#131517` on the dark ground.
+pub const RAISED: Paint = Paint::tone(0.03);
 
 /// Ten presses of the ripple counter in 300 ms: the gap between two.
 pub const BURST_GAP: f32 = 0.3 / 9.0;

@@ -2,18 +2,19 @@
 //! clock from 0, fixed seeds: the same arguments give byte-identical PNGs.
 //!
 //! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans]
-//!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict]
+//!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n>]
 //!
 //! `--events` is a JSON list such as `[{"at_ms": 200, "kind": "press", "target": "button/live"},
 //! {"at_ms": 260, "kind": "release", "target": "button/live"}]` (kinds: press, release, move, key, wheel,
 //! text; see `amenui::drive::Input`). Problems in the view (duplicate keys…) are printed; `--audit` measures
 //! the frame (`amenui::audit`: text cut off, contrast, glyphs over each other, text too small, frames
 //! asked for with nothing going on) and prints what it finds; `--strict` makes problems and P0 or P1
-//! findings an error.
+//! findings an error. `--fps 10` steps the clock at 10 frames a second and draws only the frames the page
+//! asks for, as a slow machine's browser does (the frame is the last one drawn).
 use amenui::drive::{RenderSpec, parse_events};
-use website::drive::{audit, render};
+use website::drive::{audit, render, render_paced};
 
-const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict]";
+const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n>]";
 
 fn fail(msg: impl std::fmt::Display) -> ! {
     eprintln!("render: {msg}");
@@ -23,7 +24,7 @@ fn fail(msg: impl std::fmt::Display) -> ! {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut spec = RenderSpec { page: String::new(), w: 1280, h: 800, scale: 1.0, material: None, theme: None, at_ms: 1000.0, events: vec![], locale: None };
-    let (mut out, mut tree, mut strict, mut audited) = ("out.png".to_owned(), None, false, false);
+    let (mut out, mut tree, mut strict, mut audited, mut fps) = ("out.png".to_owned(), None, false, false, None);
     let mut i = 0;
     while i < args.len() {
         let flag = args[i].as_str();
@@ -48,6 +49,7 @@ fn main() {
                 spec.events = parse_events(&json, &v).unwrap_or_else(|e| fail(e));
             }
             "--out" => out = v,
+            "--fps" => fps = Some(v.parse::<f32>().unwrap_or_else(|_| fail(format!("`--fps {v}`: write frames a second, e.g. 10.")))),
             "--tree" => tree = Some(v),
             _ => fail(format!("unknown flag `{flag}`.\n{USAGE}")),
         }
@@ -55,7 +57,7 @@ fn main() {
     }
     if spec.page.is_empty() { fail(format!("`--page` is required.\n{USAGE}")); }
     let faces = amenui::text::load_bundled(amenui::text::ASSETS).unwrap_or_else(|e| fail(e));
-    let (r, findings) = if audited { audit(&spec, faces, None) } else { render(&spec, faces, None).map(|r| (r, vec![])) }.unwrap_or_else(|e| fail(e));
+    let (r, findings) = if let Some(f) = fps { render_paced(&spec, faces, f).map(|r| (r, vec![])) } else if audited { audit(&spec, faces, None) } else { render(&spec, faces, None).map(|r| (r, vec![])) }.unwrap_or_else(|e| fail(e));
     for p in &r.problems { eprintln!("render: problem: {p}"); }
     if audited {
         // The view's problems are printed above; the audit lists them too.

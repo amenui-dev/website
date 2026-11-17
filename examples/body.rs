@@ -286,6 +286,13 @@ impl Default for Specimen { fn default() -> Self { Self { loosen: false, pitch: 
 /// One step of the intro.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Step { State(u8), Focus(&'static str), Press(&'static str), Material(usize), Reset, Lamp, Idle, End }
+impl Step {
+    /// A beat that only shows something on the way (a focus, a material's press): the walk lands the
+    /// same without it.
+    fn on_the_way(&self) -> bool { matches!(self, Step::Focus(_)) || matches!(self, Step::Press(k) if k.starts_with("material:")) }
+}
+/// A beat whose frame comes later than this after it (s) is dropped when it is only on the way.
+const LATE: f32 = 0.12;
 
 /// The key the scene is drawn under (its morphs and the operator's presses name its parts by it).
 pub const KEY: &str = "body";
@@ -736,16 +743,18 @@ impl Body {
     }
     /// The host says how ready it is to draw what the walk shows next (`Ui::readiness`).
     pub fn set_ready(&mut self, r: f32) { self.ready = r.clamp(0.0, 1.0); }
-    /// The walk gives way (F.9): a material press whose pipelines are not ready is left out; the card's
-    /// morph needs the morph's pipeline, and without it, or after a slow first flight (a mean frame
-    /// over 20 ms), the walk ends with one morph to the body. The landing state is the same.
+    /// The walk gives way (F.9): a material press whose pipelines are not ready, or any after a slow
+    /// first flight (a mean frame over 20 ms), is left out; the card's morph needs the morph's
+    /// pipeline, and without it the walk ends with one morph to the body. The landing state is the same.
     fn gives_way(&mut self, step: &Step, now: f32) -> bool {
         if self.walk.is_none() { return false; }
         let slow = self.flight.0 >= 10 && self.flight.1 / self.flight.0 as f32 > 0.020;
         match step {
             Step::State(2) if self.ready < 1.0 => { self.end_walk(now); true }
-            Step::Focus("loosen") if self.at == 2 && slow => { self.end_walk(now); true }
-            Step::Press(k) if k.starts_with("material:") && self.ready < 1.0 => true,
+            // After a slow first flight the materials' presses (and the focus that goes to them) are
+            // left out; the walk keeps its clock and lands at its own time.
+            Step::Focus("material") if slow => true,
+            Step::Press(k) if k.starts_with("material:") && (self.ready < 1.0 || slow) => true,
             _ => false,
         }
     }
@@ -1132,6 +1141,9 @@ impl Body {
         let h = if phone { SPECIMEN_PHONE_H } else { SPECIMEN.1 };
         let sp = self.spec;
         let k = |s: &str| format!("{key}/specimen/{s}");
+        // Once the card is on its way out, the button that sent it is another element: the focus marks
+        // on it leave with it on the beat's first frame instead of standing over the arriving body.
+        let gather = if matches!(self.at, 2 | 3) { "gather" } else { "gather-sent" };
         let label = |t: &str| text_lh(t.to_owned(), SIZE, LINE, Paint::TEXT).font(Font::Mono).width(96.0);
         let line = |name: &str, c: El<Msg>| row().key(k(&format!("row-{name}"))).fill_width().align(taffy::AlignItems::CENTER).child(label(name)).child(c);
         let names: Vec<&str> = SPEC_MATERIALS.iter().map(|m| m.0).collect();
@@ -1151,7 +1163,7 @@ impl Body {
         let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0).border(1.0, Paint::FAINT)
             .material(SPEC_MATERIALS[sp.material].1.id()).loosen(if sp.loosen { SPEC_LOOSE } else { 0.0 })
             .child(rows)
-            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k("gather"), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).legible(true)));
+            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).legible(true)));
         // Held loose, the card's shapes (its frame, the switch, the track and thumb) take the whole
         // looseness and its text stays text to read, under the framework's legibility cap: the shapes are
         // marked as decoration, every text as legible. The segmented control and the button stay
@@ -1366,7 +1378,8 @@ impl Experiment for Body {
         }
     }
     fn step(&mut self, now: f32) -> bool {
-        let dt = (now - self.t).clamp(0.0, 0.05);
+        // The clock's time, however late the frame (a host that slept for over a second is let off).
+        let dt = (now - self.t).clamp(0.0, 1.0);
         // The first flight's frames in the walk (from the card's morph until it lands).
         if self.walk.is_some() && matches!(self.at, 2 | 3) && now < self.lands && self.was == 1 { self.flight = (self.flight.0 + 1, self.flight.1 + (now - self.t).max(0.0)); }
         self.t = now;
@@ -1380,10 +1393,17 @@ impl Experiment for Body {
             changed = true;
         }
         // The walk's steps, and steps at a time of their own, as their times come.
+        // The beats keep the clock's time: a late frame takes every beat that is due, and a beat that
+        // only shows something on the way (a focus, a material's press) is dropped when its frame comes
+        // more than 120 ms after it.
         if let Some((t0, steps)) = &mut self.walk {
             let t0 = *t0;
-            let due: Vec<Step> = { let n = steps.iter().take_while(|s| now >= t0 + s.0).count(); steps.drain(..n).map(|s| s.1).collect() };
-            for st in due { self.do_step(st, now); changed = true; }
+            let due: Vec<(f32, Step)> = { let n = steps.iter().take_while(|s| now >= t0 + s.0).count(); steps.drain(..n).collect() };
+            for (at, st) in due {
+                if now - (t0 + at) > LATE && st.on_the_way() { continue; }
+                self.do_step(st, now);
+                changed = true;
+            }
         }
         if !self.later.is_empty() {
             let (due, rest): (Vec<_>, Vec<_>) = self.later.drain(..).partition(|s| now >= s.0);

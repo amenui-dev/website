@@ -121,7 +121,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
         g
     };
     let mut motion = index::grid("labx/motion", room, 240.0);
-    for (k, p) in groups[2].1.iter().enumerate() { motion = motion.child(index::card(&format!("labx/{}", p.hash()), k + 1, p.name(), String::new(), None, *p)); }
+    for (k, p) in groups[2].1.iter().enumerate() { motion = motion.child(index::card(&format!("labx/motion/{}", p.hash()), k + 1, p.name(), String::new(), None, *p)); }
     let sec = |k: &str, n: usize, name: &str, body: El<Msg>| col().key(format!("labx/{k}")).fill_width().min_width(0.0).gap(16.0).child(index::header(&format!("labx/{k}/head"), n, name)).child(body);
     col().key("lab").fill_width().min_width(0.0).gap(28.0)
         .child(text(tr("nav.lab"), 34.0, Paint::INK).font(Font::Display).heading(1).key("labx/title").flow("page-title"))

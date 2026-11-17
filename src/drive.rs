@@ -62,3 +62,29 @@ pub fn render(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) ->
 pub fn audit(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) -> Result<(Rendered, Vec<amenui::audit::Finding>), DriveError> {
     amenui::drive::audit_with(spec, faces, o, &open_in)
 }
+/// `render` with the clock stepped at `fps` frames a second and every frame drawn, as a slow machine
+/// draws them (the `render` tool's `--fps`): what is on the screen at `at_ms` shows whether motion keeps
+/// the clock's time. The PNG is the last frame drawn.
+pub fn render_paced(spec: &RenderSpec, faces: Vec<Face>, fps: f32) -> Result<Rendered, DriveError> {
+    let locale = spec.locale.as_deref().and_then(Locale::from_tag);
+    let mut d = open_in(&spec.page, faces, (spec.w, spec.h, spec.scale.max(0.25)), (None, None, locale))?;
+    let mut o = Offscreen::try_new(spec.w, spec.h)?;
+    let mut order: Vec<&amenui::drive::Event> = spec.events.iter().collect();
+    order.sort_by(|a, b| a.at_ms.total_cmp(&b.at_ms));
+    let (end, step) = (spec.at_ms.max(0.0) / 1000.0, 1.0 / fps.max(0.1));
+    let (mut next, mut k, mut px) = (0, 0u32, vec![]);
+    loop {
+        let t = (k as f32 * step).min(end);
+        while next < order.len() && order[next].at_ms / 1000.0 <= t + 1e-6 {
+            d.tick(t);
+            d.apply(&order[next].input).map_err(|e| DriveError::AtEvent { index: next, inner: Box::new(e) })?;
+            next += 1;
+        }
+        d.tick(t);
+        // A frame is drawn only when one is needed, as the web host does.
+        if k == 0 || d.needs_frame(t) { let look = d.look(); px = d.draw(&mut o, &look); d.frame_drawn(); }
+        if t >= end { break; }
+        k += 1;
+    }
+    Ok(Rendered { png: amenui::offscreen::png_bytes(spec.w, spec.h, &px), tree: d.tree(), problems: d.problems() })
+}

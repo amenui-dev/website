@@ -174,8 +174,6 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
 .fail a { color: var(--second); text-decoration: underline dotted; }
-.nf { position: fixed; left: var(--m); top: 120px; font-family: var(--mono); }
-.nf h1 { margin-bottom: 22px; }
 </style>
 </head>
 <body>
@@ -216,7 +214,7 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   <div class="actions"><a class="btn primary" href="{{href_start}}" data-route="docs/start/installation/">{{t_start}}&nbsp;→</a><a class="btn" href="{{href_components}}" data-route="components/">{{t_components}}</a></div>
   <div class="install"><code data-copy="cargo add amenui --git https://github.com/amenui-dev/amenui">cargo add amenui --git<span class="cont"> \</span><span class="url"> https://github.com/amenui-dev/amenui</span></code><button type="button" class="copy">{{t_copy}}</button></div>
 </section>
-{{notfound}}<div class="hstage" id="hstage" role="region" aria-label="amenui demonstration"></div>
+<div class="hstage" id="hstage" role="region" aria-label="amenui demonstration"></div>
 <pre class="listing" aria-hidden="true"></pre>
 <template id="source">{{listing}}</template>
 <nav class="rail" aria-label="Demonstration">

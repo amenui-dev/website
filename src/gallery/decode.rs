@@ -70,7 +70,9 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let card = col().key("decode/card").width(CARD.0).height(CARD.1).pad(16.0, 14.0).gap(8.0).radius(6.0).fill(Paint::tone(0.12)).border(1.0, Paint::FAINT)
         .child(text("DECODE", 14.0, Paint::INK).font(Font::Mono))
         .child(text("Blocks over the true outline resolve 32 → 16 → 8 → 4, then the content.", 11.0, Paint::DIM).font(Font::Mono))
-        .decode(Decode { hold: Some(d.u), ..d.spec.clone() });
+        // Held at the timeline's own clock, with the spec scaled to 10 ms: when the page is left the card
+        // is gone at once, not decoded backwards over the next page.
+        .decode(Decode { hold: Some(d.u), duration_ms: 10.0, stagger_ms: d.spec.stagger_ms * 10.0 / d.spec.duration_ms.max(1.0), ..d.spec.clone() });
     // Exploded: one plane per tier, apart in depth (an oblique view: each plane squashed to 0.42 of its
     // height and sheared, the planes stepping down and right), the blocks showing at this progress on
     // each, and the content at the bottom; a leader from each plane's right edge to its label.
