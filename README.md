@@ -23,7 +23,8 @@ Chinese).
 | `assets/i18n/` | The site's own strings. amenui's component strings live in the framework; `i18n::install` merges both. |
 | `docs/site/` | The documentation pages shown on the site, one folder per language. |
 | `web/` | The web shell (`page.html`, `embed.js`) and the packaging script (`build.py`). |
-| `src/bin/` | The native window, sample sheets, GPU acceptance checks and timing tools. |
+| `src/lib.rs` | The site as an application: its `amenui::app::App` hooks, `make` and `setup`, and the web exports (`amenui::web_app!`). |
+| `src/bin/` | The native window (`amenui::app::native::run`), sample sheets, GPU acceptance checks and timing tools. |
 | `tests/` | Tests for the site's pages. |
 
 ## Quick start

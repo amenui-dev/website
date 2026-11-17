@@ -46,9 +46,11 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "amenui"
 version = "0.0.1"
-source = "git+https://github.com/amenui-dev/amenui?branch=main#978db29e76fec26f6709edd237b27006678564e5"
+source = "git+https://github.com/amenui-dev/amenui?branch=main#31e5e512fac1110a325a4274270f9b93a53e1a4f"
 dependencies = [
+ "arboard",
  "bytemuck",
+ "console_error_panic_hook",
  "hyphenation",
  "intl_pluralrules",
  "parley",
@@ -61,8 +63,11 @@ dependencies = [
  "thiserror 2.0.21",
  "unic-langid",
  "unicode-segmentation",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+ "winit",
 ]
 
 [[package]]
@@ -70,17 +75,12 @@ name = "amenui-website"
 version = "0.0.1"
 dependencies = [
  "amenui",
- "arboard",
- "console_error_panic_hook",
  "png",
  "pollster",
  "serde_json",
  "taffy",
  "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
  "wgpu",
- "winit",
 ]
 
 [[package]]
