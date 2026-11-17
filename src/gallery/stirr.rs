@@ -1,36 +1,39 @@
 //! The field map's page (DESIGN.md §1.29): a place with decoration, a picture and a paragraph, a
 //! floating window over it whose trail loosens what it passes, the formula and the map's twelve numbers
-//! under it, and a button that stirs the place with `Cmd::Stir`.
+//! under it, a button that stirs the place with `Cmd::Stir`, and one that draws a long dashed line
+//! across it (`El::trace`, DESIGN.md §1.30) whose head stirs the map as it goes.
 use super::pages::ratio;
 use super::{Gallery, IMAGE_SLOT, Msg};
 use crate::demo::SKY;
 use crate::el::{El, Font, Paint, Response, Scope, col, layers, picture, row, space, text};
 use crate::fieldmap::MAP_PARAMS;
 use crate::morph::{Cmd, StirAt};
+use crate::strand::Trace;
 use crate::widgets::{CaptionParam, Edit, FloatMsg, Floating, Spec, Variant, button_as, floating};
 
 /// The place under the window (logical px).
 pub const AREA: (f32, f32) = (760.0, 420.0);
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct StirrPage { pub float: Floating, pub draft: Option<(usize, String)> }
+pub struct StirrPage { pub float: Floating, pub draft: Option<(usize, String)>, pub drawn: Option<f32> }
 impl Default for StirrPage {
     fn default() -> Self {
         let mut float = Floating::default();
         (float.size, float.area) = ((180.0, 108.0), AREA);
         float.place(0);
-        Self { float, draft: None }
+        Self { float, draft: None, drawn: None }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SMsg { Float(FloatMsg), Stir, Num(usize, Edit) }
+pub enum SMsg { Float(FloatMsg), Stir, Draw, Num(usize, Edit) }
 
 pub fn update(s: &mut Gallery, m: SMsg) {
     let now = s.clock;
     match m {
         SMsg::Float(f) => s.stirr.float.update(f, now),
         SMsg::Stir => s.cmds.push(Cmd::Stir { at: StirAt::Key("stirr/place".into()), v: [1.0, 0.35], energy: 1.0, radius: 220.0, scope: Scope::Container(Some("stirr/place".into())) }),
+        SMsg::Draw => s.stirr.drawn = Some(now),
         SMsg::Num(i, e) => match e {
             Edit::Draft(t) => s.stirr.draft = Some((i, t)),
             Edit::Cancel => s.stirr.draft = None,
@@ -38,9 +41,20 @@ pub fn update(s: &mut Gallery, m: SMsg) {
         },
     }
 }
-/// The window's spring, while it glides to a corner.
-pub fn tick(s: &mut Gallery, t: f32) -> bool { s.stirr.float.step(t) }
-pub fn wake(s: &Gallery, t: f32) -> Option<f32> { s.stirr.float.moving().then_some(t) }
+/// How long the long path takes to draw on (s).
+pub const DRAW_S: f32 = 2.4;
+/// The window's spring, while it glides to a corner, and the long path while it draws on.
+pub fn tick(s: &mut Gallery, t: f32) -> bool { s.stirr.float.step(t) | drawing(s, t) }
+pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.stirr.float.moving() || drawing(s, t)).then_some(t) }
+fn drawing(s: &Gallery, t: f32) -> bool { s.stirr.drawn.is_some_and(|d| t - d < DRAW_S + 0.05) }
+/// The long path across the place: a line that loops as it goes (logical px, from the place's corner).
+fn path() -> Vec<[f32; 2]> {
+    (0..=480).map(|i| {
+        let u = i as f32 / 480.0;
+        let a = u * std::f32::consts::TAU * 7.0;
+        [60.0 + 640.0 * u + 34.0 * a.sin(), 230.0 + 110.0 * (u * std::f32::consts::TAU).sin() * (1.0 - 0.4 * u) - 34.0 * a.cos()]
+    }).collect()
+}
 
 pub fn page(s: &Gallery) -> El<Msg> {
     let p = &s.stirr;
@@ -59,7 +73,9 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let label = col().pad(12.0, 10.0).gap(6.0).key("stirr/window")
         .child(text("DRAG ME", 12.0, Paint::INK).font(Font::Mono).key("stirr/window/title"))
         .child(text("Throw it to a corner.", 11.0, Paint::DIM).key("stirr/window/hint"));
-    let stage = layers([place, floating("stirr/float", &p.float, label, |m| Msg::Stirr(SMsg::Float(m)))])
+    let progress = p.drawn.map_or(0.0, |d| ((s.clock - d) / DRAW_S).clamp(0.0, 1.0));
+    let trace = space(AREA.0, AREA.1).key("stirr/trace").trace(Trace { points: std::rc::Rc::new(path()), progress, weight: 1.5, dash: 6.0, gap: 4.0, pull: 1.0, stir: 1.0, paint: Paint::INK });
+    let stage = layers([place, trace, floating("stirr/float", &p.float, label, |m| Msg::Stirr(SMsg::Float(m)))])
         .key("stirr/stage").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, Paint::FAINT).clip();
     let params: Vec<CaptionParam> = MAP_PARAMS.iter().enumerate().map(|(i, &(n, min, max, step, decimals, unit))| {
         CaptionParam::new(n, fx.get(i), Spec { min, max, step, decimals, unit }).draft(p.draft.as_ref().filter(|x| x.0 == i).map(|x| x.1.as_str()))
@@ -70,5 +86,6 @@ pub fn page(s: &Gallery) -> El<Msg> {
     col().key("stirr").gap(18.0).fill_width().min_width(0.0)
         .child(text("Field map", 30.0, Paint::INK).font(Font::Display).heading(1).key("stirr/heading"))
         .child(stage.caption_params("stirr/cap", formula, &params, |i, e| Msg::Stirr(SMsg::Num(i, e))))
-        .child(row().gap(12.0).child(button_as("stirr/stir", "Stir", Variant::Default, Msg::Stirr(SMsg::Stir))))
+        .child(row().gap(12.0).child(button_as("stirr/stir", "Stir", Variant::Default, Msg::Stirr(SMsg::Stir)))
+            .child(button_as("stirr/draw", "Draw a line", Variant::Default, Msg::Stirr(SMsg::Draw))))
 }

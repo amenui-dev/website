@@ -1,3 +1,5 @@
 # 材质与松开
 
-材质是第二遍的画法：plain、dot、halftone、ascii、print、lino、glitch、near。静止时它们和 plain 一样（除了自己有静止样子的几种）；松开时各有各的样子。`El::material(id)` 给一棵子树另一种材质。快速滚动时每种材质留下自己的痕迹（见 DESIGN §1.8.3）。
+材质是第二遍的画法：plain、dot、halftone、ascii、print、lino、glitch、near、scribblr。静止时它们和 plain 一样（除了自己有静止样子的几种）；松开时各有各的样子。`El::material(id)` 给一棵子树另一种材质。快速滚动时每种材质留下自己的痕迹（见 DESIGN §1.8.3）。
+
+`scribblr` 静止时没有任何不同：它的第二遍就是 plain 的画面。松开时元素的填充淡出，墨变成一根等粗的线（`src/strand.rs`），作为形状画在第一遍里：先贴着字的真实轮廓，再用直的桥连成一笔，再松就游走、在场图有能量的地方打结、顺着流向甩出线头；收回时结先散、填充回来。要读的字只在轮廓上多一根线。`Look::hold_ms` 让线的姿势保持一拍（83 ms 是每秒 12 格）。`El::trace(Trace)` 在任何材质下按进度画一条长路径，实线或虚线，被场图的流向推歪，头经过处搅动场图。

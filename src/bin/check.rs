@@ -58,7 +58,12 @@
 //!     equals drawn whole; near.b read back at a decoration's centre decodes to `Ui::looseness` within
 //!     2/255; light theme, a trail over a fully loosened picture shows no page-ground pixel in it.
 //!
-//! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
+//! 20. scribblr (§1.30): at looseness 0 the frame is plain's byte for byte (control: at 1 it is not);
+//!     a fully loosened picture shows no page ground; the line's ink across 20 isolated pieces is
+//!     `weight × scale` wide within half a pixel; from 1 back to 0 the thread never gets farther from
+//!     the outline at rest; with threads, drawn in part equals drawn whole.
+//!
+//! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap | scribblr]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
 use lab::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use lab::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use lab::morph::MorphSpec;
@@ -105,6 +110,11 @@ fn main() {
     }
     if std::env::args().nth(1).is_some_and(|a| a == "looks") {
         let f = looks(&fonts);
+        if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
+        return eprintln!("all checks passed");
+    }
+    if std::env::args().nth(1).is_some_and(|a| a == "scribblr") {
+        let f = scribblr(&fonts);
         if f > 0 { eprintln!("{f} checks failed"); std::process::exit(1); }
         return eprintln!("all checks passed");
     }
@@ -325,7 +335,7 @@ fn main() {
     // ── 5. Every material is restrained at rest ─────────────────────────────────────────────────────
     let before = failed;
     for theme in [DARK, LIGHT] {
-        let mut ui = Ui::new(Rest { loose: 0.0 }, rest, |_, _| {}, fonts(), W, H, 1.0);
+        let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Plain }, rest, |_, _| {}, fonts(), W, H, 1.0).on_look(|s| Look { material: s.mat, ..Look::default() });
         ui.pointer_leave();
         ui.tick(100.0);
         let r = ui.node("body").expect("body").rect;
@@ -334,6 +344,7 @@ fn main() {
             let mat = Material::from_id(m);
             if matches!(mat, Material::Near | Material::Plain) { continue; }
             let look = Look { theme, material: mat, ..Look::default() };
+            ui.state.mat = mat; ui.relayout(); ui.tick(100.0);
             let img = o.render(&mut ui, &look);
             // The dot material's ground has its units at rest (§1.6): there only the glyphs' own
             // pixels are compared.
@@ -478,7 +489,7 @@ fn main() {
 
     // ── 12. The material at half resolution leaves rest pixels exact ────────────────────────────────
     let before = failed;
-    let mut ui = Ui::new(Rest { loose: 0.0 }, rest, |_, _| {}, fonts(), W, H, 1.0);
+    let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Dot }, rest, |_, _| {}, fonts(), W, H, 1.0);
     ui.pointer_leave();
     ui.tick(100.0);
     let r = ui.node("body").expect("body").rect;
@@ -517,6 +528,7 @@ fn main() {
     failed += scroll(&fonts);
     failed += looks(&fonts);
     failed += fieldmap(&fonts);
+    failed += scribblr(&fonts);
 
     if failed > 0 { eprintln!("{failed} checks failed"); std::process::exit(1); }
     eprintln!("all checks passed");
@@ -604,7 +616,9 @@ fn diff(a: &[u8], b: &[u8], r: lab::ui::Rect) -> i32 {
 }
 
 /// Body text on the ground, with a heading, a picture and a control around it.
-struct Rest { loose: f32 }
+/// `mat`: the material the runtime is told (scribblr's thread is worked out on the CPU, so the runtime
+/// has to know it; the others are the renderer's alone).
+struct Rest { loose: f32, mat: Material }
 fn rest(s: &Rest) -> El<()> {
     let (w, h) = PICTURE_SIZES[SKY as usize];
     col().pad(30.0, 20.0).gap(20.0).loosen(s.loose)
@@ -1226,43 +1240,9 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     }
     eprintln!("19.1–2 all zero is the frame without the map ({same} frames); a stir shows ({stirred})");
     // 3: the window on the field map's page, dragged, thrown and settling; drawn in part = drawn whole.
-    let (mut frames, mut bad_runs) = (0, 0);
-    for mi in 0..lab::style::MATERIALS.len() {
-        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
-        gallery::update(&mut ui.state, Msg::Go(Page::Stirr));
-        gallery::update(&mut ui.state, Msg::Material(mi));
-        ui.relayout();
-        ui.pointer_leave();
-        let Some(f) = ui.node("stirr/float") else { eprintln!("FAIL no window on the field map's page"); failed += 1; break };
-        let (x, y) = f.rect.center();
-        let mut t = 3.0;
-        ui.tick(t);
-        let look = ui.state.look();
-        let mut bad = 0;
-        for step in 0..90 {
-            t += 1.0 / 60.0;
-            match step {
-                4 => ui.pointer_move(x, y),
-                6 => ui.press(x, y),
-                7..=20 => ui.pointer_move(x + 24.0 * (step - 6) as f32, y + 9.0 * (step - 6) as f32),
-                21 => ui.release(x + 340.0, y + 130.0),
-                _ => {}
-            }
-            ui.tick(t);
-            let a = o.render(&mut ui, &look);
-            o.r.partial = false;
-            ui.invalidate();
-            let b = o.render(&mut ui, &look);
-            o.r.partial = true;
-            frames += 1;
-            if a != b {
-                let n = a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p != q).count();
-                if bad == 0 { eprintln!("FAIL field map page, material {mi}, frame {step}: {n} pixels differ from the whole redraw"); }
-                bad += 1;
-            }
-        }
-        if bad > 0 { bad_runs += 1; failed += 1; }
-    }
+    let mats: Vec<usize> = (0..lab::style::MATERIALS.len()).collect();
+    let (frames, bad_runs) = trail_in_part(fonts, &mut o, &mats);
+    failed += bad_runs;
     eprintln!("19.3 the trail drawn in part: {frames} frames, {bad_runs} materials failing");
     // 4: near.b at a decoration's centre is Ui::looseness.
     let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
@@ -1317,6 +1297,195 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     eprintln!("19. field map: {failed} failing");
     failed
 }
+/// The floating window on the field map's page dragged, thrown and settling, 90 frames under each
+/// material: each frame drawn in part against the same frame drawn whole. (Frames, materials failing.)
+fn trail_in_part(fonts: &dyn Fn() -> Vec<lab::text::Face>, o: &mut Offscreen, mats: &[usize]) -> (usize, usize) {
+    use lab::gallery::{self, Msg, Page};
+    let (w, h) = (o.w, o.h);
+    let (mut frames, mut bad_runs) = (0, 0);
+    for &mi in mats {
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        gallery::update(&mut ui.state, Msg::Go(Page::Stirr));
+        gallery::update(&mut ui.state, Msg::Material(mi));
+        ui.relayout();
+        ui.pointer_leave();
+        let Some(f) = ui.node("stirr/float") else { eprintln!("FAIL no window on the field map's page"); return (frames, bad_runs + 1) };
+        let (x, y) = f.rect.center();
+        let mut t = 3.0;
+        ui.tick(t);
+        let look = ui.state.look();
+        let mut bad = 0;
+        for step in 0..90 {
+            t += 1.0 / 60.0;
+            match step {
+                4 => ui.pointer_move(x, y),
+                6 => ui.press(x, y),
+                7..=20 => ui.pointer_move(x + 24.0 * (step - 6) as f32, y + 9.0 * (step - 6) as f32),
+                21 => ui.release(x + 340.0, y + 130.0),
+                _ => {}
+            }
+            ui.tick(t);
+            let a = o.render(&mut ui, &look);
+            o.r.partial = false;
+            ui.invalidate();
+            let b = o.render(&mut ui, &look);
+            o.r.partial = true;
+            frames += 1;
+            if a != b {
+                let n = a.chunks(4).zip(b.chunks(4)).filter(|(p, q)| p != q).count();
+                if bad == 0 { eprintln!("FAIL field map page, material {mi}, frame {step}: {n} pixels differ from the whole redraw"); }
+                bad += 1;
+            }
+        }
+        if bad > 0 { bad_runs += 1; }
+    }
+    (frames, bad_runs)
+}
+
+// ── 20. scribblr ────────────────────────────────────────────────────────────────────────────────
+struct Scr { k: f32, weight: f32, light: bool, mat: Material }
+fn scr_page(s: &Scr) -> El<()> {
+    col().pad(40.0, 40.0).gap(24.0)
+        .child(lab::el::text("Thread", 120.0, Paint::INK).font(Font::Display).key("title").legible(false).loose(s.k))
+        .child(lab::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
+        .child(lab::el::text("Written out and back", 56.0, Paint::INK).key("second").legible(false).loose(s.k))
+}
+fn scr_look(s: &Scr) -> Look {
+    let mut l = Look { theme: if s.light { LIGHT } else { DARK }, material: s.mat, ..Look::default() };
+    l.params[Material::Scribblr as usize].0[0] = s.weight;
+    l
+}
+fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+    let mut failed = 0;
+    let (w, h) = (W, H);
+    let mut o = Offscreen::new(w, h);
+    // 1. At looseness 0 the frame is plain's, byte for byte; at 1 it is not.
+    for light in [false, true] {
+        let mut ui = Ui::new(Scr { k: 0.0, weight: 1.0, light, mat: Material::Plain }, scr_page, |_, _| {}, fonts(), w, h, 1.0).on_look(scr_look);
+        ui.pointer_leave();
+        ui.tick(10.0);
+        let plain = { let l = ui.look(); o.render(&mut ui, &l) };
+        ui.state.mat = Material::Scribblr;
+        ui.tick(10.0);
+        let scr = { let l = ui.look(); o.render(&mut ui, &l) };
+        if plain != scr { eprintln!("FAIL scribblr at rest differs from plain (light {light}): {} px", plain.chunks(4).zip(scr.chunks(4)).filter(|(a, b)| a != b).count()); failed += 1; }
+        ui.state.k = 1.0;
+        ui.relayout();
+        ui.tick(10.0);
+        if { let l = ui.look(); o.render(&mut ui, &l) } == plain { eprintln!("FAIL control: scribblr at looseness 1 is plain's frame"); failed += 1; }
+    }
+    eprintln!("20.1 scribblr at rest is plain: {failed} failing");
+    // 2. Light theme, a fully loosened picture: no page ground in it.
+    let before = failed;
+    let ground = rgb8(LIGHT.ground);
+    let mut ui = Ui::new(One { id: BUST, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
+    ui.pointer_leave();
+    ui.tick(100.0);
+    let (x0, y0, x1, y1) = device_rect(ui.node("pic").expect("pic").rect, 1.0);
+    let (x1, y1) = (x1.min(W), y1.min(H));
+    let img = o.render(&mut ui, &Look { theme: LIGHT, material: Material::Scribblr, ..Look::default() });
+    let n = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| close(px(&img, W, x, y), ground)).count();
+    if n > 0 { eprintln!("FAIL ground shows in a loosened picture under scribblr: {n} px"); failed += 1; }
+    eprintln!("20.2 a loosened picture under scribblr: {} failing", failed - before);
+    // 3. The line is one width: at 20 isolated places, its ink integrated along the normal is
+    //    weight × scale within half a pixel.
+    let before = failed;
+    for (weight, scale) in [(1.0f32, 1.0f32), (2.0, 1.0), (1.5, 2.0)] {
+        let (dw, dh) = ((w as f32 * scale) as u32, (h as f32 * scale) as u32);
+        let mut o2 = Offscreen::new(dw, dh);
+        let mut ui = Ui::new(Scr { k: 1.0, weight, light: false, mat: Material::Scribblr }, scr_page, |_, _| {}, fonts(), dw, dh, scale).on_look(scr_look);
+        ui.pointer_leave();
+        ui.tick(10.0);
+        let img = { let l = ui.look(); o2.render(&mut ui, &l) };
+        let g = rgb8(DARK.ground);
+        let ink = rgb8(DARK.ink);
+        let cov = |x: f32, y: f32| -> f32 {
+            let (xi, yi) = (x.floor(), y.floor());
+            let (fx, fy) = (x - xi, y - yi);
+            let at = |i: f32, j: f32| -> f32 {
+                if i < 0.0 || j < 0.0 || i >= dw as f32 || j >= dh as f32 { return 0.0; }
+                let p = px(&img, dw, i as u32, j as u32);
+                ((p[1] as f32 - g[1] as f32) / (ink[1] as f32 - g[1] as f32)).clamp(0.0, 1.0)
+            };
+            // Pixel centres at +0.5.
+            let (x, y, fx, fy) = (xi - 0.5 + if fx >= 0.5 { 1.0 } else { 0.0 }, yi - 0.5 + if fy >= 0.5 { 1.0 } else { 0.0 }, (fx + 0.5).fract(), (fy + 0.5).fract());
+            let (x, y) = (x.floor(), y.floor());
+            let a = at(x, y) * (1.0 - fx) + at(x + 1.0, y) * fx;
+            let b = at(x, y + 1.0) * (1.0 - fx) + at(x + 1.0, y + 1.0) * fx;
+            a * (1.0 - fy) + b * fy
+        };
+        let segs: Vec<lab::strand::Seg> = ui.strands().iter().flat_map(|s| s.2.iter().copied()).collect();
+        let want = weight * scale;
+        let mut measured = 0;
+        let mut worst = 0.0f32;
+        for (si, sg) in segs.iter().enumerate() {
+            if measured >= 20 { break; }
+            let (dx, dy) = (sg.b[0] - sg.a[0], sg.b[1] - sg.a[1]);
+            let len = (dx * dx + dy * dy).sqrt();
+            if len < 6.0 * scale { continue; }
+            // A few places along a long piece (each away from its ends, where the next piece joins).
+            for at in [0.3f32, 0.5, 0.7] {
+                if measured >= 20 { break; }
+                let m = [sg.a[0] + (sg.b[0] - sg.a[0]) * at, sg.a[1] + (sg.b[1] - sg.a[1]) * at];
+                // Away from every other piece (but its neighbours), and from the glyphs' faded fill (none at 1).
+                let clear = segs.iter().enumerate().all(|(j, o)| {
+                    if j + 1 >= si && j <= si + 1 { return true; }
+                    let (ex, ey) = (o.b[0] - o.a[0], o.b[1] - o.a[1]);
+                    let l2 = (ex * ex + ey * ey).max(1e-6);
+                    let t = (((m[0] - o.a[0]) * ex + (m[1] - o.a[1]) * ey) / l2).clamp(0.0, 1.0);
+                    let (qx, qy) = (o.a[0] + ex * t - m[0], o.a[1] + ey * t - m[1]);
+                    (qx * qx + qy * qy).sqrt() > 3.0 * want + 4.0
+                });
+                if !clear || m[0] < 10.0 || m[1] < 10.0 || m[0] > dw as f32 - 10.0 || m[1] > dh as f32 - 10.0 { continue; }
+                let (nx, ny) = (-dy / len, dx / len);
+                let step = 0.125;
+                let reach = 2.0 * want + 3.0;
+                let mut sum = 0.0;
+                let mut d = -reach;
+                while d <= reach { sum += cov(m[0] + nx * d, m[1] + ny * d) * step; d += step; }
+                worst = worst.max((sum - want).abs());
+                measured += 1;
+            }
+        }
+        if measured < 20 { eprintln!("FAIL only {measured} isolated places to measure (weight {weight}, scale {scale})"); failed += 1; }
+        if worst > 0.5 { eprintln!("FAIL the line's width is off by {worst:.2} px (weight {weight}, scale {scale})"); failed += 1; }
+        eprintln!("20.3 weight {weight} at {scale}×: {measured} places, worst {worst:.2} px off");
+    }
+    eprintln!("20.3 one width: {} failing", failed - before);
+    // 4. From 1 back to 0 over 30 frames, the thread's ink (its bridges and tail only while they show)
+    //    never gets farther from the outline at rest.
+    let before = failed;
+    let mut ui = Ui::new(Scr { k: 0.001, weight: 1.0, light: false, mat: Material::Scribblr }, scr_page, |_, _| {}, fonts(), w, h, 1.0).on_look(scr_look);
+    ui.pointer_leave();
+    ui.tick(10.0);
+    // The outline at rest: the thread's pieces along the outlines at 0.001 (not its bridges).
+    let rest: Vec<lab::strand::Seg> = ui.strands().iter().find(|s| s.0 == "title").map(|s| s.2.iter().filter(|g| g.kind == lab::strand::Kind::Line).copied().collect()).unwrap_or_default();
+    let off = |p: [f32; 2]| rest.iter().map(|g| {
+        let (ex, ey) = (g.b[0] - g.a[0], g.b[1] - g.a[1]);
+        let t = (((p[0] - g.a[0]) * ex + (p[1] - g.a[1]) * ey) / (ex * ex + ey * ey).max(1e-9)).clamp(0.0, 1.0);
+        (g.a[0] + ex * t - p[0]).powi(2) + (g.a[1] + ey * t - p[1]).powi(2)
+    }).fold(f32::INFINITY, f32::min).sqrt();
+    let mut last = f32::INFINITY;
+    for f in 0..=30 {
+        ui.state.k = 1.0 - f as f32 / 30.0;
+        ui.relayout();
+        ui.tick(10.0);
+        let far = ui.strands().iter().filter(|s| s.0 == "title").flat_map(|s| s.2.iter().filter(|g| g.kind == lab::strand::Kind::Line || lab::strand::opacity(s.1).1 > 0.0).flat_map(|g| [g.a, g.b])).map(off).fold(0.0, f32::max);
+        if far > last + 1e-3 { eprintln!("FAIL frame {f}: the thread went out to {far:.2} px from {last:.2}"); failed += 1; }
+        last = far;
+    }
+    if rest.is_empty() { eprintln!("FAIL no thread at looseness 0.001"); failed += 1; }
+    if last > 0.0 { eprintln!("FAIL at 0 the thread is still {last} px out"); failed += 1; }
+    eprintln!("20.4 written back: {} failing", failed - before);
+    // 5. Drawn in part = drawn whole with the threads, under scribblr.
+    let mut o3 = Offscreen::new(900, 640);
+    let (frames, bad) = trail_in_part(fonts, &mut o3, &[Material::Scribblr as usize]);
+    failed += bad;
+    eprintln!("20.5 threads drawn in part: {frames} frames, {bad} failing");
+    eprintln!("20. scribblr: {failed} failing");
+    failed
+}
+
 fn o_small<S, M: Clone>(ui: &mut Ui<S, M>, look: &Look) -> Vec<u8> {
     thread_local! { static O: std::cell::RefCell<Option<Offscreen>> = const { std::cell::RefCell::new(None) }; }
     O.with(|o| o.borrow_mut().get_or_insert_with(|| Offscreen::new(W, H)).render(ui, look))

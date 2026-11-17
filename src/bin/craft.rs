@@ -1,7 +1,7 @@
 //! Filmstrips of the interaction previews (DESIGN.md §1.8.4, §5.2), drawn off-screen with a fixed 60 Hz
 //! clock and scripted pointer input, one sheet per study: `sheet` (bottom sheet: present, a slow drag that
 //! returns, a pull past the top, a flick that dismisses), `floating` (a slow drag back, a flick to the far
-//! corner), `stirr` (the field map's trail, four materials), and the later studies as they are added.
+//! corner), `stirr` (the field map's trail, four materials), `scribblr` (a title written out and back), and the later studies as they are added.
 //!
 //! usage: craft <out_dir> [<study> …]   (every study when none is named); plain unless LAB_MATERIAL names another (dot, ascii…)
 use lab::gallery::{self, GalleryUi, Msg, Page};
@@ -201,11 +201,51 @@ fn study_stirr(out: &str) {
     }
 }
 
+/// scribblr (DESIGN.md §1.30): a title and a line of body text written out and back, from looseness 1
+/// to 0 in eight frames, on the dark and the light theme. Each frame stirs the field map through the
+/// title by as much as it is loose, so the knots (where the map has energy) and the tail (along its
+/// flow) show; the body text stays within the legibility cap.
+fn study_scribblr(out: &str) {
+    use lab::el::{Paint, col, text};
+    use lab::morph::{Cmd, StirAt};
+    use lab::style::{DARK, LIGHT, Look, Material};
+    struct St { k: f32, light: bool, cmds: Vec<Cmd> }
+    fn page(st: &St) -> lab::el::El<()> {
+        col().key("page").pad(40.0, 36.0).gap(18.0)
+            .child(text("Loose thread", 64.0, Paint::INK).font(lab::el::Font::Display).key("title").loose(st.k).respond(lab::el::Response::Loosen))
+            .child(text("One line writes the ink out and back.", 18.0, Paint::TEXT).key("body").loose(st.k.min(0.15)))
+    }
+    for (name, light) in [("dark", false), ("light", true)] {
+        let mut ui = lab::ui::Ui::new(St { k: 1.0, light, cmds: vec![] }, page, |_, _| {}, faces(), 760, 260, 1.0)
+            .on_look(|s| Look { theme: if s.light { LIGHT } else { DARK }, material: Material::Scribblr, ..Look::default() })
+            .on_commands(|s| std::mem::take(&mut s.cmds));
+        let mut o = Offscreen::new(760, 260);
+        ui.pointer_leave();
+        ui.tick(5.0);
+        let mut frames = vec![];
+        let mut t = 5.0;
+        for k in [1.0f32, 0.85, 0.7, 0.5, 0.35, 0.2, 0.1, 0.0] {
+            ui.state.k = k;
+            if k > 0.0 { ui.state.cmds.push(Cmd::Stir { at: StirAt::Key("title".into()), v: [1.0, -0.25], energy: k, radius: 200.0, scope: lab::el::Scope::Global }); }
+            ui.relayout();
+            // A fifth of a second at 60 Hz between frames, so the map steps as it would; the last frame
+            // after the map has settled (1.5 s), at rest.
+            for _ in 0..if k > 0.0 { 12 } else { 90 } { t += 1.0 / 60.0; ui.tick(t); }
+            let look = ui.look();
+            let px = o.render(&mut ui, &look);
+            frames.push((760, 260, px));
+        }
+        let (w, h, px) = sheet(&frames, 2);
+        save_png(&format!("{out}/scribblr-{name}.png"), w, h, &px);
+        eprintln!("scribblr-{name}: {} frames", frames.len());
+    }
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "out".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr"];
+    let all = ["sheet", "floating", "menu", "loading", "stack", "chart", "stirr", "scribblr"];
     let pick: Vec<&str> = if a.len() > 2 { a[2..].iter().map(String::as_str).collect() } else { all.to_vec() };
     for s in pick {
         match s {
@@ -216,6 +256,7 @@ fn main() {
             "stack" => study_stack(&out),
             "chart" => study_chart(&out),
             "stirr" => study_stirr(&out),
+            "scribblr" => study_scribblr(&out),
             o => eprintln!("no study {o} (studies: {all:?})"),
         }
     }

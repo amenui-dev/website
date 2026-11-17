@@ -14,9 +14,12 @@
 //!  6. the field map (DESIGN.md §1.29) at 1280 × 800: one step of 1/60 s with a trail being laid (the
 //!     stir, the step, the bytes), and the bytes' upload to a texture and its wait (budget 0.2 ms).
 //!
+//!  7. scribblr's threads (DESIGN.md §1.30): 200 glyphs fully loose, a frame's tick under scribblr against
+//!     the same tick under plain; the difference is working out the threads (outlines cached; budget 1 ms).
+//!
 //! Each line is the mean over the runs, ms. Numbers are only comparable on one machine.
 //!
-//! usage: bench [runs] [gpu | dirty | map]     (`gpu` runs only the particle rows, `dirty` only 5, `map` only 6)
+//! usage: bench [runs] [gpu | dirty | map | strand]     (`gpu` runs only the particle rows, `dirty` only 5, `map` only 6, `strand` only 7)
 use lab::el::{El, Paint, col, row, space, text, text_lh};
 use lab::gallery::{self, Msg, Page};
 use lab::ui::Ui;
@@ -91,6 +94,7 @@ fn main() {
     if std::env::args().nth(2).is_some_and(|a| a == "dirty") { dirty(); return; }
     if std::env::args().nth(2).is_some_and(|a| a == "lab") { lab(runs); return; }
     if std::env::args().nth(2).is_some_and(|a| a == "map") { fieldmap(runs); return; }
+    if std::env::args().nth(2).is_some_and(|a| a == "strand") { strands(runs); return; }
     let (w, h) = (1280u32, 800u32);
 
     // 1. Gallery button page: press the live button.
@@ -233,4 +237,24 @@ fn fieldmap(runs: usize) {
     });
     device.poll(wgpu::PollType::wait_indefinitely()).expect("poll");
     println!("field map upload        {up:8.3} ms   ({} KB a frame; step + upload {:.3} ms, budget 0.2)", bytes.len() / 1024, step + up);
+}
+
+/// 7. scribblr: 200 glyphs fully loose.
+fn strands(runs: usize) {
+    use lab::style::{Look, Material};
+    fn page(_: &u8) -> El<()> {
+        let words = "Loose thread writes the ink out and back again, one line through every glyph of the page; ";
+        col().pad(40.0, 40.0).child(text(words.repeat(3)[..200].to_owned(), 28.0, Paint::INK).max_width(1100.0).key("t").legible(false).loose(1.0))
+    }
+    let mut out = [0.0f64; 2];
+    let mut glyphs = 0;
+    for (k, m) in [Material::Plain, Material::Scribblr].into_iter().enumerate() {
+        let mut ui = Ui::new(m as u8, page, |_, _| {}, fonts(), 1280, 800, 1.0).on_look(|m| Look { material: Material::from_id(*m), ..Look::default() });
+        ui.tick(1.0);
+        ui.tick(1.02);
+        let mut t = 1.02;
+        out[k] = time(runs.max(30), |_| { t += 1.0 / 60.0; ui.tick(t); });
+        if k == 1 { glyphs = ui.strands().iter().map(|s| s.2.len()).sum(); }
+    }
+    println!("scribblr 200 glyphs     {:8.3} ms   (tick {:.3} ms under scribblr, {:.3} under plain; {glyphs} pieces; budget 1)", out[1] - out[0], out[1], out[0]);
 }
