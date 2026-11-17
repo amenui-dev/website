@@ -551,7 +551,7 @@ impl Gallery {
         match page {
             Some(p) => {
                 self.page = p; self.edit = None; self.enter(p);
-                if p == Page::Body && !state.is_empty() { self.body.open(state, false); }
+                if p == Page::Body && !state.is_empty() { self.body.open(state, 0); }
                 true
             }
             None => false,
@@ -912,7 +912,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             if k == amenui::el::Key::Char('/') && s.page != Page::Body { update(s, Msg::Search(true)); return true; }
             body::key(s, k) || scenes::key(s, k, shift)
         })
-        .on_input(scenes::heard)
+        .on_input(|g| scenes::heard(g) | body::heard(g))
         .on_key_up(scenes::key_up)
         .on_shortcut(|s, c| { if c == 'k' { update(s, Msg::Search(!s.search)); true } else { false } })
         .on_scrolled(docs::scrolled)

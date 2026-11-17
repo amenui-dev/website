@@ -188,7 +188,7 @@ fn the_body_and_its_readouts_stay_in_the_stage_at_every_size() {
 fn the_listing_is_whole_lines_of_14_px_cut_at_whole_words() {
     for h in [600u32, 784, 900] {
         let mut ui = body::ui(fonts(), 1146, h, 1.0);
-        ui.state.open("source", false);
+        ui.state.open("source", 0);
         ui.relayout();
         run(&mut ui, 0.3);
         let st = ui.state.stage();
@@ -221,16 +221,16 @@ fn the_listing_is_whole_lines_of_14_px_cut_at_whole_words() {
 #[test]
 fn the_address_opens_a_state_at_rest_and_the_short_path_gathers() {
     let mut b = Body::default();
-    b.open("body/cloud/08", false);
+    b.open("body/cloud/08", 0);
     assert_eq!((b.form, b.seed, b.target(), b.gather.value), (1, 8, 1.0, 1.0));
     assert_eq!(b.state(), "body/cloud/08");
-    b.open("source", false);
+    b.open("source", 0);
     assert!(b.flat() && b.state() == "source");
-    b.open("", false);
+    b.open("", 0);
     assert_eq!((b.form, b.seed, b.gather.value, b.state()), (0, body::DEFAULT_SEED, 1.0, String::new()));
     // No state: the listing first, then the short path to the body.
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", true);
+    ui.state.open("", 1);
     run(&mut ui, 0.4);
     assert!(ui.state.gather.value == 0.0, "the listing for the first half second");
     run(&mut ui, 1.2);
@@ -246,7 +246,7 @@ fn the_address_opens_a_state_at_rest_and_the_short_path_gathers() {
     // Reduced motion: an opacity change, out then in, and no flight.
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
     ui.state.reduced = true;
-    ui.state.open("", true);
+    ui.state.open("", 1);
     run(&mut ui, 0.05);
     assert!(ui.state.gather.value == 0.0 && ui.state.dim() < 1.0, "fading out");
     run(&mut ui, 0.3);
@@ -294,7 +294,7 @@ fn the_glyph_readout_names_the_glyph_drawn_under_the_pointer() {
 #[test]
 fn the_short_path_sends_one_front_from_the_caret() {
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", true);
+    ui.state.open("", 1);
     run(&mut ui, 0.1);
     assert!(ui.state.fronted.is_none(), "not before 150 ms");
     run(&mut ui, 0.1);
@@ -307,7 +307,7 @@ fn the_short_path_sends_one_front_from_the_caret() {
     // With reduced motion there is none.
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
     ui.state.reduced = true;
-    ui.state.open("", true);
+    ui.state.open("", 1);
     run(&mut ui, 1.0);
     assert!(ui.state.fronted.is_none());
 }
@@ -395,4 +395,57 @@ fn the_bulge_lifts_and_lights_the_surface_near_the_pointer() {
     ui.pointer_move(30.0, 30.0);
     run(&mut ui, 0.05);
     assert_eq!(ui.cursor(), amenui::el::Cursor::Default);
+}
+
+#[test]
+fn the_walk_goes_through_the_four_states_and_a_person_takes_it_over() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", 2);
+    let t0 = ui.now();
+    let at = |ui: &mut Ui<Body, Msg>, s: f32| { let d = t0 + s - ui.now(); run(ui, d); (ui.state.at, ui.state.spec.material) };
+    assert_eq!(at(&mut ui, 0.5), (1, 0), "the source first");
+    assert_eq!(at(&mut ui, 1.0), (2, 0), "the specimen from 0.7 s");
+    assert!(ui.node("body/specimen/material").is_some());
+    assert_eq!(at(&mut ui, 2.7), (3, 1), "near pressed at 2.5 s");
+    assert_eq!(at(&mut ui, 3.3), (3, 2), "dot at 3.1 s");
+    assert_eq!(at(&mut ui, 3.9), (3, 3), "lino at 3.7 s");
+    assert_eq!(at(&mut ui, 4.5), (2, 0), "plain at 4.3 s");
+    assert_eq!(at(&mut ui, 5.0).0, 4, "gathered at 4.7 s");
+    at(&mut ui, 6.6);
+    assert!(ui.state.walk.is_none() && ui.state.seen, "the landing state");
+    at(&mut ui, 8.0);
+    assert!(ui.state.turn_rate() > 0.1, "the idle turn eased in");
+    // A person takes over: the walk stops where it is, and plays on when asked.
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", 2);
+    run(&mut ui, 1.5);
+    assert_eq!(ui.state.at, 2);
+    let (x, y) = ui.node("body/specimen/loosen").unwrap().rect.center();
+    ui.pointer_move(x, y);
+    ui.press(x, y);
+    ui.release(x, y);
+    assert_eq!(ui.state.walking(), 2, "taken over");
+    run(&mut ui, 4.0);
+    assert_eq!(ui.state.at, 2, "nothing more is pressed");
+    ui.state.update(Msg::Play, ui.now());
+    run(&mut ui, 4.5);
+    assert_eq!(ui.state.at, 4, "played on to the body");
+    // States 01, 02 and 03 at rest ask for no frames.
+    for st in ["source", "interface", "material"] {
+        let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+        ui.state.open(st, 0);
+        run(&mut ui, 1.0);
+        assert_eq!(run(&mut ui, 1.0), 0, "{st} at rest draws nothing");
+    }
+}
+
+#[test]
+fn skip_reaches_the_body_within_a_second() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", 2);
+    run(&mut ui, 1.6);
+    assert_eq!(ui.state.at, 2);
+    ui.state.update(Msg::Skip, ui.now());
+    run(&mut ui, 1.0);
+    assert!(ui.state.at == 4 && ui.state.walk.is_none() && ui.state.seen && ui.now() >= ui.state.lands, "at the body, landed");
 }

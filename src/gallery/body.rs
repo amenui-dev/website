@@ -16,11 +16,11 @@ pub fn update(s: &mut Gallery, m: scene::Msg) {
 /// The scene's clock; the front across its listing, when it asks for one, goes out from where it says.
 pub fn tick(s: &mut Gallery, t: f32) -> bool {
     if s.page != Page::Body { return false; }
-    let changed = s.body.step(t);
-    match s.body.take_front() {
-        Some((x, y)) => { s.cmds.push(amenui::morph::Cmd::Front { x, y, strength: 1.0 }); true }
-        None => changed,
-    }
+    let mut changed = s.body.step(t);
+    if let Some((x, y)) = s.body.take_front() { s.cmds.push(amenui::morph::Cmd::Front { x, y, strength: 1.0 }); changed = true; }
+    // The scene's morphs, and the walk's focus and presses.
+    if !s.body.cmds.is_empty() { s.cmds.append(&mut s.body.cmds); changed = true; }
+    changed
 }
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.page == Page::Body && s.body.moving()).then_some(t) }
 /// The scene's look on its page: its form's palette on a dark ground, a bloom, a vignette.
@@ -31,7 +31,11 @@ pub fn look(s: &Gallery, l: &mut Look) {
     l.material = b.material;
     l.post = b.post;
     if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
+    // The specimen's lattice pitch (the morphs' cells too).
+    l.fx.pitch = s.body.spec.pitch;
 }
+/// A person acted: the walk stops where it is.
+pub fn heard(s: &mut Gallery) -> bool { s.page == Page::Body && s.body.heard() }
 pub fn page(s: &Gallery) -> El<Msg> { s.body.view_in("body").map(Rc::new(Msg::Body)) }
 /// A fresh scene, sized to the window, in the stage the host gave the last one.
 pub fn fresh(s: &Gallery) -> Body {

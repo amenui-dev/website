@@ -66,6 +66,19 @@ pub const RING_WIDTH: f32 = 0.12;
 pub const FLICK_TAU: f32 = 1.2;
 pub const IDLE_AFTER: f32 = 2.0;
 pub const KEY_TURN: f32 = 0.6;
+/// The specimen of states 02 and 03 (px; on a phone narrower, and without the Pitch row), and the
+/// materials its segmented control offers.
+pub const SPECIMEN: (f32, f32) = (360.0, 268.0);
+pub const SPECIMEN_PHONE_H: f32 = 204.0;
+pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
+    use amenui::style::Material::{Dot, Lino, Near, Plain};
+    [("plain", Plain), ("near", Near), ("dot", Dot), ("lino", Lino)]
+};
+/// The intro's morphs (loosen, flight, tighten in ms) and the short one of a change at rest or a skip.
+pub const MORPH_INTRO: (f32, f32, f32) = (220.0, 900.0, 260.0);
+pub const MORPH_SHORT: (f32, f32, f32) = (160.0, 560.0, 220.0);
+/// The intro's version: the page remembers it once the landing state is reached or the intro skipped.
+pub const INTRO_VERSION: u32 = 1;
 /// How the text is drawn on the form: nothing turned away, glyphs fading out from facing 0.5 (gone at
 /// 0.3), a glyph more than a third covered by nearer ones left out, the far side dimmer.
 pub const FORM_FX: FormFx = FormFx { back: 0.0, edge: 0.5, overlap: 0.35, fog: 0.6 };
@@ -199,6 +212,18 @@ pub struct Body {
     /// The front across the listing on the short path: when it is to start, the place it starts from
     /// (window px, for the host to send as a front, `take_front`), and when it started.
     pub front_at: Option<f32>, pub front: Option<(f32, f32)>, pub fronted: Option<f32>,
+    /// The state (1 source, 2 interface, 3 material, 4 body), the one before it, and when the morph
+    /// between them lands (the body's drawings wait for it).
+    pub at: u8, pub was: u8, pub lands: f32,
+    /// The specimen's controls.
+    pub spec: Specimen,
+    /// The intro (the full walk): when it started and the steps still to come; a person took over.
+    pub walk: Option<(f32, Vec<(f32, Step)>)>, pub taken: bool,
+    /// The first frame plays the full walk (else the short path); the walk has been seen (the page
+    /// remembers it); steps at a time outside the walk; the gather's value to jump to once a morph lands.
+    pub full: bool, pub seen: bool, pub later: Vec<(f32, Step)>, pub settle: Option<(f32, f32)>,
+    /// What the scene asks the runtime to do (morphs, presses, focus, fronts), for the host to send.
+    pub cmds: Vec<amenui::morph::Cmd>,
     /// With reduced motion, a change of state under way: (start, target, length).
     pub fade: Option<(f32, f32, f32)>,
     /// When the state last changed (the caption's dimming counts from it).
@@ -221,6 +246,7 @@ impl Default for Body {
             form: 0, seed: DEFAULT_SEED, omega: 0.16, gather: Animated::new(1.0, Spring { ..GATHER }), yaw: -0.4, pitch: -0.22, spin: 0.0, tip: 0.0, idle: 1.0, last_input: f32::NEG_INFINITY,
             ptr: None, under: None, over: false, touch_at: None, bulge: Animated::new(0.0, Spring { ..LAMP }), rings: vec![], lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, vel: Velocity::default(), dragged: false, motes: vec![], made: 0,
+            at: 4, was: 4, lands: 0.0, spec: Specimen::default(), walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
             size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, cache: Rc::default(),
         }
@@ -231,10 +257,23 @@ pub const SILHOUETTE: f32 = 1.12;
 /// The seed whose largest facet faces the viewer at the resting turn (`best_seed`, checked by eye).
 pub const DEFAULT_SEED: u32 = 26;
 
-/// `Show(1)` the listing, `Show(4)` the body (the rail's states); `Seed(d)` steps the seed.
+/// `Show(n)` state n (the rail's states); `Seed(d)` steps the seed; `Spec` a specimen control; `Play`
+/// the walk from the current state to the body (from the source when at the body); `Skip` to the body.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Msg { Point(Option<Point>), Key(Key), Form, Seed(i32), Gather, Show(u8), Num(usize, Edit) }
+pub enum Msg { Point(Option<Point>), Key(Key), Form, Seed(i32), Gather, Show(u8), Num(usize, Edit), Spec(SpecMsg), Play, Skip }
+/// The specimen's controls: Loosen, Pitch, Material.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SpecMsg { Loosen, Pitch(f32), Material(usize) }
+/// The specimen's state: its looseness held at 1, the lattice pitch (px), the material (of `SPEC_MATERIALS`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Specimen { pub loosen: bool, pub pitch: f32, pub material: usize }
+impl Default for Specimen { fn default() -> Self { Self { loosen: false, pitch: 5.0, material: 0 } } }
+/// One step of the intro.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Step { State(u8), Focus(&'static str), Press(&'static str), Lamp, Idle, End }
 
+/// The key the scene is drawn under (its morphs and the operator's presses name its parts by it).
+pub const KEY: &str = "body";
 /// The scene's words: English whatever the interface language.
 fn tr(key: &str) -> String { crate::install_catalogs(); amenui::i18n::Locale::En.tr(key) }
 
@@ -491,11 +530,12 @@ impl Body {
     pub fn set_text_centre(&mut self, y: Option<f32>) { self.text_centre = y; }
     /// The pointer's place as a fraction of the window from its centre (-0.5..0.5): the lamp goes there.
     pub fn look_at(&mut self, x: f32, y: f32) { let (w, h) = self.size; self.point_lamp(Some(((x + 0.5) * w, (y + 0.5) * h))); }
-    fn toggle(&mut self, now: f32) { let to = if self.target() >= 0.5 { 0.0 } else { 1.0 }; self.go(to, now, FADE); }
     /// To the listing (0) or the body (1): by the spring, or with reduced motion by an opacity change.
     pub fn go(&mut self, to: f32, now: f32, fade: f32) {
         self.intro_pending = false;
         self.intro_at = None;
+        let st = if to >= 0.5 { 4 } else { 1 };
+        if st != self.at { (self.was, self.at) = (self.at, st); }
         if (self.target() - to).abs() < 1e-6 { return; }
         self.changed = now;
         if self.reduced { self.fade = Some((now, to, fade)); } else { let v = self.gather.velocity; self.gather.to(to, v, now); }
@@ -503,28 +543,144 @@ impl Body {
     fn set_now(&mut self, to: f32) {
         self.gather = Animated::new(to, Spring { ..GATHER });
         (self.fade, self.intro_pending, self.intro_at) = (None, false, None);
+        let st = if to >= 0.5 { 4 } else { 1 };
+        (self.at, self.was, self.lands, self.walk) = (st, st, 0.0, None);
     }
-    /// Open a state from the page's address: `source`, `body`, `body/cloud/08`, at rest; empty is the
-    /// body with the default form and seed, reached by the short path when `intro` is set.
-    pub fn open(&mut self, state: &str, intro: bool) {
+    /// Open a state from the page's address: `source`, `interface`, `material`, `body`,
+    /// `body/cloud/08`, at rest; empty is the body with the default form and seed, reached by the
+    /// short path (`walk` 1) or the full walk (`walk` 2) from the source, or at rest (0).
+    pub fn open(&mut self, state: &str, walk: u8) {
         let mut parts = state.trim_start_matches('#').split('/');
         match parts.next().unwrap_or("") {
             "source" => self.set_now(0.0),
+            s @ ("interface" | "material") => {
+                self.set_now(0.0);
+                (self.at, self.was) = (if s == "interface" { 2 } else { 3 }, 1);
+                self.spec.material = if s == "material" { 2 } else { 0 };
+            }
             "body" => {
                 if let Some(f) = parts.next() { self.form = (f == "cloud") as u32; }
                 if let Some(n) = parts.next().and_then(|n| n.parse::<u32>().ok()) { self.seed = n.min(99); }
                 self.set_now(1.0);
             }
-            _ => { (self.form, self.seed) = (0, DEFAULT_SEED); self.set_now(if intro { 0.0 } else { 1.0 }); self.intro_pending = intro; }
+            _ => {
+                (self.form, self.seed) = (0, DEFAULT_SEED);
+                self.set_now(if walk > 0 { 0.0 } else { 1.0 });
+                self.intro_pending = walk > 0;
+                self.full = walk == 2;
+            }
         }
         self.changed = self.t;
     }
-    /// The state for the page's address (`open` reads it back): `source`, `body/cloud/08`, or empty
-    /// for the body with the default form and seed.
+    /// The state for the page's address (`open` reads it back): `source`, `interface`, `material`,
+    /// `body/cloud/08`, or empty for the body with the default form and seed.
     pub fn state(&self) -> String {
-        if self.target() < 0.5 && !self.intro_pending && self.intro_at.is_none() { return "source".into(); }
+        if self.walk.is_some() || self.intro_pending || self.intro_at.is_some() { return String::new(); }
+        match self.at {
+            1 => return "source".into(),
+            2 => return "interface".into(),
+            3 => return "material".into(),
+            _ => {}
+        }
         if self.form == 0 && self.seed == DEFAULT_SEED { return String::new(); }
         format!("body/{}/{:02}", if self.form == 0 { "rock" } else { "cloud" }, self.seed)
+    }
+    /// The state on the stage now: during a reduced-motion change, the one before it until half way.
+    pub fn shown_state(&self) -> u8 { match self.fade { Some((t0, _, d)) if self.t - t0 < d * 0.5 => self.was, _ => self.at } }
+    /// The walk: 0 none, 1 playing, 2 stopped by a person (`continue ›`).
+    pub fn walking(&self) -> u8 { if self.walk.is_some() { 1 } else if self.taken { 2 } else { 0 } }
+    /// The morph between the text and the specimen: the lattice is the specimen's pitch.
+    fn morph(&mut self, from: &str, to: &str, m: (f32, f32, f32), now: f32) {
+        let count_max = if self.width_class() == Width::Narrow { 8_000.0 } else { 24_000.0 };
+        let spec = amenui::morph::MorphSpec { loosen_ms: m.0, duration_ms: m.1, tighten_ms: m.2, count_max, lattice: self.spec.pitch, ..Default::default() };
+        self.cmds.push(amenui::morph::Cmd::Morph { from: format!("{KEY}/{from}"), to: format!("{KEY}/{to}"), spec });
+        self.lands = now + (m.0 + m.1 + m.2) / 1000.0;
+    }
+    /// To state `to` (1 to 4): 01 ↔ 04 by the gather spring, to and from the specimen by a morph, 02 ↔
+    /// 03 by a commit from the segmented control; with reduced motion an opacity change.
+    pub fn go_to(&mut self, to: u8, now: f32, m: (f32, f32, f32)) {
+        let to = to.clamp(1, 4);
+        if (to == 1 || to == 4) && !matches!(self.at, 2 | 3) { return self.go(if to == 4 { 1.0 } else { 0.0 }, now, FADE); }
+        (self.intro_pending, self.intro_at) = (false, None);
+        let from = self.at;
+        if to == from { return; }
+        (self.was, self.at, self.changed) = (from, to, now);
+        let card = |s: u8| s == 2 || s == 3;
+        if self.reduced {
+            // An opacity change; a material shows at once.
+            self.fade = Some((now, if to == 4 { 1.0 } else { 0.0 }, FADE));
+            if to == 3 && self.spec.material == 0 { self.spec.material = 2; }
+            if to == 2 { self.spec.material = 0; }
+            return;
+        }
+        match (card(from), card(to)) {
+            (false, true) => {
+                self.morph("text", "specimen", m, now);
+                // The text leaves as it is drawn, then rests in the listing, unseen.
+                self.settle = Some((self.lands, 0.0));
+                if to == 3 { self.later.push((self.lands - 0.2, Step::Press("material:2"))); }
+            }
+            (true, false) => {
+                self.gather = Animated::new(if to == 4 { 1.0 } else { 0.0 }, Spring { ..GATHER });
+                // In the walk the body is held still while it lands, the lamp behind it (only the
+                // silhouette's dots show) until the walk turns it on.
+                if self.walk.is_some() && to == 4 {
+                    self.lamp = [-0.2, 0.3, -2.5].map(|v| Animated::new(v, Spring { ..LAMP }));
+                    (self.spin, self.tip, self.idle, self.last_input) = (0.0, 0.0, 0.0, f32::INFINITY);
+                }
+                if from == 3 { self.spec.material = 0; }
+                self.morph("specimen", "text", m, now);
+            }
+            _ => self.cmds.push(amenui::morph::Cmd::Press { key: format!("{KEY}/specimen/material:{}", if to == 3 { 2 } else { 0 }) }),
+        }
+    }
+    /// The full walk from the current state to the body (from the source when at the body).
+    pub fn play(&mut self, now: f32) { self.walk_from(now, false) }
+    /// The walk; `first`: from the first frame, on its own clock (0.7 s of the source first).
+    fn walk_from(&mut self, now: f32, first: bool) {
+        if self.reduced { return self.go_to(4, now, MORPH_SHORT); }
+        let phone = self.width_class() == Width::Narrow;
+        let mut steps: Vec<(f32, Step)> = vec![(0.70, Step::State(2)), (2.10, Step::Focus("material")), (2.50, Step::Press("material:1")), (3.10, Step::Press("material:2"))];
+        if phone {
+            steps.extend([(3.70, Step::Press("material:0")), (3.80, Step::Focus("gather")), (4.10, Step::Press("gather")), (5.30, Step::Lamp), (5.90, Step::Idle)]);
+        } else {
+            steps.extend([(3.70, Step::Press("material:3")), (4.30, Step::Press("material:0")), (4.40, Step::Focus("gather")), (4.70, Step::Press("gather")), (5.90, Step::Lamp), (6.50, Step::Idle)]);
+        }
+        steps.push((steps.last().map_or(0.0, |s| s.0), Step::End));
+        // From where the walk is: the steps before the current state's beat are done.
+        let skip = match self.at { _ if first => 0.0, 2 => 2.10, 3 => if phone { 3.80 } else { 4.40 }, _ => 0.55 };
+        let mut t0 = now - skip;
+        if self.at == 4 { self.go(0.0, now, FADE); t0 = now + 1.0 - 0.55; }
+        steps.retain(|s| s.0 >= skip);
+        (self.walk, self.taken) = (Some((t0, steps)), false);
+    }
+    /// A person acted during the walk: it stops where it is (`continue ›` plays on).
+    pub fn heard(&mut self) -> bool {
+        if self.walk.is_none() { return false; }
+        (self.walk, self.taken) = (None, true);
+        self.later.clear();
+        true
+    }
+    /// `skip ›`, Esc or a scroll: straight to the body by the short morph (or the gather from the
+    /// source), and the walk counts as seen.
+    pub fn skip(&mut self, now: f32) {
+        (self.walk, self.taken) = (None, false);
+        self.later.clear();
+        self.go_to(4, now, MORPH_SHORT);
+        self.seen = true;
+        self.idle = 1.0;
+        self.last_input = f32::NEG_INFINITY;
+    }
+    fn do_step(&mut self, step: Step, now: f32) {
+        match step {
+            Step::State(n) => self.go_to(n, now, MORPH_INTRO),
+            Step::Focus(k) => self.cmds.push(amenui::morph::Cmd::Focus { key: format!("{KEY}/specimen/{k}") }),
+            Step::Press(k) => self.cmds.push(amenui::morph::Cmd::Press { key: format!("{KEY}/specimen/{k}") }),
+            // The lamp comes on from behind the form, to its rest place or the pointer.
+            Step::Lamp => self.point_lamp(self.ptr),
+            Step::Idle => { self.idle = 0.0; self.last_input = now - IDLE_AFTER; }
+            Step::End => { self.walk = None; self.seen = true; }
+        }
     }
     /// How opaque everything is during a reduced-motion change of state (1 otherwise).
     pub fn dim(&self) -> f32 { self.fade.map_or(1.0, |(t0, _, d)| (1.0 - 2.0 * ((self.t - t0) / d).clamp(0.0, 1.0)).abs()) }
@@ -827,6 +983,11 @@ impl Body {
         let s = self.shown();
         let (lx, ly) = (st[0] + GUTTER, st[1]);
         let (g, dim) = (self.gather.value.clamp(0.0, 1.0), self.dim());
+        // What is on the stage: the text (the listing or the body) or the specimen; the body's
+        // drawings wait for a morph to land.
+        let shown = self.shown_state();
+        let card = matches!(shown, 2 | 3);
+        let drawn = !card && self.t >= self.lands;
         let ink = Paint { tone: 1.0, accent: 0.0, alpha: 1.0, hue: 0 };
         let mono = |t: String, lh: f32, p: Paint, k: &str| text_lh(t, SIZE, lh, p).font(Font::Mono).nowrap().key(format!("{key}/{k}"));
         // The whole text in one element: the listing shows its first lines cut at whole words; the
@@ -837,15 +998,17 @@ impl Body {
         // Its box is the listing's (the cut ends run past it, unseen).
         let cols = self.grid().1;
         let code = mono(self.listing(), LINE, ink, "text").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE)
-            .pose(self.poser((lx, ly), Rc::new(flat))).form(FORM_FX).reveal_by(Reveal::Word);
+            .pose(self.poser((lx, ly), Rc::new(flat))).form(FORM_FX).reveal_by(Reveal::Word).hidden_until_morphed(card);
         let numbers: String = (1..=s.rows).map(|i| format!("{i:>3}")).collect::<Vec<_>>().join("\n");
-        let numbers = mono(numbers, LINE, Paint::DIM.alpha((1.0 - g).clamp(0.0, 1.0) * dim), "lines").absolute(Some(st[0]), Some(ly), None, None);
-        let marks = self.readouts();
+        let numbers = mono(numbers, LINE, Paint::DIM.alpha(if shown == 1 { (1.0 - g).clamp(0.0, 1.0) * dim } else { 0.0 }), "lines").absolute(Some(st[0]), Some(ly), None, None);
+        let marks = if drawn { self.readouts() } else { vec![] };
+        let empty = || Drawing::new(w, h);
         let mut parts = vec![
-            canvas(self.back()).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
+            canvas(if drawn { self.back() } else { empty() }).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
             numbers,
             code,
-            canvas(self.front(&marks)).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
+            self.specimen(key).hidden_until_morphed(!card),
+            canvas(if drawn { self.front(&marks) } else { empty() }).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
         ];
         for m in &marks {
             parts.push(mono(m.text.clone(), LINE, Paint::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
@@ -853,8 +1016,13 @@ impl Body {
         // The caption: the state's number in the dim colour, its sentence in the text colour; in the
         // body the sentence dims to the dim colour after 4 s without a change (no further: that is the
         // faintest text that still reads).
-        let body = self.target() >= 0.5 && !self.intro_pending && self.intro_at.is_none();
-        let (num, sentence) = if body { ("04", "Posed in 3D. Your pointer is the lamp.".to_owned()) } else { ("01", format!("Source. {} characters of Rust.", thousands(self.glyphs()))) };
+        let body = shown == 4 && !self.intro_pending && self.intro_at.is_none();
+        let (num, sentence) = match shown {
+            _ if body => ("04", "Posed in 3D. Your pointer is the lamp.".to_owned()),
+            2 => ("02", "The same ink closes into controls.".to_owned()),
+            3 => ("03", "One tree. The material sets the pixels.".to_owned()),
+            _ => ("01", format!("Source. {} characters of Rust.", thousands(self.glyphs()))),
+        };
         let quiet = body && self.t - self.changed > 4.0;
         let cy = self.caption_y();
         parts.push(mono(num.into(), LINE, Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None));
@@ -869,6 +1037,40 @@ impl Body {
             .on_key(|k, _| Self::takes(k).then_some(Msg::Key(k)))
             .cursor(if grabbing { amenui::el::Cursor::Grabbing } else if self.over { amenui::el::Cursor::Grab } else { amenui::el::Cursor::Default })
             .role(amenui::el::Role::Img).label(tr("body.label"))
+    }
+    /// The specimen of states 02 and 03: a card of four working components, centred on the body's
+    /// centre, and the line that adds them to a project under it.
+    fn specimen(&self, key: &str) -> El<Msg> {
+        use amenui::el::{col, row, space};
+        let phone = self.width_class() == Width::Narrow;
+        let (cx, cy, _) = self.placement();
+        let w = if phone { (self.size.0 - 32.0).min(358.0) } else { SPECIMEN.0 };
+        let h = if phone { SPECIMEN_PHONE_H } else { SPECIMEN.1 };
+        let sp = self.spec;
+        let k = |s: &str| format!("{key}/specimen/{s}");
+        let label = |t: &str| text_lh(t.to_owned(), SIZE, LINE, Paint::TEXT).font(Font::Mono).width(96.0);
+        let line = |name: &str, c: El<Msg>| row().key(k(&format!("row-{name}"))).fill_width().align(taffy::AlignItems::CENTER).child(label(name)).child(c);
+        let names: Vec<&str> = SPEC_MATERIALS.iter().map(|m| m.0).collect();
+        let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 18.0).gap(14.0).radius(6.0).border(1.0, Paint::FAINT).fill(Paint::GROUND)
+            .material(SPEC_MATERIALS[sp.material].1.id()).loose(if sp.loosen { 1.0 } else { 0.0 })
+            .child(row().key(k("head")).fill_width()
+                .child(text_lh("SPECIMEN".to_owned(), SIZE, LINE, Paint::DIM).font(Font::Mono)).child(space(0.0, 0.0).grow(1.0))
+                .child(text_lh("4 components".to_owned(), SIZE, LINE, Paint::DIM).font(Font::Mono)))
+            .child(line("Loosen", row().grow(1.0).child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::switch(k("loosen"), "", sp.loosen, None, Msg::Spec(SpecMsg::Loosen)).label("Loosen".to_owned()))));
+        if !phone {
+            let spec = amenui::widgets::Spec { min: 3.0, max: 12.0, step: 1.0, decimals: 0, unit: "px" };
+            card = card.child(line("Pitch", row().grow(1.0).gap(12.0).align(taffy::AlignItems::CENTER)
+                .child(amenui::widgets::slider(&k("pitch"), sp.pitch, spec, w - 40.0 - 96.0 - 52.0, |v| Msg::Spec(SpecMsg::Pitch(v))))
+                .child(text_lh(format!("{} px", sp.pitch as u32), SIZE, LINE, Paint::TEXT).font(Font::Mono))));
+        }
+        let card = card
+            .child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit()))
+            .child(space(0.0, 0.0).grow(1.0))
+            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k("gather"), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4))));
+        // The line that adds them; on a phone there is no room for it above the caption.
+        let mut b = col().key(format!("{key}/specimen-box")).absolute(Some((cx - w * 0.5).round()), Some((cy - h * 0.5).round()), None, None).gap(10.0).child(card);
+        if !phone { b = b.child(text_lh("$ amenui add switch slider choice button".to_owned(), SIZE, LINE, Paint::DIM).font(Font::Mono).key(k("add"))); }
+        b
     }
     /// Where the listing's caret is (window px): one cell after the last line shown.
     pub fn caret(&self) -> (f32, f32) {
@@ -885,7 +1087,7 @@ impl Body {
     pub fn turning(&self) -> bool { self.target() >= 0.5 && !self.reduced && self.omega > 0.0 }
     /// The scene's keys: 1 and 4 the states, Space and Enter between them, F the form, [ and ] the
     /// seed, ← → a turn.
-    pub fn takes(k: Key) -> bool { matches!(k, Key::Char(' ' | '1' | '4' | 'f' | 'F' | '[' | ']') | Key::Enter | Key::Left | Key::Right) }
+    pub fn takes(k: Key) -> bool { matches!(k, Key::Char(' ' | '1'..='4' | 'f' | 'F' | '[' | ']') | Key::Enter | Key::Left | Key::Right | Key::Escape) }
     /// What the hand does to the surface now (none in the listing).
     pub fn touch(&self) -> Touch {
         let r = self.cache.borrow().radius.max(1e-3);
@@ -976,13 +1178,24 @@ impl Experiment for Body {
         match m {
             Msg::Key(Key::Left) => self.nudge(-1.0, now),
             Msg::Key(Key::Right) => self.nudge(1.0, now),
-            Msg::Key(Key::Char('1')) | Msg::Show(1) => self.go(0.0, now, FADE),
-            Msg::Key(Key::Char('4')) | Msg::Show(_) => self.go(1.0, now, FADE),
+            Msg::Key(Key::Char(c @ '1'..='4')) => self.update(Msg::Show(c as u8 - b'0'), now),
+            // The walk's own press on GATHER → keeps the walk's morph.
+            Msg::Show(n) => { let m = if self.walk.is_some() { MORPH_INTRO } else { MORPH_SHORT }; self.go_to(n, now, m); }
+            Msg::Key(Key::Escape) | Msg::Skip => self.skip(now),
+            Msg::Play => self.play(now),
+            Msg::Spec(SpecMsg::Loosen) => self.spec.loosen = !self.spec.loosen,
+            Msg::Spec(SpecMsg::Pitch(v)) => self.spec.pitch = v.clamp(3.0, 12.0).round(),
+            Msg::Spec(SpecMsg::Material(i)) => {
+                // A material other than plain is state 03.
+                self.spec.material = i.min(SPEC_MATERIALS.len() - 1);
+                let st = if self.spec.material == 0 { 2 } else { 3 };
+                if matches!(self.at, 2 | 3) && st != self.at { (self.was, self.at, self.changed) = (self.at, st, now); }
+            }
             Msg::Key(Key::Char('f' | 'F')) | Msg::Form => { self.form = 1 - self.form; self.changed = now; }
             Msg::Key(Key::Char('[')) => self.update(Msg::Seed(-1), now),
             Msg::Key(Key::Char(']')) => self.update(Msg::Seed(1), now),
             Msg::Seed(d) => { self.seed = (self.seed as i32 + d).rem_euclid(100) as u32; self.changed = now; }
-            Msg::Key(_) | Msg::Gather => self.toggle(now),
+            Msg::Key(_) | Msg::Gather => { let to = if self.at == 4 { 1 } else { 4 }; self.update(Msg::Show(to), now); }
             Msg::Num(i, Edit::Set(v)) => match i {
                 0 => self.go(if v >= 0.5 { 1.0 } else { 0.0 }, now, FADE),
                 1 => self.form = (v >= 0.5) as u32,
@@ -1057,10 +1270,22 @@ impl Experiment for Body {
         let mut changed = false;
         if self.intro_pending {
             self.intro_pending = false;
-            self.intro_at = Some(now + if self.reduced { 0.0 } else { INTRO_DELAY });
+            if self.full && !self.reduced { self.walk_from(now, true); } else { self.intro_at = Some(now + if self.reduced { 0.0 } else { INTRO_DELAY }); }
             if !self.reduced { self.front_at = Some(now + FRONT_DELAY); }
             changed = true;
         }
+        // The walk's steps, and steps at a time of their own, as their times come.
+        if let Some((t0, steps)) = &mut self.walk {
+            let t0 = *t0;
+            let due: Vec<Step> = { let n = steps.iter().take_while(|s| now >= t0 + s.0).count(); steps.drain(..n).map(|s| s.1).collect() };
+            for st in due { self.do_step(st, now); changed = true; }
+        }
+        if !self.later.is_empty() {
+            let (due, rest): (Vec<_>, Vec<_>) = self.later.drain(..).partition(|s| now >= s.0);
+            self.later = rest;
+            for (_, st) in due { self.do_step(st, now); changed = true; }
+        }
+        if let Some((t, v)) = self.settle && now >= t { self.gather = Animated::new(v, Spring { ..GATHER }); self.settle = None; changed = true; }
         if let Some(t0) = self.front_at && now >= t0 { self.front_at = None; self.front = Some(self.caret()); self.fronted = Some(now); changed = true; }
         if let Some(t0) = self.intro_at && now >= t0 { self.intro_at = None; self.go(1.0, now, FADE_INTRO); }
         if let Some((t0, to, d)) = self.fade {
@@ -1123,6 +1348,7 @@ impl Experiment for Body {
         self.gather.moving() || self.lamp.iter().any(Animated::moving) || self.bulge.moving() || !self.rings.is_empty() || !self.motes.is_empty() || self.grab.is_some()
             || self.spin != 0.0 || self.tip != 0.0 || (self.target() >= 0.5 && !self.reduced && self.omega > 0.0)
             || self.intro_pending || self.intro_at.is_some() || self.front_at.is_some() || self.fade.is_some()
+            || self.walk.is_some() || !self.later.is_empty() || self.settle.is_some() || self.t < self.lands
     }
 }
 
@@ -1138,6 +1364,8 @@ pub fn ui(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> amenui:
         .on_look(|s| look(s.form, s.gather.value))
         .on_tick(|s, t| s.step(t))
         .on_wake(|s, t| s.moving().then_some(t))
+        .on_commands(|s| std::mem::take(&mut s.cmds))
+        .on_input(|s| s.heard())
 }
 /// The scene's look for a form, `gathered` of the way from the listing to the body: the site's dark
 /// ground, the plain material, a small bloom on the brightest glyphs and a vignette, both only as

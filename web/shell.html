@@ -134,7 +134,8 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .rail button:hover, .rail a:hover { color: var(--ink); }
 .rail .st[aria-pressed="true"] { color: var(--accent); } .rail .st[aria-pressed="true"] i { color: var(--ink); }
 .rail .st i { font-style: normal; margin-right: 8px; }
-.rail .later { display: none; }
+/* On a phone only the current state has its name. */
+@media (max-width: 719px) { .rail .st:not([aria-pressed="true"]) span { display: none; } }
 .rail .ctl { display: none; gap: 12px; align-items: center; margin-left: auto; }
 .rail .ctl b { font-weight: normal; color: var(--ink); }
 .rail.body .ctl { display: flex; }
@@ -209,10 +210,11 @@ html:not(.home) #stage { bottom: 28px; }
 <pre class="listing" aria-hidden="true"></pre>
 <template id="source">{{listing}}</template>
 <nav class="rail" aria-label="Demonstration">
-  <button type="button" class="st" data-state="source" aria-pressed="false"><i>01</i>Source</button>
-  <button type="button" class="st later" data-state="interface" aria-pressed="false"><i>02</i>Interface</button>
-  <button type="button" class="st later" data-state="material" aria-pressed="false"><i>03</i>Material</button>
-  <button type="button" class="st" data-state="body" aria-pressed="false"><i>04</i>Body</button>
+  <button type="button" class="play" aria-label="Play">▸</button>
+  <button type="button" class="st" data-state="source" aria-pressed="false"><i>01</i><span>Source</span></button>
+  <button type="button" class="st" data-state="interface" aria-pressed="false"><i>02</i><span>Interface</span></button>
+  <button type="button" class="st" data-state="material" aria-pressed="false"><i>03</i><span>Material</span></button>
+  <button type="button" class="st" data-state="body" aria-pressed="false"><i>04</i><span>Body</span></button>
   <span class="break"></span>
   <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span>&nbsp;Seed&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
   <a class="door" href="{{href_docs}}" data-route="docs/">docs →</a>

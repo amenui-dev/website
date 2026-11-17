@@ -113,13 +113,20 @@ mod site_exports {
     pub fn hero() -> String { host(|s| s.ui.state.body.state()).unwrap_or_default() }
     /// Open a state from the address at rest; an empty one plays the short path when `intro` is set.
     #[wasm_bindgen]
-    pub fn set_hero(state: &str, intro: bool) { host(|s| { s.ui.state.body.open(state, intro); s.ui.relayout(); }); }
+    pub fn set_hero(state: &str, walk: u8) { host(|s| { s.ui.state.body.open(state, walk); s.ui.relayout(); }); }
     /// The rail row: `source`, `body`, `form`, `seed+`, `seed-`.
     #[wasm_bindgen]
     pub fn hero_press(what: &str, t: f32) {
-        let m = match what { "source" => body::Msg::Show(1), "body" => body::Msg::Show(4), "form" => body::Msg::Form, "seed+" => body::Msg::Seed(1), "seed-" => body::Msg::Seed(-1), _ => return };
+        let m = match what {
+            "source" => body::Msg::Show(1), "interface" => body::Msg::Show(2), "material" => body::Msg::Show(3), "body" => body::Msg::Show(4),
+            "form" => body::Msg::Form, "seed+" => body::Msg::Seed(1), "seed-" => body::Msg::Seed(-1), "play" => body::Msg::Play, "skip" => body::Msg::Skip, _ => return,
+        };
         host(|s| { s.ui.tick(t); gallery::update(&mut s.ui.state, gallery::Msg::Body(m)); s.ui.relayout(); });
     }
+    /// The walk (0 none, 1 playing, 2 stopped by a person), whether it has been seen through, and the
+    /// state on the stage (1 to 4).
+    #[wasm_bindgen]
+    pub fn hero_walk() -> Vec<u32> { host(|s| { let b = &s.ui.state.body; vec![b.walking() as u32, b.seen as u32, b.at as u32] }).unwrap_or_default() }
     /// The home page's form (0 rock, 1 cloud) and seed, for the rail row.
     #[wasm_bindgen]
     pub fn hero_form() -> Vec<u32> { host(|s| vec![s.ui.state.body.form, s.ui.state.body.seed]).unwrap_or_default() }

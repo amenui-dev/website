@@ -216,36 +216,52 @@ function site() {
     api.w.set_stage(x0 - c.left, y0 - c.top, x1 - c.left, y1 - c.top, cy < 0 ? -1 : cy - c.top);
     api.kick();
   };
-  // The rail row: the state, the body's form and seed, the door to the current state's section.
+  // The rail row: ▸, the four states, the body's form and seed, and the door to the current state's
+  // section (`skip ›` while the walk plays, `continue ›` once a person has taken it over).
   const rail = D.querySelector('.rail'), door = rail.querySelector('.door');
+  const DOORS = { 1: ['docs/', 'docs →'], 2: ['components/', 'components →'], 3: ['lab/', 'lab →'], 4: ['scenes/', 'scenes →'] };
+  const NAMES = { 1: 'source', 2: 'interface', 3: 'material', 4: 'body' };
+  const INTRO = 'amenui.intro', VERSION = '1';
+  const walk = () => api ? api.w.hero_walk() : [0, 0, 1];
+  let ticking = 0;
   const showRail = () => {
     if (!api || !isHome()) return;
-    const st = api.w.hero(), body = st !== 'source';
-    for (const b of rail.querySelectorAll('.st')) b.setAttribute('aria-pressed', String(b.dataset.state === (intro ? 'source' : body ? 'body' : 'source')));
-    rail.classList.toggle('body', body && !intro);
+    const [playing, seen, at] = walk();
+    if (seen) { try { localStorage.setItem(INTRO, VERSION); } catch (e) {} }
+    const st = intro ? 1 : at;
+    for (const b of rail.querySelectorAll('.st')) b.setAttribute('aria-pressed', String(b.dataset.state === NAMES[st]));
+    rail.classList.toggle('body', st === 4 && !intro && !playing);
     const [form, seed] = api.w.hero_form();
     for (const b of rail.querySelectorAll('[data-form]')) b.setAttribute('aria-pressed', String(+b.dataset.form === form));
     rail.querySelector('.seed').textContent = String(seed).padStart(2, '0');
-    if (intro) { door.textContent = 'skip ›'; door.dataset.skip = '1'; }
-    else { delete door.dataset.skip; door.textContent = body ? 'scenes →' : 'docs →'; door.dataset.route = body ? 'scenes/' : 'docs/'; door.href = full(body ? 'scenes/' : 'docs/'); }
+    delete door.dataset.skip; delete door.dataset.play;
+    if (intro || playing === 1) { door.textContent = 'skip ›'; door.dataset.skip = '1'; door.removeAttribute('href'); }
+    else if (playing === 2) { door.textContent = 'continue ›'; door.dataset.play = '1'; door.removeAttribute('href'); }
+    else { const [r, t] = DOORS[st]; door.textContent = t; door.dataset.route = r; door.href = full(r); }
+    // While the walk plays the rail follows it.
+    if (playing === 1 && !ticking) ticking = setInterval(() => { showRail(); if (walk()[0] !== 1) { clearInterval(ticking); ticking = 0; showRail(); keepHash(); } }, 100);
   };
-  // The state is in the address (`#source`, `#body/cloud/08`; none for the defaults), replaced, not
-  // added to the history.
+  // The state is in the address (`#source`, `#interface`, `#material`, `#body/cloud/08`; none for
+  // the defaults), replaced, not added to the history.
   const keepHash = () => {
-    if (!api || !isHome() || intro) return;
+    if (!api || !isHome() || intro || walk()[0] === 1) return;
     const st = api.w.hero(), want = st ? '#' + st : '';
     if (location.hash !== want && !location.hash.startsWith('#look:')) history.replaceState(history.state, '', location.pathname + want);
   };
+  const press = what => { api.w.hero_press(what, performance.now() / 1000); showRail(); keepHash(); api.kick(); };
+  const skip = () => { if (intro) { intro = false; api.w.set_hero('', 0); } else press('skip'); try { localStorage.setItem(INTRO, VERSION); } catch (e) {} showRail(); api.kick(); };
   rail.addEventListener('click', e => {
     const b = e.target.closest('button, a');
     if (!b || !api) return;
-    if (b.dataset.skip) { e.preventDefault(); intro = false; api.w.set_hero('', false); }
-    else if (b.dataset.state) api.w.hero_press(b.dataset.state, performance.now() / 1000);
-    else if (b.dataset.form) { if (+b.dataset.form !== api.w.hero_form()[0]) api.w.hero_press('form', performance.now() / 1000); }
-    else if (b.dataset.seed) api.w.hero_press(+b.dataset.seed > 0 ? 'seed+' : 'seed-', performance.now() / 1000);
-    else return;
-    if (b.tagName === 'BUTTON') { showRail(); keepHash(); api.kick(); }
+    if (b.dataset.skip) { e.preventDefault(); skip(); }
+    else if (b.dataset.play || b.classList.contains('play')) { e.preventDefault(); press('play'); }
+    else if (b.dataset.state) press(b.dataset.state);
+    else if (b.dataset.form) { if (+b.dataset.form !== api.w.hero_form()[0]) press('form'); }
+    else if (b.dataset.seed) press(+b.dataset.seed > 0 ? 'seed+' : 'seed-');
   });
+  // Esc, or a scroll of more than 8 px, skips the walk.
+  D.addEventListener('keydown', e => { if (e.key === 'Escape' && api && isHome() && (intro || walk()[0] === 1)) skip(); });
+  addEventListener('scroll', () => { if (api && isHome() && scrollY > 8 && (intro || walk()[0] === 1)) skip(); }, { passive: true });
   const routed = (path, hash) => {
     A.mark(path);
     if (location.pathname !== full(path)) history.pushState({ path }, '', full(path) + (location.hash.startsWith('#look:') ? location.hash : ''));
@@ -290,7 +306,15 @@ function site() {
     started: w => {
       api = { w, kick: () => {} };
       A.line('starting ' + (navigator.gpu ? 'webgpu' : 'webgl2'));
-      if (A.route === '') { intro = hash === ''; w.set_hero(hash, intro); }
+      // No state in the address: the full walk on a first visit, the short path after (and with reduced
+      // motion, which plays no walk).
+      if (A.route === '') {
+        let seen = false;
+        try { seen = localStorage.getItem(INTRO) === VERSION; } catch (e) {}
+        const whole = hash === '' && !seen && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+        intro = hash === '' && !whole;
+        w.set_hero(hash, hash === '' ? (whole ? 2 : 1) : 0);
+      }
       place();
     },
     onRoute: (p, h) => routed(p, h),
@@ -299,6 +323,7 @@ function site() {
     onFrame: () => {
       A.done(api.w.backend(), api.w.glyphs());
       if (intro) setTimeout(() => { intro = false; showRail(); keepHash(); }, 1400);
+      showRail();
       // The running line is read once, not every second.
       setTimeout(() => { running = true; f2.hidden = false; status.querySelector('.line').setAttribute('aria-live', 'off'); keepStatus(); setInterval(keepStatus, 1000); }, 1200);
     },
@@ -312,7 +337,7 @@ function site() {
     // with a modifier key or another button they open as links do.
     D.addEventListener('click', e => {
       const l = e.target.closest && e.target.closest('a[data-route]');
-      if (!l || l.dataset.skip || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (!l || l.dataset.skip || l.dataset.play || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       D.getElementById('sheet').classList.remove('open');
       a.route(l.dataset.route === '' ? '/' : l.dataset.route);
