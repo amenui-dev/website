@@ -3,16 +3,24 @@
 #
 #   docs/site/{en,zh-Hans}/*.md          the site's own pages (start, guides, concepts, reference, and
 #                                        the Lab's and the body scene's recipes)
-#   amenui: docs/**/*.md                 grouped by their front matter's kind; DESIGN.md is cut into
-#                                        one page per section
+#   amenui: docs/**/*.md                 grouped by their front matter's kind (docs/README.md, the
+#                                        repository's own index, is the docs index here); DESIGN.md
+#                                        is cut into one page per section
 #   amenui: registry.json, widgets,      one page per component: title, description, the live stage,
 #           examples/components/*.rs     installation, usage, examples, API, keyboard
 #   amenui: AGENTS.md, llms.txt,         reference and release notes; also served as they are at the
 #           CHANGELOG.md, registry.json  site's root
 #
-# `build(ctx)` writes the pages and returns what the search index needs (`web/build.py` calls it).
+# No page is shorter than MIN_WORDS of body (code counted): short Concepts pages are one page with a
+# section each, a short section of DESIGN.md joins its neighbour. Pages in English only take their
+# Simplified Chinese titles from web/docs-titles.txt.
+#
+# `build(ctx)` writes the pages and returns what the search index needs (`web/build.py` calls it);
+# `not_found(ctx)` is the 404 page.
 import html, json, pathlib, re
-from md import Doc, attr, code_block, esc, inline
+from md import Doc, attr, code_block, esc, inline, slug
+
+MIN_WORDS = 120
 
 # The tree (A.4): groups in order, each a list of pages; the order here is the sidebar's.
 GROUPS = [('start', 'nav.start'), ('guides', 'nav.guides'), ('concepts', 'nav.concepts'), ('components', 'nav.components'), ('reference', 'nav.reference'), ('release-notes', 'nav.release-notes')]
@@ -42,7 +50,45 @@ def split_title(md):
 
 
 def plain(h):
-    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', '', h))).strip()
+    return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', h))).strip()
+
+
+def words(md):
+    """A page's length: the words of its text and its code, as rendered."""
+    return len(plain(Doc(md).html).split())
+
+
+def label(title):
+    """A title as plain text, for the sidebar, the page-end cells and search (code spans unmarked)."""
+    return title.replace('`', '')
+
+
+def has_cjk(s):
+    return any('\u2e80' <= c <= '\u9fff' or '\uf900' <= c <= '\ufaff' or '\uff00' <= c <= '\uffef' for c in s)
+
+
+def first_sentence(s):
+    """A registry line's first sentence (I.3 ruling 5): up to the first full stop that ends one."""
+    m = re.match(r'^(.+?(?:[.!?](?=\s|$)|[。！？]))', s.strip(), re.S)
+    return (m.group(1) if m else s.strip()), (s.strip()[m.end():].strip() if m else '')
+
+
+def shift_md(md, by):
+    """Markdown with every heading `by` levels deeper (outside code fences)."""
+    out, fence = [], False
+    for l in md.split('\n'):
+        if l.lstrip().startswith(('```', '~~~')): fence = not fence
+        out.append('#' * by + l if not fence and re.match(r'^#{1,5} ', l) else l)
+    return '\n'.join(out)
+
+
+def zh_titles(root):
+    t = {}
+    for l in (root / 'web/docs-titles.txt').read_text().splitlines():
+        if l.startswith('#') or ' | ' not in l: continue
+        en, zh = l.split(' | ', 1)
+        t[en.strip()] = zh.strip()
+    return t
 
 
 class Page:
@@ -69,6 +115,15 @@ def build(ctx):
     canvas_paths = {p['path'] for p in ctx['data']['pages']}
     def tr(lang, k):
         return cats[lang].get(k) or cats['en'].get(k) or k
+    zh, untitled = zh_titles(root), set()
+    def titled(en):
+        """An English-only page's title in each language."""
+        out = {}
+        for l in langs:
+            if l == 'en' or has_cjk(en) or en in ('AGENTS.md', 'llms.txt'): out[l] = en
+            elif l == 'zh-Hans' and en in zh: out[l] = zh[en]
+            else: out[l] = en; untitled.add(en)
+        return out
     pages = []
 
     # The site's pages.
@@ -98,6 +153,16 @@ def build(ctx):
         canvas = f'lab/{short}/' if name.startswith('lab-') else f'scenes/{short}/'
         if canvas not in canvas_paths: canvas = None
         pages.append(Page(f'recipe-{short}', 'recipes', f'docs/recipes/{short}/', md=md, title=title, content_lang=cl, src=('site', f'docs/site/{{lang}}/{name}.md'), hidden=True, canvas=canvas))
+    # Concepts pages under MIN_WORDS: one page, each a section with the page's name as its anchor, at
+    # the place of the first of them. Their old addresses lead to their sections.
+    short = [p for p in pages if p.group == 'concepts' and words(p.md['en']) < MIN_WORDS]
+    merged = None
+    if len(short) > 1:
+        merged = Page('concepts-overview', 'concepts', 'docs/concepts/overview/', title={l: tr(l, 'web.docs.overview') for l in langs}, content_lang={l: l for l in langs})
+        merged.parts = short
+        merged.md = {l: '\n\n'.join(f'## {q.title[l]}\n' + shift_md(q.md[l], 1) for q in short) for l in langs}
+        pages.insert(pages.index(short[0]), merged)
+        pages = [p for p in pages if p not in short]
     placed = {s for v in SITE.values() for s in v}
     for f in (root / 'docs/site/en').glob('*.md'):
         assert f.stem in placed or f.stem.startswith(('lab-', 'scene-')), f'docs/site/en/{f.name} has no place in the docs tree (web/docs.py SITE)'
@@ -106,12 +171,10 @@ def build(ctx):
     def fw_page(rel, group, path, key, sub=None, title=None):
         kind, text = front((fw / rel).read_text())
         t, body = split_title(text)
-        return Page(key, group, path, sub=sub, md={l: body for l in langs}, title={l: title or t or key for l in langs}, content_lang={l: 'en' for l in langs}, src=('fw', rel))
+        return Page(key, group, path, sub=sub, md={l: body for l in langs}, title=titled(title or t or key), content_lang={l: 'en' for l in langs}, src=('fw', rel))
     fwdocs = sorted(p.relative_to(fw).as_posix() for p in (fw / 'docs').rglob('*.md'))
     kinds = {r: front((fw / r).read_text())[0] for r in fwdocs}
     for r, k in kinds.items(): assert k in ('readme', 'howto', 'reference', 'explanation'), f'amenui {r}: front matter kind {k!r}'
-    for r in fwdocs:
-        if kinds[r] == 'readme': pages.append(fw_page(r, 'start', 'docs/start/documentation/', 'documentation'))
     for r in fwdocs:
         if kinds[r] == 'howto' and r.startswith('docs/guides/'):
             s = pathlib.PurePosixPath(r).stem
@@ -123,7 +186,7 @@ def build(ctx):
     # DESIGN.md (the explanation): one page per section, the first one its introduction and terms.
     design = []
     for r in fwdocs:
-        if kinds[r] == 'explanation': design += design_pages(fw, r, langs)
+        if kinds[r] == 'explanation': design += design_pages(fw, r, langs, titled)
     pages += [p for p in design]
     # Components.
     reg = json.loads((fw / 'registry.json').read_text())
@@ -175,9 +238,21 @@ def build(ctx):
             repo, rel = p.src
             for lang in langs: files[(repo, rel.replace('{lang}', lang))] = p
     files[('fw', 'docs/recipes')] = next(p for p in visible if p.sub and p.sub[0] == 'recipes')
+    # amenui's own docs index is this site's: links to it go to /docs/.
+    class Index: path = 'docs/'
+    files[('fw', 'docs/README.md')] = files[('fw', 'docs')] = Index
+    # A merged Concepts page's sections: a link to one of its files goes to its section.
+    anchors = {}
+    for q in (merged.parts if merged else []):
+        for lang in langs:
+            files[('site', q.src[1].replace('{lang}', lang))] = merged
+            anchors[('site', q.src[1].replace('{lang}', lang))] = q.key
     redirects = dict(ctx['data']['redirects'])
-    for p in allp:
+    for p in allp + (merged.parts if merged else []):
         if p.hash: redirects[p.hash] = p.path
+    moved = {q.hash: merged.path + '#' + q.key for q in (merged.parts if merged else [])}
+    def to(q, key, frag):
+        return q.path + ('#' + frag if frag else '#' + anchors[key] if key in anchors else '')
     # Section numbers of DESIGN.md (§1.8.2) to their pages and anchors.
     sections = {}
     for p in design:
@@ -188,14 +263,16 @@ def build(ctx):
         def link(url):
             gh = re.match(r'^https://github\.com/amenui-dev/(website|amenui)/(?:blob|tree)/main/([^#]+)(#.*)?$', url)
             if gh:
-                q = files.get(('site' if gh.group(1) == 'website' else 'fw', re.sub(r'^docs/site/[^/]+/', 'docs/site/' + lang + '/', gh.group(2)) if gh.group(1) == 'website' else gh.group(2)))
-                if q: return (prefix + q.path + (gh.group(3) or ''), False)
+                key = ('site' if gh.group(1) == 'website' else 'fw', re.sub(r'^docs/site/[^/]+/', 'docs/site/' + lang + '/', gh.group(2)) if gh.group(1) == 'website' else gh.group(2))
+                q = files.get(key)
+                if q: return (prefix + to(q, key, (gh.group(3) or '')[1:]), False)
             if re.match(r'^[a-z]+:', url):
                 site = re.match(r'^https://amenui-dev\.github\.io/website/(.*)$', url)
                 return (prefix + site.group(1), False) if site else (url, True)
             if url.startswith('/'): return (url, False)
             if url.startswith('#'):
                 h = url[1:]
+                if h in moved: return (prefix + moved[h], False)
                 if h in redirects: return (prefix + redirects[h], False)
                 return ('@@#' + h + '@@', False)
             path, _, frag = url.partition('#')
@@ -203,10 +280,12 @@ def build(ctx):
             rel = rel.replace('{lang}', lang)
             base = pathlib.PurePosixPath(rel).parent
             m = re.match(r'^md/[^/]+/(.+)\.md$', path)
+            if m and m.group(1) in moved: return (prefix + moved[m.group(1)], False)
             if m and m.group(1) in redirects: return (prefix + redirects[m.group(1)], False)
             target = norm(base / path)
-            q = files.get((repo, target)) or files.get((repo, target.rstrip('/')))
-            if q: return (prefix + q.path + ('#' + frag if frag else ''), False)
+            key = (repo, target) if (repo, target) in files else (repo, target.rstrip('/'))
+            q = files.get(key)
+            if q: return (prefix + to(q, key, frag), False)
             kind = 'tree' if path.endswith('/') else 'blob'
             return (f'{GITHUB[repo]}/{kind}/main/{target}' + ('#' + frag if frag else ''), True)
         return link
@@ -221,6 +300,18 @@ def build(ctx):
             if body is None:
                 html_, heads = component_html(p, lang, tr, by_name, fw, resolver(p, lang))
                 p.out[lang] = (html_, heads, '')
+                continue
+            if p is merged:
+                # Each part a section under its title, its own headings one level down; its links
+                # resolved from its own file.
+                seen, parts, heads = {q.key for q in p.parts}, [], []
+                for q in p.parts:
+                    d = Doc(q.md[lang], resolver(q, lang), t, shift=1, seen=seen)
+                    sec = f'<h2 id="{q.key}"><a href="#{q.key}">{esc(q.title[lang])}</a></h2>\n{d.html}'
+                    parts.append(sec if q.content_lang[lang] == lang else f'<section lang="{q.content_lang[lang]}">{sec}</section>')
+                    heads += [(2, esc(q.title[lang]), q.key)] + [(lv, txt, hid) for lv, txt, hid, _ in d.headings]
+                p.out[lang] = ('\n'.join(parts), heads, '')
+                p.ids = getattr(p, 'ids', {}); p.ids[lang] = {hid for _, _, hid in heads}
                 continue
             d = Doc(body, resolver(p, lang), t, shift=getattr(p, 'shift', 0))
             h = d.html
@@ -251,6 +342,18 @@ def build(ctx):
         for lang in langs:
             written.append(write_page(ctx, p, lang, nav, tr))
     index = write_index(ctx, nav, tr)
+    # Old addresses: a page that goes on. The merged Concepts pages lead to their sections, the page
+    # that was amenui's docs index to this one.
+    gone = [(q.path, q.title, moved[q.hash]) for q in (merged.parts if merged else [])] + [('docs/start/documentation/', {l: tr(l, 'web.docs.title') for l in langs}, 'docs/')]
+    for path, title, to_path in gone:
+        for lang in langs:
+            prefix = '' if lang == 'en' else lang + '/'
+            to_url = BASE + prefix + to_path
+            d = ctx['out'] / prefix / path
+            d.mkdir(parents=True, exist_ok=True)
+            (d / 'index.html').write_text(f'<!doctype html>\n<html lang="{lang}"><meta charset="utf-8"><title>{esc(title[lang])} · amenui</title><link rel="canonical" href="{attr(to_url)}">'
+                                          f'<meta http-equiv="refresh" content="0; url={attr(to_url)}"><meta name="robots" content="noindex"><a href="{attr(to_url)}">{esc(title[lang])}</a></html>\n')
+    if untitled: print('docs: no Simplified Chinese title in web/docs-titles.txt for: ' + '; '.join(sorted(untitled)))
     # The raw files at the root (A.1): /llms.txt, /AGENTS.md, /registry.json.
     for rel in ['llms.txt', 'AGENTS.md', 'registry.json']:
         (ctx['out'] / rel).write_bytes((fw / rel).read_bytes())
@@ -265,6 +368,25 @@ def stage_routes(ctx):
     out = [f'components/{i["name"].replace("_", "-")}/' for i in reg['items'] if i['name'] != 'base']
     out += [f'lab/{f.stem[4:]}/' for f in sorted((ctx['root'] / 'docs/site/en').glob('lab-*.md'))]
     return [r for r in out if r in canvas]
+
+
+# The stage (I.2 item 7): the route's stage alone (`<path>#stage`), 280 px tall (200 on a phone), its
+# specimen centred. Its stills are that route drawn inside the frame of the desktop box and of a 390 px
+# phone's (STILLS, at scale 2, by web/build.py), each shown at its own size and centred, so a box of
+# another width crops it where the live canvas would lay out the same specimen.
+STILLS = {'wide': (718, 278), 'narrow': (358, 198)}
+
+
+def stage_html(ctx, p, t, href):
+    route = p.stage if p.stage is not None else p.canvas
+    still = ctx['stills'].get(route, {})
+    img = ''
+    if 'wide' in still:
+        w, h = STILLS['wide']
+        img = f'<img src="{attr(ctx["base"] + still["wide"])}" alt="" width="{w}" height="{h}" decoding="async">'
+        if 'narrow' in still: img = f'<picture><source media="(max-width: 719px)" srcset="{attr(ctx["base"] + still["narrow"])}" width="{STILLS["narrow"][0]}" height="{STILLS["narrow"][1]}">{img}</picture>'
+    return (f'<figure class="stage" data-route="{attr((route or "") + "#stage")}"><div class="box"><button type="button" class="run" aria-label="{attr(t("web.docs.run"))}">{img}</button></div>'
+            f'<figcaption><span class="state" data-idle="{attr(t("web.docs.stage"))}">{esc(t("web.docs.stage-still"))}</span><span class="acts"><a href="{href(route)}">{esc(t("web.docs.open"))}&nbsp;↗</a></span></figcaption></figure>')
 
 
 def norm(p):
@@ -299,9 +421,12 @@ def section_links(h, sections, prefix, here):
     return ''.join(out)
 
 
-def design_pages(fw, rel, langs):
+def design_pages(fw, rel, langs, titled):
     """DESIGN.md cut at its sections: the introduction with the terms and §0; each `### 1.x` of the
-    pipeline; each other `## n.` section whole. Headings move up so each page's own is its title."""
+    pipeline; each other `## n.` section whole. Headings move up so each page's own is its title. A
+    section under MIN_WORDS joins a neighbour: one with subsections takes its first one in; a `## n.`
+    section joins the introduction; any other the page before it, its headings one below that page's
+    title."""
     kind, text = front((fw / rel).read_text())
     lines = text.split('\n')
     heads, fence = [], False
@@ -316,44 +441,63 @@ def design_pages(fw, rel, langs):
         if lv == 2 and num and num.group(1) != '0': cuts.append(i)
         elif lv == 3 and num and num.group(1).startswith('1.'): cuts.append(i)
     cuts.append(len(lines))
-    out, seen = [], set()
+    head_at = {i: (lv, t) for i, lv, t in heads}
+    def num_of(t):
+        m = re.match(r'^(\d+(?:\.\d+)*)', t)
+        return m.group(1) if m else None
+    # Each page: its title's level and text, and its lines (headings rewritten where a section joined).
+    chunks = []
     for a, b in zip(cuts, cuts[1:]):
-        chunk = lines[a:b]
-        first = next((h for h in heads if h[0] == a), None)
-        if a == 0:
-            title, level, slug_, path = 'Design', 1, '', 'docs/concepts/design/'
-            body = '\n'.join(chunk)
-            title_md, body = split_title(body)
-            title = title_md or 'Design'
-            shift = 0
+        lv, t = head_at.get(a, (1, 'Design'))
+        chunks.append({'level': lv if a else 1, 'title': t if a else 'Design', 'lines': lines[a:b]})
+    def body_words(c): return words('\n'.join(c['lines'][1:]))
+    def deepen(c, by):
+        out, fence = [], False
+        for l in c['lines']:
+            if l.startswith('```'): fence = not fence
+            out.append('#' * by + l if by > 0 and not fence and re.match(r'^#{1,5} ', l) else l)
+        return out
+    i = 1
+    while i < len(chunks):
+        c = chunks[i]
+        if body_words(c) >= MIN_WORDS: i += 1; continue
+        n, nxt = num_of(c['title']), chunks[i + 1] if i + 1 < len(chunks) else None
+        if nxt and n and (num_of(nxt['title']) or '').startswith(n + '.'):
+            c['lines'] = c['lines'] + nxt['lines']; del chunks[i + 1]; continue
+        into = chunks[0] if c['level'] == 2 else chunks[i - 1]
+        into['lines'] = into['lines'] + [''] + deepen(c, into['level'] + 1 - c['level'])
+        del chunks[i]
+    out, seen = [], set()
+    for k, c in enumerate(chunks):
+        title, level = c['title'], c['level']
+        if k == 0:
+            title_md, body = split_title('\n'.join(c['lines']))
+            title, path, shift = title_md or 'Design', 'docs/concepts/design/', 0
         else:
-            level, title = first[1], first[2]
-            body = '\n'.join(chunk[1:])
-            words = re.sub(r'^\d+(?:\.\d+)*\.?\s+', '', title)
-            words = re.sub(r'\([^)]*\)', '', words)
-            s = re.sub(r'[^a-z0-9]+', '-', words.lower()).strip('-')[:48].strip('-') or 'section'
+            body = '\n'.join(c['lines'][1:])
+            w = re.sub(r'^\d+(?:\.\d+)*\.?\s+', '', title)
+            w = re.sub(r'\([^)]*\)', '', w)
+            s = re.sub(r'[^a-z0-9]+', '-', w.lower()).strip('-')[:48].strip('-') or 'section'
             if s in seen: s = re.sub(r'[^0-9]+', '-', title.split()[0]).strip('-') + '-' + s
             seen.add(s)
-            path = f'docs/concepts/design/{s}/'
-            shift = -(level - 1)
-        p = Page('design-' + (path.split('/')[-2] if a else 'index'), 'concepts', path, sub=('design', 'web.docs.design'), md={l: body for l in langs},
-                 title={l: title for l in langs}, content_lang={l: 'en' for l in langs}, src=('fw', rel))
+            path, shift = f'docs/concepts/design/{s}/', -(level - 1)
+        p = Page('design-' + (path.split('/')[-2] if k else 'index'), 'concepts', path, sub=('design', 'web.docs.design'), md={l: body for l in langs},
+                 title=titled(title), content_lang={l: 'en' for l in langs}, src=('fw', rel))
         p.shift = shift
-        # The section numbers this page holds: its own (no anchor) and its subsections' (by heading id).
+        # The section numbers this page holds: its own (no anchor) and its subsections' (by heading id,
+        # as the page's renderer gives them).
         p.sections = []
-        own = re.match(r'^(\d+(?:\.\d+)*)', title)
-        if own: p.sections.append((own.group(1), None))
-        from md import slug
-        ids = set()
-        fence = False
-        for l in chunk[1:] if a else chunk:
+        own = num_of(title) if k else None
+        if own: p.sections.append((own, None))
+        ids, fence = set(), False
+        for l in body.split('\n'):
             if l.startswith('```'): fence = not fence
             if fence: continue
-            m = re.match(r'^(#{2,6}) (.*)$', l)
+            m = re.match(r'^(#{1,6}) (.*)$', l)
             if not m: continue
             hid = slug(inline(m.group(2)), ids)
-            n = re.match(r'^(\d+(?:\.\d+)*)', m.group(2))
-            if n: p.sections.append((n.group(1), hid))
+            n = num_of(m.group(2))
+            if n: p.sections.append((n, hid))
         out.append(p)
     return out
 
@@ -409,10 +553,12 @@ def component_html(p, lang, tr, by_name, fw, link):
     ids, heads, parts = set(), [], []
     il = lambda s: inline(s, link)
     def h2(title):
-        from md import slug
         hid = slug(esc(title), ids); heads.append((2, esc(title), hid))
         return f'<h2 id="{hid}"><a href="#{hid}">{esc(title)}</a></h2>'
-    parts.append(f'<p class="lead">{il(desc)}</p>')
+    # The registry's line: its first sentence is the lead (as on the index cards and in search), the
+    # rest a paragraph under it.
+    lead, rest = first_sentence(desc)
+    parts.append(f'<p class="lead">{il(lead)}</p>' + (f'<p>{il(rest)}</p>' if rest else ''))
     parts.append('@@STAGE@@')
     parts.append(h2(t('docs.sec.install')))
     parts.append(f'<p>{il(t("docs.install.lead"))}</p>')
@@ -423,10 +569,9 @@ def component_html(p, lang, tr, by_name, fw, link):
     parts.append(code_block(f'use amenui::widgets::{{{", ".join(fns)}}};' + ('\n\n' + exs[0][1] if exs else ''), 'rust', t))
     if exs:
         parts.append(h2(t('docs.sec.examples')))
-        for label, c in exs:
-            from md import slug
-            hid = slug(esc(pick(label, lang)), ids)
-            parts.append(f'<h3 id="{hid}"><a href="#{hid}">{esc(pick(label, lang))}</a></h3>')
+        for ex_label, c in exs:
+            hid = slug(esc(pick(ex_label, lang)), ids)
+            parts.append(f'<h3 id="{hid}"><a href="#{hid}">{esc(pick(ex_label, lang))}</a></h3>')
             parts.append(code_block(c, 'rust', t))
     parts.append(h2(t('docs.sec.api')))
     rows = [(t('docs.api.functions'), ', '.join(f'<code>{esc(f)}</code>' for f in fns)), (t('docs.api.props'), il(header_line(src, 'Props:'))),
@@ -473,9 +618,10 @@ def write_page(ctx, p, lang, nav, tr):
         q = next((x for x in nav['visible'] if x.src == ('fw', m.group(1))), None)
         return esc(q.title[lang]) if q else esc(m.group(1).rsplit('/', 1)[-1])
     body = re.sub(r'@@recipe-title:([^@]*)@@', recipe_title, body)
+    body = one_face(body)
     stage = ''
     if p.stage or p.canvas is not None and p.hidden:
-        stage = ctx['stage_html'](p, lang, href)
+        stage = stage_html(ctx, p, t, href)
     body = body.replace('@@STAGE@@', stage) if '@@STAGE@@' in body else (stage + body if stage and p.hidden else body)
     group = dict(nav['groups']).get(p.group)
     gname = t(group) if group else t('docs.recipes')
@@ -489,7 +635,7 @@ def write_page(ctx, p, lang, nav, tr):
     if p.sub: crumbs.append(esc(sub_name(p.sub, t).lower() if lang == 'en' else sub_name(p.sub, t)))
     path_line = ' / '.join(crumbs) + ' /'
     # Below 1,080 px the path line opens the sidebar: the same path as text, with the page's name.
-    names = [t('web.docs'), gname] + ([sub_name(p.sub, t)] if p.sub else []) + [p.title[lang]]
+    names = [t('web.docs'), gname] + ([sub_name(p.sub, t)] if p.sub else []) + [label(p.title[lang])]
     path_open = esc(' / '.join(n.lower() if lang == 'en' else n for n in names))
     title = p.title[lang]
     toc = [(txt, hid) for lv, txt, hid in heads if lv == 2]
@@ -501,7 +647,7 @@ def write_page(ctx, p, lang, nav, tr):
     nxt = vis[i + 1] if 0 <= i < len(vis) - 1 else None
     pn = ''
     if prev or nxt:
-        cell = lambda q, cls: f'<a class="{cls}" href="{href(q.path)}" rel="{cls}"><small>{"← " if cls == "prev" else ""}{q.num}{" →" if cls == "next" else ""}</small><span>{esc(q.title[lang])}</span></a>' if q else '<span></span>'
+        cell = lambda q, cls: f'<a class="{cls}" href="{href(q.path)}" rel="{cls}"><small>{"← " if cls == "prev" else ""}{q.num}{" →" if cls == "next" else ""}</small><span>{esc(label(q.title[lang]))}</span></a>' if q else '<span></span>'
         pn = f'<nav class="pn" aria-label="{attr(t("web.docs.pages"))}">' + cell(prev, 'prev') + cell(nxt, 'next') + '</nav>'
     edit = raw = ''
     if p.src:
@@ -518,17 +664,23 @@ def write_page(ctx, p, lang, nav, tr):
     toc_inline = f'<details class="toc-inline"><summary>{esc(t("docs.on-this-page"))} ▾</summary><ol>{toc_list}</ol></details>' if toc else ''
     note = f'<p class="only-en">{esc(t("web.docs.english"))}</p>' if only_en else ''
     num = f'<span class="num">{p.num}</span>' if p.num else ''
-    main = (f'<main id="content" class="doc-main"><p class="path"><a class="path-open" href="#side" aria-controls="side">{path_open} <span aria-hidden="true">▾</span></a><span class="path-text">{path_line}</span></p>'
-            f'<header class="title"><h1>{esc(title)}</h1>{num}</header>{note}{toc_inline}'
+    main = (f'<main id="main" class="doc-main"><p class="path"><a class="path-open" href="#side" aria-controls="side">{path_open} <span aria-hidden="true">▾</span></a><span class="path-text">{path_line}</span></p>'
+            f'<header class="title"><h1{" class=" + chr(34) + "cjk" + chr(34) if has_cjk(title) else ""}>{inline(title)}</h1>{num}</header>{note}{toc_inline}'
             f'<article class="prose"{" lang=" + chr(34) + cl + chr(34) if cl != lang else ""}>{body}</article>{pn}</main>')
     side = sidebar(nav, p, lang, t, href)
     description = desc_of(body) or t('web.description')
-    page = ctx['frame'](lang=lang, path=p.path, title=f'{title} · amenui', description=description, main=f'<div class="docs">{side}{main}{toc_html}</div>')
+    page = ctx['frame'](lang=lang, path=p.path, title=f'{label(title)} · amenui', description=description, main=f'<div class="docs">{side}{main}{toc_html}</div>')
     d = ctx['out'] / prefix / p.path
     d.mkdir(parents=True, exist_ok=True)
     (d / 'index.html').write_text(page)
     crumb = gname + (' · ' + sub_name(p.sub, t) if p.sub else '')
-    return {'lang': lang, 'url': p.path, 'title': title, 'crumb': crumb, 'body': body, 'heads': heads, 'keywords': p.keywords, 'size': len(page.encode())}
+    return {'lang': lang, 'url': p.path, 'title': label(title), 'crumb': crumb, 'body': body, 'heads': heads, 'keywords': p.keywords, 'canvas': p.canvas, 'size': len(page.encode())}
+
+
+def one_face(h):
+    """A heading that holds Chinese is set in the system's CJK sans whole, Latin included (I.3 ruling
+    11): it gets the class `cjk`."""
+    return re.sub(r'<(h[1-4])((?: id="[^"]*")?)>(.*?)</\1>', lambda m: f'<{m.group(1)} class="cjk"{m.group(2)}>{m.group(3)}</{m.group(1)}>' if has_cjk(plain(m.group(3))) else m.group(0), h, flags=re.S)
 
 
 def sub_name(sub, t):
@@ -570,7 +722,7 @@ def sidebar(nav, here, lang, t, href):
 
 def row(p, here, lang, href):
     cur = p is here
-    return f'<li><a href="{href(p.path)}"' + (' aria-current="page"><i class="here" aria-hidden="true">▸</i>' if cur else '>') + f'{esc(p.title[lang])}</a></li>'
+    return f'<li><a href="{href(p.path)}"' + (' aria-current="page"><i class="here" aria-hidden="true">▸</i>' if cur else '>') + f'{esc(label(p.title[lang]))}</a></li>'
 
 
 def write_index(ctx, nav, tr):
@@ -592,11 +744,11 @@ def write_index(ctx, nav, tr):
                     parts.append(f'<li class="subhead">{esc(sub_name(p.sub, t))}</li>')
                 last = p.sub
                 d = desc_of(p.out[lang][0]) if g not in ('components',) and not (p.sub and g != 'components') else ''
-                parts.append(f'<li><a href="{href(p.path)}"><small>{p.num}</small><span>{esc(p.title[lang])}</span></a>' + (f'<p>{esc(d)}</p>' if d else '') + '</li>')
+                parts.append(f'<li><a href="{href(p.path)}"><small>{p.num}</small><span>{esc(label(p.title[lang]))}</span></a>' + (f'<p>{esc(d)}</p>' if d else '') + '</li>')
             parts.append('</ul>')
         body = '\n'.join(parts)
-        main = (f'<main id="content" class="doc-main index"><p class="path"><span class="path-text">{esc(t("web.docs"))} /</span><a class="path-open" href="#side" aria-controls="side">{esc(t("web.docs"))} / <span aria-hidden="true">▾</span></a></p>'
-                f'<header class="title"><h1>{esc(t("web.docs.title"))}</h1></header><article class="prose">{body}</article></main>')
+        main = (f'<main id="main" class="doc-main index"><p class="path"><span class="path-text">{esc(t("web.docs"))} /</span><a class="path-open" href="#side" aria-controls="side">{esc(t("web.docs"))} / <span aria-hidden="true">▾</span></a></p>'
+                + one_face(f'<header class="title"><h1>{esc(t("web.docs.title"))}</h1></header>') + f'<article class="prose">{body}</article></main>')
         here = None
         side = sidebar(nav, here, lang, t, href)
         page = ctx['frame'](lang=lang, path='docs/', title=f'{t("web.docs.title")} · amenui', description=t('web.docs.lead'), main=f'<div class="docs">{side}{main}<aside class="toc"></aside></div>')
@@ -605,3 +757,31 @@ def write_index(ctx, nav, tr):
         (d / 'index.html').write_text(page)
         written.append({'lang': lang, 'url': 'docs/', 'title': t('web.docs.title'), 'crumb': t('web.docs'), 'body': '', 'heads': [], 'keywords': '', 'size': len(page.encode())})
     return written
+
+
+def not_found(ctx, frame, search):
+    """The 404 page (I.2 item 11): the bar, "Not found" at 44 px, one line and three doors, and no
+    module. One file serves every missing address, so it holds each language's bar and text and
+    shows the one its address is in. Older addresses (`#button`) still lead to their pages."""
+    BASE, langs = ctx['base'], ctx['langs']
+    def tr(lang, k): return ctx['cats'][lang].get(k) or ctx['cats']['en'][k]
+    redirect = '<script>(()=>{const m=%s,h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace(%s+m[h]);})()</script>' % (json.dumps(ctx['redirects'], separators=(',', ':')), json.dumps(BASE))
+    parts, cfgs = {}, {}
+    for lang in langs:
+        t = lambda k: tr(lang, k)
+        href = lambda p: BASE + ('' if lang == 'en' else lang + '/') + p
+        doors = ''.join(f'<a class="btn" href="{href(p)}">{esc(t(k))}</a>' for p, k in [('', 'web.not-found.home'), ('docs/', 'web.docs'), ('components/', 'web.components')])
+        main = f'<main id="main" class="nf"><h1{" class=" + chr(34) + "cjk" + chr(34) if has_cjk(t("web.not-found")) else ""}>{esc(t("web.not-found"))}</h1><p>{esc(t("web.not-found-text"))}</p><p class="doors">{doors}</p></main>'
+        page = frame(lang=lang, path='', title=f'{t("web.not-found")} · amenui', description=t('web.description'), main=main).replace(' aria-current="page"', '')
+        parts[lang] = re.search(r'<body>\n(.*?)\n<footer', page, re.S).group(1)
+        cfgs[lang] = json.loads(re.search(r'window\.SEARCH=(\{.*?\});\(', search(lang)).group(1))
+        if lang == 'en': head, tail = page.split('<body>\n', 1)[0], page.split('</main>\n', 1)[1]
+    others = ''.join(f'<template data-lang="{l}">{parts[l]}</template>' for l in langs if l != 'en')
+    # Before the search's script binds the bar's button: the language's bar and text; after it, the
+    # language's search.
+    pick = ('<script>(()=>{const B=%s;for(const t of document.querySelectorAll("template[data-lang]")){const l=t.dataset.lang;if(!location.pathname.startsWith(B+l+"/"))continue;'
+            'document.getElementById("nf").replaceWith(t.content);document.documentElement.lang=l;document.title=document.querySelector(".nf h1").textContent+" · amenui";window.NF=l}})()</script>') % json.dumps(BASE)
+    then = '<script>if(window.NF)Object.assign(window.SEARCH,%s[window.NF])</script>' % json.dumps({l: cfgs[l] for l in langs if l != 'en'}, ensure_ascii=False, separators=(',', ':'))
+    head = head.replace('<head>\n', '<head>\n' + redirect + '\n', 1)
+    tail = tail.replace('@@SEARCH-INDEX@@', pick + search('en') + then + '\n')
+    return f'{head}<body>\n<div id="nf">{parts["en"]}</div>{others}\n{tail}'

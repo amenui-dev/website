@@ -153,7 +153,7 @@ SEARCH_TOKEN = '@@SEARCH-INDEX@@'
 def search_boot(lang, index_url):
     t = lambda k: tr(lang, k)
     cfg = {'js': BASE + search_fn, 'index': index_url, 'base': BASE + ('' if lang == 'en' else lang + '/'),
-           't': {'search': t('web.search'), 'placeholder': t('web.search.placeholder'), 'results': t('web.search.results'), 'none': t('web.search.none'), 'loading': t('web.search.loading'), 'hint': t('web.search.hint')}}
+           't': {'search': t('web.search'), 'placeholder': t('web.search.placeholder'), 'results': t('web.search.results'), 'none': t('web.search.none'), 'loading': t('web.search.loading'), 'hint': t('web.search.hint'), 'docs': t('web.docs')}}
     return ('<script>window.SEARCH=%s;(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});'
             'D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);'
             'if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);'
@@ -187,11 +187,10 @@ def doc_frame(lang, path, title, description, main):
             f'<script>window.DOCS={json.dumps(cfg, ensure_ascii=False, separators=(",", ":"))}</script>\n<script src="{BASE + docs_js_fn}" defer></script>\n'
             f'{SEARCH_TOKEN}</body>\n</html>\n')
 
-# Build-time stills of the live stages (A.6, F.8): each stage's route drawn by the offscreen renderer at
-# the stage's desktop size (inside its frame, 718 x 449, at scale 2), so its first live frame is the
-# same picture. Made
-# when `RENDER` names the render tool (it needs a GPU or Mesa's lavapipe); without it a stage is an
-# empty frame until it is run.
+# Build-time stills of the live stages (A.6, F.8): each stage's route alone (`<path>#stage`) drawn by
+# the offscreen renderer at the stage's sizes inside its frame (docs.STILLS: the desktop box and a
+# phone's, at scale 2), so its first live frame is the same picture. Made when `RENDER` names the
+# render tool (it needs a GPU or Mesa's lavapipe); without it a stage is an empty frame until it is run.
 stills = {}
 render_bin = os.environ.get('RENDER')
 if render_bin:
@@ -199,40 +198,36 @@ if render_bin:
     shots = dist / 'stills'
     shots.mkdir(exist_ok=True)
     routes = docs_html.stage_routes({'root': root, 'fw': fw, 'data': data})
-    def shoot(route):
-        png = shots / (route.strip('/').replace('/', '-') + '.png')
-        r = subprocess.run([render_bin, '--page', route, '--size', '1436x898', '--scale', '2', '--at', '1500', '--locale', 'en', '--out', str(png)], capture_output=True, text=True)
-        return route, png if r.returncode == 0 and png.exists() else None
+    def shoot(job):
+        route, kind = job
+        w, h = docs_html.STILLS[kind]
+        png = shots / (route.strip('/').replace('/', '-') + '-' + kind + '.png')
+        r = subprocess.run([render_bin, '--page', route + '#stage', '--size', f'{w * 2}x{h * 2}', '--scale', '2', '--at', '1500', '--locale', 'en', '--out', str(png)], capture_output=True, text=True)
+        return route, kind, png if r.returncode == 0 and png.exists() else None
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
-        for route, png in pool.map(shoot, routes):
-            if not png: print(f'still: {route} could not be drawn'); continue
+        for route, kind, png in pool.map(shoot, [(r, k) for r in routes for k in docs_html.STILLS]):
+            if not png: print(f'still: {route} ({kind}) could not be drawn'); continue
             try:
                 from PIL import Image
                 import io
                 buf = io.BytesIO()
                 Image.open(png).convert('RGB').save(buf, 'WEBP', quality=82, method=6)
-                stills[route] = hashed('stills/' + png.stem + '.webp', buf.getvalue())
+                stills.setdefault(route, {})[kind] = hashed('stills/' + png.stem + '.webp', buf.getvalue())
             except ImportError:
-                stills[route] = hashed('stills/' + png.name, png.read_bytes())
-    print(f'stills: {len(stills)} of {len(routes)} stages, {sum((out / f).stat().st_size for f in stills.values())} bytes')
-def stage_html(p, lang, href):
-    t = lambda k: tr(lang, k)
-    route = p.stage if p.stage is not None else p.canvas
-    still = stills.get(route)
-    img = f'<img src="{BASE + still}" alt="" width="1436" height="898" decoding="async">' if still else ''
-    return (f'<figure class="stage" data-route="{html.escape(route or "/")}"><div class="box"><button type="button" class="run" aria-label="{html.escape(t("web.docs.run"))}">{img}</button></div>'
-            f'<figcaption><span class="state">{html.escape(t("web.docs.stage"))}</span><span class="acts"><a href="{href(route)}">{html.escape(t("web.docs.open"))}&nbsp;↗</a></span></figcaption></figure>')
-
-built = docs_html.build({'root': root, 'fw': fw, 'out': out, 'base': BASE, 'langs': langs, 'cats': cats, 'data': data, 'version': version, 'frame': doc_frame, 'stage_html': stage_html})
+                stills.setdefault(route, {})[kind] = hashed('stills/' + png.name, png.read_bytes())
+    print(f'stills: {len(stills)} of {len(routes)} stages, {sum((out / f).stat().st_size for v in stills.values() for f in v.values())} bytes')
+built = docs_html.build({'root': root, 'fw': fw, 'out': out, 'base': BASE, 'langs': langs, 'cats': cats, 'data': data, 'version': version, 'frame': doc_frame, 'stills': stills})
 redirects = built['redirects']
 
-# The search index: every docs page by its sections, and every canvas route by its title.
+# The search index: every docs page by its sections, and every canvas route by its title. A route that
+# has a docs page (a component's specimen, a Lab experiment) is one entry: it opens the route, its docs
+# page is its second target, and its text is the docs page's.
 reg = json.loads((fw / 'registry.json').read_text())
 desc = {i['name'].replace('_', '-'): i for i in reg['items']}
 def plain(h): return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', h))).strip()
 index_urls = {}
 for lang in langs:
-    entries = []
+    entries, docs_of = [], {}
     for w in built['pages']:
         if w['lang'] != lang: continue
         secs, at = [], 0
@@ -243,6 +238,10 @@ for lang in langs:
             end = heads[j + 1].start() if j + 1 < len(heads) else len(body)
             secs.append([plain(m.group(3)), m.group(2), plain(body[m.end():end])])
         secs = [s for s in secs if s[0] or s[2]]
+        if w.get('canvas'):
+            # A component's opening is its registry line, whose first sentence search shows.
+            if w['url'].startswith('docs/components/') and secs and not secs[0][0]: secs[0][2] = docs_html.first_sentence(secs[0][2])[0]
+            docs_of[w['canvas']] = (w, secs); continue
         entries.append([w['url'], w['title'], w['crumb'], w['keywords'], 0, secs])
     names = {'components': tr(lang, 'nav.components'), 'lab': tr(lang, 'nav.lab'), 'scenes': tr(lang, 'nav.scenes'), 'home': 'amenui'}
     for p in data['pages']:
@@ -254,12 +253,19 @@ for lang in langs:
         if sec == 'components':
             it = desc.get(p['path'].strip('/').split('/')[-1])
             if it: text = it.get('description_en') if lang == 'en' else it.get('description', '')
+        if p['path'] in docs_of:
+            w, secs = docs_of.pop(p['path'])
+            entries.append([p['path'], title, w['crumb'] if sec == 'components' else names.get(sec, sec), (kw + ' ' + w['keywords']).strip(), 1, secs, w['url']])
+            continue
+        if text: text = docs_html.first_sentence(text)[0]
         entries.append([p['path'], title, names.get(sec, sec), kw, 1, [['', '', text]] if text else []])
+    # A docs page whose route is not a canvas page here keeps its own entry.
+    for w, secs in docs_of.values(): entries.append([w['url'], w['title'], w['crumb'], w['keywords'], 0, secs])
     # Two files: the titles and headings, small enough to answer at once, and the sections' text, which
     # follows (the search shows title matches first and adds text matches when it arrives).
     text = json.dumps([[sec[2] for sec in e[5]] for e in entries], ensure_ascii=False, separators=(',', ':')).encode()
     text_url = BASE + hashed(f'search/{lang}.text.json', text)
-    heads = json.dumps({'text': text_url, 'pages': [e[:5] + [[[sec[0], sec[1]] for sec in e[5]]] for e in entries]}, ensure_ascii=False, separators=(',', ':')).encode()
+    heads = json.dumps({'text': text_url, 'pages': [e[:5] + [[[sec[0], sec[1]] for sec in e[5]]] + e[6:] for e in entries]}, ensure_ascii=False, separators=(',', ':')).encode()
     index_urls[lang] = BASE + hashed(f'search/{lang}.json', heads)
     print(f'search index {lang}: {len(entries)} entries; titles and headings gzip {gz(heads)}, text gzip {gz(text)}')
 # The docs pages, with their search line now that the index has its name.
@@ -310,7 +316,7 @@ for p in canvas_pages:
         b = page(lang, p['path'], title, p['section']).encode()
         (d / 'index.html').write_bytes(b)
         sizes.append((gz(b), lang + '/' + p['path']))
-(out / '404.html').write_text(page('en', '', 'Not found · amenui', 'home', notfound=True))
+(out / '404.html').write_text(docs_html.not_found({'base': BASE, 'langs': langs, 'cats': cats, 'redirects': redirects}, doc_frame, lambda l: search_boot(l, index_urls[l])))
 (out / '.nojekyll').write_text('')
 # The embedding example: the glue, the element, and where the files are.
 files = {'wasm': BASE + wasm_fn, 'fonts': fonts['en']}

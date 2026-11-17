@@ -45,7 +45,10 @@ html.doc, .doc body { height: auto; }
 .path-open { display: none; }
 .title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 24px; }
 .title h1 { min-width: 0; overflow-wrap: anywhere; font: 33px/33px var(--mono); color: var(--ink); margin: 0; -webkit-font-smoothing: none; }
-html[lang="zh-Hans"] .title h1 { font-family: var(--mono), var(--cjk); }
+/* A heading that holds Chinese is one face, the system's CJK sans at weight 500, Latin included
+   (D.1 as amended by I.3 ruling 11); the build marks it `cjk`. */
+.doc h1.cjk, .prose h2.cjk { font-family: var(--cjk); font-weight: 500; -webkit-font-smoothing: auto; }
+.prose h3.cjk, .prose h4.cjk { font: 500 14px/20px var(--cjk); letter-spacing: 0; -webkit-font-smoothing: auto; }
 .title .num { color: var(--dim); flex: none; }
 .only-en { color: var(--dim); margin: -12px 0 24px; text-transform: uppercase; }
 
@@ -64,7 +67,6 @@ html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
 .prose h2 a, .prose h3 a, .prose h4 a { color: inherit; text-decoration: none; }
 /* Second level: 22 px, set into a hairline like a section header. Third: 11 px uppercase in ink. */
 .prose h2 { display: flex; align-items: center; gap: 16px; font: 22px/22px var(--mono); color: var(--ink); margin: 48px 0 24px; }
-html[lang="zh-Hans"] .prose h2, html[lang="zh-Hans"] .prose h3 { font-family: var(--mono), var(--cjk); }
 .prose h2::before { content: ""; flex: 0 0 24px; height: 1px; background: var(--hairline); }
 .prose h2::after { content: ""; flex: 1 1 24px; min-width: 24px; height: 1px; background: var(--hairline); }
 .prose h3, .prose h4 { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin: 32px 0 12px; }
@@ -125,21 +127,27 @@ html[lang="zh-Hans"] .prose:not([lang]) table { font-size: 14px; }
 .toc-inline ol { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 1px solid var(--hairline); }
 .toc-inline a { display: block; padding: 7px 0; color: var(--text); }
 
-/* The live stage: 16:10, full width, hairline frame on the raised colour, a 28 px caption strip. */
+/* The live stage: the route's stage alone, 280 px tall (200 on a phone), full width, a hairline frame on
+   the raised colour and a 28 px caption strip. The still is drawn at the desktop box's size and shown
+   at its own size, centred, so a narrower box crops it as the live canvas does. */
 .stage { margin: 32px 0; view-transition-name: stage; }
-.stage .box { position: relative; aspect-ratio: 16 / 10; background: var(--raised); border: 1px solid var(--hairline); overflow: hidden; }
+.stage .box { position: relative; height: 280px; background: var(--raised); border: 1px solid var(--hairline); overflow: hidden; }
+@media (max-width: 719px) { .stage .box { height: 200px; } }
 html:not(.js) .stage .run { cursor: default; }
 .stage .run { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; }
-.stage .box img, .stage .box .live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage .box .live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* A still at its own size (docs.STILLS), centred: a box of another width crops it. */
+.stage .box img { position: absolute; left: 50%; top: 50%; width: 718px; height: 278px; max-width: none; transform: translate(-50%, -50%); display: block; }
+@media (max-width: 719px) { .stage .box img { width: min(358px, 100%); height: auto; } }
 .stage .live canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage .live .a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
 .stage .live .a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
 .stage .live .ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
-.stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; height: 28px; font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 28px; padding: 4px 0; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .stage figcaption a, .stage figcaption button { color: var(--text); font: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
 .stage figcaption a:hover, .stage figcaption button:hover { color: var(--ink); }
 .stage.on .state { color: var(--accent); }
-.stage .acts { display: flex; gap: 16px; }
+.stage .acts { display: flex; gap: 16px; flex: none; }
 
 /* The docs index: groups behind section headers (D.4). */
 /* Section header (D.4): a hairline with an index and a name set into it, 11 px; 48 px above, 24 below. */
@@ -155,6 +163,16 @@ html:not(.js) .stage .run { cursor: default; }
 .idx p { margin: 6px 0 0 52px; font-size: 15px; line-height: 1.5; color: var(--text); }
 .idx.compact li { padding: 8px 0; }
 .idx .subhead { grid-column: 1 / -1; border: 0; padding: 16px 0 4px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+
+/* The 404 page: "Not found" at 44 px, one line, three doors. */
+.nf { max-width: 1320px; margin: 0 auto; padding: 168px var(--m) 120px; }
+.nf h1 { font: 44px/44px var(--mono); color: var(--ink); margin: 0 0 24px; -webkit-font-smoothing: none; }
+.nf p { margin: 0 0 32px; color: var(--text); }
+html[lang="zh-Hans"] .nf p { font: 16px/1.75 var(--cjk); }
+.nf .doors { display: flex; flex-wrap: wrap; gap: 12px; }
+.nf .btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--hairline); color: var(--ink); -webkit-font-smoothing: none; }
+.nf .btn:hover { border-color: var(--ink); }
+@media (max-width: 719px) { .nf { padding-top: 120px; } .nf .doors { flex-direction: column; } .nf .btn { height: 48px; justify-content: center; } }
 
 /* The footer: GitHub and the version, which leave the bar below 1,080 px. */
 .foot { max-width: 1320px; margin: 0 auto; padding: 24px var(--m) 32px; display: flex; gap: 24px; color: var(--dim); text-transform: uppercase; border-top: 1px solid var(--hairline); }

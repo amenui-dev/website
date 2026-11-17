@@ -32,12 +32,13 @@
     links.forEach((a, i) => a.classList.toggle('on', i === at));
   };
   if (heads.length) { addEventListener('scroll', () => { if (!queued) queued = requestAnimationFrame(mark); }, { passive: true }); mark(); }
-  // The live stage: one per page. A press loads the module and the faces and starts the page's route in
-  // the box; the caption's state becomes `live`. If the module is already in the cache it starts as the
-  // stage comes into view.
+  // The live stage: one per page, the route's stage alone (`<path>#stage`). A press loads the module and
+  // the faces and starts it in the box; the caption reads `click to run` before and `live` after. If the
+  // module is already in the cache it starts as the stage comes into view.
   const st = D.querySelector('.stage[data-route]');
   if (!st || !A.files) return;
   const box = st.querySelector('.box'), state = st.querySelector('.state');
+  if (state.dataset.idle) state.textContent = state.dataset.idle;
   let started = false;
   const start = () => {
     if (started) return; started = true;

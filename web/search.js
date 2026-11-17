@@ -15,26 +15,31 @@
 .find .esc { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--dim); background: none; border: 0; padding: 0; height: 44px; cursor: pointer; }
 .find .esc:hover { color: var(--ink); }
 .find ul { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; overscroll-behavior: contain; }
+.find li { position: relative; }
 .find li a { position: relative; display: block; padding: 10px 16px 10px 32px; color: var(--text); text-decoration: none; }
-.find li a[aria-selected="true"] { background: var(--ground); }
-.find li a[aria-selected="true"]::before { content: "▸"; position: absolute; left: 16px; top: 10px; color: var(--accent); font: 11px/14px var(--mono); }
+.find li a.has-docs { padding-right: 96px; }
+.find li .to-docs { position: absolute; z-index: 1; right: 0; top: 0; padding: 10px 16px 10px 12px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text); -webkit-font-smoothing: none; }
+.find li .to-docs:hover, .find li .to-docs[aria-selected="true"] { color: var(--accent); }
+.find li.on a.main { background: var(--ground); }
+.find li a.main[aria-selected="true"]::before, .find li.on .to-docs[aria-selected="true"] ~ a.main::before { content: "▸"; position: absolute; left: 16px; top: 10px; color: var(--accent); font: 11px/14px var(--mono); }
 .find .k { display: block; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); -webkit-font-smoothing: none; }
 .find .t { display: block; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin-top: 4px; -webkit-font-smoothing: none; }
-.find li a[aria-selected="true"] .t { color: var(--accent); }
+.find li a.main[aria-selected="true"] .t { color: var(--accent); }
 .find .x { display: block; margin-top: 4px; font: 14px/1.45 var(--serif, Georgia, serif); color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
 .find mark { background: none; color: var(--ink); text-decoration: underline 1px; text-underline-offset: 3px; }
 .find .none, .find .foot { margin: 0; padding: 12px 16px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); -webkit-font-smoothing: none; }
 .find .foot { border-top: 1px solid var(--hairline); }
 @media (max-width: 719px) { .find .foot { display: none; } }`;
-  let el, input, list, none, data = null, loading = null, found = [], active = 0, back = null;
+  let el, input, list, none, data = null, loading = null, found = [], active = 0, side = 0, back = null;
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const low = s => s.toLowerCase();
   const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r.json(); });
   // The index comes in two files: the pages with their headings (each entry [url, title, crumb,
-  // keywords, canvas, [[heading, anchor], …]]), then the text of every section, which is added to them.
+  // keywords, canvas, [[heading, anchor], …], docs]), then the text of every section, which is added
+  // to them. A canvas route with a docs page is one entry: `docs` is that page, whose sections these are.
   const load = () => loading || (loading = get(S.index).then(j => {
-    data = j.pages.map(([url, title, crumb, kw, canvas, secs]) => ({ url, title, crumb, canvas, secs: secs.map(s => [s[0], s[1], '']), lt: low(title), lk: low(kw), ls: secs.map(s => [low(s[0]), '']) }));
+    data = j.pages.map(([url, title, crumb, kw, canvas, secs, docs]) => ({ url, title, crumb, canvas, docs, secs: secs.map(s => [s[0], s[1], '']), lt: low(title), lk: low(kw), ls: secs.map(s => [low(s[0]), '']) }));
     if (el && el.classList.contains('open')) run();
     return get(j.text).then(text => {
       text.forEach((t, i) => t.forEach((x, k) => { data[i].secs[k][2] = x; data[i].ls[k][1] = low(x); }));
@@ -52,21 +57,25 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
     input.addEventListener('input', run);
     input.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); select(active + (e.key === 'ArrowDown' ? 1 : -1)); }
-      else if (e.key === 'Enter') { e.preventDefault(); const a = list.children[active] && list.children[active].firstChild; if (a) go(a, e); }
+      else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && list.children[active] && list.children[active].querySelector('.to-docs') && input.selectionStart === input.value.length) { e.preventDefault(); side = e.key === 'ArrowRight' ? 1 : 0; select(active); }
+      else if (e.key === 'Enter') { e.preventDefault(); const a = target(active); if (a) go(a, e); }
       else if (e.key === 'Escape') { e.preventDefault(); close(); }
       else if (e.key === 'Tab') e.preventDefault();
       e.stopPropagation();
     });
     el.addEventListener('click', e => { if (e.target === el || e.target.closest('.esc')) close(); });
     list.addEventListener('click', e => { const a = e.target.closest('a'); if (a && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); go(a, e); } });
-    list.addEventListener('mousemove', e => { const li = e.target.closest('li'); if (li) select([...list.children].indexOf(li), true); });
+    list.addEventListener('mousemove', e => { const li = e.target.closest('li'); if (li) { side = e.target.closest('.to-docs') ? 1 : 0; select([...list.children].indexOf(li), true); } });
   };
+  // A row's targets: the page (or route), and for a route with a docs page that page, to its right.
+  const target = i => { const li = list.children[i]; return li && (side && li.querySelector('.to-docs') || li.querySelector('a.main')); };
   const select = (i, quiet) => {
     const n = list.children.length;
     if (!n) return;
+    if (i !== active) side = side && list.children[Math.max(0, Math.min(n - 1, i))].querySelector('.to-docs') ? side : 0;
     active = Math.max(0, Math.min(n - 1, i));
-    [...list.children].forEach((li, j) => li.firstChild.setAttribute('aria-selected', String(j === active)));
-    const a = list.children[active].firstChild;
+    const a = target(active);
+    [...list.children].forEach((li, j) => { li.classList.toggle('on', j === active); for (const x of li.querySelectorAll('a')) x.setAttribute('aria-selected', String(x === a)); });
     input.setAttribute('aria-activedescendant', a.id);
     if (!quiet) a.scrollIntoView({ block: 'nearest' });
   };
@@ -94,6 +103,10 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
         score += s;
       }
       if (!ok) continue;
+      // A section whose heading is the query (a merged page's part, `Layout` in Concepts · Overview)
+      // counts nearly as a title and is the section shown.
+      const named = p.ls.findIndex(([h]) => h === words.join(' '));
+      if (named >= 0 && !p.lt.includes(words.join(' '))) { out.push({ p, score: score + 90, sec: named }); continue; }
       let best = -1, bs = 0;
       // A page found by its title is shown by its opening; otherwise by the section with most words.
       if (words.every(w => p.lt.includes(w) || p.lk.split(" ").includes(w)) && p.secs.length && !p.secs[0][1]) { out.push({ p, score, sec: 0 }); continue; }
@@ -130,11 +143,16 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
     if (!found.length) { none.textContent = S.t.none; none.hidden = false; return; }
     list.innerHTML = found.map(({ p, sec }, i) => {
       const s = sec >= 0 ? p.secs[sec] : null;
-      const href = S.base + p.url + (s && s[1] ? '#' + s[1] : '');
+      const at = s && s[1] ? '#' + s[1] : '';
+      // A route with a docs page opens the route; a hit inside the docs text is shown, and its
+      // section is where the second target goes.
+      const href = S.base + p.url + (p.docs ? '' : at);
       const head = s && s[0] ? ' · ' + s[0] : '';
       const x = s ? snippet(s[2], words) : '';
-      return `<li role="presentation"><a id="find-${i}" role="option" href="${esc(href)}"${p.canvas ? ` data-route="${esc(p.url)}"` : ''}><span class="k">${esc(p.crumb)}${esc(head)}</span><span class="t">${mark(p.title, words)}</span>${x ? `<span class="x">${mark(x, words)}</span>` : ''}</a></li>`;
+      const docs = p.docs ? `<a id="find-${i}-docs" class="to-docs" role="option" href="${esc(S.base + p.docs + at)}">${esc(S.t.docs)}&nbsp;↗</a>` : '';
+      return `<li role="presentation">${docs}<a id="find-${i}" class="main${p.docs ? ' has-docs' : ''}" role="option" href="${esc(href)}"${p.canvas ? ` data-route="${esc(p.url)}"` : ''}><span class="k">${esc(p.crumb)}${esc(head)}</span><span class="t">${mark(p.title, words)}</span>${x ? `<span class="x">${mark(x, words)}</span>` : ''}</a></li>`;
     }).join('');
+    active = 0; side = 0;
     select(0);
   };
   const open = () => {

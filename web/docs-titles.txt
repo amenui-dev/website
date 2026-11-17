@@ -1,0 +1,74 @@
+# Titles in Simplified Chinese for the docs pages that are in English only (amenui's guides, reference,
+# recipes and the sections of DESIGN.md), as the sidebar, the title block and search show them. Keyed
+# by the page's English title as its Markdown file has it; a title missing here is shown in English
+# and the build says so (web/docs.py).
+Development | 开发
+Architecture | 架构
+Fonts | 字体
+The annotation layer on a subtree | 子树上的标注层
+A chapter: one scene with actors that flow in | 一章：一个场景，角色依次流入
+A dot chart | 点阵图表
+A counter with recomposition and a scoped ripple | 带重组和局部涟漪的计数器
+A dialog | 对话框
+A page change with a shared part | 带共享部件的换页
+A form | 表单
+Text on a form | 形体上的文字
+Gestures: a bottom sheet and a floating box | 手势：底部面板和浮动框
+A list with selection | 可选择的列表
+A list that loads | 逐步载入的列表
+A custom material on one element | 单个元素上的自定义材质
+A 3D object in a card | 卡片里的三维物体
+Morph A into B | 把 A 变形为 B
+A custom preset | 自定义预设
+A stack of cards that fans | 展开成扇形的卡片堆
+A menu with submenus and a safe zone | 带子菜单和安全区的菜单
+Design | 设计
+1. The pipeline | 1. 管线
+1.1 Describing (`el.rs`) | 1.1 描述（`el.rs`）
+1.2 Layout | 1.2 布局
+1.3 The scene (`scene.rs`) | 1.3 场景（`scene.rs`）
+1.4 The two G-buffer targets | 1.4 两个 G-buffer 目标
+1.5 The wave field | 1.5 波场
+1.6 Materials | 1.6 材质
+1.6.1 How a picture turns into marks | 1.6.1 图像如何变成记号
+1.6.2 The materials | 1.6.2 各种材质
+1.6.3 Pixel type | 1.6.3 像素字
+1.6.4 Materials as source | 1.6.4 以源码提供的材质
+1.7 The annotation layer | 1.7 标注层
+1.8 Input | 1.8 输入
+1.8.1 Text input | 1.8.1 文字输入
+1.8.2 Pointer, touch and wheel | 1.8.2 指针、触摸和滚轮
+1.8.3 How scrolling looks | 1.8.3 滚动的样子
+1.8.4 Gesture physics (`src/gesture.rs`) | 1.8.4 手势物理（`src/gesture.rs`）
+1.8.5 Nested menus and the safe zone | 1.8.5 嵌套菜单和安全区
+1.9 Platforms | 1.9 平台
+1.10 Transforms | 1.10 变换
+1.11 Drawing only when something changed | 1.11 只在有变化时绘制
+1.12 The frame-time readout and the resolution budget | 1.12 帧时间读数和分辨率预算
+1.13 Incremental updates and long lists | 1.13 增量更新和长列表
+1.14 The accessibility mirror | 1.14 无障碍镜像
+1.15 Ripple rules | 1.15 涟漪规则
+1.16 Recomposition | 1.16 重组
+1.17 The surface for models | 1.17 面向模型的接口
+1.18 3D | 1.18 三维
+1.19 Drawing only what changed | 1.19 只绘制变化的部分
+1.20 Languages | 1.20 语言
+1.21 The finishing pass: post effects, dithering and palettes | 1.21 收尾处理：后期效果、抖动和调色板
+1.22 Marks that move by themselves: shedding and flow fields | 1.22 自己会动的记号：脱落和流场
+1.23 How loading looks | 1.23 载入的样子
+1.24 A stack of cards | 1.24 卡片堆
+1.25 A dot chart | 1.25 点阵图表
+1.26 Fields, drawings and glyph poses | 1.26 场、绘图和字形姿态
+1.27 The frame budget for marks | 1.27 记号的帧预算
+1.28 The decode transition | 1.28 解码过渡
+1.29 The field map and trails | 1.29 场图和轨迹
+1.30 The thread material `scribblr` and long paths | 1.30 线材质 `scribblr` 和长路径
+1.31 The audit | 1.31 检查
+2. Parameters must be exact | 2. 参数必须精确
+3. Components | 3. 组件
+4. Style = theme × material × material parameters × annotation × faces | 4. 风格 = 主题 × 材质 × 材质参数 × 标注 × 字体
+5. The gallery | 5. 展厅
+6. Scenes | 6. 场景
+7. What is done and its acceptance | 7. 已完成的部分和验收
+8. Layout | 8. 布局
+9. Where the implementation differs from the design | 9. 实现与设计不一致的地方
