@@ -1,13 +1,13 @@
 //! Render every gallery page in every theme and in the plain and dot materials to PNG files (one per
 //! combination), plus a few states: a dialog open, the narrow layout, a theme switch half-way, typing
-//! into an input. Step 5: every material's specimen at looseness 0, 0.5 and 1, the annotation page in
+//! into an input. Materials: every material's specimen at looseness 0, 0.5 and 1, the annotation page in
 //! each mode, every style page at rest and with a front mid-flight, and two contact sheets
 //! (`styles.png`, `materials.png`).
 //! Components: every component page under every material (but the debug `near`), at rest and with a
 //! front mid-way across the preview, dark theme (and light for print and lino), with one contact sheet
 //! per material (`components-<material>[-light].png`: a row per page, at rest | front).
-//! usage: pages <out_dir> [width] [height] [scale] [step5|perf|components]     (device px; `step5` only
-//! does step 5; `perf` times a frame of every material page, fully loosened; `components` only does the
+//! usage: pages <out_dir> [width] [height] [scale] [materials|perf|components]     (device px; `materials` only
+//! does the material specimens and sheets; `perf` times a frame of every material page, fully loosened; `components` only does the
 //! component sheets)
 use amenui::el::Key;
 use amenui::gallery::{self, GalleryUi, Msg, Page};
@@ -39,13 +39,13 @@ fn main() {
     let w: u32 = a.get(2).and_then(|s| s.parse().ok()).unwrap_or(1280);
     let h: u32 = a.get(3).and_then(|s| s.parse().ok()).unwrap_or(1800);
     let scale: f32 = a.get(4).and_then(|s| s.parse().ok()).unwrap_or(1.0);
-    let only5 = a.get(5).is_some_and(|s| s == "step5");
+    let only_materials = a.get(5).is_some_and(|s| s == "materials");
     if a.get(5).is_some_and(|s| s == "perf") { perf(w, h, scale); return; }
     std::fs::create_dir_all(&out).expect("out dir");
     if a.get(5).is_some_and(|s| s == "components") { components(&out, scale); return; }
     let faces = || amenui::text::load_bundled("assets").expect("fonts");
-    step5(&out, scale);
-    if only5 { return; }
+    materials(&out, scale);
+    if only_materials { return; }
     let mut o = Offscreen::new(w, h);
     let mut ui = gallery::new_ui(faces(), w, h, scale);
     ui.pointer_leave();
@@ -169,7 +169,7 @@ fn sheet(tiles: &[(Vec<u8>, u32, u32)], cols: u32) -> (Vec<u8>, u32, u32) {
     (o, w, h)
 }
 
-fn step5(out: &str, scale: f32) {
+fn materials(out: &str, scale: f32) {
     let (w, h) = ((1280.0 * scale) as u32, (1000.0 * scale) as u32);
     let faces = || amenui::text::load_bundled("assets").expect("fonts");
     let mut o = Offscreen::new(w, h);

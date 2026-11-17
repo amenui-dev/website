@@ -1,4 +1,4 @@
-//! Acceptance for step 2: layout, pressing, scrolling and focus, all without a GPU.
+//! Acceptance for the skeleton: layout, pressing, scrolling and focus, all without a GPU.
 use amenui::demo::{self, Msg};
 use amenui::el::{El, Key, Paint, col, row, space, text_lh};
 use amenui::ui::{Rect, Ui};

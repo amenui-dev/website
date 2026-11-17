@@ -209,7 +209,7 @@ fn pointer_shapes() {
 }
 
 /// Two buttons side by side: the marks are on the one under the pointer in the frame the pointer gets
-/// there (before any tick), and in no frame between two targets do they trail behind (round 16).
+/// there (before any tick), and in no frame between two targets do they trail behind.
 fn pair(_: &()) -> El<u8> {
     amenui::el::row().key("root").pad(40.0, 40.0).gap(200.0)
         .child(amenui::widgets::button("a", "A", 1u8))

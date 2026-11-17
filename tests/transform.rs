@@ -1,4 +1,4 @@
-//! Acceptance for step 4 without a GPU: the morph's phases and hand-over times, reversal from where
+//! Acceptance for transforms without a GPU: the morph's phases and hand-over times, reversal from where
 //! the tiles are, flows between pages (interpolated rects, birth times kept, the rest dissolving), and
 //! the gallery's two pages issuing their commands.
 use amenui::el::{El, Paint, col, space, text};
@@ -250,7 +250,7 @@ fn gallery_flow_page_and_shell() {
 }
 
 
-// ── Sampling follows transforms and poses (round 16, DESIGN.md §1.26) ──────────────────────────────
+// ── Sampling follows transforms and poses (DESIGN.md §1.26) ────────────────────────────────────────
 
 #[derive(Default)]
 struct Posed { cmds: Vec<Cmd> }

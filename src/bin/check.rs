@@ -6,7 +6,7 @@
 //!     landing frame the target at looseness 1, within 2/255 over each element; mid-flight, under the
 //!     light theme, tiles are drawn outside and between the two elements.
 //!
-//!  5. Rest (step 5): for every material but near, body text at looseness 0 is drawn
+//!  5. Materials at rest: for every material but near, body text at looseness 0 is drawn
 //!     exactly as `plain` draws it (print: within its paper grain; dot: the glyphs' own pixels, since
 //!     its ground has units at rest); with a control that loosened text
 //!     does differ.
@@ -46,7 +46,7 @@
 //!
 //! 17. Looks (§1.21): the finishing pass at zero is the frame it was, each effect changes it, dither and
 //!     palettes keep to their colours, drawn in part equals drawn whole with the pass on, depth marks.
-//!     (This was 19 until round 17; 17 had been retired with the film in round 16.)
+//!     (This was 19; 17 had been retired with the film.)
 //!
 //! 18. Scrolling (§1.8.3): under every material, scrolling the button page slowly (one device pixel a
 //!     frame), each frame inside the scroller (away from its edges) is the previous frame moved up by one

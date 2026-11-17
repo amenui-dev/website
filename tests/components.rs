@@ -1,4 +1,4 @@
-//! Acceptance for step 3, without a GPU: drag capture, text editing, the modal layer (focus trap,
+//! Acceptance for components and the gallery, without a GPU: drag capture, text editing, the modal layer (focus trap,
 //! dismissal, beneath held loose), tabs / list / slider / number scrub, disabled controls, horizontal
 //! scroll, commits, and the gallery's hash routes.
 use amenui::el::{Drag, El, Key, Paint, Phase, col, space};

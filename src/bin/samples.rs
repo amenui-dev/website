@@ -1,11 +1,11 @@
-//! Step 8's contact sheets (DESIGN.md §7):
+//! Contact sheets for 3D, particles and transitions (DESIGN.md §7):
 //!   mesh         the same low-poly object under every material, at rest and loosened, and drawn as a
 //!                picture under four mark sets → `mesh-materials.png`
 //!   particles    the 粒子 page going mesh → text → picture → mesh at 200,000 tiles, six frames of each
 //!                change, with the pointer in the swarm → `particles.png`
 //!   transitions  every preset's transition on the 风格 page, six frames each (from Normcore; Normcore's
 //!                own from Glitch), one row per preset → `transitions.png`
-//! usage: step8 <out_dir> [mesh | particles | transitions]
+//! usage: samples <out_dir> [mesh | particles | transitions]
 use amenui::el::{El, Paint, col, scene3d, text};
 use amenui::mesh::{Mat4, MeshId, Scene3d};
 use amenui::offscreen::{Offscreen, crop, save_png, sheet};
@@ -31,7 +31,7 @@ fn one(s: &One) -> El<()> {
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();
-    let out = a.get(1).cloned().unwrap_or_else(|| "step8".into());
+    let out = a.get(1).cloned().unwrap_or_else(|| "samples".into());
     std::fs::create_dir_all(&out).expect("out dir");
     let what = a.get(2).map(String::as_str).unwrap_or("mesh");
     if what == "mesh" { mesh(&out); }

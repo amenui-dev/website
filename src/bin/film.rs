@@ -1,4 +1,4 @@
-//! Filmstrips of step 4 (DESIGN.md §1.10), from the gallery's own pages. For each morph pair and
+//! Filmstrips of transforms (DESIGN.md §1.10), from the gallery's own pages. For each morph pair and
 //! material, seven moments on one contact sheet: before, the hand-over, four in flight, the target
 //! landed and tightened. For the page change, five moments opening a card and five going back.
 //! `film perf` instead times frames of a morph at the particle cap. `film <out> ripple` makes the
