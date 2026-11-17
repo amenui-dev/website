@@ -3,11 +3,11 @@
 //! laid-out clusters, drags select, double-click selects a word, Shift+arrows, Cmd+A / copy / cut /
 //! paste / undo, composition shown inline, a long line scrolling inside its field, a multi-line field
 //! moving by lines, and read-only selection across lines (source code, the article).
-use lab::el::{Key, Mods, Phase, TextInput};
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::widgets::TextEdit;
+use amenui::el::{Key, Mods, Phase, TextInput};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::widgets::TextEdit;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 const SHIFT: Mods = Mods { shift: true, cmd: false, alt: false };
 const CMD: Mods = Mods { shift: false, cmd: true, alt: false };
 fn key(k: Key, mods: Mods) -> TextInput { TextInput::Key { key: k, mods } }

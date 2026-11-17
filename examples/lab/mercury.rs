@@ -1,11 +1,11 @@
 //! Lab · mercury: metaballs. Σ rᵢ²/dᵢ² over a few balls; the surface is where it reaches 1, drawn as
 //! its contour with the inside filled in dots. One ball follows the pointer on a spring, the others
 //! drift; near each other they merge, pulled apart they split.
-use lab::draw::Drawing;
-use lab::el::{El, Point, canvas};
-use lab::experiment::{Experiment, Params, Pointer, frame, ink, spec};
-use lab::field::{Balls, Grid, Scalar};
-use lab::widgets::{Edit, Spec};
+use amenui::draw::Drawing;
+use amenui::el::{El, Point, canvas};
+use amenui::experiment::{Experiment, Params, Pointer, frame, ink, spec};
+use amenui::field::{Balls, Grid, Scalar};
+use amenui::widgets::{Edit, Spec};
 
 const W: f32 = 240.0;
 const H: f32 = 180.0;

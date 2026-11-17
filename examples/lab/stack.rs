@@ -1,8 +1,8 @@
 //! Lab · stack: the card stack (`widgets::card_stack`) in the lab's look: hover or press a card and
 //! the ones beneath fan out, card n turning angle0 × falloff^n after delay × n.
-use lab::el::{El, Paint};
-use lab::experiment::{Experiment, Params, frame, spec};
-use lab::widgets::{Edit, Spec, Stack as Deck, StackMsg, card_stack};
+use amenui::el::{El, Paint};
+use amenui::experiment::{Experiment, Params, frame, spec};
+use amenui::widgets::{Edit, Spec, Stack as Deck, StackMsg, card_stack};
 
 static DEFS: [(&str, Spec); 3] = [("angle0", spec(0.0, 90.0, 1.0, 0, "°")), ("falloff", spec(0.1, 1.0, 0.01, 2, "")), ("delay", spec(0.0, 200.0, 1.0, 0, "ms"))];
 

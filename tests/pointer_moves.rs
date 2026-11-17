@@ -1,10 +1,10 @@
 //! Moving the pointer costs only what changed (DESIGN.md §1.19): on every gallery
 //! page, 200 pointer moves that do not change what is hovered run no layout and shape no text, and the
 //! area to redraw stays bounded (never the whole window).
-use lab::dirty::{self, Region};
-use lab::gallery::{self, GalleryUi, Msg, Page};
+use amenui::dirty::{self, Region};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 const W: f32 = 1280.0;
 const H: f32 = 800.0;
@@ -15,7 +15,7 @@ const MAX_AREA: f32 = 0.25;
 fn lens_bound(ui: &GalleryUi, from: (f32, f32), to: (f32, f32)) -> dirty::Bx {
     let look = ui.state.look();
     let s = ui.scale();
-    let rch = (0..lab::style::MATERIAL_COUNT as u8).map(|m| dirty::reach(lab::style::Material::from_id(m), &look, s)).fold(0.0, f32::max)
+    let rch = (0..amenui::style::MATERIAL_COUNT as u8).map(|m| dirty::reach(amenui::style::Material::from_id(m), &look, s)).fold(0.0, f32::max)
         + look.pics.iter().map(|p| 2.0 * p.pitch * s + p.depth * s).fold(0.0, f32::max);
     let r = dirty::LENS_REACH_DOT * look.fx.lens * s + rch + 2.0;
     let mut b = dirty::union([from.0 * s - r, from.1 * s - r, from.0 * s + r, from.1 * s + r], [to.0 * s - r, to.1 * s - r, to.0 * s + r, to.1 * s + r]);
@@ -64,7 +64,7 @@ fn audit(ui: &mut GalleryUi, name: &str, bad: &mut Vec<String>) {
         let clocked = ui.counters().scenes != after.scenes;
         // The crosshair and rulers follow the pointer across the whole annotated scope.
         let g = ui.state.look().gaze;
-        let follows = g.mode != lab::style::GazeMode::Off && g.kinds & (lab::style::gaze::CROSS | lab::style::gaze::RULER) != 0;
+        let follows = g.mode != amenui::style::GazeMode::Off && g.kinds & (amenui::style::gaze::CROSS | amenui::style::gaze::RULER) != 0;
         let same = hover == (ui.hover().map(str::to_owned), ui.mesh_hover().cloned(), looked(ui));
         let cur = ui.dirty_inputs(&ui.state.look());
         let region = dirty::region(&prev, &cur, ui.scale());
@@ -109,7 +109,7 @@ fn pointer_moves_on_every_gallery_page() {
         settle(&mut ui, 2.5);
         audit(&mut ui, &p.hash(), &mut bad);
         ui.pointer_leave();
-        if matches!(p, Page::Scene(_)) { ui.key(lab::el::Key::Escape, false); ui.relayout(); }
+        if matches!(p, Page::Scene(_)) { ui.key(amenui::el::Key::Escape, false); ui.relayout(); }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

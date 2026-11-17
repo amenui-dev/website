@@ -1,11 +1,11 @@
 //! The accessibility mirror (DESIGN.md §1.14), without a GPU: roles, names and states from the widgets;
 //! a dialog alone while it is open; activation routed to the same messages; focus from assistive
 //! technology; the keyed diff sends only what changed.
-use lab::el::Role;
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::ui::{A11yNode, A11yOp};
+use amenui::el::Role;
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::ui::{A11yNode, A11yOp};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 fn at(p: &str) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1800, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash(p).unwrap()));
@@ -76,7 +76,7 @@ fn states_of_the_widgets() {
     assert!(t.iter().any(|n| n.role == Role::List));
     assert!(t.iter().filter(|n| n.role == Role::ListItem).any(|n| n.selected == Some(true)));
     let mut ui = at("input");
-    gallery::update(&mut ui.state, Msg::Text(lab::widgets::TextEdit::new("你好")));
+    gallery::update(&mut ui.state, Msg::Text(amenui::widgets::TextEdit::new("你好")));
     ui.relayout();
     assert!(ui.a11y().iter().any(|n| n.role == Role::TextBox && n.text.as_deref() == Some("你好")));
     let ui = at("image");
@@ -90,7 +90,7 @@ fn focus_from_assistive_technology() {
     let before = ui.state.on;
     ui.focus_key(&k);
     assert_eq!(ui.focus(), Some(k.as_str()));
-    ui.key(lab::el::Key::Char(' '), false);
+    ui.key(amenui::el::Key::Char(' '), false);
     assert_ne!(ui.state.on, before, "Space on the focused switch flips it");
     ui.activate(&k);
     assert_eq!(ui.state.on, before);

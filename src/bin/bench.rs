@@ -20,13 +20,13 @@
 //! Each line is the mean over the runs, ms. Numbers are only comparable on one machine.
 //!
 //! usage: bench [runs] [gpu | dirty | map | strand]     (`gpu` runs only the particle rows, `dirty` only 5, `map` only 6, `strand` only 7)
-use lab::el::{El, Paint, col, row, space, text, text_lh};
-use lab::gallery::{self, Msg, Page};
-use lab::ui::Ui;
-use lab::wrap::{Around, Silhouette};
+use amenui::el::{El, Paint, col, row, space, text, text_lh};
+use amenui::gallery::{self, Msg, Page};
+use amenui::ui::Ui;
+use amenui::wrap::{Around, Silhouette};
 use std::time::Instant;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 
 fn time(n: usize, mut f: impl FnMut(usize)) -> f64 {
     let t0 = Instant::now();
@@ -65,19 +65,19 @@ fn article_view(s: &Article) -> El<()> {
 // ── Particles: two boxes in one place, morphing ─────────────────────────────────────────────────
 struct Pair { w: f32, h: f32, gpu: bool }
 fn pair_view(s: &Pair) -> El<()> {
-    lab::el::stack([space(s.w, s.h).fill(Paint::INK).key("a"), space(s.w, s.h).radius(40.0).fill(Paint::ACCENT).key("b").hidden_until_morphed(true)])
+    amenui::el::stack([space(s.w, s.h).fill(Paint::INK).key("a"), space(s.w, s.h).radius(40.0).fill(Paint::ACCENT).key("b").hidden_until_morphed(true)])
         .key("root").fill_width().fill_height()
 }
 fn particles(runs: usize) {
     let (w, h) = (1280u32, 800u32);
-    let Ok(mut o) = lab::offscreen::Offscreen::try_new(w, h) else { println!("particles               (no GPU adapter)"); return };
+    let Ok(mut o) = amenui::offscreen::Offscreen::try_new(w, h) else { println!("particles               (no GPU adapter)"); return };
     println!("particles               tier: {}", o.r.particle_tier().name());
     for (n, bw, bh, gpu) in [(40_000usize, 176.0, 176.0, false), (50_000, 196.0, 196.0, true), (200_000, 410.0, 420.0, true), (1_000_000, 1224.0, 770.0, true)] {
         let mut ui = Ui::new(Pair { w: bw, h: bh, gpu }, pair_view, |_, _| {}, fonts(), w, h, 1.0)
-            .on_look(|s| lab::style::Look { particles: lab::morph::Particles { gpu_above: if s.gpu { 0.0 } else { 1e9 }, ..Default::default() }, ..Default::default() });
+            .on_look(|s| amenui::style::Look { particles: amenui::morph::Particles { gpu_above: if s.gpu { 0.0 } else { 1e9 }, ..Default::default() }, ..Default::default() });
         ui.tick(1.0);
         ui.set_particle_gpu(gpu);
-        ui.morph("a", "b", lab::morph::MorphSpec { lattice: 1.0, count_max: n as f32, duration_ms: 60_000.0, loosen_ms: 0.0, ..Default::default() });
+        ui.morph("a", "b", amenui::morph::MorphSpec { lattice: 1.0, count_max: n as f32, duration_ms: 60_000.0, loosen_ms: 0.0, ..Default::default() });
         let look = ui.look();
         let mut t = 1.2;
         ui.tick(t);
@@ -128,8 +128,8 @@ fn main() {
 /// 5. Whole frames against frames drawn in boxes.
 fn dirty() {
     let (w, h) = (1280u32, 800u32);
-    let Ok(mut o) = lab::offscreen::Offscreen::try_new(w, h) else { println!("dirty boxes             (no GPU adapter)"); return };
-    for material in [lab::style::Material::Plain, lab::style::Material::Dot] {
+    let Ok(mut o) = amenui::offscreen::Offscreen::try_new(w, h) else { println!("dirty boxes             (no GPU adapter)"); return };
+    for material in [amenui::style::Material::Plain, amenui::style::Material::Dot] {
         for (case, page) in [("hover a button", "button"), ("caret blink", "input"), ("counter press", "button")] {
             let mut row = vec![];
             for partial in [false, true] {
@@ -185,14 +185,14 @@ fn gallery_long(runs: usize) {
 /// The Lab's pages with the pointer moving over a cell: the CPU cost of a frame (tick: update, view,
 /// layout, scene), no GPU (DESIGN.md §5.3).
 fn lab(runs: usize) {
-    use lab::gallery::{self, Msg, Page};
-    let faces = lab::text::load_bundled("assets").expect("fonts");
+    use amenui::gallery::{self, Msg, Page};
+    let faces = amenui::text::load_bundled("assets").expect("fonts");
     let mut ui = gallery::new_ui(faces, 1280, 900, 1.0);
-    for p in std::iter::once(Page::Lab).chain((0..lab::gallery::lab::COUNT as u8).map(Page::Experiment)) {
+    for p in std::iter::once(Page::Lab).chain((0..amenui::gallery::lab::COUNT as u8).map(Page::Experiment)) {
         gallery::update(&mut ui.state, Msg::Go(p));
         ui.relayout();
-        let key = if let Page::Experiment(i) = p { format!("lab/{}", lab::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
-        let r = ui.node(&key).map(|n| n.rect).unwrap_or(lab::ui::Rect::new(300.0, 200.0, 300.0, 300.0));
+        let key = if let Page::Experiment(i) = p { format!("lab/{}", amenui::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
+        let r = ui.node(&key).map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 300.0));
         let mut t = ui.now();
         let mut total = 0.0;
         for i in 0..runs {
@@ -206,7 +206,7 @@ fn lab(runs: usize) {
         for _ in 0..10 { ui.relayout(); }
         let rl = t0.elapsed().as_secs_f64() * 100.0;
         let t0 = std::time::Instant::now();
-        for _ in 0..10 { let _ = (lab::gallery::view)(&ui.state); }
+        for _ in 0..10 { let _ = (amenui::gallery::view)(&ui.state); }
         let vw = t0.elapsed().as_secs_f64() * 100.0;
         println!("{:<16} {:6.2} ms/frame (CPU: input, update, view, layout, scene); one relayout {rl:.2} ms, of it the view {vw:.2} ms; {} nodes", p.hash(), total / runs as f64, ui.nodes().len());
     }
@@ -214,7 +214,7 @@ fn lab(runs: usize) {
 
 /// 6. The field map: a step with a trail being laid, then the upload.
 fn fieldmap(runs: usize) {
-    use lab::fieldmap::{EVERYWHERE, FieldMap, MapFx};
+    use amenui::fieldmap::{EVERYWHERE, FieldMap, MapFx};
     let fx = MapFx::default();
     let mut m = FieldMap::new(1280.0, 800.0, fx.cell);
     let n = runs.max(200);
@@ -225,7 +225,7 @@ fn fieldmap(runs: usize) {
     });
     let (cols, rows) = (m.cols, m.rows);
     println!("field map step          {step:8.3} ms   ({cols} × {rows} nodes, {} not zero; stir, step, bytes)", m.nonzero());
-    let Ok(o) = lab::offscreen::Offscreen::try_new(64, 64) else { println!("field map upload        (no GPU adapter)"); return };
+    let Ok(o) = amenui::offscreen::Offscreen::try_new(64, 64) else { println!("field map upload        (no GPU adapter)"); return };
     let (device, queue) = (o.r.device(), o.r.queue());
     let tex = device.create_texture(&wgpu::TextureDescriptor { label: None, size: wgpu::Extent3d { width: 512, height: 512, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,
         dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[] });
@@ -241,7 +241,7 @@ fn fieldmap(runs: usize) {
 
 /// 7. scribblr: 200 glyphs fully loose.
 fn strands(runs: usize) {
-    use lab::style::{Look, Material};
+    use amenui::style::{Look, Material};
     fn page(_: &u8) -> El<()> {
         let words = "Loose thread writes the ink out and back again, one line through every glyph of the page; ";
         col().pad(40.0, 40.0).child(text(words.repeat(3)[..200].to_owned(), 28.0, Paint::INK).max_width(1100.0).key("t").legible(false).loose(1.0))

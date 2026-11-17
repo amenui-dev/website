@@ -1,10 +1,10 @@
 //! Lab · contours: iso-lines of a field (drifting noise plus a bump under the pointer) by marching
 //! squares, drawn as strokes. The lines the bump bends are the accent.
-use lab::draw::Drawing;
-use lab::el::{El, Point, canvas};
-use lab::experiment::{Experiment, Params, Pointer, frame, ink, spec};
-use lab::field::{Bump, Grid, Noise, Scalar, Sum};
-use lab::widgets::{Edit, Spec};
+use amenui::draw::Drawing;
+use amenui::el::{El, Point, canvas};
+use amenui::experiment::{Experiment, Params, Pointer, frame, ink, spec};
+use amenui::field::{Bump, Grid, Noise, Scalar, Sum};
+use amenui::widgets::{Edit, Spec};
 
 const W: f32 = 240.0;
 const H: f32 = 180.0;

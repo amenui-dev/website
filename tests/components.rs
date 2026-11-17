@@ -1,12 +1,12 @@
 //! Acceptance for step 3, without a GPU: drag capture, text editing, the modal layer (focus trap,
 //! dismissal, beneath held loose), tabs / list / slider / number scrub, disabled controls, horizontal
 //! scroll, commits, and the gallery's hash routes.
-use lab::el::{Drag, El, Key, Paint, Phase, col, space};
-use lab::gallery::{self, COMPONENTS, GalleryUi, Msg, Page};
-use lab::ui::Ui;
-use lab::widgets::TextEdit;
+use amenui::el::{Drag, El, Key, Paint, Phase, col, space};
+use amenui::gallery::{self, COMPONENTS, GalleryUi, Msg, Page};
+use amenui::ui::Ui;
+use amenui::widgets::TextEdit;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 fn gallery_at(p: Page) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1800, 1.0);
@@ -308,12 +308,12 @@ fn theme_switch_keeps_the_old_frame() {
     assert_eq!(ui.focus(), Some("material:0"));
     ui.key(Key::Tab, false);
     ui.key(Key::Enter, false);
-    assert_eq!(ui.state.material, lab::style::Material::Dot);
+    assert_eq!(ui.state.material, amenui::style::Material::Dot);
     assert_eq!(ui.split().unwrap().id, before + 1);
     // A style page changes everything, from the rail item pressed.
     click(&mut ui, "nav/style-bauhaus");
     assert_eq!(ui.split().unwrap().id, before + 2);
-    assert_eq!(ui.state.material, lab::style::Material::Halftone);
+    assert_eq!(ui.state.material, amenui::style::Material::Halftone);
     assert_eq!(ui.state.theme().name, "包豪斯");
 }
 
@@ -341,7 +341,7 @@ fn every_page_has_a_plain_hash() {
     // flow and 3D, type and demo, the scene list and the scenes, Body; the documentation's prose
     // pages, the components without a gallery page of their own, the For-AI pages and the changelog;
     // the lab and its experiments, decode, the field map.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + lab::style::set::COUNT + lab::style::MATERIAL_COUNT + 1 + lab::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + lab::gallery::docs::DOCS.len() + lab::gallery::docs::widget_names().len() + 4 + 1 + lab::gallery::lab::COUNT + 1 + 1);
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + amenui::gallery::docs::DOCS.len() + amenui::gallery::docs::widget_names().len() + 4 + 1 + amenui::gallery::lab::COUNT + 1 + 1);
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");

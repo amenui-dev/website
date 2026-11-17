@@ -6,15 +6,15 @@
 
 标签和控件在一起（`number`、`input` 都带一个），所以无障碍镜像给每个控件一个名字。Tab 按树的顺序走过每个字段；在按钮上按回车就是提交。
 
-这是表单配方 `examples/form.rs`，编进库里是 `lab::recipes::form`：
+这是表单配方 `examples/form.rs`，编进库里是 `amenui::recipes::form`：
 
 ```rust
 //! Recipe: a form (docs/recipes/form.md). A text field, a number, a switch and a submit button; the
 //! state holds every value, `update` is the only place they change.
-use lab::el::{El, Paint, col, row, text};
-use lab::text::Face;
-use lab::ui::Ui;
-use lab::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch};
+use amenui::el::{El, Paint, col, row, text};
+use amenui::text::Face;
+use amenui::ui::Ui;
+use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch};
 
 pub struct Form { pub name: TextEdit, pub copies: f32, pub draft: Option<String>, pub notify: bool, pub sent: u32 }
 

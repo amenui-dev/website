@@ -1,8 +1,8 @@
 //! The mark atlas, palettes, pixel faces and the compare wipe, without a GPU.
-use lab::demo;
-use lab::marks::{self, Atlas, LEVELS, TILE};
-use lab::style::set;
-use lab::text::{MONO, PIXEL, SANS, Text, load_bundled};
+use amenui::demo;
+use amenui::marks::{self, Atlas, LEVELS, TILE};
+use amenui::style::set;
+use amenui::text::{MONO, PIXEL, SANS, Text, load_bundled};
 
 fn text() -> Text { Text::new(load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts")) }
 fn atlas() -> Atlas { Atlas::build(&mut text(), MONO) }
@@ -139,13 +139,13 @@ fn dragging_the_picture_moves_the_compare_line() {
 fn theme_picks_faces_for_the_page() {
     let mut ui = demo::new_ui(load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts"), 1200, 900, 1.0);
     let face = |ui: &demo::DemoUi, k: &str| match &ui.node(k).expect("node").content {
-        lab::el::Content::Text { font, .. } => *font,
+        amenui::el::Content::Text { font, .. } => *font,
         _ => panic!("not text"),
     };
-    assert_eq!(face(&ui, "count"), lab::el::Font::Face(SANS));
+    assert_eq!(face(&ui, "count"), amenui::el::Font::Face(SANS));
     let (x, y) = ui.node("theme:2").expect("theme choice").rect.center();
     ui.press(x, y);
-    assert_eq!(face(&ui, "count"), lab::el::Font::Face(PIXEL));
+    assert_eq!(face(&ui, "count"), amenui::el::Font::Face(PIXEL));
     // Every theme can be chosen, including the first one again.
     let (x, y) = ui.node("theme:0").expect("theme choice").rect.center();
     ui.press(x, y);

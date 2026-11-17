@@ -3,8 +3,8 @@
 视图是从状态到元素树的函数，更新是从状态和消息到新状态的函数。消息是普通的值。
 
 ```rust
-use lab::el::{El, Paint, col, text};
-use lab::widgets::button;
+use amenui::el::{El, Paint, col, text};
+use amenui::widgets::button;
 #[derive(Clone)] enum Msg { Inc }
 struct S { n: u32 }
 fn view(s: &S) -> El<Msg> {

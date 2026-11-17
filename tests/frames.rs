@@ -2,10 +2,10 @@
 //! input has settled the runtime stops asking for frames within the longest animation it can start; a
 //! ripple, a hover burst and the caret ask for frames (the caret as a timed wake, not every frame); a
 //! state clock (the departure board) asks for timed wakes only.
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::ui::BLINK;
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::ui::BLINK;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 /// Tick to `to` at 60 Hz, "drawing" every frame the runtime asks for. Returns how many were drawn.
 fn run(ui: &mut GalleryUi, to: f32) -> usize {
@@ -44,7 +44,7 @@ fn every_page_comes_to_rest() {
         ui.pointer_move(640.0, 400.0);
         ui.pointer_move(700.0, 420.0);
         ui.wheel(700.0, 420.0, 30.0);
-        ui.key(lab::el::Key::Tab, false);
+        ui.key(amenui::el::Key::Tab, false);
         let start = ui.now();
         let mut to = start + longest(&ui) + 0.05;
         // The departure board condenses its changed digits after each whole second: look between them.

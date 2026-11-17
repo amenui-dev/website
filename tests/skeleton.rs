@@ -1,9 +1,9 @@
 //! Acceptance for step 2: layout, pressing, scrolling and focus, all without a GPU.
-use lab::demo::{self, Msg};
-use lab::el::{El, Key, Paint, col, row, space, text_lh};
-use lab::ui::{Rect, Ui};
+use amenui::demo::{self, Msg};
+use amenui::el::{El, Key, Paint, col, row, space, text_lh};
+use amenui::ui::{Rect, Ui};
 
-fn font() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn font() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 const PARA: &str = "一段用来测量的文字，中文和 Latin words 混排，宽度变窄时会多出几行。";
 

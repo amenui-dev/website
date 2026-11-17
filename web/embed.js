@@ -1,16 +1,16 @@
-// <lab-view>: the framework as a custom element, for any page or framework that renders HTML (plain
+// <amenui-view>: the framework as a custom element, for any page or framework that renders HTML (plain
 // HTML, React, Vue, Svelte, Angular). Attributes in, events out, sized by its box (a ResizeObserver).
 //
-//   <lab-view page="button" theme="dark" material="dot" locale="en" style="height: 480px"></lab-view>
+//   <amenui-view page="button" theme="dark" material="dot" locale="en" style="height: 480px"></amenui-view>
 //
 // Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v1:…`
 // string; wins over the page's own look), `theme` and `material` (names as the render tool takes
-// them), `locale` (`zh-Hans`, `en`). Events: `lab-ready` once it draws, `lab-route` with
+// them), `locale` (`zh-Hans`, `en`). Events: `amenui-ready` once it draws, `amenui-route` with
 // `detail.page` whenever the page changes inside it. Methods: `focus()`.
 //
 // One per document: the wasm module keeps one runtime and one renderer (every export reads that one
-// state). A second <lab-view> (or one next to the full page's #stage) is not drawn; it says so in its
-// box and sets `data-lab-limit`, and the first keeps working. Several views need one runtime per view
+// state). A second <amenui-view> (or one next to the full page's #stage) is not drawn; it says so in its
+// box and sets `data-amenui-limit`, and the first keeps working. Several views need one runtime per view
 // behind every export (an id on each call), which is not done (DESIGN.md §9).
 (() => {
   const CSS = `:host { display: block; position: relative; min-height: 120px; contain: content; }
@@ -26,8 +26,8 @@
       if (this.shadowRoot) return;
       const root = this.attachShadow({ mode: 'open' });
       if (window.__labMounted) {
-        root.innerHTML = `<style>${CSS}</style><div class="stage"><div class="msg">one &lt;lab-view&gt; per document: this one is not drawn</div></div>`;
-        this.setAttribute('data-lab-limit', 'one-per-document');
+        root.innerHTML = `<style>${CSS}</style><div class="stage"><div class="msg">one &lt;amenui-view&gt; per document: this one is not drawn</div></div>`;
+        this.setAttribute('data-amenui-limit', 'one-per-document');
         return;
       }
       window.__labMounted = true;
@@ -35,11 +35,11 @@
       const first = this.getAttribute('recipe') || this.getAttribute('page') || 'body';
       this.ready = mount(root.querySelector('.stage'), {
         hash: '#' + first, ownsHash: false, keys: this,
-        onRoute: page => this.dispatchEvent(new CustomEvent('lab-route', { detail: { page }, bubbles: true, composed: true })),
+        onRoute: page => this.dispatchEvent(new CustomEvent('amenui-route', { detail: { page }, bubbles: true, composed: true })),
       }).then(api => {
         this.api = api;
         this.sync(true);
-        this.dispatchEvent(new CustomEvent('lab-ready', { bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent('amenui-ready', { bubbles: true, composed: true }));
         return api;
       });
     }
@@ -53,5 +53,5 @@
     }
     focus() { if (this.api) this.api.focus(); }
   }
-  if (!customElements.get('lab-view')) customElements.define('lab-view', LabView);
+  if (!customElements.get('amenui-view')) customElements.define('amenui-view', LabView);
 })();

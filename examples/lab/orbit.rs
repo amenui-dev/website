@@ -1,10 +1,10 @@
 //! Lab · orbit: dots on circular orbits, each at its Kepler speed ω ∝ r^−3/2, pulled off their paths
 //! by the pointer and sprung back onto them when it goes.
-use lab::draw::Drawing;
-use lab::el::{El, Point, canvas};
-use lab::experiment::{Experiment, Params, Pointer, frame, ink, spec};
-use lab::field::hash;
-use lab::widgets::{Edit, Spec};
+use amenui::draw::Drawing;
+use amenui::el::{El, Point, canvas};
+use amenui::experiment::{Experiment, Params, Pointer, frame, ink, spec};
+use amenui::field::hash;
+use amenui::widgets::{Edit, Spec};
 
 const W: f32 = 240.0;
 const H: f32 = 180.0;

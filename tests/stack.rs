@@ -1,11 +1,11 @@
 //! The stacked-card fan through the runtime (DESIGN.md §1.24): the pointer on the top card (a 3D pick)
 //! fans every card beneath to angle0 × falloff^n, each starting delay_ms × n later; leaving closes it;
 //! at rest nothing asks for frames. The page's look follows the material.
-use lab::recipes::stack::{App, Msg, ui};
-use lab::ui::Ui;
-use lab::widgets::StackLook;
+use amenui::recipes::stack::{App, Msg, ui};
+use amenui::ui::Ui;
+use amenui::widgets::StackLook;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 #[test]
 fn the_fan_follows_its_formula() {
@@ -31,10 +31,10 @@ fn the_fan_follows_its_formula() {
 
 #[test]
 fn the_look_follows_the_material() {
-    let mut g = lab::gallery::Gallery { material: lab::style::Material::Plain, ..Default::default() };
-    assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Plain);
-    g.material = lab::style::Material::Print;
-    assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Thick);
-    g.material = lab::style::Material::Ascii;
-    assert_eq!(lab::gallery::craft::stack_now(&g).look, StackLook::Marks(lab::style::Material::Ascii));
+    let mut g = amenui::gallery::Gallery { material: amenui::style::Material::Plain, ..Default::default() };
+    assert_eq!(amenui::gallery::craft::stack_now(&g).look, StackLook::Plain);
+    g.material = amenui::style::Material::Print;
+    assert_eq!(amenui::gallery::craft::stack_now(&g).look, StackLook::Thick);
+    g.material = amenui::style::Material::Ascii;
+    assert_eq!(amenui::gallery::craft::stack_now(&g).look, StackLook::Marks(amenui::style::Material::Ascii));
 }

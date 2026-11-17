@@ -1,13 +1,13 @@
 //! Ripple rules and recomposition (DESIGN.md §1.15, §1.16), without a GPU: what a press reaches, how each
 //! element answers, that fronts from one element never stack, and that a changed string recomposes only
 //! its changed glyphs and hands over to the plain new text.
-use lab::el::{El, Paint, Response, col, row, text};
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::morph::Recompose;
-use lab::style::Look;
-use lab::ui::Ui;
+use amenui::el::{El, Paint, Response, col, row, text};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::morph::Recompose;
+use amenui::style::Look;
+use amenui::ui::Ui;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 fn page() -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1600, 1.0);
@@ -228,8 +228,8 @@ fn a_number_that_changes_every_frame_stays_bounded() {
 struct Pic;
 fn pic_view(_: &Pic) -> El<()> {
     col().pad(40.0, 40.0)
-        .child(row().key("thumb").on_press(()).child(lab::el::picture(lab::demo::BUST, 1.0).key("in-control").width(120.0)))
-        .child(lab::el::picture(lab::demo::BUST, 1.0).key("loose-pic").width(120.0))
+        .child(row().key("thumb").on_press(()).child(amenui::el::picture(amenui::demo::BUST, 1.0).key("in-control").width(120.0)))
+        .child(amenui::el::picture(amenui::demo::BUST, 1.0).key("loose-pic").width(120.0))
 }
 
 #[test]

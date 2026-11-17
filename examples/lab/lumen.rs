@@ -1,9 +1,9 @@
 //! Lab · lumen: a light over text. Every glyph keeps its whole outline; only its tone rises with the
 //! light's falloff, so the dim text at rest is still whole letters. The light follows the pointer on a
 //! spring and wanders slowly when nobody is there.
-use lab::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
-use lab::experiment::{Experiment, Params, Pointer, frame, spec};
-use lab::widgets::{Edit, Spec};
+use amenui::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
+use amenui::experiment::{Experiment, Params, Pointer, frame, spec};
+use amenui::widgets::{Edit, Spec};
 
 const WORDS: &str = "Light falls off with distance. Each glyph is drawn whole and only its tone changes: what the beam leaves is dim, never dissolved. Move across the page and read what it touches. The rest stays a quiet texture of letters at rest. ";
 static DEFS: [(&str, Spec); 3] = [("L0", spec(0.05, 1.0, 0.01, 2, "")), ("r", spec(8.0, 160.0, 1.0, 0, "px")), ("ω", spec(0.0, 2.0, 0.05, 2, "rad/s"))];

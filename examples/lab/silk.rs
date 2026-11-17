@@ -1,11 +1,11 @@
 //! Lab · silk: many marks carried by a field, the curl of drifting noise (no sources, so they never
 //! bunch), plus what the pointer stirs in: its velocity is put into a flow grid that fades back.
 //! Each mark is drawn as the short stroke it travelled. The count is a request to the frame budget.
-use lab::draw::Drawing;
-use lab::el::{El, Point, canvas};
-use lab::experiment::{Experiment, Params, Pointer, frame, ink, spec};
-use lab::field::{Flow, Noise, Swarm, curl};
-use lab::widgets::{Edit, Spec};
+use amenui::draw::Drawing;
+use amenui::el::{El, Point, canvas};
+use amenui::experiment::{Experiment, Params, Pointer, frame, ink, spec};
+use amenui::field::{Flow, Noise, Swarm, curl};
+use amenui::widgets::{Edit, Spec};
 
 const W: f32 = 240.0;
 const H: f32 = 180.0;
@@ -47,7 +47,7 @@ impl Experiment for Silk {
         let dt = (now - self.t).clamp(0.0, 0.05);
         self.t = now;
         // As many marks as the frame budget grants this frame (the request is N).
-        let n = lab::budget::grant(self.p.get(0) as usize);
+        let n = amenui::budget::grant(self.p.get(0) as usize);
         if n != self.swarm.p.len() { self.swarm = Swarm::new(n, W, H, 9); }
         self.ptr.step(now);
         if self.ptr.over { let (x, y) = self.ptr.at(); self.stir.stir(x, y, self.ptr.vx * dt * 4.0, self.ptr.vy * dt * 4.0, 24.0); }

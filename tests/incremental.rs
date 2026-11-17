@@ -3,11 +3,11 @@
 //! layout or shaping; a virtual list of 10,000 rows builds only what it shows, with the whole list's
 //! scroll extent, keyboard navigation and scrolling a row into view; lines a clip hides are not made
 //! into instances.
-use lab::el::{Content, El, Key, Paint, col, space, text};
-use lab::ui::Ui;
-use lab::gallery::{self, GalleryUi, Msg, Page};
+use amenui::el::{Content, El, Key, Paint, col, space, text};
+use amenui::ui::Ui;
+use amenui::gallery::{self, GalleryUi, Msg, Page};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 fn at(p: &str, h: u32) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, h, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash(p).unwrap()));

@@ -1,11 +1,11 @@
 //! Lab · spring: a mass on a spring (the same `gesture::Spring` the sheets use, solved exactly).
 //! Drag it along its track; let go and it springs back with the speed it was thrown at, its last two
 //! seconds traced beneath.
-use lab::draw::Drawing;
-use lab::el::{El, Point, canvas};
-use lab::experiment::{Experiment, Params, frame, ink, spec};
-use lab::gesture::{Animated, Spring as Law, Velocity};
-use lab::widgets::{Edit, Spec};
+use amenui::draw::Drawing;
+use amenui::el::{El, Point, canvas};
+use amenui::experiment::{Experiment, Params, frame, ink, spec};
+use amenui::gesture::{Animated, Spring as Law, Velocity};
+use amenui::widgets::{Edit, Spec};
 
 const W: f32 = 240.0;
 const H: f32 = 180.0;

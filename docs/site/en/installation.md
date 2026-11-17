@@ -20,17 +20,17 @@ WebGPU when the browser has it, else WebGL2. The build writes one self-contained
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
-wasm-bindgen --target no-modules --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/lab.wasm
+wasm-bindgen --target no-modules --no-typescript --out-dir dist/pkg target/wasm32-unknown-unknown/release/amenui.wasm
 python3 web/build.py
 ```
 
 The page follows its address: `#button` opens a component, `#look:v1:…` applies a recipe.
 
-## Embedding: `<lab-view>`
+## Embedding: `<amenui-view>`
 
 The same build defines a custom element, so any page or framework that renders HTML can hold the interface. `dist/embed-example.html` is a plain page that uses it.
 
-One `<lab-view>` per document: the module holds one runtime and one renderer. A second one (or one on the full page) is not drawn; it says so in its box and carries `data-lab-limit="one-per-document"`, and the first keeps working.
+One `<amenui-view>` per document: the module holds one runtime and one renderer. A second one (or one on the full page) is not drawn; it says so in its box and carries `data-amenui-limit="one-per-document"`, and the first keeps working.
 
 | Attribute | What it does |
 |---|---|
@@ -39,46 +39,46 @@ One `<lab-view>` per document: the module holds one runtime and one renderer. A 
 | `theme`, `material` | By name, as the render tool takes them (`dark`, `dot`). |
 | `locale` | `zh-Hans` or `en`. |
 
-It fires `lab-ready` once it draws and `lab-route` (with `detail.page`) whenever the page changes inside it, and it follows its own box as it is resized. One per document.
+It fires `amenui-ready` once it draws and `amenui-route` (with `detail.page`) whenever the page changes inside it, and it follows its own box as it is resized. One per document.
 
 Plain HTML:
 
 ```html
-<lab-view page="button" theme="light" locale="en" style="height: 480px"></lab-view>
+<amenui-view page="button" theme="light" locale="en" style="height: 480px"></amenui-view>
 ```
 
 React (custom elements pass attributes as they are; listen with a ref):
 
 ```tsx
 const ref = useRef<HTMLElement>(null);
-useEffect(() => { const v = ref.current; const f = (e: any) => setPage(e.detail.page); v?.addEventListener('lab-route', f); return () => v?.removeEventListener('lab-route', f); }, []);
-return <lab-view ref={ref} page={page} theme="dark" style={{ height: 480 }} />;
+useEffect(() => { const v = ref.current; const f = (e: any) => setPage(e.detail.page); v?.addEventListener('amenui-route', f); return () => v?.removeEventListener('amenui-route', f); }, []);
+return <amenui-view ref={ref} page={page} theme="dark" style={{ height: 480 }} />;
 ```
 
-Vue (tell the compiler the tag is a custom element: `compilerOptions.isCustomElement = t => t === 'lab-view'`):
+Vue (tell the compiler the tag is a custom element: `compilerOptions.isCustomElement = t => t === 'amenui-view'`):
 
 ```html
-<lab-view :page="page" theme="dark" @lab-route="page = $event.detail.page" style="height: 480px" />
+<amenui-view :page="page" theme="dark" @amenui-route="page = $event.detail.page" style="height: 480px" />
 ```
 
 Svelte:
 
 ```html
-<lab-view page={page} theme="dark" on:lab-route={(e) => (page = e.detail.page)} style="height: 480px"></lab-view>
+<amenui-view page={page} theme="dark" on:amenui-route={(e) => (page = e.detail.page)} style="height: 480px"></amenui-view>
 ```
 
 Angular (add `CUSTOM_ELEMENTS_SCHEMA` to the component):
 
 ```html
-<lab-view [attr.page]="page" theme="dark" (lab-route)="page = $event.detail.page" style="height: 480px"></lab-view>
+<amenui-view [attr.page]="page" theme="dark" (amenui-route)="page = $event.detail.page" style="height: 480px"></amenui-view>
 ```
 
 ## Manual: copy components into your project
 
-Components are distributed as source, as shadcn/ui does it: `lab add` copies a component and the files it depends on, as `registry.json` lists them, into your project at the same paths; files already there are left alone.
+Components are distributed as source, as shadcn/ui does it: `amenui add` copies a component and the files it depends on, as `registry.json` lists them, into your project at the same paths; files already there are left alone.
 
 ```sh
-cargo run --release --bin lab -- add dialog --to ../my-app
+cargo run --release --bin amenui -- add dialog --to ../my-app
 ```
 
 Or copy by hand: the component's page lists its files under Installation.

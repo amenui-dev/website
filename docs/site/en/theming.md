@@ -1,6 +1,6 @@
 # Theming and dark mode
 
-A theme is a set of colours and the faces for display, body and monospace (`style::THEMES`). Paints are names, not colours: `Paint::INK`, `TEXT`, `DIM`, `FAINT`, `GROUND`, `ACCENT` and the hues `Paint::hue(i)`, so the same view is right in every theme. Dark and light are two themes of the same view: switch with the top bar's Theme menu, `Msg::Theme`, the render tool's `theme`, or `<lab-view theme="dark">`.
+A theme is a set of colours and the faces for display, body and monospace (`style::THEMES`). Paints are names, not colours: `Paint::INK`, `TEXT`, `DIM`, `FAINT`, `GROUND`, `ACCENT` and the hues `Paint::hue(i)`, so the same view is right in every theme. Dark and light are two themes of the same view: switch with the top bar's Theme menu, `Msg::Theme`, the render tool's `theme`, or `<amenui-view theme="dark">`.
 
 ## What a theme holds
 

@@ -4,15 +4,15 @@
 //!   page: a hash name, e.g. dialog. `--shot` reads the window's own frame back at that many ms after
 //!   start and saves it (any number of them); `--exit-after` closes the window after that many ms.
 //!   It reports the adapter and, every two seconds, how many frames it drew, on stderr.
-use lab::el::Key;
-use lab::gallery::{self, GalleryUi};
-use lab::render::Renderer;
+use amenui::el::Key;
+use amenui::gallery::{self, GalleryUi};
+use amenui::render::Renderer;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
-use lab::ui::PointerKind;
+use amenui::ui::PointerKind;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::{Key as WKey, ModifiersState, NamedKey};
 use winit::window::{Window, WindowId};
@@ -54,7 +54,7 @@ impl App {
     }
 
     fn open(&mut self, el: &ActiveEventLoop) -> Result<Running, String> {
-        let attrs = Window::default_attributes().with_title("gui-lab").with_inner_size(LogicalSize::new(1280.0, 860.0));
+        let attrs = Window::default_attributes().with_title("amenui").with_inner_size(LogicalSize::new(1280.0, 860.0));
         let window = Arc::new(el.create_window(attrs).map_err(|e| e.to_string())?);
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(Box::new(self.display.clone())));
         let surface = instance.create_surface(window.clone()).map_err(|e| e.to_string())?;
@@ -71,9 +71,9 @@ impl App {
         surface.configure(&device, &config);
         eprintln!("surface: {}×{} {:?}, present mode {:?}", config.width, config.height, config.format, config.present_mode);
         let mut r = Renderer::new(device, queue, format, config.width, config.height);
-        r.set_particle_tier(lab::render::particle_tier(&adapter));
-        for (id, pw, ph, px) in lab::demo::pictures() { r.set_picture(id, pw, ph, &px); }
-        let faces = lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).map_err(|e| e.to_string())?;
+        r.set_particle_tier(amenui::render::particle_tier(&adapter));
+        for (id, pw, ph, px) in amenui::demo::pictures() { r.set_picture(id, pw, ph, &px); }
+        let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).map_err(|e| e.to_string())?;
         let mut ui = gallery::new_ui(faces, config.width, config.height, window.scale_factor() as f32);
         ui.perf_mut().backend = format!("{:?}", info.backend);
         ui.perf_mut().adapter = info.name.clone();
@@ -165,7 +165,7 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 s.ui.tick(now);
                 let cmd = if cfg!(target_os = "macos") { self.mods.super_key() } else { self.mods.control_key() };
-                let mods = lab::el::Mods { shift: self.mods.shift_key(), cmd, alt: self.mods.alt_key() };
+                let mods = amenui::el::Mods { shift: self.mods.shift_key(), cmd, alt: self.mods.alt_key() };
                 if cmd {
                     // The clipboard, through the system's (arboard); Cmd+A / Z / Y go to the text field.
                     match &event.logical_key {
@@ -204,7 +204,7 @@ impl ApplicationHandler for App {
                     let (path, _) = self.shots.remove(0);
                     let look = s.ui.state.look();
                     match read_back(&mut s.r, &mut s.ui, &look, s.config.format, s.config.width, s.config.height) {
-                        Ok(px) => { lab::offscreen::save_png(&path, s.config.width, s.config.height, &px); eprintln!("saved {path} at {:.1} s", now); }
+                        Ok(px) => { amenui::offscreen::save_png(&path, s.config.width, s.config.height, &px); eprintln!("saved {path} at {:.1} s", now); }
                         Err(e) => eprintln!("could not read the frame back: {e}"),
                     }
                     // The saved frame was not presented: the window still has to show it.
@@ -271,14 +271,14 @@ fn clipboard<R>(f: impl FnOnce(&mut arboard::Clipboard) -> R) -> Option<R> {
     }
 }
 
-fn cursor_icon(c: lab::el::Cursor) -> winit::window::CursorIcon {
-    use lab::el::Cursor as C;
+fn cursor_icon(c: amenui::el::Cursor) -> winit::window::CursorIcon {
+    use amenui::el::Cursor as C;
     use winit::window::CursorIcon as I;
     match c { C::Default => I::Default, C::Pointer => I::Pointer, C::Text => I::Text, C::Grab => I::Grab, C::Grabbing => I::Grabbing, C::ColResize => I::ColResize, C::RowResize => I::RowResize }
 }
 
 /// Draw a frame into an off-screen texture of the surface's format and read it back as RGBA8.
-fn read_back(r: &mut Renderer, ui: &mut GalleryUi, look: &lab::style::Look, format: wgpu::TextureFormat, w: u32, h: u32) -> Result<Vec<u8>, String> {
+fn read_back(r: &mut Renderer, ui: &mut GalleryUi, look: &amenui::style::Look, format: wgpu::TextureFormat, w: u32, h: u32) -> Result<Vec<u8>, String> {
     let device = r.device().clone();
     let tex = device.create_texture(&wgpu::TextureDescriptor {
         label: None, size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1,

@@ -3,24 +3,24 @@
 //! returns, a pull past the top, a flick that dismisses), `floating` (a slow drag back, a flick to the far
 //! corner), `stirr` (the field map's trail, four materials), `scribblr` (a title written out and back), and the later studies as they are added.
 //!
-//! usage: craft <out_dir> [<study> …]   (every study when none is named); plain unless LAB_MATERIAL names another (dot, ascii…)
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::offscreen::{Offscreen, crop, save_png, sheet};
+//! usage: craft <out_dir> [<study> …]   (every study when none is named); plain unless AMENUI_MATERIAL names another (dot, ascii…)
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::offscreen::{Offscreen, crop, save_png, sheet};
 
 const W: u32 = 1280;
 const H: u32 = 1000;
 
-fn faces() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("fonts") }
+fn faces() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 
 /// A gallery page, the renderer, the clock, and the frames kept so far.
 struct Rig { o: Offscreen, ui: GalleryUi, frames: Vec<(u32, u32, Vec<u8>)>, last: Vec<u8>, region: String, pad: f32 }
 impl Rig {
-    fn new(page: &str, region: &str) -> Self { Self::with(page, region, &std::env::var("LAB_MATERIAL").unwrap_or_else(|_| "plain".into())) }
+    fn new(page: &str, region: &str) -> Self { Self::with(page, region, &std::env::var("AMENUI_MATERIAL").unwrap_or_else(|_| "plain".into())) }
     fn with(page: &str, region: &str, m: &str) -> Self {
         let mut ui = gallery::new_ui(faces(), W, H, 1.0);
         let p = Page::from_hash(page).unwrap_or_else(|| panic!("no page {page}"));
         gallery::update(&mut ui.state, Msg::Go(p));
-        if let Some(i) = lab::style::MATERIALS.iter().position(|x| x.1 == m) { gallery::update(&mut ui.state, Msg::Material(i)); }
+        if let Some(i) = amenui::style::MATERIALS.iter().position(|x| x.1 == m) { gallery::update(&mut ui.state, Msg::Material(i)); }
         ui.relayout();
         ui.pointer_leave();
         let mut r = Rig { o: Offscreen::new(W, H), ui, frames: vec![], last: vec![], region: region.into(), pad: 16.0 };
@@ -42,7 +42,7 @@ impl Rig {
     fn shot(&mut self) {
         if self.last.is_empty() { self.frame(); }
         // No region: the whole window.
-        let r = if self.region.is_empty() { lab::ui::Rect::new(0.0, 0.0, self.o.w as f32, self.o.h as f32) } else { self.ui.node(&self.region).unwrap_or_else(|| panic!("no {}", self.region)).rect };
+        let r = if self.region.is_empty() { amenui::ui::Rect::new(0.0, 0.0, self.o.w as f32, self.o.h as f32) } else { self.ui.node(&self.region).unwrap_or_else(|| panic!("no {}", self.region)).rect };
         let p = self.pad;
         let (x, y) = ((r.x - p).max(0.0), (r.y - p).max(0.0));
         let (w, h) = ((r.w + 2.0 * p).min(W as f32 - x), (r.h + 2.0 * p).min(H as f32 - y));
@@ -206,17 +206,17 @@ fn study_stirr(out: &str) {
 /// title by as much as it is loose, so the knots (where the map has energy) and the tail (along its
 /// flow) show; the body text stays within the legibility cap.
 fn study_scribblr(out: &str) {
-    use lab::el::{Paint, col, text};
-    use lab::morph::{Cmd, StirAt};
-    use lab::style::{DARK, LIGHT, Look, Material};
+    use amenui::el::{Paint, col, text};
+    use amenui::morph::{Cmd, StirAt};
+    use amenui::style::{DARK, LIGHT, Look, Material};
     struct St { k: f32, light: bool, cmds: Vec<Cmd> }
-    fn page(st: &St) -> lab::el::El<()> {
+    fn page(st: &St) -> amenui::el::El<()> {
         col().key("page").pad(40.0, 36.0).gap(18.0)
-            .child(text("Loose thread", 64.0, Paint::INK).font(lab::el::Font::Display).key("title").legible(false).loose(st.k).respond(lab::el::Response::Loosen))
+            .child(text("Loose thread", 64.0, Paint::INK).font(amenui::el::Font::Display).key("title").legible(false).loose(st.k).respond(amenui::el::Response::Loosen))
             .child(text("One line writes the ink out and back.", 18.0, Paint::TEXT).key("body").loose(st.k.min(0.15)))
     }
     for (name, light) in [("dark", false), ("light", true)] {
-        let mut ui = lab::ui::Ui::new(St { k: 1.0, light, cmds: vec![] }, page, |_, _| {}, faces(), 760, 260, 1.0)
+        let mut ui = amenui::ui::Ui::new(St { k: 1.0, light, cmds: vec![] }, page, |_, _| {}, faces(), 760, 260, 1.0)
             .on_look(|s| Look { theme: if s.light { LIGHT } else { DARK }, material: Material::Scribblr, ..Look::default() })
             .on_commands(|s| std::mem::take(&mut s.cmds));
         let mut o = Offscreen::new(760, 260);
@@ -226,7 +226,7 @@ fn study_scribblr(out: &str) {
         let mut t = 5.0;
         for k in [1.0f32, 0.85, 0.7, 0.5, 0.35, 0.2, 0.1, 0.0] {
             ui.state.k = k;
-            if k > 0.0 { ui.state.cmds.push(Cmd::Stir { at: StirAt::Key("title".into()), v: [1.0, -0.25], energy: k, radius: 200.0, scope: lab::el::Scope::Global }); }
+            if k > 0.0 { ui.state.cmds.push(Cmd::Stir { at: StirAt::Key("title".into()), v: [1.0, -0.25], energy: k, radius: 200.0, scope: amenui::el::Scope::Global }); }
             ui.relayout();
             // A fifth of a second at 60 Hz between frames, so the map steps as it would; the last frame
             // after the map has settled (1.5 s), at rest.
@@ -236,11 +236,11 @@ fn study_scribblr(out: &str) {
             if k > 0.0 {
                 let r = ui.node("title").expect("title").rect;
                 let (cx, cy) = r.center();
-                let low = |ui: &lab::ui::Ui<St, ()>| [r.x, cx, r.right()].iter().map(|&x| ui.fieldmap().energy_at(x, cy)).fold(1.0, f32::min);
+                let low = |ui: &amenui::ui::Ui<St, ()>| [r.x, cx, r.right()].iter().map(|&x| ui.fieldmap().energy_at(x, cy)).fold(1.0, f32::min);
                 for _ in 0..8 {
                     let e = low(&ui);
                     if e >= 0.8 * k { break; }
-                    ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([cx, cy]), v: [0.0, 0.0], energy: k - e, radius: 900.0, scope: lab::el::Scope::Global });
+                    ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([cx, cy]), v: [0.0, 0.0], energy: k - e, radius: 900.0, scope: amenui::el::Scope::Global });
                     ui.relayout();
                     t += 1.0 / 60.0;
                     ui.tick(t);
@@ -284,7 +284,7 @@ fn study_loose_thread(out: &str) {
     r.run(2.0); r.shot();
     eprintln!("loose-thread: {:.2} three seconds after, {} threads", loose(&r), r.ui.strands().len());
     r.save(out, "loose-thread", 2);
-    for (name, flips) in [("paper", vec![Msg::Theme(lab::style::theme_index(lab::style::THREAD_PAPER.name))]), ("binary", vec![Msg::PostFlag(0)]), ("invert", vec![Msg::PostFlag(1)])] {
+    for (name, flips) in [("paper", vec![Msg::Theme(amenui::style::theme_index(amenui::style::THREAD_PAPER.name))]), ("binary", vec![Msg::PostFlag(0)]), ("invert", vec![Msg::PostFlag(1)])] {
         let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
         r.pad = 24.0;
         for m in flips { gallery::update(&mut r.ui.state, m); }
@@ -301,15 +301,15 @@ fn study_loose_thread(out: &str) {
 /// Against the references: the style page with its title held fully loose (the map stirred over it
 /// every few frames), on black and on paper.
 fn study_thread_ref(out: &str) {
-    use lab::morph::{Cmd, StirAt};
+    use amenui::morph::{Cmd, StirAt};
     for (name, paper) in [("black", false), ("paper", true)] {
         let mut r = Rig::with("style-loose-thread", "style-loose-thread/comp", "scribblr");
         r.pad = 0.0;
-        if paper { gallery::update(&mut r.ui.state, Msg::Theme(lab::style::theme_index(lab::style::THREAD_PAPER.name))); r.ui.relayout(); }
+        if paper { gallery::update(&mut r.ui.state, Msg::Theme(amenui::style::theme_index(amenui::style::THREAD_PAPER.name))); r.ui.relayout(); }
         r.run(1.0);
         let c = r.ui.node("style-loose-thread/title").expect("title").rect.center();
         for _ in 0..12 {
-            r.ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([c.0, c.1]), v: [1.0, 0.35], energy: 1.0, radius: 260.0, scope: lab::el::Scope::Global });
+            r.ui.state.cmds.push(Cmd::Stir { at: StirAt::Point([c.0, c.1]), v: [1.0, 0.35], energy: 1.0, radius: 260.0, scope: amenui::el::Scope::Global });
             r.ui.relayout();
             r.run(4.0 / 60.0);
         }
@@ -322,20 +322,20 @@ fn study_thread_ref(out: &str) {
 /// The field map's readouts (DESIGN.md §4.2, §4.3): edge notes, the waveform and the level bar over a
 /// Loose Thread page while a stir runs along a path across it, four frames, then settled.
 fn study_readouts(out: &str) {
-    use lab::el::{Paint, col, text};
-    use lab::morph::{Cmd, StirAt};
-    use lab::style::{Gaze, GazeMode, Look, gaze};
+    use amenui::el::{Paint, col, text};
+    use amenui::morph::{Cmd, StirAt};
+    use amenui::style::{Gaze, GazeMode, Look, gaze};
     struct St { cmds: Vec<Cmd>, look: Look }
-    fn page(_: &St) -> lab::el::El<()> {
+    fn page(_: &St) -> amenui::el::El<()> {
         col().key("page").pad(48.0, 40.0).child(col().key("scope").gaze_scope().width(840.0).height(420.0).pad(40.0, 36.0).gap(22.0)
             .child(text("readouts", 12.0, Paint::TEXT).whisper())
-            .child(text("Field", 72.0, Paint::INK).font(lab::el::Font::Display).key("title").respond(lab::el::Response::Loosen).legible(false))
+            .child(text("Field", 72.0, Paint::INK).font(amenui::el::Font::Display).key("title").respond(amenui::el::Response::Loosen).legible(false))
             .child(text("The waveform reads one row of the field map; the bar its mean.", 16.0, Paint::TEXT)))
     }
-    let p = lab::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("preset");
+    let p = amenui::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("preset");
     let look = Look { gaze: Gaze { mode: GazeMode::All, kinds: gaze::EDGE | gaze::OSC | gaze::LEVEL, ..p.gaze }, ..p.apply(&Look::default()) };
     let (w, h) = (940u32, 500u32);
-    let mut ui = lab::ui::Ui::new(St { cmds: vec![], look }, page, |_, _| {}, faces(), w, h, 1.0)
+    let mut ui = amenui::ui::Ui::new(St { cmds: vec![], look }, page, |_, _| {}, faces(), w, h, 1.0)
         .on_look(|s| s.look).on_gaze(|s| s.look.gaze).on_commands(|s| std::mem::take(&mut s.cmds));
     let mut o = Offscreen::new(w, h);
     ui.pointer_leave();
@@ -345,7 +345,7 @@ fn study_readouts(out: &str) {
     let mut t = 2.0;
     for f in 0..4 {
         let (a, b) = (f as f32 / 4.0, (f + 1) as f32 / 4.0);
-        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path.clone(), from: a, to: b }, v: [1.0, 0.2], energy: 1.0, radius: 50.0, scope: lab::el::Scope::Global });
+        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path.clone(), from: a, to: b }, v: [1.0, 0.2], energy: 1.0, radius: 50.0, scope: amenui::el::Scope::Global });
         ui.relayout();
         for _ in 0..8 { t += 1.0 / 60.0; ui.tick(t); }
         let l = ui.look();

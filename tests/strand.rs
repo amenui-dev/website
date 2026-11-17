@@ -5,16 +5,16 @@
 //! thread; `hold_ms` holds the pose for a beat; 回 is four outlines (two rings, each an outer and an inner
 //! edge) and three bridges; a 64 px title loosened is a few long chords well off its outline; the Loose
 //! Thread page loosens its title all the way, holds it, and lets it go, with its tangle at rest.
-use lab::el::{El, Paint, Response, col, layers, row, space, text};
-use lab::strand::Kind;
-use lab::style::{Look, Material};
-use lab::ui::Ui;
-use lab::widgets::{FloatMsg, Floating, floating};
+use amenui::el::{El, Paint, Response, col, layers, row, space, text};
+use amenui::strand::Kind;
+use amenui::style::{Look, Material};
+use amenui::ui::Ui;
+use amenui::widgets::{FloatMsg, Floating, floating};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 #[derive(Clone)] enum M { F(FloatMsg) }
-struct S { f: Floating, t: f32, hold: f32, word: String, cmds: Vec<lab::morph::Cmd> }
+struct S { f: Floating, t: f32, hold: f32, word: String, cmds: Vec<amenui::morph::Cmd> }
 fn view(s: &S) -> El<M> {
     let page = col().key("page").pad(40.0, 40.0).gap(24.0)
         .child(text("Thread", 72.0, Paint::INK).key("title").legible(false).respond(Response::Loosen))
@@ -41,7 +41,7 @@ fn run(ui: &mut Ui<S, M>, secs: f32) -> usize {
     while t < to { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { drawn += 1; } ui.frame_drawn(); }
     drawn
 }
-fn thread_of<'a>(ui: &'a Ui<S, M>, key: &str) -> Option<&'a (String, f32, Vec<lab::strand::Seg>)> { ui.strands().iter().find(|s| s.0 == key) }
+fn thread_of<'a>(ui: &'a Ui<S, M>, key: &str) -> Option<&'a (String, f32, Vec<amenui::strand::Seg>)> { ui.strands().iter().find(|s| s.0 == key) }
 
 #[test]
 fn nothing_at_rest_a_thread_behind_the_window_and_nothing_after() {
@@ -98,15 +98,15 @@ fn nothing_at_rest_a_thread_behind_the_window_and_nothing_after() {
 #[test]
 fn a_small_budget_keeps_one_line_and_recomposing_text_has_none() {
     let mut ui = open(0.0);
-    lab::budget::set(lab::budget::MAX_MARKS, 0.25);
+    amenui::budget::set(amenui::budget::MAX_MARKS, 0.25);
     stir(&mut ui);
     let t = ui.now() + 1.0 / 60.0;
     ui.tick(t);
     let (_, _, segs) = thread_of(&ui, "title").expect("a thread");
     assert!(!segs.is_empty());
     for w in segs.windows(2) { assert_eq!(w[0].b, w[1].a, "broken under a small budget"); }
-    assert!(lab::budget::usage().max as f32 * 0.25 >= segs.len() as f32);
-    lab::budget::set(lab::budget::MAX_MARKS, 1.0);
+    assert!(amenui::budget::usage().max as f32 * 0.25 >= segs.len() as f32);
+    amenui::budget::set(amenui::budget::MAX_MARKS, 1.0);
     // Change the keyed word: while it recomposes, it has no thread (before, it had one).
     assert!(thread_of(&ui, "word").is_some(), "the word was not loose");
     ui.state.word = "two".into();
@@ -124,7 +124,7 @@ fn morphing_elements_have_no_thread() {
     ui.tick(t);
     assert!(thread_of(&ui, "title").is_some() && thread_of(&ui, "deco").is_some(), "the title and the square were not loose");
     // A morph from the title to the square: while it runs, neither end has a thread (they loosen as plain).
-    ui.state.cmds.push(lab::morph::Cmd::Morph { from: "title".into(), to: "deco".into(), spec: lab::morph::MorphSpec::default() });
+    ui.state.cmds.push(amenui::morph::Cmd::Morph { from: "title".into(), to: "deco".into(), spec: amenui::morph::MorphSpec::default() });
     ui.relayout();
     for _ in 0..10 {
         let t = ui.now() + 1.0 / 60.0;
@@ -140,7 +140,7 @@ fn hold_ms_holds_the_pose_for_a_beat() {
         let mut ui = open(hold);
         stir(&mut ui);
         let mut t = ui.now();
-        let mut seen: Vec<(i64, Vec<lab::strand::Seg>)> = vec![];
+        let mut seen: Vec<(i64, Vec<amenui::strand::Seg>)> = vec![];
         for _ in 0..30 {
             t += 1.0 / 120.0;
             ui.tick(t);
@@ -158,7 +158,7 @@ fn hold_ms_holds_the_pose_for_a_beat() {
 
 /// Stir the title hard through the map, so it is loose without a window.
 fn stir(ui: &mut Ui<S, M>) {
-    ui.state.cmds.push(lab::morph::Cmd::Stir { at: lab::morph::StirAt::Key("title".into()), v: [1.0, 0.2], energy: 1.0, radius: 240.0, scope: lab::el::Scope::Global });
+    ui.state.cmds.push(amenui::morph::Cmd::Stir { at: amenui::morph::StirAt::Key("title".into()), v: [1.0, 0.2], energy: 1.0, radius: 240.0, scope: amenui::el::Scope::Global });
     ui.relayout();
 }
 
@@ -177,8 +177,8 @@ fn hui_is_four_outlines_and_three_bridges() {
 }
 
 /// The thread of a 64 px "Loose thread" with no knots and no tails, as plain polylines (`angular` 1).
-fn title_thread(k: f32) -> Vec<lab::strand::Seg> {
-    fn v(k: &f32) -> El<()> { col().pad(60.0, 60.0).child(text("Loose thread", 64.0, Paint::INK).font(lab::el::Font::Display).key("title").legible(false).loose(*k)) }
+fn title_thread(k: f32) -> Vec<amenui::strand::Seg> {
+    fn v(k: &f32) -> El<()> { col().pad(60.0, 60.0).child(text("Loose thread", 64.0, Paint::INK).font(amenui::el::Font::Display).key("title").legible(false).loose(*k)) }
     fn look(_: &f32) -> Look {
         let mut l = Look { material: Material::Scribblr, ..Look::default() };
         let p = &mut l.params[Material::Scribblr as usize].0;
@@ -196,7 +196,7 @@ fn a_loosened_title_is_a_few_long_chords_off_its_outline() {
     let rest = title_thread(0.001);
     let all = title_thread(1.0);
     assert!(!rest.is_empty() && !all.is_empty());
-    let reach = lab::strand::StrandFx::default().reach;
+    let reach = amenui::strand::StrandFx::default().reach;
     assert!(all.len() * 100 <= (rest.len() + 1) * 15, "{} pieces against {} rest vertices", all.len(), rest.len() + 1);
     let mut lens: Vec<f32> = all.iter().map(|s| ((s.b[0] - s.a[0]).powi(2) + (s.b[1] - s.a[1]).powi(2)).sqrt()).collect();
     lens.sort_by(f32::total_cmp);
@@ -214,7 +214,7 @@ fn a_loosened_title_is_a_few_long_chords_off_its_outline() {
     }
     assert!(near * 4 <= total, "{near} of {total} px within 2 px of the outline");
     // It reaches past the letters on every side by at least 0.6 × reach.
-    let bbox = |s: &[lab::strand::Seg]| s.iter().flat_map(|g| [g.a, g.b]).fold([f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY], |b, p| [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])]);
+    let bbox = |s: &[amenui::strand::Seg]| s.iter().flat_map(|g| [g.a, g.b]).fold([f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY], |b, p| [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])]);
     let (a, b) = (bbox(&rest), bbox(&all));
     let grow = [a[0] - b[0], a[1] - b[1], b[2] - a[2], b[3] - a[3]];
     assert!(grow.iter().all(|g| *g >= 0.6 * reach), "it reaches past the letters by {grow:?}");
@@ -222,7 +222,7 @@ fn a_loosened_title_is_a_few_long_chords_off_its_outline() {
 
 #[test]
 fn the_loose_thread_page_loosens_its_title_all_the_way_and_text_to_read_holds() {
-    use lab::gallery;
+    use amenui::gallery;
     let mut ui = gallery::new_ui(fonts(), 1280, 1000, 1.0);
     ui.pointer_leave();
     assert!(ui.state.route("style-loose-thread"));
@@ -239,18 +239,18 @@ fn the_loose_thread_page_loosens_its_title_all_the_way_and_text_to_read_holds() 
     // as they are at rest.
     let tree = ui.export_tree();
     let inside = |p: [f32; 2], b: &[f32; 4]| p[0] >= b[0] && p[1] >= b[1] && p[0] < b[2] && p[1] < b[3];
-    let legible_keys: Vec<String> = { let mut v = vec![]; fn keys(n: &lab::tree::TreeNode, v: &mut Vec<String>) { if n.legible { v.push(n.key.clone()); } for c in &n.children { keys(c, v); } } keys(&tree, &mut v); v };
+    let legible_keys: Vec<String> = { let mut v = vec![]; fn keys(n: &amenui::tree::TreeNode, v: &mut Vec<String>) { if n.legible { v.push(n.key.clone()); } for c in &n.children { keys(c, v); } } keys(&tree, &mut v); v };
     let mut by_key: std::collections::BTreeMap<String, [f32; 4]> = Default::default();
-    let sp = lab::text::SPREAD as f32;
+    let sp = amenui::text::SPREAD as f32;
     for (i, x) in ui.scene().instances.iter().enumerate() {
         let Some(k) = ui.owner_key(i) else { continue };
-        if x.paint[3] != lab::scene::GLYPH || !k.starts_with(h) || !legible_keys.iter().any(|l| l == k) { continue; }
+        if x.paint[3] != amenui::scene::GLYPH || !k.starts_with(h) || !legible_keys.iter().any(|l| l == k) { continue; }
         let b = by_key.entry(k.to_owned()).or_insert([f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY]);
         *b = [b[0].min(x.rect[0] + sp), b[1].min(x.rect[1] + sp), b[2].max(x.rect[0] + x.rect[2] - sp), b[3].max(x.rect[1] + x.rect[3] - sp)];
     }
     let boxes: Vec<[f32; 4]> = by_key.into_values().collect();
     assert!(boxes.len() >= 4, "{} texts to read", boxes.len());
-    let glyphs = |ui: &gallery::GalleryUi| -> Vec<([f32; 4], f32)> { ui.scene().instances.iter().enumerate().filter(|(i, x)| x.paint[3] == lab::scene::GLYPH && ui.owner_key(*i).is_some_and(|k| legible_keys.iter().any(|l| l == k))).map(|(_, x)| (x.rect, x.paint[2])).collect() };
+    let glyphs = |ui: &gallery::GalleryUi| -> Vec<([f32; 4], f32)> { ui.scene().instances.iter().enumerate().filter(|(i, x)| x.paint[3] == amenui::scene::GLYPH && ui.owner_key(*i).is_some_and(|k| legible_keys.iter().any(|l| l == k))).map(|(_, x)| (x.rect, x.paint[2])).collect() };
     let still = glyphs(&ui);
     assert!(still.len() > 100, "{} glyphs to read", still.len());
     // The tangle at rest: most of the page's height, out of every box of text to read.
@@ -276,10 +276,10 @@ fn the_loose_thread_page_loosens_its_title_all_the_way_and_text_to_read_holds() 
     assert!(k >= 0.8, "after the sweep the title is only {k} loose (most {most})");
     // Its tails: from the edge into the line and out to an edge, clear of text to read.
     let (_, kk, segs) = ui.strands().iter().find(|s| s.0 == format!("{h}/title")).expect("the title's thread").clone();
-    let head: Vec<&lab::strand::Seg> = segs.iter().take_while(|s| s.kind == Kind::Tail).collect();
-    let tail: Vec<&lab::strand::Seg> = segs.iter().rev().take_while(|s| s.kind == Kind::Tail).collect();
+    let head: Vec<&amenui::strand::Seg> = segs.iter().take_while(|s| s.kind == Kind::Tail).collect();
+    let tail: Vec<&amenui::strand::Seg> = segs.iter().rev().take_while(|s| s.kind == Kind::Tail).collect();
     assert!(!head.is_empty() && !tail.is_empty(), "two tails");
-    let span = |v: &[&lab::strand::Seg]| { let (a, b) = (v.first().expect("a piece").a, v.last().expect("a piece").b); ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt() };
+    let span = |v: &[&amenui::strand::Seg]| { let (a, b) = (v.first().expect("a piece").a, v.last().expect("a piece").b); ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt() };
     let (lh, lt) = (span(&head), span(&tail));
     assert!(lt >= 300.0 * kk && lh >= 0.5 * lt, "tails {lh} and {lt} at {kk}");
     for s in &segs {

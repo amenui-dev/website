@@ -730,7 +730,7 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     let tr = crate::i18n::tr;
     let name = if matches!(s.page, Page::Scene(_)) {
         button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
-    } else { text("gui-lab", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
+    } else { text("amenui", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
     let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
     let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
     let langs: Vec<&str> = crate::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
@@ -830,9 +830,9 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
 
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
     let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
-    // Tools (reel, scroll, pages) can ask for a language: LAB_LOCALE=en.
+    // Tools (reel, scroll, pages) can ask for a language: AMENUI_LOCALE=en.
     #[cfg(not(target_arch = "wasm32"))]
-    let state = { let mut s = state; if let Some(l) = std::env::var("LAB_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut s, Msg::Locale(l)); } s };
+    let state = { let mut s = state; if let Some(l) = std::env::var("AMENUI_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut s, Msg::Locale(l)); } s };
     let mut ui = crate::ui::Ui::new(state, view, update, faces, w, h, scale);
     // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
     // names them.

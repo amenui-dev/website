@@ -64,14 +64,14 @@
 //!     the outline at rest; with threads, drawn in part equals drawn whole.
 //!
 //! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap | scribblr]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
-use lab::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
-use lab::el::{El, Font, Paint, col, picture, row, space, text_lh};
-use lab::morph::MorphSpec;
-use lab::marks::PALETTES;
-use lab::offscreen::Offscreen;
-use lab::style::{DARK, Gaze, GazeMode, LIGHT, Look, MATERIAL_COUNT, Material, PicFx, Theme, gaze, set};
-use lab::text::{MONO, PIXEL, SANS, load_bundled};
-use lab::ui::Ui;
+use amenui::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
+use amenui::el::{El, Font, Paint, col, picture, row, space, text_lh};
+use amenui::morph::MorphSpec;
+use amenui::marks::PALETTES;
+use amenui::offscreen::Offscreen;
+use amenui::style::{DARK, Gaze, GazeMode, LIGHT, Look, MATERIAL_COUNT, Material, PicFx, Theme, gaze, set};
+use amenui::text::{MONO, PIXEL, SANS, load_bundled};
+use amenui::ui::Ui;
 
 const W: u32 = 700;
 const H: u32 = 470;
@@ -82,7 +82,7 @@ fn one(s: &One) -> El<()> {
     col().pad(20.0, 20.0).child(picture(s.id, h as f32 / w as f32).key("pic").loose(s.loose))
 }
 
-fn device_rect(r: lab::ui::Rect, scale: f32) -> (u32, u32, u32, u32) {
+fn device_rect(r: amenui::ui::Rect, scale: f32) -> (u32, u32, u32, u32) {
     ((r.x * scale).round() as u32, (r.y * scale).round() as u32, (r.right() * scale).round() as u32, (r.bottom() * scale).round() as u32)
 }
 fn px(img: &[u8], w: u32, x: u32, y: u32) -> [u8; 3] { let o = ((y * w + x) * 4) as usize; [img[o], img[o + 1], img[o + 2]] }
@@ -263,7 +263,7 @@ fn main() {
     let (t0, t1, t2) = (50.0f32, 50.25f32, 51.25f32);
     let landed = t2 - 1.0 / 64.0;
     let mut worst = 0;
-    let gpu_ok = o.r.particle_tier() != lab::render::ParticleTier::Cpu;
+    let gpu_ok = o.r.particle_tier() != amenui::render::ParticleTier::Cpu;
     if !gpu_ok { eprintln!("   no GPU particle tier here: the GPU path is not checked"); }
     for (pair, name) in PAIR_NAMES.iter().enumerate() {
         // Both paths: the CPU's tiles, and the GPU's simulated grid (every morph above 0 tiles).
@@ -272,7 +272,7 @@ fn main() {
             let look = Look { theme: DARK, material, ..Look::default() };
             let new = |s: Stage| { let mut ui = Ui::new(s, stage, |_, _| {}, fonts(), W, H, 1.0); ui.pointer_leave(); ui };
             let mut moving = Ui::new(Stage { pair, loose: [0.0, 0.0], shown: [true, false] }, stage, |_, _| {}, fonts(), W, H, 1.0)
-                .on_look(if gpu { |_: &Stage| Look { particles: lab::morph::Particles { gpu_above: 0.0, ..Default::default() }, ..Look::default() } } else { |_: &Stage| Look::default() });
+                .on_look(if gpu { |_: &Stage| Look { particles: amenui::morph::Particles { gpu_above: 0.0, ..Default::default() }, ..Look::default() } } else { |_: &Stage| Look::default() });
             moving.pointer_leave();
             moving.set_particle_gpu(gpu);
             moving.tick(t0);
@@ -304,7 +304,7 @@ fn main() {
         moving.tick(t1 + 0.5);
         let img = o.render(&mut moving, &look);
         let ground = rgb8(LIGHT.ground);
-        let out = |r: lab::ui::Rect, x: u32, y: u32| (x as f32) < r.x - 16.0 || (x as f32) >= r.right() + 16.0 || (y as f32) < r.y - 16.0 || (y as f32) >= r.bottom() + 16.0;
+        let out = |r: amenui::ui::Rect, x: u32, y: u32| (x as f32) < r.x - 16.0 || (x as f32) >= r.right() + 16.0 || (y as f32) < r.y - 16.0 || (y as f32) >= r.bottom() + 16.0;
         // The ground units of the dot material are within about 70/255 of the ground; tiles are much further.
         let far = |c: [u8; 3]| (0..3).any(|i| (c[i] as i32 - ground[i] as i32).abs() > 100);
         let n = (0..H).flat_map(|y| (0..W).map(move |x| (x, y))).filter(|&(x, y)| out(ra, x, y) && out(rb, x, y) && far(px(&img, W, x, y))).count();
@@ -323,7 +323,7 @@ fn main() {
         let mut frames = vec![];
         for _ in 0..2 {
             let mut m = Ui::new(Stage { pair: 0, loose: [0.0, 0.0], shown: [true, false] }, stage, |_, _| {}, fonts(), W, H, 1.0)
-                .on_look(|_: &Stage| Look { particles: lab::morph::Particles { gpu_above: 0.0, ..Default::default() }, ..Look::default() });
+                .on_look(|_: &Stage| Look { particles: amenui::morph::Particles { gpu_above: 0.0, ..Default::default() }, ..Look::default() });
             m.set_particle_gpu(true);
             let mut t = t0;
             m.tick(t);
@@ -470,9 +470,9 @@ fn main() {
     // ── 9. Scenes at rest are calm ─────────────────────────────────────────────────────────────────
     let before = failed;
     for (i, live) in [(0usize, None), (1, None), (2, Some("pr/wall")), (3, None), (4, None), (5, None), (6, None)] {
-        let mut ui = lab::gallery::new_ui(fonts(), 1280, 800, 1.0);
+        let mut ui = amenui::gallery::new_ui(fonts(), 1280, 800, 1.0);
         ui.pointer_leave();
-        lab::gallery::update(&mut ui.state, lab::gallery::Msg::Go(lab::gallery::Page::Scene(i as u8)));
+        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Go(amenui::gallery::Page::Scene(i as u8)));
         ui.relayout();
         let mut t = 0.0;
         while t < 6.0 { t += 1.0 / 30.0; ui.tick(t); }
@@ -485,9 +485,9 @@ fn main() {
     }
     // Control: the same count sees a held picture as loose.
     {
-        let mut ui = lab::gallery::new_ui(fonts(), 1280, 800, 1.0);
-        lab::gallery::update(&mut ui.state, lab::gallery::Msg::Go(lab::gallery::Page::Scene(2)));
-        lab::gallery::update(&mut ui.state, lab::gallery::Msg::Num(lab::gallery::Target::Scene(2, 3), lab::widgets::Edit::Set(1.0)));
+        let mut ui = amenui::gallery::new_ui(fonts(), 1280, 800, 1.0);
+        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Go(amenui::gallery::Page::Scene(2)));
+        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Num(amenui::gallery::Target::Scene(2, 3), amenui::widgets::Edit::Set(1.0)));
         ui.relayout();
         ui.tick(6.0);
         if !ui.scene().instances.iter().any(|i| i.extra[2] > 0.0) { eprintln!("FAIL control: a held picture is not seen as loose"); failed += 1; }
@@ -510,7 +510,7 @@ fn main() {
         // The reduced pass is drawn even though nothing is loose, so the upsample has to choose.
         o.r.always_lo = true;
         let half = o.render(&mut ui, &Look { material: mat, quality: 0.5, ..Look::default() });
-        let whole = diff(&full, &half, lab::ui::Rect::new(0.0, 0.0, W as f32, H as f32));
+        let whole = diff(&full, &half, amenui::ui::Rect::new(0.0, 0.0, W as f32, H as f32));
         worst = worst.max(whole);
         if whole > 0 { eprintln!("FAIL quality 0.5: {:?} at rest differs from quality 1 by {whole}/255", mat); failed += 1; }
         if !matches!(mat, Material::Near) {
@@ -544,11 +544,11 @@ fn main() {
 }
 
 /// 13. Recomposition: the first frame is the old text and the last the new one, exactly.
-fn recompose(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+fn recompose(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     // ── 13. Recomposition hands over without a visible change ──────────────────────────────────────
     let mut failed = 0;
     let mut worst = 0;
-    let spec = lab::morph::Recompose::default();
+    let spec = amenui::morph::Recompose::default();
     let (t0, flight) = (50.0f32, spec.duration_ms / 1000.0);
     // Every tile has landed by (1 − 0.05 × stagger) of the flight; the run ends at the flight's end.
     let landed = t0 + flight * (1.0 - 0.025 * spec.stagger);
@@ -559,7 +559,7 @@ fn recompose(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usi
             let mut moving = plain(from, t0);
             moving.state.0 = to.into();
             moving.relayout();
-            let whole = lab::ui::Rect::new(0.0, 0.0, W as f32, H as f32);
+            let whole = amenui::ui::Rect::new(0.0, 0.0, W as f32, H as f32);
             let d = diff(&o.render(&mut plain(from, t0), &look), &o.render(&mut moving, &look), whole);
             let mid = o.render(&mut { moving.tick(t0 + flight * 0.5); moving }, &look);
             let mut moving = plain(from, t0);
@@ -614,7 +614,7 @@ fn stage(s: &Stage) -> El<()> {
         .child(element(b, s.loose[1]).key("b").hidden_until_morphed(!s.shown[1]))
 }
 /// Largest channel difference over a rect (logical = device px here).
-fn diff(a: &[u8], b: &[u8], r: lab::ui::Rect) -> i32 {
+fn diff(a: &[u8], b: &[u8], r: amenui::ui::Rect) -> i32 {
     let (x0, y0, x1, y1) = device_rect(r, 1.0);
     let mut d = 0;
     for y in y0..y1.min(H) { for x in x0..x1.min(W) {
@@ -646,7 +646,7 @@ fn framed(_: &Gaze) -> El<()> {
         .child(space(310.0, 37.0).border(1.0, Paint::DIM).key("f4"))
 }
 /// Largest channel difference over the pixels of a rect where `a` is not the ground.
-fn diff_ink(a: &[u8], b: &[u8], r: lab::ui::Rect, ground: [u8; 3]) -> i32 {
+fn diff_ink(a: &[u8], b: &[u8], r: amenui::ui::Rect, ground: [u8; 3]) -> i32 {
     let (x0, y0, x1, y1) = device_rect(r, 1.0);
     let mut d = 0;
     for y in y0..y1.min(H) { for x in x0..x1.min(W) {
@@ -662,13 +662,13 @@ fn diff_ink(a: &[u8], b: &[u8], r: lab::ui::Rect, ground: [u8; 3]) -> i32 {
 struct Wr { kind: u8, x: f32, y: f32, gap: f32, show: u8 }
 const WRAP_TEXT: &str = "文字沿着轮廓排开，每一行只拿到这一条带子里没有被挡住的部分；被挡成两段时，左右各排一行。Text keeps its distance from the ink of whatever is in its way, whatever its shape. ";
 fn wrapped(s: &Wr) -> El<()> {
-    use lab::wrap::{Around, Silhouette};
+    use amenui::wrap::{Around, Silhouette};
     let (ob, sil) = if s.kind == 1 {
         (space(150.0, 150.0).radius(75.0).fill(Paint::ACCENT), Silhouette::circle(s.x + 75.0, s.y + 75.0, 75.0))
     } else {
-        let (iw, ih, a) = lab::demo::cutout_alpha();
+        let (iw, ih, a) = amenui::demo::cutout_alpha();
         let w = 240.0;
-        (col().width(w).child(picture(lab::demo::CUTOUT, ih as f32 / iw as f32)), Silhouette::from_alpha(iw, ih, |x, y| a[(y * iw + x) as usize], s.x, s.y, w))
+        (col().width(w).child(picture(amenui::demo::CUTOUT, ih as f32 / iw as f32)), Silhouette::from_alpha(iw, ih, |x, y| a[(y * iw + x) as usize], s.x, s.y, w))
     };
     let alpha = if s.show == 1 { 0.0 } else { 1.0 };
     col().pad(20.0, 20.0).child(col().width(640.0)
@@ -677,9 +677,9 @@ fn wrapped(s: &Wr) -> El<()> {
 }
 
 /// Checks 10 and 11, on the gallery's component pages.
-fn components(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, COMPONENTS, GalleryUi, Msg, Page, comp};
-    use lab::style::MATERIALS;
+fn components(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, COMPONENTS, GalleryUi, Msg, Page, comp};
+    use amenui::style::MATERIALS;
     let (w, h) = (1280u32, 1100u32);
     let mut o = Offscreen::new(w, h);
     let settle = |ui: &mut GalleryUi, secs: f32| { let to = ui.now() + secs; let mut t = ui.now(); while t < to { t = (t + 1.0 / 30.0).min(to); ui.tick(t); } };
@@ -711,7 +711,7 @@ fn components(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
             let mut ui = page(c, theme, 0);
             // Where the controls are: the preview and the variants; for the dialog, its card (the page
             // beneath it is held partly loose on purpose).
-            let rects: Vec<lab::ui::Rect> = if c == comp::DIALOG { vec![ui.node("dialog/dialog/card").expect("card").rect] }
+            let rects: Vec<amenui::ui::Rect> = if c == comp::DIALOG { vec![ui.node("dialog/dialog/card").expect("card").rect] }
                 else { [format!("doc/{hash}/preview"), format!("{hash}/variants"), format!("doc/{hash}/examples")].iter().filter_map(|k| ui.node(k).map(|n| n.rect)).collect() };
             assert!(!rects.is_empty(), "no preview region on {hash}");
             let look = ui.state.look();
@@ -752,9 +752,9 @@ fn components(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
                         let (a, b, ba, bb) = (px(&full_p, w, x, y), px(&full, w, x, y), px(&bare_p, w, x, y), px(&bare, w, x, y));
                         if (0..3).any(|i| (a[i] as i32 - b[i] as i32).abs() - (ba[i] as i32 - bb[i] as i32).abs() - allowed > 0) { let o = ((y * w + x) * 4) as usize; m[o..o + 3].copy_from_slice(&[0, 255, 0]); }
                     }
-                    lab::offscreen::save_png(&format!("{dir}/{hash}-{mname}-{theme}.png"), w, h, &m);
-                    lab::offscreen::save_png(&format!("{dir}/{hash}-{mname}-{theme}-raw.png"), w, h, &full);
-                    lab::offscreen::save_png(&format!("{dir}/{hash}-plain-{theme}.png"), w, h, &full_p);
+                    amenui::offscreen::save_png(&format!("{dir}/{hash}-{mname}-{theme}.png"), w, h, &m);
+                    amenui::offscreen::save_png(&format!("{dir}/{hash}-{mname}-{theme}-raw.png"), w, h, &full);
+                    amenui::offscreen::save_png(&format!("{dir}/{hash}-plain-{theme}.png"), w, h, &full_p);
                 }
                 if bad > 0 { eprintln!("FAIL rest: {hash} under {mname} ({}): {bad} of {} glyph pixels off by up to {d_max}/255 beyond their backing", THEME_NAMES[theme], mask.len()); failed += 1; }
             }
@@ -804,23 +804,23 @@ const THEME_NAMES: [&str; 2] = ["dark", "light"];
 
 // ── 14. Meshes ───────────────────────────────────────────────────────────────────────────────────
 struct Obj { yaw: f32, scale: f32, crease: f32 }
-fn obj_scene(s: &Obj) -> lab::mesh::Scene3d {
-    let mut sc = lab::mesh::Scene3d::single(lab::mesh::MeshId::ICO[1]);
-    sc.items[0].transforms = vec![lab::mesh::Mat4::rotate_y(s.yaw).mul(&lab::mesh::Mat4::uniform(1.55))];
+fn obj_scene(s: &Obj) -> amenui::mesh::Scene3d {
+    let mut sc = amenui::mesh::Scene3d::single(amenui::mesh::MeshId::ICO[1]);
+    sc.items[0].transforms = vec![amenui::mesh::Mat4::rotate_y(s.yaw).mul(&amenui::mesh::Mat4::uniform(1.55))];
     sc.spec.resolution_scale = s.scale;
     sc.spec.edge_normal = s.crease;
     sc
 }
-fn obj(s: &Obj) -> El<()> { col().pad(40.0, 40.0).child(lab::el::scene3d(obj_scene(s)).key("mesh").width(360.0).height(320.0)) }
+fn obj(s: &Obj) -> El<()> { col().pad(40.0, 40.0).child(amenui::el::scene3d(obj_scene(s)).key("mesh").width(360.0).height(320.0)) }
 /// A point through a full 4 × 4 projection to device px of `r`.
-fn project(m: &lab::mesh::Mat4, p: [f32; 3], r: lab::ui::Rect) -> (f32, f32) {
+fn project(m: &amenui::mesh::Mat4, p: [f32; 3], r: amenui::ui::Rect) -> (f32, f32) {
     let a = &m.0;
     let c = |row: usize| a[row] * p[0] + a[4 + row] * p[1] + a[8 + row] * p[2] + a[12 + row];
     let w = c(3);
     (r.x + (c(0) / w * 0.5 + 0.5) * r.w, r.y + (0.5 - c(1) / w * 0.5) * r.h)
 }
-fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::mesh::{Mesh, dot, sub};
+fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::mesh::{Mesh, dot, sub};
     let mut failed = 0;
     let before = failed;
     // Turning by 0 changes nothing, and a new renderer draws the same.
@@ -853,8 +853,8 @@ fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize 
             // normals differ by more than the threshold must have the outline drawn along it.
             let near = o.render(&mut ui, &Look { material: Material::Near, ..Look::default() });
             let sc = obj_scene(&ui.state);
-            let lib = lab::mesh::Library::default();
-            let mesh = lib.get(lab::mesh::MeshId::ICO[1]).expect("ico");
+            let lib = amenui::mesh::Library::default();
+            let mesh = lib.get(amenui::mesh::MeshId::ICO[1]).expect("ico");
             let model = sc.items[0].transforms[0];
             let mvp = sc.camera.proj(r.w / r.h).mul(&sc.camera.view());
             let eye = sc.camera.eye();
@@ -903,8 +903,8 @@ fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize 
 }
 
 // ── 15. Dirty boxes ──────────────────────────────────────────────────────────────────────────────
-fn dirty(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, Msg, Page};
+fn dirty(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, Msg, Page};
     let (w, h) = (900u32, 640u32);
     // One renderer (it keeps the glyph atlas): each frame drawn in part from the previous one, then the
     // same frame drawn whole to compare (which the next frame then starts from).
@@ -913,9 +913,9 @@ fn dirty(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let (mut frames, mut small) = (0, 0);
     // The button page under every material; the image page and the 3D page (the lens over a picture and
     // a mesh) under three.
-    let runs: Vec<(&str, usize)> = (0..lab::style::MATERIALS.len()).map(|m| ("button", m)).chain([("image", 0), ("image", 1), ("three", 0), ("three", 1), ("three", 3)]).collect();
+    let runs: Vec<(&str, usize)> = (0..amenui::style::MATERIALS.len()).map(|m| ("button", m)).chain([("image", 0), ("image", 1), ("three", 0), ("three", 1), ("three", 3)]).collect();
     for (page, mi) in runs {
-        let (m, name) = lab::style::MATERIALS[mi];
+        let (m, name) = amenui::style::MATERIALS[mi];
         let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
         gallery::update(&mut ui.state, Msg::Go(Page::from_hash(page).expect("page")));
         gallery::update(&mut ui.state, Msg::Material(mi));
@@ -950,7 +950,7 @@ fn dirty(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     // The floating box dragged, thrown and gliding to a corner over its page (a moving box over
     // content: what it leaves must be drawn again, every frame), under plain and dot.
     let fh = 900u32;
-    let runs: Vec<(usize, f32)> = if std::env::var("DIRTY_ONLY").is_ok() { vec![(6, 1.0)] } else { (0..lab::style::MATERIALS.len()).map(|m| (m, 1.0)).chain([(0, 2.0), (1, 2.0)]).collect() };
+    let runs: Vec<(usize, f32)> = if std::env::var("DIRTY_ONLY").is_ok() { vec![(6, 1.0)] } else { (0..amenui::style::MATERIALS.len()).map(|m| (m, 1.0)).chain([(0, 2.0), (1, 2.0)]).collect() };
     for (mi, sc) in runs {
         let mut part = Offscreen::new((w as f32 * sc) as u32, (fh as f32 * sc) as u32);
         let mut ui = gallery::new_ui(fonts(), (w as f32 * sc) as u32, (fh as f32 * sc) as u32, sc);
@@ -1000,8 +1000,8 @@ fn dirty(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 }
 
 // ── 16. Presets end exactly ──────────────────────────────────────────────────────────────────────
-fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, GalleryUi, Msg, Page, presets::PreMsg};
+fn presets(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, GalleryUi, Msg, Page, presets::PreMsg};
     let (w, h) = (900u32, 600u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
@@ -1015,7 +1015,7 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         ui
     };
     let run = |ui: &mut GalleryUi, t: &mut f32, to: f32| { while *t < to - 1e-4 { *t += 1.0 / 60.0; ui.tick(*t); } };
-    let n = lab::preset::presets().len();
+    let n = amenui::preset::presets().len();
     for to in 0..n {
         let from = if to == 7 { 3 } else { 7 };
         let mut ui = open(from, to);
@@ -1056,7 +1056,7 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         let want = o.render(&mut fresh, &look);
         let name = &ui.state.presets[to].name;
         let differ = end.chunks(4).zip(want.chunks(4)).filter(|(a, b)| a != b).count();
-        if differ > 0 && std::env::var_os("LAB_DEBUG").is_some() { lab::offscreen::save_png(&format!("/tmp/pre-{to}-end.png"), w, h, &end); lab::offscreen::save_png(&format!("/tmp/pre-{to}-want.png"), w, h, &want); }
+        if differ > 0 && std::env::var_os("AMENUI_DEBUG").is_some() { amenui::offscreen::save_png(&format!("/tmp/pre-{to}-end.png"), w, h, &end); amenui::offscreen::save_png(&format!("/tmp/pre-{to}-want.png"), w, h, &want); }
         if differ > 0 { eprintln!("FAIL preset {name}: the frame after its transition differs from a fresh render in {differ} pixels"); failed += 1; }
         if dur > 0.0 && (mid == start || mid == end) { eprintln!("FAIL control: {name}'s transition shows nothing mid-way"); failed += 1; }
         eprintln!("   preset {name}: {dur:.2} s, end vs fresh {differ} px");
@@ -1066,9 +1066,9 @@ fn presets(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 }
 
 // ── 17. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
-fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, Msg, Page};
-    use lab::post::*;
+fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, Msg, Page};
+    use amenui::post::*;
     let (w, h) = (640u32, 420u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
@@ -1149,9 +1149,9 @@ fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let base = ui.state.look();
     let plain = o.render(&mut ui, &base);
     let mut l = base;
-    l.marks = lab::style::Marks { depth_scale: 0.0, depth_dim: 0.0 };
+    l.marks = amenui::style::Marks { depth_scale: 0.0, depth_dim: 0.0 };
     if o.render(&mut ui, &l) != plain { eprintln!("FAIL depth marks at 0 change the frame"); failed += 1; }
-    l.marks = lab::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
+    l.marks = amenui::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
     let deep = o.render(&mut ui, &l);
     let lum = |p: &[u8]| p[0] as u32 + p[1] as u32 + p[2] as u32;
     let (mut darker, mut lighter) = (0, 0);
@@ -1164,8 +1164,8 @@ fn looks(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 /// Check 18: scrolling slowly is a picture moved by whole pixels (DESIGN.md §1.8.3). Under every
 /// material, a frame one device pixel of scroll later is the frame before moved up by one pixel,
 /// exactly, inside the scroller away from its edges. Control: unmoved, the two frames differ.
-fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, Msg, Page};
+fn scroll(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, Msg, Page};
     let (w, h) = (960u32, 600u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
@@ -1211,19 +1211,19 @@ fn scroll(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 }
 
 // ── 19. The field map ────────────────────────────────────────────────────────────────────────────
-struct Pic { cmds: Vec<lab::morph::Cmd> }
-fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(BUST, 1.0).key("pic").loose(1.0).respond(lab::el::Response::Loosen)) }
-fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
-    use lab::gallery::{self, Msg, Page};
-    use lab::morph::{Cmd, StirAt};
+struct Pic { cmds: Vec<amenui::morph::Cmd> }
+fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(BUST, 1.0).key("pic").loose(1.0).respond(amenui::el::Response::Loosen)) }
+fn fieldmap(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
+    use amenui::gallery::{self, Msg, Page};
+    use amenui::morph::{Cmd, StirAt};
     let (w, h) = (900u32, 640u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
-    let stir = |at: StirAt| Cmd::Stir { at, v: [1.0, 0.3], energy: 1.0, radius: 320.0, scope: lab::el::Scope::Global };
+    let stir = |at: StirAt| Cmd::Stir { at, v: [1.0, 0.3], energy: 1.0, radius: 320.0, scope: amenui::el::Scope::Global };
     // 1 and 2: all zero, the frame is the one drawn without the map; after a stir it is not.
     let (mut same, mut stirred) = (0, 0);
     for page in ["button", "image"] {
-        for (mi, (m, _)) in lab::style::MATERIALS.iter().enumerate() {
+        for (mi, (m, _)) in amenui::style::MATERIALS.iter().enumerate() {
             let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
             gallery::update(&mut ui.state, Msg::Go(Page::from_hash(page).expect("page")));
             gallery::update(&mut ui.state, Msg::Material(mi));
@@ -1250,7 +1250,7 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     }
     eprintln!("19.1–2 all zero is the frame without the map ({same} frames); a stir shows ({stirred})");
     // 3: the window on the field map's page, dragged, thrown and settling; drawn in part = drawn whole.
-    let mats: Vec<usize> = (0..lab::style::MATERIALS.len()).collect();
+    let mats: Vec<usize> = (0..amenui::style::MATERIALS.len()).collect();
     let (frames, bad_runs) = trail_in_part(fonts, &mut o, &mats);
     failed += bad_runs;
     eprintln!("19.3 the trail drawn in part: {frames} frames, {bad_runs} materials failing");
@@ -1295,7 +1295,7 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         let (x0, y0, x1, y1) = device_rect(r, 1.0);
         let (x1, y1) = (x1.min(W), y1.min(H));
         let path = std::rc::Rc::new(vec![[r.x - 40.0, r.y + r.h * 0.3], [r.right() + 40.0, r.y + r.h * 0.7]]);
-        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path, from: 0.0, to: 1.0 }, v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: lab::el::Scope::Global });
+        ui.state.cmds.push(Cmd::Stir { at: StirAt::Path { points: path, from: 0.0, to: 1.0 }, v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: amenui::el::Scope::Global });
         ui.relayout();
         ui.tick(100.05);
         let look = Look { theme: LIGHT, material: Material::from_id(m), ..Look::default() };
@@ -1309,8 +1309,8 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 }
 /// The floating window on the field map's page dragged, thrown and settling, 90 frames under each
 /// material: each frame drawn in part against the same frame drawn whole. (Frames, materials failing.)
-fn trail_in_part(fonts: &dyn Fn() -> Vec<lab::text::Face>, o: &mut Offscreen, mats: &[usize]) -> (usize, usize) {
-    use lab::gallery::{self, Msg, Page};
+fn trail_in_part(fonts: &dyn Fn() -> Vec<amenui::text::Face>, o: &mut Offscreen, mats: &[usize]) -> (usize, usize) {
+    use amenui::gallery::{self, Msg, Page};
     let (w, h) = (o.w, o.h);
     let (mut frames, mut bad_runs) = (0, 0);
     for &mi in mats {
@@ -1356,16 +1356,16 @@ fn trail_in_part(fonts: &dyn Fn() -> Vec<lab::text::Face>, o: &mut Offscreen, ma
 struct Scr { k: f32, weight: f32, light: bool, mat: Material }
 fn scr_page(s: &Scr) -> El<()> {
     col().pad(40.0, 40.0).gap(24.0)
-        .child(lab::el::text("Thread", 120.0, Paint::INK).font(Font::Display).key("title").legible(false).loose(s.k))
-        .child(lab::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
-        .child(lab::el::text("Written out and back", 56.0, Paint::INK).key("second").legible(false).loose(s.k))
+        .child(amenui::el::text("Thread", 120.0, Paint::INK).font(Font::Display).key("title").legible(false).loose(s.k))
+        .child(amenui::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
+        .child(amenui::el::text("Written out and back", 56.0, Paint::INK).key("second").legible(false).loose(s.k))
 }
 fn scr_look(s: &Scr) -> Look {
     let mut l = Look { theme: if s.light { LIGHT } else { DARK }, material: s.mat, ..Look::default() };
     l.params[Material::Scribblr as usize].0[0] = s.weight;
     l
 }
-fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+fn scribblr(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     let mut failed = 0;
     let (w, h) = (W, H);
     let mut o = Offscreen::new(w, h);
@@ -1424,7 +1424,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
             let b = at(x, y + 1.0) * (1.0 - fx) + at(x + 1.0, y + 1.0) * fx;
             a * (1.0 - fy) + b * fy
         };
-        let segs: Vec<lab::strand::Seg> = ui.strands().iter().flat_map(|s| s.2.iter().copied()).collect();
+        let segs: Vec<amenui::strand::Seg> = ui.strands().iter().flat_map(|s| s.2.iter().copied()).collect();
         let want = weight * scale;
         let mut measured = 0;
         let mut worst = 0.0f32;
@@ -1469,7 +1469,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     ui.pointer_leave();
     ui.tick(10.0);
     // The outline at rest: the thread's pieces along the outlines at 0.001 (not its bridges).
-    let rest: Vec<lab::strand::Seg> = ui.strands().iter().find(|s| s.0 == "title").map(|s| s.2.iter().filter(|g| g.kind == lab::strand::Kind::Line).copied().collect()).unwrap_or_default();
+    let rest: Vec<amenui::strand::Seg> = ui.strands().iter().find(|s| s.0 == "title").map(|s| s.2.iter().filter(|g| g.kind == amenui::strand::Kind::Line).copied().collect()).unwrap_or_default();
     let off = |p: [f32; 2]| rest.iter().map(|g| {
         let (ex, ey) = (g.b[0] - g.a[0], g.b[1] - g.a[1]);
         let t = (((p[0] - g.a[0]) * ex + (p[1] - g.a[1]) * ey) / (ex * ex + ey * ey).max(1e-9)).clamp(0.0, 1.0);
@@ -1480,7 +1480,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         ui.state.k = 1.0 - f as f32 / 30.0;
         ui.relayout();
         ui.tick(10.0);
-        let far = ui.strands().iter().filter(|s| s.0 == "title").flat_map(|s| s.2.iter().filter(|g| g.kind == lab::strand::Kind::Line || lab::strand::opacity(s.1).1 > 0.0).flat_map(|g| [g.a, g.b])).map(off).fold(0.0, f32::max);
+        let far = ui.strands().iter().filter(|s| s.0 == "title").flat_map(|s| s.2.iter().filter(|g| g.kind == amenui::strand::Kind::Line || amenui::strand::opacity(s.1).1 > 0.0).flat_map(|g| [g.a, g.b])).map(off).fold(0.0, f32::max);
         if far > last + 1e-3 { eprintln!("FAIL frame {f}: the thread went out to {far:.2} px from {last:.2}"); failed += 1; }
         last = far;
     }
@@ -1498,7 +1498,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 }
 
 // ── 7 (continued). Edge notes, the waveform and the level bar ─────────────────────────────────────
-struct Ed { g: Gaze, cmds: Vec<lab::morph::Cmd>, mat: Material }
+struct Ed { g: Gaze, cmds: Vec<amenui::morph::Cmd>, mat: Material }
 fn edged(_: &Ed) -> El<()> {
     col().pad(40.0, 40.0)
         .child(col().key("scope").gaze_scope().width(600.0).height(380.0).pad(20.0, 20.0)
@@ -1514,7 +1514,7 @@ fn mix_of(p: [u8; 3], ground: [u8; 3], col: [u8; 3]) -> (f32, i32) {
     }
     (best, far)
 }
-fn readouts(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+fn readouts(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     let mut failed = 0;
     let magenta = [255u8, 0, 255];
     let g = Gaze { mode: GazeMode::All, kinds: gaze::EDGE | gaze::OSC | gaze::LEVEL, density: 20.0, draw_ms: 0.0, colour: [1.0, 0.0, 1.0], only_marked: false, ..Gaze::default() };
@@ -1526,7 +1526,7 @@ fn readouts(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
         ui.tick(5.0);
         let sc = ui.node("scope").expect("scope").rect;
         // A stir in the middle, so the waveform has a hill.
-        ui.state.cmds.push(lab::morph::Cmd::Stir { at: lab::morph::StirAt::Point([sc.x + 300.0, sc.y + 190.0]), v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: lab::el::Scope::Global });
+        ui.state.cmds.push(amenui::morph::Cmd::Stir { at: amenui::morph::StirAt::Point([sc.x + 300.0, sc.y + 190.0]), v: [1.0, 0.0], energy: 1.0, radius: 60.0, scope: amenui::el::Scope::Global });
         ui.relayout();
         ui.tick(5.0 + 1.0 / 60.0);
         let look = ui.look();
@@ -1617,20 +1617,20 @@ fn readouts(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
 struct Fin { binary: bool, invert: bool }
 fn fin_page(_: &Fin) -> El<()> {
     col().pad(40.0, 40.0).child(col().key("scope").gaze_scope().width(900.0).height(640.0).gap(20.0)
-        .child(lab::el::text("Thread", 96.0, Paint::INK).font(Font::Display).key("title"))
-        .child(lab::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
-        .child(lab::el::text("静止时这里只是字和图。", 16.0, Paint::TEXT).key("body2"))
-        .child(lab::el::text("small type, tracked wide", 11.0, Paint::TEXT).whisper().key("small"))
-        .child(lab::el::text("A control's label", 13.0, Paint::DIM).key("label"))
+        .child(amenui::el::text("Thread", 96.0, Paint::INK).font(Font::Display).key("title"))
+        .child(amenui::el::text("A paragraph of body text set under the title, which stays put at rest.", 16.0, Paint::TEXT).key("body"))
+        .child(amenui::el::text("静止时这里只是字和图。", 16.0, Paint::TEXT).key("body2"))
+        .child(amenui::el::text("small type, tracked wide", 11.0, Paint::TEXT).whisper().key("small"))
+        .child(amenui::el::text("A control's label", 13.0, Paint::DIM).key("label"))
         .child(col().width(300.0).child(picture(SPHERE, PICTURE_SIZES[SPHERE as usize].1 as f32 / PICTURE_SIZES[SPHERE as usize].0 as f32).key("pic"))))
 }
 fn fin_look(s: &Fin) -> Look {
-    let p = lab::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("Loose Thread");
+    let p = amenui::preset::presets().into_iter().find(|p| p.hash == "loose-thread").expect("Loose Thread");
     let mut l = p.apply(&Look::default());
-    l.post = lab::post::PostSpec { binary: s.binary, invert: s.invert, ..p.post.clone() }.look();
+    l.post = amenui::post::PostSpec { binary: s.binary, invert: s.invert, ..p.post.clone() }.look();
     l
 }
-fn finishing(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
+fn finishing(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     let mut failed = 0;
     let mut o = Offscreen::new(W, H);
     let mut ui = Ui::new(Fin { binary: false, invert: false }, fin_page, |_, _| {}, fonts(), W, H, 1.0).on_look(fin_look)
@@ -1645,7 +1645,7 @@ fn finishing(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     //    a half), and the picture is dithered (a fifth to four fifths of it ink).
     let colours: std::collections::HashSet<[u8; 3]> = bw.chunks(4).map(|p| [p[0], p[1], p[2]]).collect();
     if colours.len() != 2 { eprintln!("FAIL binary: {} colours", colours.len()); failed += 1; }
-    let ground = rgb8(lab::style::THREAD.ground);
+    let ground = rgb8(amenui::style::THREAD.ground);
     let bw_ground = px(&bw, W, 2, 2);
     let span = |r: [f32; 4]| -> Vec<(u32, u32)> {
         let (x0, y0) = (r[0].floor().max(0.0) as u32, r[1].floor().max(0.0) as u32);
@@ -1663,7 +1663,7 @@ fn finishing(fonts: &dyn Fn() -> Vec<lab::text::Face>) -> usize {
     let (mut glyphs, mut worst) = (0, 0.0f32);
     let mut by_key: std::collections::BTreeMap<String, usize> = Default::default();
     for (i, inst) in ui.scene().instances.iter().enumerate() {
-        if inst.paint[3] != lab::scene::GLYPH || inst.rect[2] < 4.0 { continue; }
+        if inst.paint[3] != amenui::scene::GLYPH || inst.rect[2] < 4.0 { continue; }
         let Some(key) = ui.owner_key(i) else { continue };
         if !["body", "body2", "small", "label"].contains(&key) { continue; }
         let (a, b) = (soft_ink(inst.rect), bw_ink(inst.rect));

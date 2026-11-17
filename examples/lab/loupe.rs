@@ -1,9 +1,9 @@
 //! Lab · loupe: a block of text wrapped round a sphere. Each glyph's place in the block is a longitude
 //! and latitude; the sphere turns (drag to spin, it coasts and slows), the glyph is put where its
 //! point projects, squeezed by the slope, dimmed with depth and left out on the far side.
-use lab::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
-use lab::experiment::{Experiment, Params, Pointer, frame, spec};
-use lab::widgets::{Edit, Spec};
+use amenui::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
+use amenui::experiment::{Experiment, Params, Pointer, frame, spec};
+use amenui::widgets::{Edit, Spec};
 
 const WORDS: &str = "AROUND THE GLOBE EVERY LETTER KEEPS ITS OWN OUTLINE, TURNED AND SQUEEZED BY THE CURVE OF THE SURFACE IT LIES ON. DRAG TO SPIN IT. ";
 static DEFS: [(&str, Spec); 3] = [("R", spec(0.2, 0.5, 0.01, 2, "·h")), ("ω0", spec(0.0, 2.0, 0.05, 2, "rad/s")), ("μ", spec(0.1, 8.0, 0.1, 1, "/s"))];

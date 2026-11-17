@@ -3,8 +3,8 @@
 A view is a function from state to an element tree; an update is a function from state and a message to a new state. Messages are plain values.
 
 ```rust
-use lab::el::{El, Paint, col, text};
-use lab::widgets::button;
+use amenui::el::{El, Paint, col, text};
+use amenui::widgets::button;
 #[derive(Clone)] enum Msg { Inc }
 struct S { n: u32 }
 fn view(s: &S) -> El<Msg> {

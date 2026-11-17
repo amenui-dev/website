@@ -4,10 +4,10 @@
 //! `scenes <out> perf` instead times a frame of every scene in the middle of its interaction.
 //!
 //! usage: scenes <out_dir> [perf]
-use lab::el::Key;
-use lab::gallery::{self, GalleryUi, Msg, Page, SCENES};
-use lab::offscreen::{Offscreen, save_png, sheet};
-use lab::style::styles;
+use amenui::el::Key;
+use amenui::gallery::{self, GalleryUi, Msg, Page, SCENES};
+use amenui::offscreen::{Offscreen, save_png, sheet};
+use amenui::style::styles;
 
 const W: u32 = 1280;
 const H: u32 = 800;
@@ -86,7 +86,7 @@ fn script(d: &mut Dir, i: usize) -> usize {
             let (dx, dy) = if narrow { (120.0, -120.0) } else { (230.0, -150.0) };
             d.drag("read/disc", dx, dy, 0.6, true); d.snap("the disc dragged into the text");
             d.ui.release(0.0, 0.0);
-            d.send(Msg::Num(lab::gallery::Target::Scene(1, 0), lab::widgets::Edit::Set(36.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(1, 0), amenui::widgets::Edit::Set(36.0)));
             d.wait(1.0); d.snap("gap 36 px");
             4
         }
@@ -98,16 +98,16 @@ fn script(d: &mut Dir, i: usize) -> usize {
             d.hover(r.x + r.w * 0.72, r.y + r.h * 0.55); d.wait(0.3); d.snap("glow");
             d.ui.pointer_leave();
             d.drag("pr/seam1", -r.w * 0.12, 0.0, 0.5, false);
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 3), lab::widgets::Edit::Set(1.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 3), amenui::widgets::Edit::Set(1.0)));
             d.wait(1.0); d.snap("seam moved, marks everywhere");
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 3), lab::widgets::Edit::Set(0.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 3), amenui::widgets::Edit::Set(0.0)));
             d.click("pr/mode:1"); d.wait(1.0); d.snap("one strip: glow against the original");
             d.drag("pr/compare", -r.w * 0.2, 0.0, 0.4, false);
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 4), lab::widgets::Edit::Set(0.0)));
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 5), lab::widgets::Edit::Set(2.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 4), amenui::widgets::Edit::Set(0.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 5), amenui::widgets::Edit::Set(2.0)));
             d.wait(1.0); d.snap("characters, three-colour palette");
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 4), lab::widgets::Edit::Set(2.0)));
-            d.send(Msg::Num(lab::gallery::Target::Scene(2, 5), lab::widgets::Edit::Set(6.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 4), amenui::widgets::Edit::Set(2.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(2, 5), amenui::widgets::Edit::Set(6.0)));
             d.click("pr/which:2"); d.wait(1.0); d.snap("pixels, PICO-8, the bust");
             1
         }
@@ -142,7 +142,7 @@ fn script(d: &mut Dir, i: usize) -> usize {
             d.wait(0.55); d.snap("a beat");
             d.wait(0.9); d.snap("the low end pushes");
             d.wait(1.3); d.snap("later");
-            d.send(Msg::Num(lab::gallery::Target::Scene(5, 1), lab::widgets::Edit::Set(1.0)));
+            d.send(Msg::Num(amenui::gallery::Target::Scene(5, 1), amenui::widgets::Edit::Set(1.0)));
             d.wait(2.1); d.snap("intensity 1");
             d.ui.key(Key::Char(' '), false); d.wait(1.5); d.snap("paused");
             4
@@ -157,7 +157,7 @@ fn script(d: &mut Dir, i: usize) -> usize {
     }
 }
 
-fn faces() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("fonts") }
+fn faces() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 
 fn open(o: &mut Offscreen, i: usize, style: Option<usize>, w: u32, h: u32) -> Dir<'_> {
     let mut ui = gallery::new_ui(faces(), w, h, 1.0);

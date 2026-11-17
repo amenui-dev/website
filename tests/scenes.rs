@@ -1,9 +1,9 @@
 //! The showcase scenes (DESIGN.md §6), without a GPU: routes, Esc, keyboard reach, and each scene's
 //! interaction doing what it says.
-use lab::el::Key;
-use lab::gallery::{self, GalleryUi, Msg, Page, SCENES};
+use amenui::el::Key;
+use amenui::gallery::{self, GalleryUi, Msg, Page, SCENES};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 fn at(i: u8, w: u32, h: u32) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::Scene(i)));
@@ -187,7 +187,7 @@ fn morph_forms_jump_and_go_round() {
 #[test]
 fn sound_is_calm_at_intensity_zero_and_spares_its_controls() {
     let mut ui = at(5, 1280, 800);
-    gallery::update(&mut ui.state, Msg::Num(lab::gallery::Target::Scene(5, 1), lab::widgets::Edit::Set(0.0)));
+    gallery::update(&mut ui.state, Msg::Num(amenui::gallery::Target::Scene(5, 1), amenui::widgets::Edit::Set(0.0)));
     ui.relayout();
     run(&mut ui, 0.5);
     ui.key(Key::Char(' '), false);

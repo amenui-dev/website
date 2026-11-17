@@ -6,11 +6,11 @@
 //!   transitions  every preset's transition on the 风格 page, six frames each (from Normcore; Normcore's
 //!                own from Glitch), one row per preset → `transitions.png`
 //! usage: step8 <out_dir> [mesh | particles | transitions]
-use lab::el::{El, Paint, col, scene3d, text};
-use lab::mesh::{Mat4, MeshId, Scene3d};
-use lab::offscreen::{Offscreen, crop, save_png, sheet};
-use lab::style::{DARK, Look, MATERIALS, Material, PicFx, set};
-use lab::ui::Ui;
+use amenui::el::{El, Paint, col, scene3d, text};
+use amenui::mesh::{Mat4, MeshId, Scene3d};
+use amenui::offscreen::{Offscreen, crop, save_png, sheet};
+use amenui::style::{DARK, Look, MATERIALS, Material, PicFx, set};
+use amenui::ui::Ui;
 
 const S: u32 = 300;
 
@@ -42,10 +42,10 @@ fn main() {
 
 /// Play preset `to`'s transition from preset `from` on the 风格 page; `at` is called with the ui at each
 /// of `fractions` of the transition (and once more after it).
-pub fn play_transition(o: &mut Offscreen, from: usize, to: usize, fractions: &[f32], mut at: impl FnMut(&mut Offscreen, &mut lab::gallery::GalleryUi, usize)) {
-    use lab::gallery::{self, Msg, Page, presets::PreMsg};
+pub fn play_transition(o: &mut Offscreen, from: usize, to: usize, fractions: &[f32], mut at: impl FnMut(&mut Offscreen, &mut amenui::gallery::GalleryUi, usize)) {
+    use amenui::gallery::{self, Msg, Page, presets::PreMsg};
     let (w, h) = (o.w, o.h);
-    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
+    let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
     gallery::update(&mut ui.state, Msg::Preset(PreMsg::From(from)));
     gallery::update(&mut ui.state, Msg::Preset(PreMsg::To(to)));
     gallery::update(&mut ui.state, Msg::Go(Page::Presets));
@@ -74,7 +74,7 @@ fn transitions(out: &str) {
     let (w, h) = (1100u32, 560u32);
     let mut o = Offscreen::new(w, h);
     let mut frames = vec![];
-    let n = lab::preset::presets().len();
+    let n = amenui::preset::presets().len();
     for to in 0..n {
         let from = if to == 7 { 3 } else { 7 };
         play_transition(&mut o, from, to, &[0.08, 0.25, 0.42, 0.6, 0.8, 1.05], |o, ui, _| {
@@ -101,10 +101,10 @@ fn half(f: &(u32, u32, Vec<u8>)) -> (u32, u32, Vec<u8>) {
 }
 
 fn particles(out: &str) {
-    use lab::gallery::{self, Msg, Page, particles::PMsg};
+    use amenui::gallery::{self, Msg, Page, particles::PMsg};
     let (w, h) = (1280u32, 800u32);
     let mut o = Offscreen::new(w, h);
-    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
+    let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::Particles));
     ui.relayout();
     let mut t = 0.0f32;
@@ -145,7 +145,7 @@ fn particles(out: &str) {
 
 fn mesh(out: &str) {
     let mut o = Offscreen::new(S, S);
-    let faces = || lab::text::load_bundled("assets").expect("fonts");
+    let faces = || amenui::text::load_bundled("assets").expect("fonts");
     let mut frames = vec![];
     let mut shot = |state: One, look: Look, label: &str| {
         let mut ui = Ui::new(state, one, |_, _| {}, faces(), S, S, 1.0);
@@ -173,11 +173,11 @@ fn mesh(out: &str) {
 /// The look features, each off and on, on the image page and the 3D page:
 /// `looks.png`, a row per feature (off | on).
 fn looks(out: &str) {
-    use lab::gallery::{self, Msg, Page};
-    use lab::post::*;
+    use amenui::gallery::{self, Msg, Page};
+    use amenui::post::*;
     let (w, h) = (560u32, 360u32);
     let mut o = Offscreen::new(w, h);
-    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
+    let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash("image").expect("page")));
     gallery::update(&mut ui.state, Msg::Material(0));
     ui.relayout();
@@ -205,7 +205,7 @@ fn looks(out: &str) {
     }
     // Depth marks on the 3D page under ascii and dot: off | on.
     let mut big = Offscreen::new(w * 2, h * 2);
-    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w * 2, h * 2, 1.0);
+    let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w * 2, h * 2, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash("three").expect("page")));
     for m in [3usize, 1] {
         gallery::update(&mut ui.state, Msg::Material(m));
@@ -215,7 +215,7 @@ fn looks(out: &str) {
         let base = ui.state.look();
         frames.push(half(&(w * 2, h * 2, big.render(&mut ui, &base))));
         let mut l = base;
-        l.marks = lab::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
+        l.marks = amenui::style::Marks { depth_scale: 0.5, depth_dim: 0.5 };
         frames.push(half(&(w * 2, h * 2, big.render(&mut ui, &l))));
     }
     let (sw, sh, px) = sheet(&frames, 2);

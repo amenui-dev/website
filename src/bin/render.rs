@@ -6,9 +6,9 @@
 //!
 //! `--events` is a JSON list such as `[{"at_ms": 200, "kind": "press", "target": "button/live"},
 //! {"at_ms": 260, "kind": "release", "target": "button/live"}]` (kinds: press, release, move, key, wheel,
-//! text; see `lab::drive::Input`). Problems in the view (duplicate keys…) are printed; `--strict` makes
+//! text; see `amenui::drive::Input`). Problems in the view (duplicate keys…) are printed; `--strict` makes
 //! them an error.
-use lab::drive::{RenderSpec, parse_events, render};
+use amenui::drive::{RenderSpec, parse_events, render};
 
 const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--strict]";
 
@@ -50,7 +50,7 @@ fn main() {
         i += 2;
     }
     if spec.page.is_empty() { fail(format!("`--page` is required.\n{USAGE}")); }
-    let faces = lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).unwrap_or_else(|e| fail(e));
+    let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).unwrap_or_else(|e| fail(e));
     let r = render(&spec, faces, None).unwrap_or_else(|e| fail(e));
     for p in &r.problems { eprintln!("render: problem: {p}"); }
     std::fs::write(&out, &r.png).unwrap_or_else(|e| fail(format!("`--out {out}` could not be written ({e}).")));

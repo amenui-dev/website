@@ -9,10 +9,10 @@
 //! usage: pages <out_dir> [width] [height] [scale] [step5|perf|components]     (device px; `step5` only
 //! does step 5; `perf` times a frame of every material page, fully loosened; `components` only does the
 //! component sheets)
-use lab::el::Key;
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::offscreen::{Offscreen, save_png};
-use lab::style::{GAZE_MODES, MATERIAL_COUNT, MATERIALS, Material, styles};
+use amenui::el::Key;
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::offscreen::{Offscreen, save_png};
+use amenui::style::{GAZE_MODES, MATERIAL_COUNT, MATERIALS, Material, styles};
 
 const THEME_FILE: [&str; 3] = ["dark", "light", "pixel"];
 
@@ -43,7 +43,7 @@ fn main() {
     if a.get(5).is_some_and(|s| s == "perf") { perf(w, h, scale); return; }
     std::fs::create_dir_all(&out).expect("out dir");
     if a.get(5).is_some_and(|s| s == "components") { components(&out, scale); return; }
-    let faces = || lab::text::load_bundled("assets").expect("fonts");
+    let faces = || amenui::text::load_bundled("assets").expect("fonts");
     step5(&out, scale);
     if only5 { return; }
     let mut o = Offscreen::new(w, h);
@@ -171,7 +171,7 @@ fn sheet(tiles: &[(Vec<u8>, u32, u32)], cols: u32) -> (Vec<u8>, u32, u32) {
 
 fn step5(out: &str, scale: f32) {
     let (w, h) = ((1280.0 * scale) as u32, (1000.0 * scale) as u32);
-    let faces = || lab::text::load_bundled("assets").expect("fonts");
+    let faces = || amenui::text::load_bundled("assets").expect("fonts");
     let mut o = Offscreen::new(w, h);
     let mut ui = gallery::new_ui(faces(), w, h, scale);
     ui.pointer_leave();
@@ -179,7 +179,7 @@ fn step5(out: &str, scale: f32) {
     for m in 0..MATERIAL_COUNT as u8 {
         send(&mut ui, Msg::Go(Page::Material(m)));
         for (k, name) in [(0.0, "k0"), (0.5, "k05"), (1.0, "k1")] {
-            send(&mut ui, Msg::Num(gallery::Target::Loose, lab::widgets::Edit::Set(k)));
+            send(&mut ui, Msg::Num(gallery::Target::Loose, amenui::widgets::Edit::Set(k)));
             settle(&mut ui, 1.5);
             let look = ui.state.look();
             let px = o.render(&mut ui, &look);
@@ -188,7 +188,7 @@ fn step5(out: &str, scale: f32) {
         }
         eprintln!("material {}", Material::from_id(m).name());
     }
-    send(&mut ui, Msg::Num(gallery::Target::Loose, lab::widgets::Edit::Set(0.0)));
+    send(&mut ui, Msg::Num(gallery::Target::Loose, amenui::widgets::Edit::Set(0.0)));
     let (px, sw, sh) = sheet(&mats, 3);
     save_png(&format!("{out}/materials.png"), sw, sh, &px);
 
@@ -249,8 +249,8 @@ fn step5(out: &str, scale: f32) {
 /// Put a component page in the state that shows the most of it: the input focused (its caret), the
 /// dialog open.
 fn stage_component(ui: &mut GalleryUi, c: usize) {
-    use lab::gallery::comp::{DIALOG, INPUT};
-    let h = lab::gallery::COMPONENTS[c].hash;
+    use amenui::gallery::comp::{DIALOG, INPUT};
+    let h = amenui::gallery::COMPONENTS[c].hash;
     if c == INPUT || c == DIALOG {
         let key = if c == INPUT { format!("{h}/live") } else { format!("{h}/open") };
         let (x, y) = ui.node(&key).expect("control").rect.center();
@@ -270,7 +270,7 @@ fn tile(px: &[u8], w: u32, scale: f32) -> (Vec<u8>, u32, u32) {
 
 fn components(out: &str, scale: f32) {
     let (w, h) = ((1280.0 * scale) as u32, (1100.0 * scale) as u32);
-    let faces = || lab::text::load_bundled("assets").expect("fonts");
+    let faces = || amenui::text::load_bundled("assets").expect("fonts");
     let mut o = Offscreen::new(w, h);
     for (mi, (mat, mname)) in MATERIALS.iter().enumerate() {
         if *mat == Material::Near { continue; }
@@ -278,8 +278,8 @@ fn components(out: &str, scale: f32) {
         for &ti in themes {
             let tname = THEME_FILE[ti];
             let mut tiles = vec![];
-            for c in 0..lab::gallery::COMPONENTS.len() {
-                let hash = lab::gallery::COMPONENTS[c].hash;
+            for c in 0..amenui::gallery::COMPONENTS.len() {
+                let hash = amenui::gallery::COMPONENTS[c].hash;
                 let mut ui = gallery::new_ui(faces(), w, h, scale);
                 ui.pointer_leave();
                 send(&mut ui, Msg::Go(Page::Comp(c)));
@@ -315,11 +315,11 @@ fn components(out: &str, scale: f32) {
 
 fn perf(w: u32, h: u32, scale: f32) {
     let mut o = Offscreen::new(w, h);
-    let mut ui = gallery::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, scale);
+    let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, scale);
     ui.pointer_move(700.0, 400.0);
     for m in 0..MATERIAL_COUNT as u8 {
         send(&mut ui, Msg::Go(Page::Material(m)));
-        send(&mut ui, Msg::Num(gallery::Target::Loose, lab::widgets::Edit::Set(1.0)));
+        send(&mut ui, Msg::Num(gallery::Target::Loose, amenui::widgets::Edit::Set(1.0)));
         settle(&mut ui, 1.0);
         let mut look = ui.state.look();
         // QUALITY=0.5 (or 0.75, or 0 for automatic) times the material at reduced resolution.
@@ -328,7 +328,7 @@ fn perf(w: u32, h: u32, scale: f32) {
         let n = 10;
         let t0 = std::time::Instant::now();
         for _ in 0..n { o.draw(&mut ui, &look); }
-        let cpu = ui.perf().summary(lab::perf::now_ms()).submit[1];
+        let cpu = ui.perf().summary(amenui::perf::now_ms()).submit[1];
         eprintln!("{:<9} {:6.1} ms per frame ({w}×{h}; of which {cpu:.1} ms recording and submitting on the CPU)", Material::from_id(m).name(), t0.elapsed().as_secs_f64() * 1000.0 / n as f64);
     }
 }

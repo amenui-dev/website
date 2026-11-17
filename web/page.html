@@ -1,4 +1,4 @@
-<title>gui-lab</title>
+<title>amenui</title>
 <style>
   /* One canvas fills the view. Everything inside it is drawn by the framework. */
   html, body { height: 100%; }
@@ -28,7 +28,7 @@
 <script>
 // The whole page's glue as one function: `mount(stage, opts)` starts the framework in a stage element
 // (holding the canvas, the text agent, the accessibility mirror and the loading message) and returns
-// what a host can change. The full page mounts once in #stage; `<lab-view>` (embed.js) mounts in its
+// what a host can change. The full page mounts once in #stage; `<amenui-view>` (embed.js) mounts in its
 // shadow root. One view per document: the module keeps one interface.
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function mount(stage, opts) {
@@ -48,7 +48,7 @@ async function mount(stage, opts) {
     const now = () => performance.now() / 1000;
     const at = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
     // The page is in the hash (plain names such as #button), so it can be linked; Back goes back. An
-    // embedded view tells its host instead (`lab-route`).
+    // embedded view tells its host instead (`amenui-route`).
     let shown = '';
     const sync = () => { const h = '#' + w.hash(); if (h === shown) return; shown = h; if (opts.ownsHash && location.hash !== h) location.hash = h; if (opts.onRoute) opts.onRoute(h.slice(1)); };
     if (opts.ownsHash) window.addEventListener('hashchange', () => { if (!w.route(location.hash)) sync(); });
@@ -118,7 +118,7 @@ async function mount(stage, opts) {
     // A copy button in the page asks for the clipboard: hand its text to the browser after the event.
     const clip = () => { const t = w.take_clipboard(); if (t != null && navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); };
     // The readout's open / compact choice outlives the page (per browser; nothing breaks without storage).
-    const READOUT = 'gui-lab.readout';
+    const READOUT = 'amenui.readout';
     let readout = 0;
     try { const v = localStorage.getItem(READOUT); if (v !== null) { w.set_readout(+v); } } catch (e) {}
     readout = w.readout();

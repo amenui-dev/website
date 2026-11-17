@@ -1,8 +1,8 @@
 //! 3D elements (DESIGN.md §1.18) through the runtime, without a GPU: the gallery's 三维 page.
-use lab::gallery::{self, Msg, Page};
+use amenui::gallery::{self, Msg, Page};
 
 fn ui() -> gallery::GalleryUi {
-    let faces = lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts");
+    let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts");
     let mut ui = gallery::new_ui(faces, 1280, 1400, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::Three));
     ui.relayout();
@@ -68,7 +68,7 @@ fn drag_orbits_and_coasts_wheel_dollies_keys_turn() {
     // Focused (the press gave it focus), the arrows turn it.
     assert_eq!(ui.focus(), Some("three/object/view"));
     let y0 = ui.state.three.mech.orbit.yaw;
-    ui.key(lab::el::Key::Left, false);
+    ui.key(amenui::el::Key::Left, false);
     assert_eq!(ui.state.three.mech.orbit.yaw, y0 + ui.state.three.mech.orbit.step_deg);
 }
 
@@ -76,7 +76,7 @@ fn drag_orbits_and_coasts_wheel_dollies_keys_turn() {
 fn a_front_loosens_a_mesh() {
     let mut ui = ui();
     let r = ui.node("three/field").expect("field").rect;
-    ui.state.cmds.push(lab::morph::Cmd::Front { x: r.center().0, y: r.center().1, strength: 1.0 });
+    ui.state.cmds.push(amenui::morph::Cmd::Front { x: r.center().0, y: r.center().1, strength: 1.0 });
     ui.relayout();
     let t = ui.now() + 0.05;
     ui.tick(t);

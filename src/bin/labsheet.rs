@@ -2,12 +2,12 @@
 //! fixed 60 Hz clock and scripted pointer input, and the milliseconds a frame costs per cell.
 //!
 //! usage: labsheet <out_dir> [cells | page | decode | perf] …   (all when none is named)
-use lab::experiment::{Experiment, IDLE_S, ui};
-use lab::gallery::{self, Msg, Page};
-use lab::offscreen::{Offscreen, crop, save_png, sheet};
-use lab::recipes::lab as x;
+use amenui::experiment::{Experiment, IDLE_S, ui};
+use amenui::gallery::{self, Msg, Page};
+use amenui::offscreen::{Offscreen, crop, save_png, sheet};
+use amenui::recipes::lab as x;
 
-fn faces() -> Vec<lab::text::Face> { lab::text::load_bundled("assets").expect("fonts") }
+fn faces() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 const CW: u32 = 460;
 const CH: u32 = 520;
 
@@ -19,7 +19,7 @@ fn cell<E: Experiment>(o: &mut Offscreen, out: &str, name: &str, drag: bool, lon
     let mut frames = vec![];
     let mut cost = (0.0f64, 0u32);
     u.tick(0.0);
-    let piece = u.nodes().iter().find(|n| n.key.ends_with("/stage")).map(|n| n.rect).unwrap_or(lab::ui::Rect::new(24.0, 60.0, 400.0, 250.0));
+    let piece = u.nodes().iter().find(|n| n.key.ends_with("/stage")).map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(24.0, 60.0, 400.0, 250.0));
     let (cx, cy, w, h) = (piece.x, piece.y, piece.w, piece.h);
     // Long cells (one that changes shape by itself) run 25 s and show the turns; the others 5 s.
     let (n, at): (u32, Vec<u32>) = if long { (1500, vec![60, 250, 420, 470, 700, 860, 900, 1200, 1490]) } else { (300, vec![20, 60, 140, 200, 260, 298]) };
@@ -52,7 +52,7 @@ fn page(out: &str, w: u32, h: u32, file: &str) {
     g.relayout();
     let mut t = 0.0;
     // The pointer comes into the first cell's stage and moves slowly across it, so its accent shows.
-    let st = g.nodes().iter().find(|n| n.key == "lab/lumen/stage").map(|n| n.rect).unwrap_or(lab::ui::Rect::new(300.0, 200.0, 300.0, 200.0));
+    let st = g.nodes().iter().find(|n| n.key == "lab/lumen/stage").map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 200.0));
     for f in 0..150 { t += 1.0 / 60.0; if f >= 30 { let k = (f - 30) as f32 / 120.0; g.pointer_move(st.x + st.w * (0.25 + 0.4 * k), st.y + st.h * (0.45 + 0.1 * (k * 6.0).sin())); } g.tick(t); }
     let look = g.state.look();
     let px = o.render(&mut g, &look);
@@ -68,7 +68,7 @@ fn decode(out: &str) {
     let (mut flat, mut exploded) = (vec![], vec![]);
     let mut t = 0.0;
     for u in [0.08, 0.2, 0.35, 0.5, 0.62, 0.72, 0.85, 1.0] {
-        gallery::update(&mut g.state, Msg::Decode(gallery::decode::DMsg::Num(0, lab::widgets::Edit::Set(u))));
+        gallery::update(&mut g.state, Msg::Decode(gallery::decode::DMsg::Num(0, amenui::widgets::Edit::Set(u))));
         g.relayout();
         for _ in 0..3 { t += 1.0 / 60.0; g.tick(t); }
         let look = g.state.look();
@@ -105,9 +105,9 @@ fn decode(out: &str) {
 /// release, the page again), one large still at 1600 × 1000 (`body-large.png`, and `body-cloud.png`),
 /// and what a frame costs with one and with three copies of the passage.
 fn body(out: &str) {
-    use lab::recipes::scenes::body;
-    lab::i18n::set_current(lab::i18n::Locale::En);
-    let step = |u: &mut lab::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
+    use amenui::recipes::scenes::body;
+    amenui::i18n::set_current(amenui::i18n::Locale::En);
+    let step = |u: &mut amenui::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
     let (w, h) = (1280u32, 800u32);
     let mut o = Offscreen::new(w, h);
     let mut u = body::ui(faces(), w, h, 1.0);
@@ -165,7 +165,7 @@ fn body(out: &str) {
             let _ = o.render(&mut u, &look);
             all += t0.elapsed().as_secs_f64() * 1000.0;
         }
-        let b = lab::budget::usage();
+        let b = amenui::budget::usage();
         println!("body ×{copies} ({w}×{hh}): {n} glyphs, {} marks in all, {:.1} ms/frame in the runtime (tick, poses, drawings, scene), {:.1} ms with both passes and readback on this adapter; budget scale {:.2}", u.scene().instances.len(), tick / 60.0, all / 60.0, b.scale);
     }
 }

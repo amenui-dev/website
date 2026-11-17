@@ -1,9 +1,9 @@
 //! The frame-time readout and automatic quality (DESIGN.md §1.12), without a GPU.
-use lab::el::Key;
-use lab::gallery::{self, Msg, Page};
-use lab::perf::{AutoQuality, BAD_RUN, GOOD_RUN, Perf};
+use amenui::el::Key;
+use amenui::gallery::{self, Msg, Page};
+use amenui::perf::{AutoQuality, BAD_RUN, GOOD_RUN, Perf};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 #[test]
 fn auto_quality_steps_down_and_back_up() {
@@ -27,14 +27,14 @@ fn auto_quality_steps_down_and_back_up() {
 fn summary_of_the_last_second() {
     let mut p = Perf::default();
     for k in 0..5 { p.pending.update_layout = k as f32; p.pending.scene = 1.0; p.frame(2.0); }
-    let s = p.summary(lab::perf::now_ms());
+    let s = p.summary(amenui::perf::now_ms());
     assert_eq!(s.fps, 5);
     assert_eq!(s.update_layout, [4.0, 2.0, 4.0]);
     assert_eq!(s.submit, [2.0, 2.0, 2.0]);
     assert_eq!(s.total[2], 7.0);
     assert_eq!(p.drawn, 5);
     // Nothing in the last second, much later.
-    assert_eq!(p.summary(lab::perf::now_ms() + 5000.0).fps, 0);
+    assert_eq!(p.summary(amenui::perf::now_ms() + 5000.0).fps, 0);
 }
 
 #[test]

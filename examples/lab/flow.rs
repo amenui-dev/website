@@ -1,8 +1,8 @@
 //! Lab · flow: a line of text on a path. The baseline is a travelling wave; the pointer pulls a bump
 //! into it. Each glyph sits on the curve, turned to its tangent, with its own true outline.
-use lab::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
-use lab::experiment::{Experiment, Params, Pointer, frame, spec};
-use lab::widgets::{Edit, Spec};
+use amenui::el::{El, Font, GlyphAt, Paint, Point, Pose, col, text};
+use amenui::experiment::{Experiment, Params, Pointer, frame, spec};
+use amenui::widgets::{Edit, Spec};
 
 const LINES: [&str; 4] = ["text that rides a wave, letter by letter,", "along its own baseline: every glyph is", "turned to the tangent of the curve at", "its centre, and keeps its whole outline."];
 const MID: f32 = 120.0;

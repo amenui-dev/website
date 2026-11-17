@@ -1,8 +1,8 @@
 //! Render the demo off-screen to PNG files through a short scripted sequence. No window, no surface.
 //! usage: shot <out_dir> <width> <height> <scale>     (device px)
-use lab::demo::{self, DemoUi};
-use lab::el::Key;
-use lab::offscreen::{Offscreen, save_png};
+use amenui::demo::{self, DemoUi};
+use amenui::el::Key;
+use amenui::offscreen::{Offscreen, save_png};
 
 struct Shooter { o: Offscreen, out: String }
 
@@ -37,7 +37,7 @@ fn main() {
     let scale: f32 = a.get(4).and_then(|s| s.parse().ok()).unwrap_or(1.0);
     std::fs::create_dir_all(&out).expect("out dir");
     let o = Offscreen::new(w, h);
-    let mut ui = demo::new_ui(lab::text::load_bundled("assets").expect("fonts"), w, h, scale);
+    let mut ui = demo::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, scale);
     let mut s = Shooter { o, out };
     let (lw, lh) = (w as f32 / scale, h as f32 / scale);
 

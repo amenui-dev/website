@@ -3,11 +3,11 @@
 //! scroll that started on a row not pressing it; pulling past the top loosening the edge, not moving
 //! the content, and springing back; a second finger cancelling; pointer capture for a finger on a
 //! slider; small controls hit within 28 px; no hover from a finger; the pointer's shapes.
-use lab::el::{Cursor, El, Paint, col, space};
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::ui::{MIN_HIT, PointerKind, Scrolling, Ui, fling_step, rubber_band};
+use amenui::el::{Cursor, El, Paint, col, space};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::ui::{MIN_HIT, PointerKind, Scrolling, Ui, fling_step, rubber_band};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 const T: PointerKind = PointerKind::Touch;
 fn list() -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 900, 1.0);
@@ -211,9 +211,9 @@ fn pointer_shapes() {
 /// Two buttons side by side: the marks are on the one under the pointer in the frame the pointer gets
 /// there (before any tick), and in no frame between two targets do they trail behind (round 16).
 fn pair(_: &()) -> El<u8> {
-    lab::el::row().key("root").pad(40.0, 40.0).gap(200.0)
-        .child(lab::widgets::button("a", "A", 1u8))
-        .child(lab::widgets::button("b", "B", 2u8))
+    amenui::el::row().key("root").pad(40.0, 40.0).gap(200.0)
+        .child(amenui::widgets::button("a", "A", 1u8))
+        .child(amenui::widgets::button("b", "B", 2u8))
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn hover_marks_land_in_the_pointers_frame() {
         if settled.is_none() && ui.marks_frame().expect("marks").1 >= 1.0 { settled = Some(t - start); }
     }
     let settled = settled.expect("the marks settle");
-    assert!(settled <= lab::ui::MARKS_SETTLE + 1.5 / 60.0 && lab::ui::MARKS_SETTLE < 0.08, "settled after {settled} s");
+    assert!(settled <= amenui::ui::MARKS_SETTLE + 1.5 / 60.0 && amenui::ui::MARKS_SETTLE < 0.08, "settled after {settled} s");
     // Leaving: gone within the settle.
     ui.pointer_move(300.0, 190.0);
     for _ in 0..6 { t += 1.0 / 60.0; ui.tick(t); }

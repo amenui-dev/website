@@ -6,15 +6,15 @@ Validation is a function of the state: compute what is wrong in `view` and show 
 
 Labels go with their controls (`number` and `input` take one), so the accessibility mirror names each control. Tab moves through the fields in tree order; Enter on the button submits.
 
-This is the form recipe, `examples/form.rs`, compiled into the library as `lab::recipes::form`:
+This is the form recipe, `examples/form.rs`, compiled into the library as `amenui::recipes::form`:
 
 ```rust
 //! Recipe: a form (docs/recipes/form.md). A text field, a number, a switch and a submit button; the
 //! state holds every value, `update` is the only place they change.
-use lab::el::{El, Paint, col, row, text};
-use lab::text::Face;
-use lab::ui::Ui;
-use lab::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch};
+use amenui::el::{El, Paint, col, row, text};
+use amenui::text::Face;
+use amenui::ui::Ui;
+use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch};
 
 pub struct Form { pub name: TextEdit, pub copies: f32, pub draft: Option<String>, pub notify: bool, pub sent: u32 }
 

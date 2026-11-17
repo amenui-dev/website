@@ -20,12 +20,12 @@
 //!   glyphs snap back to their places on the page so the words can be read through a clean opening.
 //! - The few controls are markings in the picture with leader lines: form, seed, gather / release,
 //!   language, and the way to the Lab and the components.
-use lab::draw::Drawing;
-use lab::el::{El, Font, GlyphAt, Key, Paint, Point, Pose, canvas, col, layers, text};
-use lab::experiment::Experiment;
-use lab::field::hash;
-use lab::gesture::{Animated, Spring, Velocity};
-use lab::widgets::Edit;
+use amenui::draw::Drawing;
+use amenui::el::{El, Font, GlyphAt, Key, Paint, Point, Pose, canvas, col, layers, text};
+use amenui::experiment::Experiment;
+use amenui::field::hash;
+use amenui::gesture::{Animated, Spring, Velocity};
+use amenui::widgets::Edit;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -98,7 +98,7 @@ impl Default for Body {
 pub enum Msg { Point(Option<Point>), Key(Key), Form, Seed(i32), Gather, Language, Go(&'static str), Num(usize, Edit) }
 
 /// The scene's words: English whatever the interface language (the page and its markings show no Chinese).
-fn tr(key: &str) -> String { lab::i18n::Locale::En.tr(key) }
+fn tr(key: &str) -> String { amenui::i18n::Locale::En.tr(key) }
 /// The passage, from the English catalog (an original description of a tidal flat through a day).
 pub fn passage() -> String { (1..=5).map(|i| tr(&format!("body.p{i}"))).collect::<Vec<_>>().join("\n\n") }
 
@@ -304,7 +304,7 @@ impl Body {
         dust(&mut d, w, h, self.t, (px, py), 0, 140);
         if g <= 0.0 { return d; }
         let mut c = self.cache.borrow_mut();
-        let want = lab::budget::grant(VOLUME);
+        let want = amenui::budget::grant(VOLUME);
         if c.vkey != (self.form, self.seed, want) { c.vol = volume(self.form, self.seed, want); c.vkey = (self.form, self.seed, want); }
         let ground = v.c.1 + v.r * 1.0;
         // A faint spill of light on the haze beneath it.
@@ -376,7 +376,7 @@ pub struct Marking { pub key: &'static str, pub text: String, pub from: (f32, f3
 
 /// Dust at depth `layer` (0 far, 1 near): slow drift, parallax by depth, a few marks from the budget.
 fn dust(d: &mut Drawing, w: f32, h: f32, t: f32, par: (f32, f32), layer: u32, n: usize) {
-    let n = lab::budget::grant(n);
+    let n = amenui::budget::grant(n);
     let depth = if layer == 0 { 0.35 } else { 1.0 };
     for i in 0..n as u32 {
         let s = i * 7 + layer * 10_007;
@@ -397,12 +397,12 @@ impl Body {
         let passage = if self.flat() { passage } else { passage.pose(self.poser()) };
         let marks = self.markings();
         let mut parts = vec![
-            canvas(self.back()).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(lab::el::Response::Ignore),
+            canvas(self.back()).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
             col().key(format!("{key}/page")).width(w).height(h).center().child(col().key(format!("{key}/column")).width(WIDTH.min(w - 48.0)).child(passage)),
-            canvas(self.front(&marks)).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(lab::el::Response::Ignore),
+            canvas(self.front(&marks)).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
         ];
         let mark = |k: String, s: String, x: f32, y: f32, alpha: f32, m: Msg| text(s, 10.0, Paint { tone: 0.6, accent: 0.0, alpha, hue: 0 }).font(Font::Mono).nowrap().key(k)
-            .absolute(Some(x), Some(y), None, None).focusable(alpha > 0.5).role(lab::el::Role::Button).cursor(lab::el::Cursor::Pointer).on_press(m);
+            .absolute(Some(x), Some(y), None, None).focusable(alpha > 0.5).role(amenui::el::Role::Button).cursor(amenui::el::Cursor::Pointer).on_press(m);
         for m in &marks {
             if m.alpha <= 0.0 { continue; }
             let x = if m.left { m.to.0 - 8.0 * m.text.chars().count() as f32 } else { m.to.0 + 4.0 };
@@ -411,14 +411,14 @@ impl Body {
             parts.push(e);
         }
         // The corners: the language, and the way out to the Lab and the components.
-        let lang = if lab::i18n::current() == lab::i18n::Locale::En { "EN" } else { "ZH" };
+        let lang = if amenui::i18n::current() == amenui::i18n::Locale::En { "EN" } else { "ZH" };
         parts.push(mark(format!("{key}/mark/lang"), format!("{}  {lang}", tr("body.language")), w - 112.0, 22.0, 0.7, Msg::Language));
         parts.push(mark(format!("{key}/mark/lab"), tr("body.to-lab"), 26.0, h - 34.0, 0.55, Msg::Go("lab")));
         parts.push(mark(format!("{key}/mark/gallery"), tr("body.to-gallery"), 26.0 + 90.0, h - 34.0, 0.55, Msg::Go("gallery")));
         layers(parts).key(key.to_owned()).width(w).height(h).clip()
             .on_point(|p| Some(Msg::Point(p)))
             .on_key(|k, _| matches!(k, Key::Char(' ') | Key::Enter | Key::Left | Key::Right).then_some(Msg::Key(k)))
-            .role(lab::el::Role::Img).label(tr("body.label"))
+            .role(amenui::el::Role::Img).label(tr("body.label"))
     }
 }
 
@@ -495,7 +495,7 @@ impl Experiment for Body {
         if body && self.gather.value > 0.97 && !self.reduced && dt > 0.0 && self.spin.abs() > 0.01 {
             let v = self.view();
             let c = self.cache.borrow();
-            let want = lab::budget::grant(2).min(70usize.saturating_sub(self.motes.len()));
+            let want = amenui::budget::grant(2).min(70usize.saturating_sub(self.motes.len()));
             let mut born = 0;
             for tries in 0..30u32 {
                 if born >= want || c.pts.is_empty() { break; }
@@ -525,19 +525,19 @@ impl Body {
 
 /// A runtime of its own (the `render` tool, tests): the scene alone in its look.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn ui(faces: Vec<lab::text::Face>, w: u32, h: u32, scale: f32) -> lab::ui::Ui<Body, Msg> {
-    fn view(s: &Body) -> El<Msg> { col().fill_width().fill_height().fonts(lab::style::LAB.roles()).child(s.view_in("body")) }
+pub fn ui(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> amenui::ui::Ui<Body, Msg> {
+    fn view(s: &Body) -> El<Msg> { col().fill_width().fill_height().fonts(amenui::style::LAB.roles()).child(s.view_in("body")) }
     fn update(s: &mut Body, m: Msg) {
         let now = s.t;
         s.update(m, now);
         if s.asked.take() == Some(Ask::Language) {
-            let l = if lab::i18n::current() == lab::i18n::Locale::En { lab::i18n::Locale::ZhHans } else { lab::i18n::Locale::En };
-            lab::i18n::set_current(l);
+            let l = if amenui::i18n::current() == amenui::i18n::Locale::En { amenui::i18n::Locale::ZhHans } else { amenui::i18n::Locale::En };
+            amenui::i18n::set_current(l);
         }
     }
     let mut b = Body::default();
     b.resize(w as f32 / scale, h as f32 / scale);
-    lab::ui::Ui::new(b, view, update, faces, w, h, scale)
+    amenui::ui::Ui::new(b, view, update, faces, w, h, scale)
         .on_resize(|s, w, h| s.resize(w, h))
         .on_look(|s| look(s.form))
         .on_tick(|s, t| s.step(t))
@@ -546,15 +546,15 @@ pub fn ui(faces: Vec<lab::text::Face>, w: u32, h: u32, scale: f32) -> lab::ui::U
 /// The scene's look for a form: a dark ground with a horizon, plain material, a bloom; the palette
 /// is the form's: rock bone-white, ember, deep violet; cloud pale cyan, cyan, indigo; and one other
 /// colour (hue 2) only where the pointer touches.
-pub fn look(form: u32) -> lab::style::Look {
-    let lab_t = lab::style::LAB;
+pub fn look(form: u32) -> amenui::style::Look {
+    let lab_t = amenui::style::LAB;
     let theme = if form == 0 {
-        lab::style::Theme { ground: [0.018, 0.016, 0.026], ground2: [0.060, 0.040, 0.046], ink: [0.97, 0.93, 0.86], accent: [1.0, 0.47, 0.16], second: [0.42, 0.22, 0.70], third: [0.55, 0.88, 1.0], ..lab_t }
+        amenui::style::Theme { ground: [0.018, 0.016, 0.026], ground2: [0.060, 0.040, 0.046], ink: [0.97, 0.93, 0.86], accent: [1.0, 0.47, 0.16], second: [0.42, 0.22, 0.70], third: [0.55, 0.88, 1.0], ..lab_t }
     } else {
-        lab::style::Theme { ground: [0.012, 0.018, 0.030], ground2: [0.030, 0.046, 0.075], ink: [0.90, 0.97, 1.0], accent: [0.36, 0.78, 1.0], second: [0.26, 0.24, 0.66], third: [1.0, 0.74, 0.42], ..lab_t }
+        amenui::style::Theme { ground: [0.012, 0.018, 0.030], ground2: [0.030, 0.046, 0.075], ink: [0.90, 0.97, 1.0], accent: [0.36, 0.78, 1.0], second: [0.26, 0.24, 0.66], third: [1.0, 0.74, 0.42], ..lab_t }
     };
-    let mut l = lab::style::Look { theme, material: lab::style::Material::Plain, ..lab::style::Look::default() };
-    l.post.bloom = lab::post::Bloom { strength: 1.4, threshold: 0.35, radius: 10.0 };
-    l.post.vignette = lab::post::Vignette { strength: 0.45, ..lab::post::Vignette::default() };
+    let mut l = amenui::style::Look { theme, material: amenui::style::Material::Plain, ..amenui::style::Look::default() };
+    l.post.bloom = amenui::post::Bloom { strength: 1.4, threshold: 0.35, radius: 10.0 };
+    l.post.vignette = amenui::post::Vignette { strength: 0.45, ..amenui::post::Vignette::default() };
     l
 }

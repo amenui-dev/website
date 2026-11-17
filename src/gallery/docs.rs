@@ -1,6 +1,6 @@
 //! The documentation site (DESIGN.md §5): prose pages from `docs/site/<locale>/*.md`, the For-AI pages,
 //! the changelog, and one page per component in the same order every time — title and description,
-//! a preview with 预览 / 代码 tabs, installation (`lab add`), usage, examples (each a preview and its
+//! a preview with 预览 / 代码 tabs, installation (`amenui add`), usage, examples (each a preview and its
 //! code), the API from `registry.json`, keyboard and accessibility, and the component under every
 //! material. A right-hand outline follows the scroll; prev / next links close every page; ⌘K / Ctrl+K
 //! or `/` searches every page.
@@ -185,7 +185,7 @@ pub fn markdown(page: Page, l: Locale) -> Option<String> {
             let desc = if en && !it.desc_en.is_empty() { &it.desc_en } else { &it.desc };
             let src = it.files.first().map(|f| widget_source(f)).unwrap_or("");
             let ex = examples_of(example_source(&it.name).unwrap_or(""));
-            let mut md = format!("# {title}\n\n{desc}\n\n## {}\n\n```sh\ncargo run --release --bin lab -- add {} --to ../my-app\n```\n\n{}: {}\n\n## {}\n\n```rust\nuse lab::widgets::{{{}}};\n\n{}\n```\n",
+            let mut md = format!("# {title}\n\n{desc}\n\n## {}\n\n```sh\ncargo run --release --bin amenui -- add {} --to ../my-app\n```\n\n{}: {}\n\n## {}\n\n```rust\nuse amenui::widgets::{{{}}};\n\n{}\n```\n",
                 tr("docs.sec.install"), it.name, tr("docs.install.files"), it.files.join(", "), tr("docs.sec.usage"), it.functions.join(", "), ex.first().map(|e| e.1.clone()).unwrap_or_default());
             for (label, code) in &ex { md.push_str(&format!("\n## {}\n\n```rust\n{code}\n```\n", pick(label, l))); }
             md.push_str(&format!("\n## {}\n\n| | |\n|---|---|\n| {} | `{}` |\n| {} | {} |\n| {} | `{}` |\n| {} | {} |\n",
@@ -271,11 +271,11 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let files = crate::add::files(REGISTRY, &[name]).unwrap_or_default();
     let install = col().key(format!("doc/{h}/install")).gap(10.0).fill_width().min_width(0.0)
         .child(text_lh(tr("docs.install.lead"), 15.0, 26.0, Paint::TEXT))
-        .child(code(&format!("doc/{h}/add"), &format!("cargo run --release --bin lab -- add {name} --to ../my-app")))
+        .child(code(&format!("doc/{h}/add"), &format!("cargo run --release --bin amenui -- add {name} --to ../my-app")))
         .child(text_lh(format!("{}: {}", tr("docs.install.files"), files.join(", ")), 13.0, 22.0, Paint::DIM));
     // 3. Usage: the first example's code.
     let usage = col().key(format!("doc/{h}/usage")).gap(10.0).fill_width().min_width(0.0)
-        .child(code(&format!("doc/{h}/use"), &format!("use lab::widgets::{{{}}};\n\n{}", it.functions.join(", "), examples.first().map(|e| e.1.clone()).unwrap_or_default())));
+        .child(code(&format!("doc/{h}/use"), &format!("use amenui::widgets::{{{}}};\n\n{}", it.functions.join(", "), examples.first().map(|e| e.1.clone()).unwrap_or_default())));
     // 4. Examples: every one, a preview and its code.
     let mut exs = col().key(format!("doc/{h}/examples")).gap(18.0).fill_width().min_width(0.0);
     let all_previews: Vec<El<Msg>> = first.into_iter().chain(previews.into_iter().map(as_msg)).collect();

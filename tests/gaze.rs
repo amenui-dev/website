@@ -1,12 +1,12 @@
 //! Acceptance for the annotation layer (DESIGN.md §1.7), without a GPU: the records of a known tree
 //! (rects, numbers, sizes, kinds), density, scope and callouts; label packing never overlaps; hover and
 //! focus modes give the element and its ancestors; frames draw on and numbers count up.
-use lab::el::{El, Paint, col, row, space, text};
-use lab::gaze::{self, Annot};
-use lab::style::{Gaze, GazeMode, gaze as kinds};
-use lab::ui::{Rect, Ui};
+use amenui::el::{El, Paint, col, row, space, text};
+use amenui::gaze::{self, Annot};
+use amenui::style::{Gaze, GazeMode, gaze as kinds};
+use amenui::ui::{Rect, Ui};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 struct S { gaze: Gaze }
 fn view(_: &S) -> El<()> {
@@ -115,24 +115,24 @@ fn frames_draw_on_and_numbers_count_up() {
 }
 
 // ── Edge notes and the field map's readouts (DESIGN.md §4.2, §4.3) ────────────────────────────────
-struct R { gaze: Gaze, cmds: Vec<lab::morph::Cmd> }
+struct R { gaze: Gaze, cmds: Vec<amenui::morph::Cmd> }
 fn readout_view(_: &R) -> El<()> {
     col().key("root").pad(20.0, 20.0)
         .child(col().key("scope").gaze_scope().width(520.0).height(420.0).pad(16.0, 16.0).gap(10.0)
-            .child(space(200.0, 60.0).key("deco").fill(Paint::INK).respond(lab::el::Response::Loosen))
+            .child(space(200.0, 60.0).key("deco").fill(Paint::INK).respond(amenui::el::Response::Loosen))
             .child(text("说明文字", 14.0, Paint::TEXT).key("c")))
 }
 fn readouts(kinds: u16) -> Ui<R, ()> {
     let g = Gaze { mode: GazeMode::All, kinds, density: 10.0, draw_ms: 0.0, ..Gaze::default() };
     let mut u = Ui::new(R { gaze: g, cmds: vec![] }, readout_view, |_, _| {}, fonts(), 800, 600, 1.0)
         .on_gaze(|s| s.gaze).on_commands(|s| std::mem::take(&mut s.cmds))
-        .on_look(|_| lab::style::Look { material: lab::style::Material::Plain, ..lab::style::Look::default() });
+        .on_look(|_| amenui::style::Look { material: amenui::style::Material::Plain, ..amenui::style::Look::default() });
     u.pointer_leave();
     u.tick(1.0);
     u
 }
 fn stir(u: &mut Ui<R, ()>, x: f32, y: f32) {
-    u.state.cmds.push(lab::morph::Cmd::Stir { at: lab::morph::StirAt::Point([x, y]), v: [1.0, 0.0], energy: 1.0, radius: 40.0, scope: lab::el::Scope::Global });
+    u.state.cmds.push(amenui::morph::Cmd::Stir { at: amenui::morph::StirAt::Point([x, y]), v: [1.0, 0.0], energy: 1.0, radius: 40.0, scope: amenui::el::Scope::Global });
     u.relayout();
 }
 
@@ -207,8 +207,8 @@ fn the_waveform_and_the_level_read_the_field_map() {
 fn corner_marks_never_lie_on_ink() {
     // The Loose Thread page, its hover frames on each piece of small type, the title and the picture
     // (DESIGN.md §4.4): no pixel of a corner mark is inside any glyph's box.
-    use lab::gallery;
-    let mut ui = gallery::new_ui(lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts"), 1280, 1000, 1.0);
+    use amenui::gallery;
+    let mut ui = gallery::new_ui(amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts"), 1280, 1000, 1.0);
     ui.pointer_leave();
     assert!(ui.state.route("style-loose-thread"));
     ui.relayout();
@@ -220,11 +220,11 @@ fn corner_marks_never_lie_on_ink() {
         let (x, y) = ui.node(&format!("{h}/{k}")).unwrap_or_else(|| panic!("no {k}")).rect.center();
         ui.pointer_move(x, y);
         for _ in 0..30 { t += 1.0 / 60.0; ui.tick(t); }
-        let spread = lab::text::SPREAD as f32;
+        let spread = amenui::text::SPREAD as f32;
         let glyphs: Vec<[f32; 4]> = ui.scene().instances.iter().take(ui.scene().instances.len()).enumerate()
-            .filter(|(i, g)| g.paint[3] == lab::scene::GLYPH && ui.owner_key(*i).is_some())
+            .filter(|(i, g)| g.paint[3] == amenui::scene::GLYPH && ui.owner_key(*i).is_some())
             .map(|(_, g)| [g.rect[0] + spread, g.rect[1] + spread, g.rect[0] + g.rect[2] - spread, g.rect[1] + g.rect[3] - spread]).collect();
-        let marks: Vec<[f32; 4]> = ui.scene().annot.iter().filter(|a| a.paint[3] == lab::scene::SHAPE && a.paint[1] < 0.5 && a.rect[2].min(a.rect[3]) <= 1.0 && a.rect[2].max(a.rect[3]) <= 10.0).map(|a| a.rect).collect();
+        let marks: Vec<[f32; 4]> = ui.scene().annot.iter().filter(|a| a.paint[3] == amenui::scene::SHAPE && a.paint[1] < 0.5 && a.rect[2].min(a.rect[3]) <= 1.0 && a.rect[2].max(a.rect[3]) <= 10.0).map(|a| a.rect).collect();
         if !marks.is_empty() { framed += 1; } else { eprintln!("no corner marks over {k}"); }
         for m in &marks {
             for g in &glyphs {

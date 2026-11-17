@@ -1,12 +1,12 @@
 //! Acceptance for step 4 without a GPU: the morph's phases and hand-over times, reversal from where
 //! the tiles are, flows between pages (interpolated rects, birth times kept, the rest dissolving), and
 //! the gallery's two pages issuing their commands.
-use lab::el::{El, Paint, col, space, text};
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::morph::{self, Cmd, Ease, FlowSpec, MorphSpec};
-use lab::ui::{Ui, ramp};
+use amenui::el::{El, Paint, col, space, text};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::morph::{self, Cmd, Ease, FlowSpec, MorphSpec};
+use amenui::ui::{Ui, ramp};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 // ── Morph ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -258,7 +258,7 @@ struct Posed { cmds: Vec<Cmd> }
 /// where it is drawn, not where the layout put it.
 fn posed(_: &Posed) -> El<()> {
     col().key("root").pad(20.0, 20.0).gap(40.0)
-        .child(text("III", 48.0, Paint::INK).key("a").pose(|_| lab::el::Pose { dx: 120.0, dy: 140.0, angle: std::f32::consts::FRAC_PI_2, ..Default::default() }))
+        .child(text("III", 48.0, Paint::INK).key("a").pose(|_| amenui::el::Pose { dx: 120.0, dy: 140.0, angle: std::f32::consts::FRAC_PI_2, ..Default::default() }))
         .child(space(80.0, 40.0).key("b").fill(Paint::ACCENT).hidden_until_morphed(true))
 }
 
@@ -292,12 +292,12 @@ fn a_posed_glyph_loosens_from_where_it_is_drawn() {
 
 #[test]
 fn a_turned_shape_covers_its_turned_box() {
-    let i = lab::scene::Instance { rect: [100.0, 100.0, 80.0, 10.0], paint: [1.0, 0.0, 1.0, lab::scene::SHAPE], clip: [-1e5, -1e5, 1e5, 1e5], xf: lab::scene::Instance::turned(std::f32::consts::FRAC_PI_2, 1.0, 1.0), ..Default::default() };
+    let i = amenui::scene::Instance { rect: [100.0, 100.0, 80.0, 10.0], paint: [1.0, 0.0, 1.0, amenui::scene::SHAPE], clip: [-1e5, -1e5, 1e5, 1e5], xf: amenui::scene::Instance::turned(std::f32::consts::FRAC_PI_2, 1.0, 1.0), ..Default::default() };
     // Centre (140, 105): turned, it runs from y 65 to 145 at x 140.
     assert!(morph::cover_at(&i, 140.0, 70.0, &[]) > 0.9);
     assert!(morph::cover_at(&i, 105.0, 105.0, &[]) < 0.01, "the untransformed ends are empty");
     // A fill in the ground's tone is an outline too; only `ink_at` leaves it out.
-    let ground = lab::scene::Instance { paint: [0.0, 0.0, 1.0, lab::scene::SHAPE], xf: [0.0; 4], ..i };
+    let ground = amenui::scene::Instance { paint: [0.0, 0.0, 1.0, amenui::scene::SHAPE], xf: [0.0; 4], ..i };
     assert!(morph::cover_at(&ground, 140.0, 105.0, &[]) > 0.9);
     assert_eq!(morph::ink_at(&ground, 140.0, 105.0, &[]), 0.0);
 }

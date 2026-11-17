@@ -1,9 +1,9 @@
 //! Every page at a phone's width (330 logical px): no text runs past the window's right edge or its
 //! visible region, unless it sits in something that scrolls sideways.
-use lab::el::Content;
-use lab::gallery::{self, Msg, Page};
+use amenui::el::Content;
+use amenui::gallery::{self, Msg, Page};
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 
 #[test]
 fn no_text_is_cut_at_330_px() {

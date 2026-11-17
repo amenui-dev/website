@@ -3,12 +3,12 @@
 //! fills it in maze stripes, each dot sized by how much is there. Three shapes take turns by themselves
 //! (two letters, a toggle control, a rounded square); each change decodes the old pattern away and the
 //! new shape in (`El::decode`).
-use lab::decode::Decode;
-use lab::draw::Drawing;
-use lab::el::{El, Font, Paint, Point, canvas, col, space, stack, text};
-use lab::experiment::{Experiment, Params, Pointer, frame, ink, spec};
-use lab::field::{GrayScott, Grid, hash};
-use lab::widgets::{Edit, Spec, switch_sized};
+use amenui::decode::Decode;
+use amenui::draw::Drawing;
+use amenui::el::{El, Font, Paint, Point, canvas, col, space, stack, text};
+use amenui::experiment::{Experiment, Params, Pointer, frame, ink, spec};
+use amenui::field::{GrayScott, Grid, hash};
+use amenui::widgets::{Edit, Spec, switch_sized};
 use std::rc::Rc;
 
 const W: f32 = 240.0;
@@ -79,7 +79,7 @@ impl Experiment for Grown {
                 self.mask = Some(g);
                 self.since = now;
             }
-            Msg::Num(i, e) => if i < 4 || i == lab::experiment::TOGGLE { self.p.edit(i, e); (self.gs.f, self.gs.k) = (self.p.get(0), self.p.get(1)); },
+            Msg::Num(i, e) => if i < 4 || i == amenui::experiment::TOGGLE { self.p.edit(i, e); (self.gs.f, self.gs.k) = (self.p.get(0), self.p.get(1)); },
         }
     }
     fn step(&mut self, now: f32) -> bool {

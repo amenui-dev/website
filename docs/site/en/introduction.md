@@ -1,6 +1,6 @@
 # Introduction
 
-gui-lab is an interface framework that draws every pixel itself, written in Rust on wgpu; the same code runs in a native window and on the web. Everything on screen — glyphs, shapes, pictures, 3D meshes — is an instance with a true outline that can loosen, morph and close again along it; how it looks is a material you can swap.
+amenui is an interface framework that draws every pixel itself, written in Rust on wgpu; the same code runs in a native window and on the web. Everything on screen — glyphs, shapes, pictures, 3D meshes — is an instance with a true outline that can loosen, morph and close again along it; how it looks is a material you can swap.
 
 You write a view (state → element tree) and an update (state + message → new state); the runtime does layout, input, animation and drawing.
 

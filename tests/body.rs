@@ -1,23 +1,23 @@
 //! The Body scene (DESIGN.md §6.2) through its own runtime: the glyph count is conserved between the
 //! page and the body, the page at rest is exactly the plain layout, the two rest states ask for no
 //! frames but the body's idle turn, and the body turns, opens under the pointer and goes back.
-use lab::experiment::Experiment;
-use lab::recipes::scenes::body::{self, Body, Msg};
-use lab::scene::Instance;
-use lab::ui::Ui;
+use amenui::experiment::Experiment;
+use amenui::recipes::scenes::body::{self, Body, Msg};
+use amenui::scene::Instance;
+use amenui::ui::Ui;
 
-fn fonts() -> Vec<lab::text::Face> { lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
 fn run(ui: &mut Ui<Body, Msg>, secs: f32) -> usize {
     let (mut t, end, mut drawn) = (ui.now(), ui.now() + secs, 0);
     while t < end { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { drawn += 1; } ui.frame_drawn(); }
     drawn
 }
-fn glyphs(ui: &Ui<Body, Msg>) -> Vec<Instance> { ui.instances_of("body/text").into_iter().filter(|i| i.paint[3] == lab::scene::GLYPH).collect() }
+fn glyphs(ui: &Ui<Body, Msg>) -> Vec<Instance> { ui.instances_of("body/text").into_iter().filter(|i| i.paint[3] == amenui::scene::GLYPH).collect() }
 fn gather(ui: &mut Ui<Body, Msg>) { let (x, y) = ui.node("body").unwrap().rect.center(); ui.press(x, y); ui.release(x, y); }
 
 #[test]
 fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
-    lab::i18n::set_current(lab::i18n::Locale::En);
+    amenui::i18n::set_current(amenui::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
     ui.state.auto = false;
     run(&mut ui, 0.5);
@@ -41,7 +41,7 @@ fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
     // Back: exactly the page again, glyph for glyph.
     // Back by the keyboard: Space on the focused scene.
     ui.focus_key("body/stage");
-    ui.key(lab::el::Key::Char(' '), false);
+    ui.key(amenui::el::Key::Char(' '), false);
     run(&mut ui, 3.0);
     assert!(ui.state.flat(), "back on the page");
     let back = glyphs(&ui);
@@ -51,7 +51,7 @@ fn glyphs_are_conserved_and_the_page_is_the_plain_layout() {
 
 #[test]
 fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
-    lab::i18n::set_current(lab::i18n::Locale::En);
+    amenui::i18n::set_current(amenui::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
     // Arriving, the page gathers by itself after a moment.
     run(&mut ui, body::DWELL + 0.2);
@@ -67,11 +67,11 @@ fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
     assert!(run(&mut ui, 1.0) > 50, "the idle turn draws");
     assert!(ui.state.yaw > yaw, "it turns");
     // Without the idle turn the body rests too.
-    ui.state.update(Msg::Num(3, lab::widgets::Edit::Set(0.0)), ui.now());
+    ui.state.update(Msg::Num(3, amenui::widgets::Edit::Set(0.0)), ui.now());
     run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "the body without its idle turn draws nothing");
     // Reduced motion: the same.
-    ui.state.update(Msg::Num(3, lab::widgets::Edit::Set(0.16)), ui.now());
+    ui.state.update(Msg::Num(3, amenui::widgets::Edit::Set(0.16)), ui.now());
     ui.state.reduced = true;
     run(&mut ui, 4.0);
     assert_eq!(run(&mut ui, 2.0), 0, "reduced motion: no turn");
@@ -79,7 +79,7 @@ fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
 
 #[test]
 fn dragging_turns_it_and_the_pointer_opens_it() {
-    lab::i18n::set_current(lab::i18n::Locale::En);
+    amenui::i18n::set_current(amenui::i18n::Locale::En);
     let mut ui = body::ui(fonts(), 1280, 800, 1.0);
     ui.state.auto = false;
     run(&mut ui, 0.5);

@@ -7,9 +7,9 @@
 //! and one press reaching three neighbours that each answer in their own way.
 //!
 //! usage: film <out_dir> [perf | ripple]
-use lab::gallery::{self, GalleryUi, Msg, Page};
-use lab::morph::MorphSpec;
-use lab::offscreen::{Offscreen, save_png, sheet};
+use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::morph::MorphSpec;
+use amenui::offscreen::{Offscreen, save_png, sheet};
 use std::time::Instant;
 
 const W: u32 = 1280;
@@ -21,7 +21,7 @@ fn settle(ui: &mut GalleryUi, to: f32) {
     while t < to { t = (t + 1.0 / 60.0).min(to); ui.tick(t); }
 }
 /// One frame cropped to a logical rect.
-fn shot(o: &mut Offscreen, ui: &mut GalleryUi, crop: lab::ui::Rect) -> (u32, u32, Vec<u8>) {
+fn shot(o: &mut Offscreen, ui: &mut GalleryUi, crop: amenui::ui::Rect) -> (u32, u32, Vec<u8>) {
     let look = ui.state.look();
     let px = o.render(ui, &look);
     let (x0, y0) = (crop.x.max(0.0) as u32, crop.y.max(0.0) as u32);
@@ -34,7 +34,7 @@ fn main() {
     let a: Vec<String> = std::env::args().collect();
     let out = a.get(1).cloned().unwrap_or_else(|| "film".into());
     std::fs::create_dir_all(&out).expect("out dir");
-    let faces = || lab::text::load_bundled("assets").expect("fonts");
+    let faces = || amenui::text::load_bundled("assets").expect("fonts");
     let mut o = Offscreen::new(W, H);
     if a.get(2).map(String::as_str) == Some("perf") { return perf(&mut o, faces()); }
     if a.get(2).map(String::as_str) == Some("ripple") { return ripple(&out, faces); }
@@ -81,7 +81,7 @@ fn main() {
         send(&mut ui, Msg::Material(mi));
         settle(&mut ui, 3.0);
         let flow = ui.state.flow.flow_ms / 1000.0;
-        let whole = lab::ui::Rect::new(0.0, 0.0, W as f32, H as f32);
+        let whole = amenui::ui::Rect::new(0.0, 0.0, W as f32, H as f32);
         for (dir, key) in [("open", "flow/card4"), ("back", "flow/back")] {
             let (x, y) = ui.node(key).expect("card").rect.center();
             ui.press(x, y);
@@ -103,7 +103,7 @@ fn main() {
 }
 
 /// The ripple strips (see the top of this file).
-fn ripple(out: &str, faces: impl Fn() -> Vec<lab::text::Face>) {
+fn ripple(out: &str, faces: impl Fn() -> Vec<amenui::text::Face>) {
     let scale = 2.0;
     let (w, h) = (1280u32, 1200u32);
     let mut o = Offscreen::new(w * 2, h * 2);
@@ -120,7 +120,7 @@ fn ripple(out: &str, faces: impl Fn() -> Vec<lab::text::Face>) {
         settle(&mut ui, 3.0);
         ui
     };
-    let crop = |o: &mut Offscreen, ui: &mut GalleryUi, r: lab::ui::Rect| {
+    let crop = |o: &mut Offscreen, ui: &mut GalleryUi, r: amenui::ui::Rect| {
         let look = ui.state.look();
         let px = o.render(ui, &look);
         let (x0, y0) = ((r.x * scale).max(0.0) as u32, (r.y * scale).max(0.0) as u32);
@@ -138,7 +138,7 @@ fn ripple(out: &str, faces: impl Fn() -> Vec<lab::text::Face>) {
     // (a) The counter 1 → 2: the digit recomposes, nothing else moves.
     let mut ui = fresh(0);
     let digit = ui.node("ripple/count").expect("count").rect;
-    let r = lab::ui::Rect::new(digit.x - 120.0, digit.y - 14.0, 220.0, digit.h + 28.0);
+    let r = amenui::ui::Rect::new(digit.x - 120.0, digit.y - 14.0, 220.0, digit.h + 28.0);
     let d = ui.state.recompose.duration_ms / 1000.0;
     press(&mut ui, "ripple/counter");
     let t0 = ui.now();
@@ -161,7 +161,7 @@ fn ripple(out: &str, faces: impl Fn() -> Vec<lab::text::Face>) {
     let mut ui = fresh(1);
     let n0 = ui.node("ripple/n0").expect("n0").rect;
     let n2 = ui.node("ripple/n2").expect("n2").rect;
-    let r = lab::ui::Rect::new(n0.x - 24.0, n0.y - 24.0, n2.right() - n0.x + 48.0, n0.h + 48.0);
+    let r = amenui::ui::Rect::new(n0.x - 24.0, n0.y - 24.0, n2.right() - n0.x + 48.0, n0.h + 48.0);
     press(&mut ui, "ripple/counter");
     let t0 = ui.now();
     let mut frames = vec![];
@@ -172,7 +172,7 @@ fn ripple(out: &str, faces: impl Fn() -> Vec<lab::text::Face>) {
 }
 
 /// Frame time with a morph at the particle cap, against the same page without one.
-fn perf(o: &mut Offscreen, faces: Vec<lab::text::Face>) {
+fn perf(o: &mut Offscreen, faces: Vec<amenui::text::Face>) {
     let mut ui = gallery::new_ui(faces, W, H, 1.0);
     ui.pointer_leave();
     send(&mut ui, Msg::Go(Page::Morph));

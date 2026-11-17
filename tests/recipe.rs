@@ -1,7 +1,7 @@
 //! Look recipes (DESIGN.md §1.11): a preset as the difference from the built-in one, `look:v1:` and
 //! base64url; every preset and an edited one go there and back unchanged; a wrong string says why;
 //! the gallery takes one from its address; the render tool's PNG carries one.
-use lab::preset::{Preset, RECIPE_PREFIX, b64url, presets, un_b64url};
+use amenui::preset::{Preset, RECIPE_PREFIX, b64url, presets, un_b64url};
 
 #[test]
 fn base64url_round_trips() {
@@ -27,8 +27,8 @@ fn every_preset_round_trips() {
     let mut p = presets()[3].clone();
     p.set_number("interaction.press_ms", 512.0).unwrap();
     p.set_number("transition.steps.0.a", 0.25).unwrap();
-    p.material = lab::style::Material::Halftone;
-    p.theme = lab::style::THEMES[1].name.to_owned();
+    p.material = amenui::style::Material::Halftone;
+    p.theme = amenui::style::THEMES[1].name.to_owned();
     let r = p.recipe();
     let back = Preset::from_recipe(&format!("#{r}")).expect("reads back with a leading #");
     assert_eq!(back, p);
@@ -42,8 +42,8 @@ fn every_preset_round_trips() {
 
 #[test]
 fn the_gallery_takes_a_recipe_from_its_address() {
-    let faces = lab::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts");
-    let mut ui = lab::gallery::new_ui(faces, 900, 600, 1.0);
+    let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts");
+    let mut ui = amenui::gallery::new_ui(faces, 900, 600, 1.0);
     let mut p = presets()[5].clone();
     p.set_number("loose_scale", 0.42).unwrap();
     assert!(ui.state.route(&format!("#{}", p.recipe())));
@@ -56,6 +56,6 @@ fn the_gallery_takes_a_recipe_from_its_address() {
 fn a_png_carries_its_recipe() {
     let rgba = vec![200u8; 4 * 4 * 4];
     let r = presets()[2].recipe();
-    let png = lab::offscreen::png_bytes_with(4, 4, &rgba, &[("lab-recipe", &r)]);
-    assert_eq!(lab::offscreen::png_text(&png, "lab-recipe"), Some(r));
+    let png = amenui::offscreen::png_bytes_with(4, 4, &rgba, &[("amenui-recipe", &r)]);
+    assert_eq!(amenui::offscreen::png_text(&png, "amenui-recipe"), Some(r));
 }
