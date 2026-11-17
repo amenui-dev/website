@@ -53,9 +53,10 @@ fn glyphs_are_conserved_and_their_count_does_not_follow_the_window() {
     run(&mut ui, 0.5);
     let n = ui.state.glyphs();
     let on = glyphs(&ui);
-    // Facing away glyphs are left out of the drawing; every one is posed (none sits in the listing).
+    // Facing away glyphs are left out of the drawing, and so are those squeezed, faded or foreshortened
+    // past legibility at the rim (their cells are dots); every one is posed (none sits in the listing).
     assert!(n > 1800, "the body is made of {n} glyphs");
-    assert!(on.len() > n / 5 && on.len() < n, "{} of {n} drawn on the body", on.len());
+    assert!(on.len() > n / 8 && on.len() < n, "{} of {n} drawn on the body", on.len());
     assert!(on.iter().all(|i| i.xf != [0.0; 4]), "none in the listing");
     // Released: every glyph in the first lines is in the listing, flat.
     ui.state.update(Msg::Gather, ui.now());

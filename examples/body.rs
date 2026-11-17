@@ -68,8 +68,8 @@ pub const IDLE_AFTER: f32 = 2.0;
 pub const KEY_TURN: f32 = 0.6;
 /// The specimen of states 02 and 03 (px; on a phone narrower, and without the Pitch row), and the
 /// materials its segmented control offers.
-pub const SPECIMEN: (f32, f32) = (360.0, 268.0);
-pub const SPECIMEN_PHONE_H: f32 = 204.0;
+pub const SPECIMEN: (f32, f32) = (360.0, 234.0);
+pub const SPECIMEN_PHONE_H: f32 = 196.0;
 pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
     use amenui::style::Material::{Carvr, Dottr, Near, Plain};
     [("plain", Plain), ("near", Near), ("dottr", Dottr), ("carvr", Carvr)]
@@ -518,6 +518,34 @@ fn word_facing(v: &View, c: &Cache, gi: usize) -> f32 {
     c.text.cell.get(m).and_then(|&k| c.pts.get(k)).map_or(0.0, |sp| { let (p, n) = (v.rot(sp.p), v.rot(sp.n)); dot3(n, norm(sub([0.0, 0.0, 4.0], p))) })
 }
 
+/// How much of its width glyph `gi`'s cell leaves it on screen (0..1): the line's tangent foreshortened,
+/// and never wider than the cell's real spacing to its nearer neighbour (a facet's edge, the limb).
+/// `em_px` is the glyph size at the centre plane; `sp` the cell (lifted by the hand or not).
+fn squeeze(v: &View, c: &Cache, gi: usize, sp: &SurfacePoint, em_px: f32) -> f32 {
+    let (p, t) = (v.rot(sp.p), v.rot(sp.t));
+    let ([sx, sy], k) = v.project(p);
+    let run = (t[0] * t[0] + t[1] * t[1]).sqrt();
+    let s = (em_px * k / SIZE * sp.k).max(1e-4);
+    let cell = c.text.cell[gi];
+    let near = |j: usize| c.pts.get(j).map(|q| { let o = v.project(v.rot(q.p)).0; (o[0] - sx).hypot(o[1] - sy) });
+    let room = cell.checked_sub(1).and_then(near).unwrap_or(f32::INFINITY).min(near(cell + 1).unwrap_or(f32::INFINITY));
+    (s * run).min(room * 0.97 / ADVANCE) / s
+}
+/// A glyph squeezed under this, or faded by its facing under this opacity, is not drawn; its cell's
+/// dot is (the contour is the dots' job).
+pub const MIN_SQUEEZE: f32 = 0.35;
+pub const MIN_ALPHA: f32 = 0.55;
+/// Nor is one foreshortened across its line to under this height on screen (px): text the audit could
+/// not call text.
+pub const MIN_HEIGHT: f32 = 6.0;
+/// Nor one whose box would be under this wide on screen (px).
+pub const MIN_WIDTH: f32 = 4.0;
+/// Whether a glyph at scale `s` (screen px per body px), squeeze `q`, line gap `gap` and opacity
+/// `alpha` (its facing's included) is drawn, or left to its cell's dot.
+pub fn drawn(s: f32, q: f32, gap: f32, alpha: f32) -> bool {
+    q >= MIN_SQUEEZE && alpha >= MIN_ALPHA && SIZE * s * gap >= MIN_HEIGHT && ADVANCE * s * q >= MIN_WIDTH
+}
+
 /// How far glyph `i` of `n` has gone at gather `g`: reading order leads; exactly 0 at 0 and 1 at 1.
 pub fn progress(g: f32, i: usize, n: usize) -> f32 {
     let st = 0.55;
@@ -877,7 +905,7 @@ impl Body {
             let sp = &moved;
             let (p, t) = (v.rot(sp.p), v.rot(sp.t));
             let ([sx, sy], k) = v.project(p);
-            let CellLook { paint, run, gap, .. } = cell_look(&v, l, sp, boost);
+            let CellLook { paint, gap, .. } = cell_look(&v, l, sp, boost);
             // A word faces the viewer as its middle does, so it comes and goes whole by its middle
             // (by its end, a long word would leave a hole in the line).
             let facing = word_facing(&v, &c, gi);
@@ -887,15 +915,14 @@ impl Body {
             let ang = (-t[1]).atan2(t[0]);
             let s = em_px * k / SIZE * sp.k;
             // Never wider than the cell's real spacing on screen: where the line crosses a facet's edge
-            // or runs towards the limb the cells are drawn together more than the tangent says. (The
-            // nearer neighbour counts.)
-            let cell = c.text.cell[gi];
-            let near = |j: usize| c.pts.get(j).map(|q| { let o = v.project(v.rot(q.p)).0; (o[0] - sx).hypot(o[1] - sy) });
-            let room = cell.checked_sub(1).and_then(near).unwrap_or(f32::INFINITY).min(near(cell + 1).unwrap_or(f32::INFINITY));
+            // or runs towards the limb the cells are drawn together more than the tangent says; squeezed
+            // past `MIN_SQUEEZE` the glyph is left out and its cell is a dot.
+            let q = squeeze(&v, &c, gi, sp, em_px);
+            let shown = if drawn(s, q, gap, paint.alpha * FORM_FX.facing_alpha(facing)) { 1.0 } else { 0.0 };
             Pose {
                 dx: (sx - fx) * e, dy: (sy - fy) * e, angle: ang * e,
-                sx: 1.0 + ((s * run).min(room * 0.97 / ADVANCE) - 1.0) * e, sy: 1.0 + (s * gap - 1.0) * e,
-                alpha: flat_alpha + (paint.alpha * dim - flat_alpha) * e,
+                sx: 1.0 + (s * q - 1.0) * e, sy: 1.0 + (s * gap - 1.0) * e,
+                alpha: flat_alpha + (paint.alpha * dim * shown - flat_alpha) * e,
                 accent: paint.accent * e, hue: if e > 0.5 { 0.0 } else { -1.0 },
                 // Depth toward the viewer (px) and facing, for `El::form`: flat in the listing.
                 z: p[2] * v.r * e, facing: 1.0 + (facing - 1.0) * e,
@@ -913,42 +940,32 @@ impl Body {
         // The dust drifts in the stage only: outside it the page is the ground.
         dust(&mut d, self.stage(), self.t, 80);
         if g <= 0.0 { return d; }
+        let rpx = self.placement().2;
         let mut c = self.cache.borrow_mut();
         let want = amenui::budget::grant(VOLUME);
         if c.vkey != (self.form, self.seed, want) { c.vol = volume(self.form, self.seed, want); c.vkey = (self.form, self.seed, want); }
         let rv = v.r * c.radius;
-        let ground = v.c.1 + rv * 1.15;
-        // A faint spill of light on the haze beneath it.
-        for i in 0..60u32 {
-            let (a, b) = (hash(i * 3 + 1) * 2.0 - 1.0, hash(i * 3 + 2) * 2.0 - 1.0);
-            let r = 1.0 - (a * a + b * b).min(1.0);
-            d.dot(v.c.0 + a * rv * 0.95, ground - rv * 0.02 + b * rv * 0.09, 14.0 + 22.0 * hash(i * 3 + 3), Paint { tone: 1.0, accent: 1.0, alpha: 0.012 * g * r, hue: 0 });
-        }
         // The volume: only what is seen through the body (the far shell, the inside behind the middle).
-        for (i, q) in c.vol.iter().enumerate() {
+        // Nothing is drawn under the body: no light on a ground, no reflection.
+        for q in c.vol.iter() {
             let (p, n) = (v.rot(q.p), v.rot(q.n));
             let inside = dot3(q.p, q.p) < 0.7 * c.radius * c.radius;
             if (inside && p[2] > 0.0) || (!inside && n[2] > 0.0) { continue; }
             let ([x, y], k) = v.project(p);
             let paint = Paint { tone: 1.0, accent: 1.0, alpha: 0.20 * g * (0.4 + 0.6 * lit(l, p, n)), hue: 0 };
             d.dot(x, y, q.size * k * 0.9, paint);
-            // Its reflection on the ground: squashed, dim, every other one.
-            if i % 2 == 0 && y < ground {
-                let ry = ground + (ground - y) * 0.22;
-                let fade = (1.0 - (ry - ground) / (rv * 0.42)).clamp(0.0, 1.0);
-                if fade > 0.0 { d.dot(x + (hash(i as u32) - 0.5) * 4.0, ry, q.size * 0.75, Paint { alpha: (paint.alpha * 0.8 * fade).min(0.3), ..paint }); }
-            }
         }
         // Where a cell's glyph has faded out at the rim, the cell is one dot in the colour the light
         // gives it: the lines continue as a dotted contour instead of crushed letters. The far side
         // is the volume's.
         let dot_r = 0.006 * rv;
+        let em = em_px(rpx, c.em);
         for (gi, &k) in c.text.cell.iter().enumerate() {
             let Some(sp) = c.pts.get(k) else { continue };
             if v.rot(sp.n)[2] < -0.25 { continue; }
             let look = cell_look(&v, l, sp, 0.0);
-            if look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi)) >= 0.15 { continue; }
             let ([x, y], s) = v.project(v.rot(sp.p));
+            if drawn(em * s / SIZE * sp.k, squeeze(&v, &c, gi, sp, em), look.gap, look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi))) { continue; }
             d.dot(x, y, dot_r * s, Paint { tone: 1.0, accent: look.paint.accent, alpha: 0.30 * g, hue: 0 });
         }
         d
@@ -1060,9 +1077,9 @@ impl Body {
         // right of the stage, the lines that do not fit under it).
         let mut flat = vec![false; s.map.len() + s.rest_map.len()];
         for &i in &s.map { flat[i] = true; }
-        // Its box is the listing's (the cut ends run past it, unseen).
+        // Its box is the listing's (the cut ends and the lines under it run past it, unseen).
         let cols = self.grid().1;
-        let code = mono(self.listing(), LINE, ink, "text").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE)
+        let code = mono(self.listing(), LINE, ink, "text").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE).height(s.rows as f32 * LINE)
             .pose(self.poser((lx, ly), Rc::new(flat))).form(FORM_FX).reveal_by(Reveal::Word).hidden_until_morphed(card);
         let numbers: String = (1..=s.rows).map(|i| format!("{i:>3}")).collect::<Vec<_>>().join("\n");
         let numbers = mono(numbers, LINE, Paint::DIM.alpha(if shown == 1 { (1.0 - g).clamp(0.0, 1.0) * dim } else { 0.0 }), "lines").absolute(Some(st[0]), Some(ly), None, None);
@@ -1118,21 +1135,22 @@ impl Body {
         let label = |t: &str| text_lh(t.to_owned(), SIZE, LINE, Paint::TEXT).font(Font::Mono).width(96.0);
         let line = |name: &str, c: El<Msg>| row().key(k(&format!("row-{name}"))).fill_width().align(taffy::AlignItems::CENTER).child(label(name)).child(c);
         let names: Vec<&str> = SPEC_MATERIALS.iter().map(|m| m.0).collect();
-        let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 18.0).gap(14.0).radius(6.0).border(1.0, Paint::FAINT)
-            .material(SPEC_MATERIALS[sp.material].1.id()).loosen(if sp.loosen { SPEC_LOOSE } else { 0.0 })
+        // The card hugs its rows: 20 px padding, 14 px between rows, 24 px above the button.
+        let mut rows = col().key(k("rows")).fill_width().gap(14.0)
             .child(row().key(k("head")).fill_width()
                 .child(text_lh("SPECIMEN".to_owned(), SIZE, LINE, Paint::DIM).font(Font::Mono)).child(space(0.0, 0.0).grow(1.0))
                 .child(text_lh("4 components".to_owned(), SIZE, LINE, Paint::DIM).font(Font::Mono)))
             .child(line("Loosen", row().grow(1.0).child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::switch(k("loosen"), "", sp.loosen, None, Msg::Spec(SpecMsg::Loosen)).label("Loosen".to_owned()))));
         if !phone {
             let spec = amenui::widgets::Spec { min: 3.0, max: 12.0, step: 1.0, decimals: 0, unit: "px" };
-            card = card.child(line("Pitch", row().grow(1.0).gap(12.0).align(taffy::AlignItems::CENTER)
+            rows = rows.child(line("Pitch", row().grow(1.0).gap(12.0).align(taffy::AlignItems::CENTER)
                 .child(amenui::widgets::slider(&k("pitch"), sp.pitch, spec, w - 40.0 - 96.0 - 52.0, |v| Msg::Spec(SpecMsg::Pitch(v))))
                 .child(text_lh(format!("{} px", sp.pitch as u32), SIZE, LINE, Paint::TEXT).font(Font::Mono))));
         }
-        let mut card = card
-            .child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit().legible(true)))
-            .child(space(0.0, 0.0).grow(1.0))
+        let rows = rows.child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit().legible(true)));
+        let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0).border(1.0, Paint::FAINT)
+            .material(SPEC_MATERIALS[sp.material].1.id()).loosen(if sp.loosen { SPEC_LOOSE } else { 0.0 })
+            .child(rows)
             .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k("gather"), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).legible(true)));
         // Held loose, the card's shapes (its frame, the switch, the track and thumb) take the whole
         // looseness and its text stays text to read, under the framework's legibility cap: the shapes are

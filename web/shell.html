@@ -32,7 +32,7 @@ a { color: inherit; text-decoration: none; }
 /* The bar: 48 px (44 on a phone), 11 px uppercase labels with 44 px tall hit areas. */
 .bar { position: fixed; z-index: 10; left: 0; right: 0; top: 0; height: 48px; padding: 0 var(--m); display: flex; align-items: center; gap: 24px;
   font-size: 11px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; background: var(--ground); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
-.home .bar, .scenes .bar { background: transparent; border-color: transparent; }
+.home .bar { background: transparent; border-color: transparent; }
 /* Home lays out in a frame of at most 1,600 px, centred: the bar, the text block, the stage, the rail
    and the status line keep the window's margins only up to the frame's width. */
 :root { --fw: min(100vw, 1600px); --fx: max(0px, (100vw - 1600px) / 2); }
@@ -71,7 +71,7 @@ a { color: inherit; text-decoration: none; }
 /*/chrome*/
 /* The canvas: under the bar, or the whole window behind it on home and in Scenes. */
 #stage { position: fixed; left: 0; right: 0; bottom: 0; top: 48px; }
-.home #stage, .scenes #stage { top: 0; }
+.home #stage { top: 0; }
 @media (max-width: 719px) { #stage { top: 44px; } }
 canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; opacity: 0; transition: opacity .3s; }
 .ready canvas { opacity: 1; }
@@ -168,6 +168,8 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 @media (max-width: 719px) { .status.open .line { display: none; } .status .quality { margin-right: 0; } }
 /* Off home the canvas stops above the status line. */
 html:not(.home) #stage { bottom: 28px; }
+/* Off home the bar and the status line are bands of the ground, each with a hairline on the stage's side. */
+html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m)); justify-content: flex-end; background: var(--ground); border-top: 1px solid var(--hairline); box-sizing: border-box; }
 @media (max-width: 719px) { .home .status { position: absolute; top: 44px; bottom: auto; height: 20px; left: 16px; right: auto; } .home .status button { height: 20px; } }
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
