@@ -244,22 +244,22 @@ fn the_look_strip_changes_the_stage_and_a_style_page_the_whole_look() {
     assert_eq!(ui.modal(), Some("doc/button/look/material/layer"));
     click(&mut ui, "doc/button/look/material:2");
     assert_eq!(ui.modal(), None, "the menu closes");
-    assert_eq!(ui.state.stage_material, amenui::style::Material::Halftone);
-    assert_eq!(ui.state.look().material, amenui::style::Material::Dot, "the page around the stage keeps the site's material");
+    assert_eq!(ui.state.stage_material, amenui::style::Material::Halftonr);
+    assert_eq!(ui.state.look().material, amenui::style::Material::Dottr, "the page around the stage keeps the site's material");
     assert!(ui.split().is_none());
     // Reset gives the stage back its material.
     click(&mut ui, "doc/button/look/reset");
-    assert_eq!(ui.state.stage_material, amenui::style::Material::Dot);
+    assert_eq!(ui.state.stage_material, amenui::style::Material::Dottr);
     // A style page changes everything, from the rail item pressed (the styles are in the Lab's rail).
     go(&mut ui, Page::Presets);
     click(&mut ui, "nav/style-bauhaus");
     assert!(ui.split().is_some());
-    assert_eq!(ui.state.material, amenui::style::Material::Halftone);
+    assert_eq!(ui.state.material, amenui::style::Material::Halftonr);
     assert_eq!(ui.state.theme().name, "包豪斯");
     // Any page without a look of its own is in the site's look again.
     go(&mut ui, comp("button"));
     assert_eq!(ui.state.theme, 0);
-    assert_eq!(ui.state.material, amenui::style::Material::Dot);
+    assert_eq!(ui.state.material, amenui::style::Material::Dottr);
 }
 
 #[test]

@@ -76,7 +76,7 @@ fn drag_orbits_and_coasts_wheel_dollies_keys_turn() {
 fn a_front_loosens_a_mesh() {
     let mut ui = ui();
     let r = ui.node("three/field").expect("field").rect;
-    ui.state.cmds.push(amenui::morph::Cmd::Front { x: r.center().0, y: r.center().1, strength: 1.0 });
+    ui.state.cmds.push(amenui::morph::Cmd::Ripplr { x: r.center().0, y: r.center().1, strength: 1.0 });
     ui.relayout();
     let t = ui.now() + 0.05;
     ui.tick(t);

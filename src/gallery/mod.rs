@@ -22,7 +22,7 @@ pub mod english;
 use crate::demo::{self, Demo};
 use amenui::el::{El, Paint, col, row, space, text};
 use amenui::morph::{Cmd, Ease, FlowSpec, MorphSpec};
-use amenui::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, PicFx, THEMES, Theme, gaze, set, styles};
+use amenui::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, Markr, THEMES, Theme, gaze, set, styles};
 use amenui::text::Face;
 use amenui::widgets::{Edit, SELECTED, Spec, TextEdit, Variant, button_as, divider, menu, skip_link, vdivider};
 use std::rc::Rc;
@@ -156,7 +156,7 @@ impl Page {
 pub enum Target {
     /// Parameter `i` of component `c`.
     Param(usize, usize),
-    /// `PicFx` field `i` of mark set `s` (see `demo::PIC_PARAMS`).
+    /// `Markr` field `i` of mark set `s` (see `demo::PIC_PARAMS`).
     Pic(u8, usize),
     Wipe,
     /// The live number on the number page.
@@ -295,7 +295,7 @@ pub struct Gallery {
     /// Which dialog is open (0 = none).
     pub dialog: u8,
     /// One set of mark parameters per mark page, the picture they show, and the compare line.
-    pub marks: [PicFx; set::COUNT],
+    pub marks: [Markr; set::COUNT],
     pub shown: u32,
     pub wipe: f32,
     pub demo: Demo,
@@ -332,7 +332,7 @@ pub struct Gallery {
     pub style: Option<usize>,
     pub gaze: Gaze,
     pub loose_scale: f32,
-    pub style_pic: PicFx,
+    pub style_pic: Markr,
     /// The annotation page's own settings.
     pub gaze_page: Gaze,
     /// What the pointer is over (kept by the runtime), and the clock (for things that tick).
@@ -406,13 +406,13 @@ pub struct Gallery {
 impl Default for Gallery {
     fn default() -> Self {
         Self {
-            page: Page::Comp(0), theme: 0, material: Material::Dot,
+            page: Page::Comp(0), theme: 0, material: Material::Dottr,
             params: COMPONENTS.iter().map(|c| c.params.iter().map(|p| p.default).collect()).collect(),
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
             shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
-            menu: 0, stage_material: Material::Dot, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
+            menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
@@ -422,25 +422,25 @@ impl Default for Gallery {
 }
 
 /// Values that suit each mark set (the same ones the contact sheets use).
-pub fn mark_defaults(s: u8) -> PicFx {
-    let base = PicFx::with_set(s);
+pub fn mark_defaults(s: u8) -> Markr {
+    let base = Markr::with_set(s);
     match s {
-        set::CHARS => PicFx { pitch: 9.0, levels: 16.0, ground: 0.0, gamma: 1.1, ..base },
-        set::DITHER => PicFx { pitch: 3.0, levels: 16.0, ground: 0.0, ..base },
-        set::PIXEL => PicFx { pitch: 6.0, ..base },
-        set::MOSAIC | set::BRICK => PicFx { pitch: 10.0, relief: 1.0, ground: 0.2, ..base },
-        set::GLOW => PicFx { pitch: 8.0, levels: 12.0, ground: 0.0, glow: 1.0, gamma: 0.8, ..base },
-        set::STROKE => PicFx { pitch: 9.0, levels: 8.0, ground: 0.15, follow: 1.0, ..base },
-        set::LED => PicFx { pitch: 7.0, levels: 8.0, ground: 0.0, glow: 0.6, ..base },
-        set::BRAILLE => PicFx { pitch: 8.0, levels: 9.0, ground: 0.0, ..base },
-        set::CUBES => PicFx { pitch: 12.0, levels: 8.0, ground: 0.1, relief: 1.0, ..base },
-        set::HATCH => PicFx { pitch: 9.0, levels: 5.0, ground: 0.0, ..base },
-        set::TOPO => PicFx { pitch: 12.0, levels: 8.0, ground: 0.0, ..base },
-        _ => PicFx { pitch: 8.0, levels: 8.0, ground: 0.15, ..base },
+        set::CHARS => Markr { pitch: 9.0, levels: 16.0, ground: 0.0, gamma: 1.1, ..base },
+        set::DITHER => Markr { pitch: 3.0, levels: 16.0, ground: 0.0, ..base },
+        set::PIXEL => Markr { pitch: 6.0, ..base },
+        set::MOSAIC | set::BRICK => Markr { pitch: 10.0, relief: 1.0, ground: 0.2, ..base },
+        set::GLOW => Markr { pitch: 8.0, levels: 12.0, ground: 0.0, glow: 1.0, gamma: 0.8, ..base },
+        set::STROKE => Markr { pitch: 9.0, levels: 8.0, ground: 0.15, follow: 1.0, ..base },
+        set::LED => Markr { pitch: 7.0, levels: 8.0, ground: 0.0, glow: 0.6, ..base },
+        set::BRAILLE => Markr { pitch: 8.0, levels: 9.0, ground: 0.0, ..base },
+        set::CUBES => Markr { pitch: 12.0, levels: 8.0, ground: 0.1, relief: 1.0, ..base },
+        set::HATCH => Markr { pitch: 9.0, levels: 5.0, ground: 0.0, ..base },
+        set::TOPO => Markr { pitch: 12.0, levels: 8.0, ground: 0.0, ..base },
+        _ => Markr { pitch: 8.0, levels: 8.0, ground: 0.15, ..base },
     }
 }
 
-/// `PicFx` slots: the demo uses 0 and 1; the image page 2; the mark pages 3; the style pages 4.
+/// `Markr` slots: the demo uses 0 and 1; the image page 2; the mark pages 3; the style pages 4.
 pub const IMAGE_SLOT: u8 = 2;
 pub const MARK_SLOT: u8 = 3;
 pub const STYLE_SLOT: u8 = 4;
@@ -452,7 +452,7 @@ impl Gallery {
     pub fn look(&self) -> Look {
         let mut pics = self.demo.pics;
         let img = pages::IMAGE;
-        pics[IMAGE_SLOT as usize] = PicFx { pitch: self.param(img, 0), levels: self.param(img, 1), ..PicFx::with_set(set::DOTS) };
+        pics[IMAGE_SLOT as usize] = Markr { pitch: self.param(img, 0), levels: self.param(img, 1), ..Markr::with_set(set::DOTS) };
         if let Page::Marks(s) = self.page { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
         pics[STYLE_SLOT as usize] = self.style_pic;
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
@@ -475,7 +475,7 @@ impl Gallery {
         self.faces = Some(st.faces);
         self.material = st.material; self.demo.material = st.material;
         self.mats = MaterialParams::all();
-        self.mats[st.material as usize] = MaterialParams(st.params);
+        self.mats[st.material.id() as usize] = MaterialParams(st.params);
         self.gaze = st.gaze;
         self.loose_scale = st.loose_scale;
         self.demo.fx.pitch = st.pitch;
@@ -532,7 +532,7 @@ impl Gallery {
     pub fn draft(&self, t: Target) -> Option<&str> { self.edit.as_ref().filter(|(k, _)| *k == t).map(|(_, d)| d.as_str()) }
     /// The look as a recipe: the active preset (the first when none is chosen) as `Preset::recipe`.
     pub fn recipe(&self) -> String { self.presets[self.style.unwrap_or(0).min(self.presets.len().saturating_sub(1))].recipe() }
-    /// Take a recipe (`look:v1:…`): its preset replaces the built-in one it names, and becomes the look.
+    /// Take a recipe (`look:v2:…`): its preset replaces the built-in one it names, and becomes the look.
     pub fn take_recipe(&mut self, r: &str) -> Result<(), amenui::error::PresetError> {
         let p = amenui::preset::Preset::from_recipe(r)?;
         let i = self.presets.iter().position(|q| q.hash == p.hash).unwrap_or(0);
@@ -815,7 +815,7 @@ fn groups(section: Section) -> Vec<(String, Vec<Page>)> {
 
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
     let on = s.page == p;
-    let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripple(amenui::el::Scope::Global)
+    let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripplr(amenui::el::Scope::Global)
         .child(text(p.name(), 14.0, if on { Paint::ACCENT } else { Paint::TEXT }));
     // A style page changes the whole look: the change spreads from the item pressed.
     if matches!(p, Page::Style(_) | Page::Scene(_)) { item = item.commit(); }

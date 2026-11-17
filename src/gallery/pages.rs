@@ -246,8 +246,8 @@ fn ripple(s: &Gallery) -> El<Msg> {
     let neighbour = |i: usize, r: Response, name: &str| col().key(format!("{h}/n{i}")).gap(8.0).align(AlignItems::CENTER).respond(r)
         .child(row().key(format!("{h}/n{i}/shape")).width(64.0).height(40.0).radius(6.0).fill(Paint::hue((i % 3) as u8)))
         .child(text(name, 13.0, Paint::TEXT).key(format!("{h}/n{i}/label")));
-    let area = row().key(format!("{h}/area")).ripple_scope().fill_width().wrap().gap(28.0).pad(28.0, 24.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::CENTER)
-        .child(button_as(format!("{h}/counter"), "计数", Variant::Default, Msg::RipCount).ripple(ripple_scope(s.rip_scope)))
+    let area = row().key(format!("{h}/area")).ripplr_scope().fill_width().wrap().gap(28.0).pad(28.0, 24.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::CENTER)
+        .child(button_as(format!("{h}/counter"), "计数", Variant::Default, Msg::RipCount).ripplr(ripple_scope(s.rip_scope)))
         .child(text(s.rip_count.to_string(), 28.0, Paint::INK).font(Font::Display).key(format!("{h}/count")).width(80.0))
         .child(neighbour(0, Response::Ignore, "忽略"))
         .child(neighbour(1, Response::Nudge, "轻推"))
@@ -395,7 +395,7 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
             let live = col().width(560.0).child(image(&k("live"), BUST, ratio(BUST), IMAGE_SLOT, Some("在图上移动指针，图会在指针附近松开成记号。")));
             (live, vec![
                 ("原图", col().width(220.0).child(image(&k("a"), SKY, ratio(SKY), IMAGE_SLOT, None))),
-                ("完全松开", col().width(220.0).child(picture(SKY, ratio(SKY)).key(k("b")).pic_fx(IMAGE_SLOT).loose(1.0))),
+                ("完全松开", col().width(220.0).child(picture(SKY, ratio(SKY)).key(k("b")).markr(IMAGE_SLOT).loose(1.0))),
                 ("带说明", col().width(220.0).child(image(&k("c"), SKY, ratio(SKY), IMAGE_SLOT, Some("傍晚的天空")))),
             ])
         }
@@ -466,7 +466,7 @@ const MARK_DESC: [&str; set::COUNT] = [
     "等高线：一格里一圈圈同心的线，越亮线越粗，连起来像地图上的等高线。",
 ];
 
-fn pic_value(f: &amenui::style::PicFx, i: usize) -> f32 { let mut c = *f; let (v, k) = demo::pic_slot(&mut c, i); *v * k }
+fn pic_value(f: &amenui::style::Markr, i: usize) -> f32 { let mut c = *f; let (v, k) = demo::pic_slot(&mut c, i); *v * k }
 
 fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     let h = Page::Marks(k).hash();
@@ -496,7 +496,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         }
     }
     let frame = col().key(format!("{h}/frame")).width(pw).height(phh)
-        .child(picture(s.shown, ph as f32 / w as f32).key(format!("{h}/picture")).width(pw).pic_fx(MARK_SLOT).wipe(s.wipe).on_drag(|x, _| Msg::Wipe(x)).absolute(Some(0.0), Some(0.0), None, None))
+        .child(picture(s.shown, ph as f32 / w as f32).key(format!("{h}/picture")).width(pw).markr(MARK_SLOT).wipr(s.wipe).on_drag(|x, _| Msg::Wipe(x)).absolute(Some(0.0), Some(0.0), None, None))
         .child(space(1.5, phh).fill(Paint::INK).key(format!("{h}/divider")).respond(Response::Ignore).absolute(Some(hx - 0.75), Some(0.0), None, None))
         .child(col().key(format!("{h}/handle")).width(26.0).height(26.0).radius(13.0).fill(Paint::GROUND).border(1.5, Paint::INK).respond(Response::Ignore).absolute(Some(hx - 13.0), Some(phh * 0.5 - 13.0), None, None))
         .child(tag("原图 · BEFORE", "before").absolute(Some(10.0), Some(8.0), None, None))
@@ -592,7 +592,7 @@ fn shape(s: &Gallery, i: usize) -> El<Msg> {
     let el = match i {
         0 => { let z = if s.width < super::NARROW { 0.4 } else { 1.0 }; text_lh("Morph", 120.0 * z, 150.0 * z, Paint::INK).font(Font::Display).key(k) }
         1 => col().key(k).width(460.0f32.min(s.width - 60.0)).child(text_lh(PARAGRAPH, 17.0, 30.0, Paint::TEXT)),
-        2 => col().key(k).width(460.0).child(picture(SPHERE, 0.5).key("morph/picture").pic_fx(IMAGE_SLOT)),
+        2 => col().key(k).width(460.0).child(picture(SPHERE, 0.5).key("morph/picture").markr(IMAGE_SLOT)),
         3 => space(220.0, 220.0).key(k).radius(110.0).fill(Paint::ACCENT),
         4 => space(220.0, 220.0).key(k).radius(110.0).border(18.0, Paint::INK),
         5 => button_as(k, "开始", Variant::Accent, Msg::Press).height(56.0).pad(40.0, 0.0).radius(8.0),
@@ -644,7 +644,7 @@ fn flow_page(s: &Gallery) -> El<Msg> {
             let mut g = row().key("flow/list").fill_width().wrap().gap(16.0);
             for (i, (title, sub, id)) in FLOW_ITEMS.iter().enumerate() {
                 g = g.child(col().key(format!("flow/card{i}")).width(270.0).gap(10.0).pad(12.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).on_press(Msg::Open(Some(i)))
-                    .child(col().flow(format!("flow/pic{i}")).child(picture(*id, ratio(*id)).key(format!("flow/card{i}/picture")).pic_fx(IMAGE_SLOT)))
+                    .child(col().flow(format!("flow/pic{i}")).child(picture(*id, ratio(*id)).key(format!("flow/card{i}/picture")).markr(IMAGE_SLOT)))
                     .child(text(*title, 17.0, Paint::INK).font(Font::Display).key(format!("flow/card{i}/title")).flow(format!("flow/title{i}")))
                     .child(text(*sub, 12.0, Paint::DIM)));
             }
@@ -655,7 +655,7 @@ fn flow_page(s: &Gallery) -> El<Msg> {
             col().key("flow/detail").fill_width().gap(18.0)
                 .child(button_as("flow/back", "返回", Variant::Default, Msg::Open(None)))
                 .child(text_lh(title, 40.0, 52.0, Paint::INK).font(Font::Display).key("flow/detail/title").flow(format!("flow/title{i}")))
-                .child(col().width(720.0).flow(format!("flow/pic{i}")).child(picture(id, ratio(id)).key("flow/detail/picture").pic_fx(IMAGE_SLOT)))
+                .child(col().width(720.0).flow(format!("flow/pic{i}")).child(picture(id, ratio(id)).key("flow/detail/picture").markr(IMAGE_SLOT)))
                 .child(text_lh(sub, sz.body, (sz.body * 1.7).round(), Paint::TEXT).key("flow/detail/text"))
         }
     };

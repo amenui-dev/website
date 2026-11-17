@@ -3,7 +3,7 @@
 //! that sets every field parameter exactly and picks the theme and material.
 use amenui::el::{El, Font, Paint, col, picture, row, space, text, text_lh};
 use amenui::scene::Fx;
-use amenui::style::{Look, MATERIALS, Material, PicFx, THEMES, Theme, colour, set};
+use amenui::style::{Look, MATERIALS, Material, Markr, THEMES, Theme, colour, set};
 use amenui::text::{Face, MONO, PIXEL, SANS};
 use amenui::widgets::{Edit, Spec, button, choice, number};
 use taffy::AlignItems;
@@ -12,7 +12,7 @@ pub struct Demo {
     pub count: i32,
     pub fx: Fx,
     /// Slot 0: the picture at the top (loosened by the pointer and fronts). Slot 1: the marks section.
-    pub pics: [PicFx; 8],
+    pub pics: [Markr; 8],
     pub theme: usize,
     pub material: Material,
     /// The parameter being typed into and its text so far.
@@ -24,9 +24,9 @@ pub struct Demo {
 }
 impl Default for Demo {
     fn default() -> Self {
-        let mut pics = [PicFx::default(); 8];
-        pics[1] = PicFx { pitch: 16.0, levels: 16.0, set: set::CHARS as f32, ground: 0.0, gamma: 0.6, ..PicFx::default() };
-        Self { count: 0, fx: Fx::default(), pics, theme: 0, material: Material::Dot, edit: None, picked: None, shown: BUST, wipe: 0.42 }
+        let mut pics = [Markr::default(); 8];
+        pics[1] = Markr { pitch: 16.0, levels: 16.0, set: set::CHARS as f32, ground: 0.0, gamma: 0.6, ..Markr::default() };
+        Self { count: 0, fx: Fx::default(), pics, theme: 0, material: Material::Dottr, edit: None, picked: None, shown: BUST, wipe: 0.42 }
     }
 }
 impl Demo {
@@ -66,7 +66,7 @@ pub fn slot(fx: &mut Fx, i: usize) -> &mut f32 {
 }
 fn value(fx: &Fx, i: usize) -> f32 { *slot(&mut fx.clone(), i) }
 
-/// Every number in `PicFx`, in the order of `pic_slot`. Ids in messages are `PIC + index`.
+/// Every number in `Markr`, in the order of `pic_slot`. Ids in messages are `PIC + index`.
 pub const PIC: usize = 100;
 pub const PIC_PARAMS: [Param; 26] = [
     p("点距", 1.0, 64.0, 1.0, 0, "px"),
@@ -97,7 +97,7 @@ pub const PIC_PARAMS: [Param; 26] = [
     p("色 B 蓝", 0.0, 255.0, 1.0, 0, ""),
 ];
 /// Tints are kept 0..1 and shown 0..255.
-pub fn pic_slot(f: &mut PicFx, i: usize) -> (&mut f32, f32) {
+pub fn pic_slot(f: &mut Markr, i: usize) -> (&mut f32, f32) {
     match i {
         0 => (&mut f.pitch, 1.0), 1 => (&mut f.levels, 1.0), 2 => (&mut f.set, 1.0), 3 => (&mut f.colour, 1.0),
         4 => (&mut f.ground, 1.0), 5 => (&mut f.gamma, 1.0), 6 => (&mut f.spread, 1.0), 7 => (&mut f.follow, 1.0),
@@ -108,7 +108,7 @@ pub fn pic_slot(f: &mut PicFx, i: usize) -> (&mut f32, f32) {
         _ => (&mut f.tint_b[(i - 23).min(2)], 255.0),
     }
 }
-fn pic_value(f: &PicFx, i: usize) -> f32 { let mut c = *f; let (v, k) = pic_slot(&mut c, i); *v * k }
+fn pic_value(f: &Markr, i: usize) -> f32 { let mut c = *f; let (v, k) = pic_slot(&mut c, i); *v * k }
 
 /// The compare line's position.
 pub const WIPE: usize = 200;
@@ -182,7 +182,7 @@ fn content(s: &Demo) -> El<Msg> {
         .child(space(1.0, 8.0))
 }
 
-/// A picture turning into marks, with the compare line and every `PicFx` number of slot 1.
+/// A picture turning into marks, with the compare line and every `Markr` number of slot 1.
 fn marks_section(s: &Demo) -> El<Msg> {
     let th = s.theme();
     let f = &s.pics[1];
@@ -199,7 +199,7 @@ fn marks_section(s: &Demo) -> El<Msg> {
         .child(text_lh("线的右侧是图片完全松开后的样子：先变成无缝的色块，再在每一格里刻记号。拖动图片可以移动这条线。", th.sizes.small + 1.0, (th.sizes.small * 1.8).round(), Paint::DIM))
         .child(choice("show", "图片", &PICTURE_NAMES, s.shown as usize, |i| Msg::Show(i as u32)))
         .child(picture(s.shown, PICTURE_SIZES[s.shown as usize].1 as f32 / PICTURE_SIZES[s.shown as usize].0 as f32)
-            .key("marks-picture").pic_fx(1).wipe(s.wipe).on_drag(|x, _| Msg::Wipe(x)))
+            .key("marks-picture").markr(1).wipr(s.wipe).on_drag(|x, _| Msg::Wipe(x)))
         .child(number("wipe", "对比线位置", s.wipe, WIPE_SPEC, draft(WIPE), |e| Msg::Param(WIPE, e)).width(330.0))
         .child(choice("set", "记号表", &set::NAMES, f.set as usize, |i| Msg::Set(i as u8)))
         .child(choice("colour", "上色", &colour::NAMES, f.colour as usize, |i| Msg::Colour(i as u8)))

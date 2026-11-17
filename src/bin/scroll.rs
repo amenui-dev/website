@@ -12,7 +12,7 @@ use amenui::style::Material;
 /// The window for a page: the article is set narrow so it is much longer than its window.
 fn size(page: &str) -> (u32, u32) { if page == "scene-reading" { (900, 640) } else { (1280, 800) } }
 pub const SPEEDS: [f32; 3] = [120.0, 800.0, 3000.0];
-const MATS: [Material; 6] = [Material::Plain, Material::Dot, Material::Halftone, Material::Ascii, Material::Print, Material::Glitch];
+const MATS: [Material; 6] = [Material::Plain, Material::Dottr, Material::Halftonr, Material::Charr, Material::Smudgr, Material::Glitchr];
 
 fn faces() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 

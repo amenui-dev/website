@@ -87,7 +87,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
             .child(button_as("presets/recipe", "复制配方", Variant::Default, Msg::Preset(PreMsg::Recipe)))
             .child(button_as("presets/export", "导出 JSON", Variant::Default, Msg::Preset(PreMsg::Export)))
             .child(button_as("presets/import", "导入", Variant::Default, Msg::Preset(PreMsg::Import))))
-        .child(textarea("presets/json", &s.pre_json, "配方（look:v1:…）或预设的 JSON：复制，或粘贴一份再导入", 880.0, 6, 20000, |t| Msg::Preset(PreMsg::Json(t))))
+        .child(textarea("presets/json", &s.pre_json, "配方（look:v2:…）或预设的 JSON：复制，或粘贴一份再导入", 880.0, 6, 20000, |t| Msg::Preset(PreMsg::Json(t))))
         .child(text(s.pre_note.clone(), 13.0, Paint::DIM).key("presets/note"));
     col().key("presets/page").fill_width().max_width(1000.0).gap(30.0)
         .child(header(s, h, "风格切换", "preset::Preset · Transition", "每个风格是一份数据：主题、材质和它的参数、字体、标注、交互的性格，和一段过渡。过渡是几个步骤拼成的小程序（按形状揭开、错位的带、淡入、光条、色块、松开、分层、融化、检测框、刻、先画轮廓、撕开），每一步几个数。切到一个风格、进入这个风格的页面，都用目标风格的过渡；过渡中途再切，从此刻的画面接着过渡；输入一直可用。"))

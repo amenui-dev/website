@@ -187,7 +187,7 @@ async function mount(stage, opts) {
   if (rm) { w.set_reduced_motion(rm.matches); if (rm.addEventListener) rm.addEventListener('change', e => { w.set_reduced_motion(e.matches); kick(); }); }
   new ResizeObserver(() => { fit(); w.resize(canvas.width, canvas.height, dpr); if (opts.onResize) opts.onResize(); kick(); }).observe(stage);
   kick();
-  // What a host can change from outside: the page (a path, a hash name or a look:v1: recipe), the
+  // What a host can change from outside: the page (a path, a hash name or a look:v2: recipe), the
   // theme and material by name, the language by tag.
   return {
     w, compiled, kick,

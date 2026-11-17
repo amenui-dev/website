@@ -7,8 +7,8 @@ use amenui::widgets::StackLook;
 fn the_look_follows_the_material() {
     let mut g = website::gallery::Gallery { material: amenui::style::Material::Plain, ..Default::default() };
     assert_eq!(website::gallery::craft::stack_now(&g).look, StackLook::Plain);
-    g.material = amenui::style::Material::Print;
+    g.material = amenui::style::Material::Smudgr;
     assert_eq!(website::gallery::craft::stack_now(&g).look, StackLook::Thick);
-    g.material = amenui::style::Material::Ascii;
-    assert_eq!(website::gallery::craft::stack_now(&g).look, StackLook::Marks(amenui::style::Material::Ascii));
+    g.material = amenui::style::Material::Charr;
+    assert_eq!(website::gallery::craft::stack_now(&g).look, StackLook::Marks(amenui::style::Material::Charr));
 }

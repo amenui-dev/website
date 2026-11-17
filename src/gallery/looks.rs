@@ -43,7 +43,7 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
             .child(segmented(&format!("{h}/seg"), &["日", "周", "月"], s.pick.min(2), 30.0, Msg::Pick)))
         .child(switch(format!("{h}/switch"), "显示网格", s.on, None, Msg::Switch).width(260.0));
     let right = col().key(format!("{h}/right")).width(fit(360.0)).gap(16.0)
-        .child(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).pic_fx(IMAGE_SLOT)))
+        .child(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).markr(IMAGE_SLOT)))
         .child(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(fit(360.0)))
         .child(row().key(format!("{h}/shapes")).gap(14.0).align(AlignItems::CENTER)
             .child(space(84.0, 84.0).radius(42.0).fill(Paint::ACCENT).key(format!("{h}/disc")))
@@ -67,7 +67,7 @@ fn material_page(s: &Gallery, m: u8) -> El<Msg> {
     if MAT_PARAMS[m as usize].is_empty() { nums = nums.child(text("这个材质没有自己的参数；点阵的点距在骨架演示页里设置。", 13.0, Paint::DIM)); }
     let live = row().key(format!("{h}/live")).gap(12.0).wrap().align(AlignItems::CENTER)
         .child(number(&format!("{h}/loose"), "松开度", s.loose, LOOSE_SPEC, s.draft(Target::Loose), |e| Msg::Num(Target::Loose, e)).width(330.0))
-        .child(button_as(format!("{h}/ripple"), "涟漪", Variant::Default, Msg::Nothing).ripple(Scope::Container(Some(format!("{h}/specimen")))))
+        .child(button_as(format!("{h}/ripple"), "涟漪", Variant::Default, Msg::Nothing).ripplr(Scope::Container(Some(format!("{h}/specimen")))))
         .child(text("按“涟漪”从按钮处放出一道波前；松开度把整个样张固定在一个松开的程度。", 13.0, Paint::DIM));
     col().key(format!("{h}/page")).fill_width().max_width(1000.0).gap(34.0)
         .child(header(s, h, mat.name(), &format!("Material::{:?}", mat), MATERIAL_DESC[m as usize]))
@@ -96,7 +96,7 @@ fn sample(_s: &Gallery) -> El<Msg> {
             .child(figure("b", "相册", "38", "相册数"))
             .child(figure("c", "报告", "6", "报告数")))
         .child(row().key("gaze/lower").gap(18.0).align(AlignItems::START)
-            .child(col().key("gaze/pic").width(300.0).annotate("地形图").child(picture(TERRAIN, ratio(TERRAIN)).key("gaze/picture").pic_fx(IMAGE_SLOT)))
+            .child(col().key("gaze/pic").width(300.0).annotate("地形图").child(picture(TERRAIN, ratio(TERRAIN)).key("gaze/picture").markr(IMAGE_SLOT)))
             .child(list))
 }
 

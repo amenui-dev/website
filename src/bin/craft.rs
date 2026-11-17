@@ -182,9 +182,9 @@ fn study_chart(out: &str) {
     r.save(out, "chart", 3);
 }
 /// The field map (DESIGN.md §1.29): the window dragged across the decoration, the picture and the text,
-/// let go, gliding, and the place settled; plain, dot, print and glitch, eight frames each.
+/// let go, gliding, and the place settled; plain, dottr, smudgr and glitchr, eight frames each.
 fn study_stirr(out: &str) {
-    for m in ["plain", "dot", "print", "glitch"] {
+    for m in ["plain", "dottr", "smudgr", "glitchr"] {
         let mut r = Rig::with("stirr", "stirr/stage", m);
         r.shot();
         // Across the row of shapes, then down over the picture and the text.

@@ -43,7 +43,7 @@ fn main() {
     let pairs = [(0, 2, "text-picture"), (2, 0, "picture-text"), (0, 5, "text-button"), (3, 1, "shape-paragraph"), (6, 4, "card-ring")];
     let spec = MorphSpec::default();
     let (l, d, t) = (spec.loosen_ms / 1000.0, spec.duration_ms / 1000.0, spec.tighten_ms / 1000.0);
-    for (mi, mname) in ["plain", "dot"].iter().enumerate() {
+    for (mi, mname) in ["plain", "dottr"].iter().enumerate() {
         for theme in [0usize, 1] {
             for &(from, to, name) in &pairs {
                 let mut ui = gallery::new_ui(faces(), W, H, 1.0);
@@ -74,7 +74,7 @@ fn main() {
     }
 
     // ── Page change ─────────────────────────────────────────────────────────────────────────────
-    for (mi, mname) in ["plain", "dot"].iter().enumerate() {
+    for (mi, mname) in ["plain", "dottr"].iter().enumerate() {
         let mut ui = gallery::new_ui(faces(), W, H, 1.0);
         ui.pointer_leave();
         send(&mut ui, Msg::Go(Page::Flow));

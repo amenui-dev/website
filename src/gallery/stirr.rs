@@ -65,7 +65,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
         .child(deco(3, 120.0, 12.0, 6.0, 3)).child(deco(4, 56.0, 56.0, 0.0, 4)).child(deco(5, 30.0, 70.0, 15.0, 5));
     let words = "A floating window leaves a trail behind it. Decoration beside its path loosens and drifts with the flow, then settles back; the text you read stays legible, and the window never loosens itself.";
     let lower = row().gap(28.0).key("stirr/lower")
-        .child(col().width(260.0).child(picture(SKY, ratio(SKY)).key("stirr/picture").pic_fx(IMAGE_SLOT).respond(Response::Loosen)))
+        .child(col().width(260.0).child(picture(SKY, ratio(SKY)).key("stirr/picture").markr(IMAGE_SLOT).respond(Response::Loosen)))
         .child(col().gap(12.0).width(380.0)
             .child(text(words, 14.0, Paint::TEXT).key("stirr/text"))
             .child(text("LOOSEN · LEGIBLE", 12.0, Paint::DIM).font(Font::Mono).key("stirr/legible").respond(Response::Loosen)));

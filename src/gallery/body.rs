@@ -17,7 +17,7 @@ pub fn update(s: &mut Gallery, m: scene::Msg) {
 pub fn tick(s: &mut Gallery, t: f32) -> bool {
     if s.page != Page::Body { return false; }
     let mut changed = s.body.step(t);
-    if let Some((x, y)) = s.body.take_front() { s.cmds.push(amenui::morph::Cmd::Front { x, y, strength: 1.0 }); changed = true; }
+    if let Some((x, y)) = s.body.take_front() { s.cmds.push(amenui::morph::Cmd::Ripplr { x, y, strength: 1.0 }); changed = true; }
     // The scene's morphs, and the walk's focus and presses.
     if !s.body.cmds.is_empty() { s.cmds.append(&mut s.body.cmds); changed = true; }
     changed

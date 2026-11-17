@@ -129,14 +129,14 @@ fn main() {
 fn dirty() {
     let (w, h) = (1280u32, 800u32);
     let Ok(mut o) = amenui::offscreen::Offscreen::try_new(w, h) else { println!("dirty boxes             (no GPU adapter)"); return };
-    for material in [amenui::style::Material::Plain, amenui::style::Material::Dot] {
+    for material in [amenui::style::Material::Plain, amenui::style::Material::Dottr] {
         for (case, page) in [("hover a button", "button"), ("caret blink", "input"), ("counter press", "button")] {
             let mut row = vec![];
             for partial in [false, true] {
                 o.r.partial = partial;
                 let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
                 gallery::update(&mut ui.state, Msg::Go(Page::from_hash(page).expect("page")));
-                gallery::update(&mut ui.state, Msg::Material(material as usize));
+                gallery::update(&mut ui.state, Msg::Material(material.id() as usize));
                 ui.relayout();
                 ui.pointer_leave();
                 let mut t = 3.0;
@@ -249,7 +249,7 @@ fn strands(runs: usize) {
     let mut out = [0.0f64; 2];
     let mut glyphs = 0;
     for (k, m) in [Material::Plain, Material::Scribblr].into_iter().enumerate() {
-        let mut ui = Ui::new(m as u8, page, |_, _| {}, fonts(), 1280, 800, 1.0).on_look(|m| Look { material: Material::from_id(*m), ..Look::default() });
+        let mut ui = Ui::new(m.id(), page, |_, _| {}, fonts(), 1280, 800, 1.0).on_look(|m| Look { material: Material::from_id(*m), ..Look::default() });
         ui.tick(1.0);
         ui.tick(1.02);
         let mut t = 1.02;

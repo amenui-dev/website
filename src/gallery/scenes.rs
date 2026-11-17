@@ -6,7 +6,7 @@ use super::{Gallery, Msg, Page, Target};
 use crate::demo::{BUST, CUTOUT, SKY, SPHERE, TERRAIN, cutout_alpha};
 use amenui::el::{Cursor, Drag, El, Font, Key, Paint, Phase, col, picture, row, space, stack, text, text_lh};
 use amenui::morph::{Cmd, FlowSpec, MorphSpec};
-use amenui::style::{Gaze, GazeMode, Look, Material, PicFx, colour, gaze, set, styles};
+use amenui::style::{Gaze, GazeMode, Look, Material, Markr, colour, gaze, set, styles};
 use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, segmented, switch, tabs};
 use amenui::wrap::{Around, Silhouette};
 use std::sync::OnceLock;
@@ -284,7 +284,7 @@ pub fn look(g: &Gallery, l: &mut Look) {
         }
         3 => l.fx.pitch = q(3),
         4 => {
-            l.params[Material::Near as usize].0[0] = q(2);
+            l.params[Material::Near.id() as usize].0[0] = q(2);
             l.gaze = if g.sc.apart {
                 Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::BOX | gaze::INDEX | gaze::SIZE | gaze::KIND, density: q(1), draw_ms: 420.0, colour: l.theme.accent, only_marked: true, ..Gaze::default() }
             } else { Gaze { mode: GazeMode::Off, ..l.gaze } };
@@ -303,27 +303,27 @@ pub fn look(g: &Gallery, l: &mut Look) {
 
 // ── Printing's marks ──
 
-/// The `PicFx` slot of the one-strip mode (the five strips use 0–4).
+/// The `Markr` slot of the one-strip mode (the five strips use 0–4).
 const PR_ONE: u8 = 5;
 /// The five strips at base pitch `pitch` and `levels` brightness levels: characters, limited-colour
 /// pixels, strokes along the forms, glow, bricks in relief.
-pub fn print_strips(pitch: f32, levels: f32, accent: [f32; 3]) -> [PicFx; 5] {
-    let base = PicFx { pitch, levels, ground: 0.1, ..PicFx::default() };
+pub fn print_strips(pitch: f32, levels: f32, accent: [f32; 3]) -> [Markr; 5] {
+    let base = Markr { pitch, levels, ground: 0.1, ..Markr::default() };
     [
         // Characters read on a dark ground: never below pitch 9, sixteen glyphs, their own colours,
         // lifted (a gamma under 1 puts the denser glyphs on more of the picture).
-        PicFx { pitch: (pitch + 1.0).max(9.0), levels: 16.0, gamma: 0.7, ground: 0.0, colour: colour::ORIGINAL as f32, ..PicFx { set: set::CHARS as f32, ..base } },
-        PicFx { palette: 3.0, colours: 4.0, spread: 0.6, pitch: (pitch * 0.6).max(3.0), ..PicFx { set: set::PIXEL as f32, ..base } },
-        PicFx { follow: 1.0, colour: colour::TWO as f32, tint_a: [0.05, 0.05, 0.07], tint_b: [0.95, 0.92, 0.84], ..PicFx { set: set::STROKE as f32, ..base } },
-        PicFx { glow: 1.2, gamma: 0.8, ground: 0.0, colour: colour::GIVEN as f32, tint_a: accent, ..PicFx { set: set::GLOW as f32, ..base } },
-        PicFx { relief: 1.4, ground: 0.25, pitch: pitch * 1.3, ..PicFx { set: set::BRICK as f32, ..base } },
+        Markr { pitch: (pitch + 1.0).max(9.0), levels: 16.0, gamma: 0.7, ground: 0.0, colour: colour::ORIGINAL as f32, ..Markr { set: set::CHARS as f32, ..base } },
+        Markr { palette: 3.0, colours: 4.0, spread: 0.6, pitch: (pitch * 0.6).max(3.0), ..Markr { set: set::PIXEL as f32, ..base } },
+        Markr { follow: 1.0, colour: colour::TWO as f32, tint_a: [0.05, 0.05, 0.07], tint_b: [0.95, 0.92, 0.84], ..Markr { set: set::STROKE as f32, ..base } },
+        Markr { glow: 1.2, gamma: 0.8, ground: 0.0, colour: colour::GIVEN as f32, tint_a: accent, ..Markr { set: set::GLOW as f32, ..base } },
+        Markr { relief: 1.4, ground: 0.25, pitch: pitch * 1.3, ..Markr { set: set::BRICK as f32, ..base } },
     ]
 }
 /// The one strip: mark set `s`, pitch, levels and palette `pal` (0 = the picture's own colours, else
 /// `marks::PALETTES[pal - 1]`).
-pub fn print_one(s: f32, pitch: f32, levels: f32, pal: f32) -> PicFx {
+pub fn print_one(s: f32, pitch: f32, levels: f32, pal: f32) -> Markr {
     let s = s.round().clamp(0.0, (set::COUNT - 1) as f32) as u8;
-    let mut f = PicFx { pitch, levels, ..super::mark_defaults(s) };
+    let mut f = Markr { pitch, levels, ..super::mark_defaults(s) };
     if s == set::CHARS { f.pitch = pitch.max(9.0); f.gamma = 0.7; }
     let pal = pal.round() as usize;
     if pal > 0 && pal <= amenui::marks::PALETTES.len() {
@@ -394,7 +394,7 @@ fn tick_opening(g: &mut Gallery, t: f32) -> bool {
             }
             sc.op_acted = true;
             let key = mark_key(sc.op);
-            g.cmds.push(Cmd::FrontAt { key, strength: 0.8 });
+            g.cmds.push(Cmd::RipplrAt { key, strength: 0.8 });
             true
         }
         // The next step: the mark flies from the last control to the next one, as a short trail.
@@ -606,8 +606,8 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
             .child(label("原图".into(), 2.0))
             .child(label(format!("{set_name} · 点距 {:.0} · {pal_name}", f.pitch), (x + 10.0).min(w - 260.0)))
             .child(col().key("pr/one").width(w).height(wh).clip().absolute(Some(0.0), Some(top), None, None)
-                .child(picture(id, r_).key("pr/one-pic").pic_fx(PR_ONE).loose(loose).width(pw).absolute(Some(ox), Some(oy), None, None)
-                    .wipe(((sc.cmp * w - ox) / pw).clamp(0.0, 1.0)).on_drag(move |x, _| Msg::Scene(SMsg::Compare(((x * pw + ox) / w).clamp(0.0, 1.0))))))
+                .child(picture(id, r_).key("pr/one-pic").markr(PR_ONE).loose(loose).width(pw).absolute(Some(ox), Some(oy), None, None)
+                    .wipr(((sc.cmp * w - ox) / pw).clamp(0.0, 1.0)).on_drag(move |x, _| Msg::Scene(SMsg::Compare(((x * pw + ox) / w).clamp(0.0, 1.0))))))
             .child(col().key("pr/compare").width(28.0).height(24.0).absolute(Some(x - 14.0), Some(top + wh), None, None).align(AlignItems::CENTER)
                 .on_drag_with(move |d| Some(Msg::Scene(SMsg::Compare((x + d.dx) / w)))).cursor(Cursor::ColResize)
                 .on_key(move |k, shift| { let s = if shift { 0.1 } else { 0.02 }; let f = x / w; match k { Key::Left => Some(Msg::Scene(SMsg::Compare(f - s))), Key::Right => Some(Msg::Scene(SMsg::Compare(f + s))), _ => None } })
@@ -622,7 +622,7 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
             let (l, r) = (if k == 0 { 0.0 } else { gap * 0.5 }, if k == 4 { 0.0 } else { gap * 0.5 });
             // A window onto the same picture, at the same place: each window shows it in its own marks.
             wall = wall.child(col().key(format!("pr/region{k}")).width((x1 - x0 - l - r).max(0.0)).height(wh).clip().absolute(Some(x0 + l), Some(top), None, None)
-                .child(picture(id, r_).key(format!("pr/pic{k}")).pic_fx(k as u8).loose(loose).width(pw).absolute(Some(ox - x0 - l), Some(oy), None, None)));
+                .child(picture(id, r_).key(format!("pr/pic{k}")).markr(k as u8).loose(loose).width(pw).absolute(Some(ox - x0 - l), Some(oy), None, None)));
             let name = if x1 - x0 > 150.0 { format!("{:02} {} · {:.0}", k + 1, STRIP_NAMES[k], strips[k].pitch) } else { format!("{:02} {}", k + 1, STRIP_NAMES[k]) };
             if x1 - x0 > 56.0 { wall = wall.child(label(name, x0 + l + 2.0)); }
         }
@@ -678,7 +678,7 @@ fn mo_card(g: &Gallery, cw: f32) -> El<Msg> {
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::BASELINE)
             .child(text("山与水", 30.0, Paint::INK).font(Font::Display).weight(1.0))
             .child(text(format!("已出发 {} 次", sc.mo_sent), 13.0, Paint::DIM).font(Font::Mono).key("mo/ui/sent")))
-        .child(picture(SKY, ratio(SKY)).key("mo/ui/pic").pic_fx(super::STYLE_SLOT))
+        .child(picture(SKY, ratio(SKY)).key("mo/ui/pic").markr(super::STYLE_SLOT))
         .child(text_lh("傍晚的山和水。选好份数，按“出发”，界面又变回那个字。", 14.0, 22.0, Paint::TEXT))
         .child(row().fill_width().gap(14.0).align(AlignItems::CENTER).wrap()
             .child(switch("mo/ui/fav", "收藏", sc.mo_on, None, Msg::Scene(SMsg::MoSwitch)).width(130.0))
@@ -695,8 +695,8 @@ fn morph(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let cw = (w - 16.0).min(520.0);
     let forms = [
         text_lh("山与水", size, size * 1.12, Paint::INK).font(Font::Display).weight((size * 0.035).min(10.0)),
-        col().width(pw).child(picture(SKY, ratio(SKY)).key("mo/pic").pic_fx(super::STYLE_SLOT)),
-        col().width(pw).child(picture(SKY, ratio(SKY)).key("mo/marks").pic_fx(super::STYLE_SLOT).loose(1.0)),
+        col().width(pw).child(picture(SKY, ratio(SKY)).key("mo/pic").markr(super::STYLE_SLOT)),
+        col().width(pw).child(picture(SKY, ratio(SKY)).key("mo/marks").markr(super::STYLE_SLOT).loose(1.0)),
         mo_card(g, cw),
     ];
     let stage = stack(forms.into_iter().enumerate().map(|(i, e)| col().key(form_key(i)).hidden_until_morphed(i != f).child(e))).key("mo/stack");
@@ -826,7 +826,7 @@ fn tick_sound(g: &mut Gallery, t: f32) -> bool {
         // The kick: a front from below the middle of the page, as strong as the low end times the
         // intensity; at intensity 0 nothing moves. The strip and the controls are calm (`El::calm`).
         let s = (g.sc.p[5][1] * g.sc.p[5][2] * 0.9).clamp(0.0, 1.0);
-        if s > 0.01 { g.cmds.push(Cmd::Front { x: g.width * 0.5, y: g.height * 0.92, strength: s }); }
+        if s > 0.01 { g.cmds.push(Cmd::Ripplr { x: g.width * 0.5, y: g.height * 0.92, strength: s }); }
     }
     true
 }
@@ -887,7 +887,7 @@ fn styles_scene(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
         .child(text("星期五　·　11 月 14 日", 13.0, Paint::DIM).font(Font::Mono))
         .child(text_lh("今天，晴", if narrow { 56.0 } else { 96.0 }, if narrow { 64.0 } else { 108.0 }, Paint::INK).font(Font::Display).weight(2.0).key("st/headline"))
         .child(row().gap(18.0).fill_width().align(AlignItems::START).wrap()
-            .child(col().width(if narrow { cw } else { cw * 0.55 }).child(picture(SKY, ratio(SKY)).key("st/pic").pic_fx(super::STYLE_SLOT)))
+            .child(col().width(if narrow { cw } else { cw * 0.55 }).child(picture(SKY, ratio(SKY)).key("st/pic").markr(super::STYLE_SLOT)))
             .child(col().grow(1.0).gap(10.0).min_width(180.0)
                 .child(text_lh("傍晚六点日落。风从东北来，夜里降到九度。适合散步，记得带一件外套。", 15.0, 25.0, Paint::TEXT))
                 .child(row().gap(10.0).wrap()
@@ -996,7 +996,7 @@ fn thumb(i: usize, w: f32) -> El<Msg> {
         1 => base.child(text_lh("文字沿着圆的边缘排开，每一行只占用没有被挡住的部分，留出一条均匀的缝。文字沿着圆的边缘排开，每一行只占用没有被挡住的部分。", 11.0, 18.0, Paint::DIM).fill_width()
                 .around(Around::new(vec![Silhouette::circle(w * 0.5, 50.0, 34.0)], 6.0)))
             .child(space(68.0, 68.0).radius(34.0).fill(Paint::ACCENT).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
-        2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).pic_fx(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
+        2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).markr(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
         3 => base.child(row().gap(12.0).align(AlignItems::CENTER).height(h)
             .child(text("山", 64.0, Paint::INK).font(Font::Display))
             .child(text("→", 20.0, Paint::DIM))

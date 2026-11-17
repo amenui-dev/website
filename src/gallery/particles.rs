@@ -70,7 +70,7 @@ fn form(s: &Gallery, i: usize) -> El<Msg> {
     let el = match i {
         0 => scene3d(mesh(MeshId::ICO[1], 20.0)).key(k).width(420.0).height(420.0),
         1 => text_lh("粒子", 220.0, 260.0, Paint::INK).font(Font::Display).weight(4.0).key(k),
-        2 => col().key(k).width(760.0).child(picture(SKY, super::pages::ratio(SKY)).key("parts/picture").pic_fx(IMAGE_SLOT)),
+        2 => col().key(k).width(760.0).child(picture(SKY, super::pages::ratio(SKY)).key("parts/picture").markr(IMAGE_SLOT)),
         _ => scene3d(mesh(MeshId::TORUS, -30.0)).key(k).width(560.0).height(420.0),
     };
     el.hidden_until_morphed(i != s.parts.shape)
@@ -79,7 +79,7 @@ fn form(s: &Gallery, i: usize) -> El<Msg> {
 pub fn page(s: &Gallery) -> El<Msg> {
     let h = "parts";
     let stage = stack((0..FORMS.len()).map(|i| form(s, i))).key("parts/stage").width(STAGE.0).height(STAGE.1).radius(6.0).border(1.0, Paint::FAINT)
-        .ripple_scope().ripple(Scope::Container(None));
+        .ripplr_scope().ripplr(Scope::Container(None));
     let controls = row().key("parts/controls").wrap().gap(12.0).align(AlignItems::CENTER)
         .child(button_as("parts/next", "下一步", Variant::Accent, Msg::Parts(PMsg::Next)))
         .child(segmented("parts/forms", &FORMS, s.parts.shape, 30.0, |i| Msg::Parts(PMsg::To(i))));

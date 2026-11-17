@@ -69,7 +69,7 @@ use amenui::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use amenui::morph::MorphSpec;
 use amenui::marks::PALETTES;
 use amenui::offscreen::Offscreen;
-use amenui::style::{DARK, Gaze, GazeMode, LIGHT, Look, MATERIAL_COUNT, Material, PicFx, Theme, gaze, set};
+use amenui::style::{DARK, Gaze, GazeMode, LIGHT, Look, MATERIAL_COUNT, Material, Markr, Theme, gaze, set};
 use amenui::text::{MONO, PIXEL, SANS, load_bundled};
 use amenui::ui::Ui;
 
@@ -147,21 +147,21 @@ fn main() {
 
     // ── 1. The page's ground never shows inside a loosened picture ──────────────────────────────────
     let ground = rgb8(LIGHT.ground);
-    let mut configs: Vec<(String, PicFx)> = Vec::new();
+    let mut configs: Vec<(String, Markr)> = Vec::new();
     for s in 0..set::COUNT as u8 {
         for (pitch, ground_k) in [(8.0, 0.0), (13.0, 0.3), (40.0, 1.0)] {
             for c in 0..4 {
                 configs.push((format!("set {} pitch {pitch} ground {ground_k} colour {c}", set::NAMES[s as usize]),
-                    PicFx { pitch, ground: ground_k, colour: c as f32, levels: 12.0, spread: 0.5, ..PicFx::with_set(s) }));
+                    Markr { pitch, ground: ground_k, colour: c as f32, levels: 12.0, spread: 0.5, ..Markr::with_set(s) }));
             }
         }
-        configs.push((format!("set {} relief glow follow", set::NAMES[s as usize]), PicFx { pitch: 12.0, relief: 1.5, glow: 2.0, follow: 1.0, ..PicFx::with_set(s) }));
+        configs.push((format!("set {} relief glow follow", set::NAMES[s as usize]), Markr { pitch: 12.0, relief: 1.5, glow: 2.0, follow: 1.0, ..Markr::with_set(s) }));
     }
     for (i, p) in PALETTES.iter().enumerate() {
-        configs.push((format!("palette {}", p.0), PicFx { pitch: 6.0, set: set::PIXEL as f32, palette: i as f32, colours: p.1 as f32, spread: 0.6, ..PicFx::default() }));
+        configs.push((format!("palette {}", p.0), Markr { pitch: 6.0, set: set::PIXEL as f32, palette: i as f32, colours: p.1 as f32, spread: 0.6, ..Markr::default() }));
     }
-    configs.push(("regions by hash".into(), PicFx { pitch: 7.0, regions: 5.0, region_by: 0.0, ..PicFx::default() }));
-    configs.push(("regions by brightness".into(), PicFx { pitch: 7.0, regions: 5.0, region_by: 1.0, ..PicFx::default() }));
+    configs.push(("regions by hash".into(), Markr { pitch: 7.0, regions: 5.0, region_by: 0.0, ..Markr::default() }));
+    configs.push(("regions by brightness".into(), Markr { pitch: 7.0, regions: 5.0, region_by: 1.0, ..Markr::default() }));
     let mut ui = Ui::new(One { id: SKY, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
     let mut worst = 0usize;
     let mut checked = 0usize;
@@ -171,7 +171,7 @@ fn main() {
         ui.tick(100.0);
         let (x0, y0, x1, y1) = device_rect(ui.node("pic").expect("pic").rect, 1.0);
         for (name, f) in &configs {
-            let mut look = Look { theme: LIGHT, material: Material::Dot, ..Look::default() };
+            let mut look = Look { theme: LIGHT, material: Material::Dottr, ..Look::default() };
             look.pics[0] = *f;
             let img = o.render(&mut ui, &look);
             let n = (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).filter(|&(x, y)| close(px(&img, W, x, y), ground)).count();
@@ -188,10 +188,10 @@ fn main() {
     let before = failed;
     let mut max_diff = 0;
     for id in [SKY, BUST] {
-        for f in [PicFx::with_set(set::CHARS), PicFx { glow: 2.0, relief: 2.0, follow: 1.0, depth: 10.0, ..PicFx::with_set(set::GLOW) },
-                  PicFx { palette: 1.0, colours: 3.0, spread: 1.0, ..PicFx::with_set(set::DITHER) }, PicFx { regions: 4.0, ..PicFx::default() }] {
-            let f = PicFx { pitch: 1.0, ..f };
-            let mut look = Look { theme: LIGHT, material: Material::Dot, ..Look::default() };
+        for f in [Markr::with_set(set::CHARS), Markr { glow: 2.0, relief: 2.0, follow: 1.0, depth: 10.0, ..Markr::with_set(set::GLOW) },
+                  Markr { palette: 1.0, colours: 3.0, spread: 1.0, ..Markr::with_set(set::DITHER) }, Markr { regions: 4.0, ..Markr::default() }] {
+            let f = Markr { pitch: 1.0, ..f };
+            let mut look = Look { theme: LIGHT, material: Material::Dottr, ..Look::default() };
             look.pics[0] = f;
             let mut ui = Ui::new(One { id, loose: 0.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
             ui.tick(100.0);
@@ -217,8 +217,8 @@ fn main() {
     }
     // Control: at pitch 8 the same comparison does see the marks.
     {
-        let mut look = Look { theme: LIGHT, material: Material::Dot, ..Look::default() };
-        look.pics[0] = PicFx::with_set(set::CHARS);
+        let mut look = Look { theme: LIGHT, material: Material::Dottr, ..Look::default() };
+        look.pics[0] = Markr::with_set(set::CHARS);
         let mut ui = Ui::new(One { id: BUST, loose: 0.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
         ui.tick(100.0);
         let base = o.render(&mut ui, &look);
@@ -267,7 +267,7 @@ fn main() {
     if !gpu_ok { eprintln!("   no GPU particle tier here: the GPU path is not checked"); }
     for (pair, name) in PAIR_NAMES.iter().enumerate() {
         // Both paths: the CPU's tiles, and the GPU's simulated grid (every morph above 0 tiles).
-        for (material, gpu) in [(Material::Plain, false), (Material::Dot, false), (Material::Plain, true), (Material::Dot, true)] {
+        for (material, gpu) in [(Material::Plain, false), (Material::Dottr, false), (Material::Plain, true), (Material::Dottr, true)] {
             if gpu && !gpu_ok { continue; }
             let look = Look { theme: DARK, material, ..Look::default() };
             let new = |s: Stage| { let mut ui = Ui::new(s, stage, |_, _| {}, fonts(), W, H, 1.0); ui.pointer_leave(); ui };
@@ -295,7 +295,7 @@ fn main() {
             if d > 2 || e > 2 { eprintln!("FAIL morph {}: {:?} differs", name, material); failed += 1; }
         }
         // (c) Mid-flight, light theme: tiles outside both elements' rects.
-        let look = Look { theme: LIGHT, material: Material::Dot, ..Look::default() };
+        let look = Look { theme: LIGHT, material: Material::Dottr, ..Look::default() };
         let mut moving = Ui::new(Stage { pair, loose: [0.0, 0.0], shown: [true, false] }, stage, |_, _| {}, fonts(), W, H, 1.0);
         moving.pointer_leave();
         moving.tick(t0);
@@ -329,7 +329,7 @@ fn main() {
             m.tick(t);
             m.morph("a", "b", spec);
             m.pointer_move(300.0, 200.0);
-            let look = Look { theme: DARK, material: Material::Dot, ..Look::default() };
+            let look = Look { theme: DARK, material: Material::Dottr, ..Look::default() };
             while t < t1 + 0.4 { t += 1.0 / 60.0; m.tick(t); let _ = o.render(&mut m, &look); }
             frames.push(o.render(&mut m, &look));
         }
@@ -353,9 +353,9 @@ fn main() {
             let img = o.render(&mut ui, &look);
             // The dot material's ground has its units at rest (§1.6): there only the glyphs' own
             // pixels are compared.
-            let d = if mat == Material::Dot { diff_ink(&plain, &img, r, rgb8(theme.ground)) } else { diff(&plain, &img, r) };
+            let d = if mat == Material::Dottr { diff_ink(&plain, &img, r, rgb8(theme.ground)) } else { diff(&plain, &img, r) };
             // Print's paper grain moves the ground by at most grain × 2.75 % (7/255 at the default).
-            let allowed = if mat == Material::Print { 8 } else { 0 };
+            let allowed = if mat == Material::Smudgr { 8 } else { 0 };
             eprintln!("   rest {} {:?}: body differs from plain by {d}/255", theme.name, mat);
             if d > allowed { eprintln!("FAIL rest: {:?} body text is not exact at rest ({d}/255)", mat); failed += 1; }
             if theme.name == DARK.name {
@@ -378,7 +378,7 @@ fn main() {
     ui.tick(100.0);
     let (x0, y0, x1, y1) = device_rect(ui.node("pic").expect("pic").rect, 1.0);
     for m in 0..MATERIAL_COUNT as u8 {
-        for f in [PicFx::default(), PicFx { pitch: 12.0, ground: 0.0, ..PicFx::with_set(set::CHARS) }, PicFx { pitch: 6.0, ..PicFx::with_set(set::STROKE) }] {
+        for f in [Markr::default(), Markr { pitch: 12.0, ground: 0.0, ..Markr::with_set(set::CHARS) }, Markr { pitch: 6.0, ..Markr::with_set(set::STROKE) }] {
             let mut look = Look { theme: LIGHT, material: Material::from_id(m), ..Look::default() };
             look.pics[0] = f;
             // A front mid-way, too, for the materials that move things.
@@ -498,7 +498,7 @@ fn main() {
 
     // ── 12. The material at half resolution leaves rest pixels exact ────────────────────────────────
     let before = failed;
-    let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Dot, deco: false }, rest, |_, _| {}, fonts(), W, H, 1.0);
+    let mut ui = Ui::new(Rest { loose: 0.0, mat: Material::Dottr, deco: false }, rest, |_, _| {}, fonts(), W, H, 1.0);
     ui.pointer_leave();
     ui.tick(100.0);
     let r = ui.node("body").expect("body").rect;
@@ -514,11 +514,11 @@ fn main() {
         worst = worst.max(whole);
         if whole > 0 { eprintln!("FAIL quality 0.5: {:?} at rest differs from quality 1 by {whole}/255", mat); failed += 1; }
         if !matches!(mat, Material::Near) {
-            let d = if mat == Material::Dot { diff_ink(&plain, &half, r, rgb8(DARK.ground)) } else { diff(&plain, &half, r) };
-            let allowed = if mat == Material::Print { 8 } else { 0 };
+            let d = if mat == Material::Dottr { diff_ink(&plain, &half, r, rgb8(DARK.ground)) } else { diff(&plain, &half, r) };
+            let allowed = if mat == Material::Smudgr { 8 } else { 0 };
             if d > allowed { eprintln!("FAIL quality 0.5: {:?} body text is not plain's at rest ({d}/255)", mat); failed += 1; }
         }
-        if matches!(mat, Material::Dot | Material::Halftone | Material::Ascii) {
+        if matches!(mat, Material::Dottr | Material::Halftonr | Material::Charr) {
             // Control: loosened, half resolution is seen.
             ui.state.loose = 1.0; ui.relayout(); ui.tick(100.0);
             let a = o.render(&mut ui, &Look { material: mat, ..Look::default() });
@@ -553,7 +553,7 @@ fn recompose(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> 
     // Every tile has landed by (1 − 0.05 × stagger) of the flight; the run ends at the flight's end.
     let landed = t0 + flight * (1.0 - 0.025 * spec.stagger);
     for (from, to) in [("19", "20"), ("计数 9", "计数 10"), ("3.5 px", "3.6 px")] {
-        for material in [Material::Plain, Material::Dot] {
+        for material in [Material::Plain, Material::Dottr] {
             let look = Look { theme: DARK, material, ..Look::default() };
             let plain = |s: &str, t: f32| { let mut ui = Ui::new(Num(s.into()), num, |_, _| {}, fonts(), W, H, 1.0); ui.pointer_leave(); ui.tick(t); ui };
             let mut moving = plain(from, t0);
@@ -730,14 +730,14 @@ fn components(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
             if mask.len() < 200 { eprintln!("FAIL control: only {} glyph pixels on {hash}", mask.len()); failed += 1; }
             for (mi, (mat, mname)) in MATERIALS.iter().enumerate() {
                 if matches!(mat, Material::Plain | Material::Near) { continue; }
-                if theme == 1 && !matches!(mat, Material::Print | Material::Lino) { continue; }
+                if theme == 1 && !matches!(mat, Material::Smudgr | Material::Carvr) { continue; }
                 let mut ui = page(c, theme, mi);
                 let look = ui.state.look();
                 let full = o.render(&mut ui, &look);
                 o.r.hide_glyphs = true;
                 let bare = o.render(&mut ui, &look);
                 o.r.hide_glyphs = false;
-                let allowed = if *mat == Material::Print { 8 } else { 1 };
+                let allowed = if *mat == Material::Smudgr { 8 } else { 1 };
                 let (mut bad, mut d_max) = (0, 0);
                 for &(x, y) in &mask {
                     let (a, b, ba, bb) = (px(&full_p, w, x, y), px(&full, w, x, y), px(&bare_p, w, x, y), px(&bare, w, x, y));
@@ -826,7 +826,7 @@ fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usi
     // Turning by 0 changes nothing, and a new renderer draws the same.
     let mut ui = Ui::new(Obj { yaw: 20.0, scale: 0.5, crease: 15.0 }, obj, |_, _| {}, fonts(), W, H, 1.0);
     ui.tick(2.0);
-    let look = Look { material: Material::Ascii, ..Look::default() };
+    let look = Look { material: Material::Charr, ..Look::default() };
     let a = o.render(&mut ui, &look);
     ui.state.yaw += 0.0; ui.relayout(); ui.tick(2.1);
     let b = o.render(&mut ui, &look);
@@ -1093,7 +1093,7 @@ fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
         ("grain", PostSpec { grain: Grain { amount: 0.1, size: 1.0 }, ..PostSpec::default() }),
         ("vignette", PostSpec { vignette: Vignette { strength: 0.6, radius: 0.4 }, ..PostSpec::default() }),
         ("curvature", PostSpec { curvature: Curvature { amount: 0.12 }, ..PostSpec::default() }),
-        ("dither", PostSpec { dither: Dither { kind: DitherKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() }),
+        ("dither", PostSpec { dithr: Dithr { kind: DithrKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() }),
     ];
     for (name, p) in &effects {
         let img = o.render(&mut ui, &with(p.clone()));
@@ -1102,7 +1102,7 @@ fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
         // A still page is a still image: the same frame again is the same bytes.
         if o.render(&mut ui, &with(p.clone())) != img { eprintln!("FAIL {name} is not the same image twice"); failed += 1; }
     }
-    // Dither at two levels with no palette: every channel is 0 or 255.
+    // Dithr at two levels with no palette: every channel is 0 or 255.
     let img = o.render(&mut ui, &with(effects[6].1.clone()));
     let odd = img.chunks(4).filter(|p| p[..3].iter().any(|&v| v > 1 && v < 254)).count();
     if odd > 0 { eprintln!("FAIL two-level dither leaves {odd} px between 0 and 255"); failed += 1; }
@@ -1111,8 +1111,8 @@ fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     kinds.push(Palette { kind: PaletteKind::User, colors: vec![[10, 20, 30], [200, 40, 60], [240, 230, 200]] });
     for pal in kinds {
         let cols = pal.resolved();
-        for kind in [DitherKind::None, DitherKind::Bayer8, DitherKind::BlueNoise, DitherKind::AtkinsonLike] {
-            let img = o.render(&mut ui, &with(PostSpec { palette: pal.clone(), dither: Dither { kind, levels: 4, strength: 1.0 }, ..PostSpec::default() }));
+        for kind in [DithrKind::None, DithrKind::Bayer8, DithrKind::BlueNoise, DithrKind::AtkinsonLike] {
+            let img = o.render(&mut ui, &with(PostSpec { palette: pal.clone(), dithr: Dithr { kind, levels: 4, strength: 1.0 }, ..PostSpec::default() }));
             let out = img.chunks(4).filter(|p| !cols.iter().any(|c| (0..3).all(|i| (p[i] as i32 - c[i] as i32).abs() <= 1))).count();
             if out > 0 { eprintln!("FAIL palette {:?} with {kind:?}: {out} px are not palette colours", pal.kind); failed += 1; }
         }
@@ -1122,7 +1122,7 @@ fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     let out = off.chunks(4).filter(|p| !cols.iter().any(|c| (0..3).all(|i| (p[i] as i32 - c[i] as i32).abs() <= 1))).count();
     if out < (w * h / 2) as usize { eprintln!("FAIL control: the page already looks quantised ({out} px off the palette)"); failed += 1; }
     // Drawn in part with the pass on is the same as drawn whole (the kept frame is the one before it).
-    let all = with(PostSpec { chroma: Chroma { offset: 2.0 }, scanlines: Scanlines { strength: 0.3, period: 3.0 }, dither: Dither { kind: DitherKind::Bayer4, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, curvature: Curvature { amount: 0.05 }, ..PostSpec::default() });
+    let all = with(PostSpec { chroma: Chroma { offset: 2.0 }, scanlines: Scanlines { strength: 0.3, period: 3.0 }, dithr: Dithr { kind: DithrKind::Bayer4, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, curvature: Curvature { amount: 0.05 }, ..PostSpec::default() });
     let k = ui.nodes().iter().find(|n| n.kind() == "image").map(|n| n.key.clone()).expect("a picture");
     let (x, y) = ui.node(&k).expect("picture").rect.center();
     let mut t = 6.0;
@@ -1362,7 +1362,7 @@ fn scr_page(s: &Scr) -> El<()> {
 }
 fn scr_look(s: &Scr) -> Look {
     let mut l = Look { theme: if s.light { LIGHT } else { DARK }, material: s.mat, ..Look::default() };
-    l.params[Material::Scribblr as usize].0[0] = s.weight;
+    l.params[Material::Scribblr.id() as usize].0[0] = s.weight;
     l
 }
 fn scribblr(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
@@ -1489,7 +1489,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     eprintln!("20.4 written back: {} failing", failed - before);
     // 5. Drawn in part = drawn whole with the threads, under scribblr.
     let mut o3 = Offscreen::new(900, 640);
-    let (frames, bad) = trail_in_part(fonts, &mut o3, &[Material::Scribblr as usize]);
+    let (frames, bad) = trail_in_part(fonts, &mut o3, &[Material::Scribblr.id() as usize]);
     failed += bad;
     eprintln!("20.5 threads drawn in part: {frames} frames, {bad} failing");
     failed += finishing(fonts);
@@ -1518,7 +1518,7 @@ fn readouts(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     let mut failed = 0;
     let magenta = [255u8, 0, 255];
     let g = Gaze { mode: GazeMode::All, kinds: gaze::EDGE | gaze::OSC | gaze::LEVEL, density: 20.0, draw_ms: 0.0, colour: [1.0, 0.0, 1.0], only_marked: false, ..Gaze::default() };
-    for (w, h, scale, mat) in [(W, H, 1.0f32, Material::Dot), (W, H, 1.0, Material::Plain), (W * 2, H * 2, 2.0, Material::Plain)] {
+    for (w, h, scale, mat) in [(W, H, 1.0f32, Material::Dottr), (W, H, 1.0, Material::Plain), (W * 2, H * 2, 2.0, Material::Plain)] {
         let mut o = Offscreen::new(w, h);
         let mut ui = Ui::new(Ed { g, cmds: vec![], mat }, edged, |_, _| {}, fonts(), w, h, scale).on_gaze(|s| s.g).on_commands(|s| std::mem::take(&mut s.cmds))
             .on_look(|s| Look { theme: DARK, material: s.mat, ..Look::default() });

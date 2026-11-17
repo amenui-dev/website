@@ -131,7 +131,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
         nums = nums.child(number(&format!("three/p{i}"), d.name, v, d.spec, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));
     }
     // The ascii material's normal weight lives with the material; it is here too.
-    let ascii = amenui::style::Material::Ascii as u8;
+    let ascii = amenui::style::Material::Charr.id();
     let aw = amenui::style::MAT_PARAMS[ascii as usize][3];
     let tg = Target::Mat(ascii, 3);
     nums = nums.child(number("three/ascii-normal", "ASCII 法线权重", s.mats[ascii as usize].0[3], amenui::widgets::Spec { min: aw.min, max: aw.max, step: aw.step, decimals: aw.decimals, unit: aw.unit }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));

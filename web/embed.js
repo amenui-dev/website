@@ -1,9 +1,9 @@
 // <amenui-view>: the framework as a custom element, for any page or framework that renders HTML (plain
 // HTML, React, Vue, Svelte, Angular). Attributes in, events out, sized by its box (a ResizeObserver).
 //
-//   <amenui-view page="button" theme="dark" material="dot" locale="en" style="height: 480px"></amenui-view>
+//   <amenui-view page="button" theme="dark" material="dottr" locale="en" style="height: 480px"></amenui-view>
 //
-// Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v1:…`
+// Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v2:…`
 // string; wins over the page's own look), `theme` and `material` (names as the render tool takes
 // them), `locale` (`zh-Hans`, `en`). Events: `amenui-ready` once it draws, `amenui-route` with
 // `detail.page` whenever the page changes inside it. Methods: `focus()`.

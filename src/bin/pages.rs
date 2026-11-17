@@ -274,7 +274,7 @@ fn components(out: &str, scale: f32) {
     let mut o = Offscreen::new(w, h);
     for (mi, (mat, mname)) in MATERIALS.iter().enumerate() {
         if *mat == Material::Near { continue; }
-        let themes: &[usize] = if matches!(mat, Material::Print | Material::Lino) { &[0, 1] } else { &[0] };
+        let themes: &[usize] = if matches!(mat, Material::Smudgr | Material::Carvr) { &[0, 1] } else { &[0] };
         for &ti in themes {
             let tname = THEME_FILE[ti];
             let mut tiles = vec![];

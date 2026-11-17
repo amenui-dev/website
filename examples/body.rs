@@ -71,8 +71,8 @@ pub const KEY_TURN: f32 = 0.6;
 pub const SPECIMEN: (f32, f32) = (360.0, 268.0);
 pub const SPECIMEN_PHONE_H: f32 = 204.0;
 pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
-    use amenui::style::Material::{Dot, Lino, Near, Plain};
-    [("plain", Plain), ("near", Near), ("dot", Dot), ("lino", Lino)]
+    use amenui::style::Material::{Carvr, Dottr, Near, Plain};
+    [("plain", Plain), ("near", Near), ("dottr", Dottr), ("carvr", Carvr)]
 };
 /// The intro's morphs (loosen, flight, tighten in ms) and the short one of a change at rest or a skip.
 pub const MORPH_INTRO: (f32, f32, f32) = (220.0, 900.0, 260.0);

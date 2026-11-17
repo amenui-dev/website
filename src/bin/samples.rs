@@ -9,7 +9,7 @@
 use amenui::el::{El, Paint, col, scene3d, text};
 use amenui::mesh::{Mat4, MeshId, Scene3d};
 use amenui::offscreen::{Offscreen, crop, save_png, sheet};
-use amenui::style::{DARK, Look, MATERIALS, Material, PicFx, set};
+use amenui::style::{DARK, Look, MATERIALS, Material, Markr, set};
 use amenui::ui::Ui;
 
 const S: u32 = 300;
@@ -162,7 +162,7 @@ fn mesh(out: &str) {
     }
     for s in [set::DOTS, set::CHARS, set::STROKE, set::PIXEL] {
         let mut look = Look { theme: DARK, material: Material::Plain, ..Look::default() };
-        look.pics[0] = PicFx { pitch: if s == set::CHARS { 9.0 } else { 6.0 }, levels: 10.0, ground: 0.1, follow: if s == set::STROKE { 1.0 } else { 0.0 }, ..PicFx::with_set(s) };
+        look.pics[0] = Markr { pitch: if s == set::CHARS { 9.0 } else { 6.0 }, levels: 10.0, ground: 0.1, follow: if s == set::STROKE { 1.0 } else { 0.0 }, ..Markr::with_set(s) };
         shot(One { loose: 1.0, picture: true, yaw: 0.0 }, look, "marks");
     }
     let (w, h, px) = sheet(&frames, 8);
@@ -191,10 +191,10 @@ fn looks(out: &str) {
         PostSpec { grain: Grain { amount: 0.1, size: 1.0 }, ..PostSpec::default() },
         PostSpec { vignette: Vignette { strength: 0.6, radius: 0.4 }, ..PostSpec::default() },
         PostSpec { curvature: Curvature { amount: 0.1 }, ..PostSpec::default() },
-        PostSpec { dither: Dither { kind: DitherKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() },
-        PostSpec { dither: Dither { kind: DitherKind::BlueNoise, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Moss4, colors: vec![] }, ..PostSpec::default() },
-        PostSpec { dither: Dither { kind: DitherKind::AtkinsonLike, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Originals8, colors: vec![] }, ..PostSpec::default() },
-        PostSpec { dither: Dither { kind: DitherKind::Bayer8, levels: 4, strength: 0.8 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, bloom: Bloom { strength: 0.35, threshold: 0.6, radius: 6.0 }, ..PostSpec::default() },
+        PostSpec { dithr: Dithr { kind: DithrKind::Bayer4, levels: 2, strength: 1.0 }, ..PostSpec::default() },
+        PostSpec { dithr: Dithr { kind: DithrKind::BlueNoise, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Moss4, colors: vec![] }, ..PostSpec::default() },
+        PostSpec { dithr: Dithr { kind: DithrKind::AtkinsonLike, levels: 4, strength: 1.0 }, palette: Palette { kind: PaletteKind::Originals8, colors: vec![] }, ..PostSpec::default() },
+        PostSpec { dithr: Dithr { kind: DithrKind::Bayer8, levels: 4, strength: 0.8 }, palette: Palette { kind: PaletteKind::Amber, colors: vec![] }, bloom: Bloom { strength: 0.35, threshold: 0.6, radius: 6.0 }, ..PostSpec::default() },
     ];
     let mut frames = vec![];
     for p in rows {

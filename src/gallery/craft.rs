@@ -260,7 +260,7 @@ pub const STACK_LOOKS: [&str; 4] = ["craft.stack.auto", "craft.stack.plain", "cr
 /// The stack as the page shows it: its look from the material unless one is forced.
 pub fn stack_now(s: &Gallery) -> Stack {
     let mut st = s.craft.stack.clone();
-    st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == amenui::style::Material::Ascii { s.material } else { amenui::style::Material::Dot }), _ => StackLook::of(s.material) };
+    st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == amenui::style::Material::Charr { s.material } else { amenui::style::Material::Dottr }), _ => StackLook::of(s.material) };
     st
 }
 fn stack_page(s: &Gallery) -> El<Msg> {

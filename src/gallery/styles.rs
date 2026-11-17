@@ -38,7 +38,7 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
-    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(if s.width < super::NARROW { 18.0 } else { 48.0 }, 36.0).ripple_scope().ripple(Scope::Container(None))
+    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(if s.width < super::NARROW { 18.0 } else { 48.0 }, 36.0).ripplr_scope().ripplr(Scope::Container(None))
         .child(row().key(format!("{h}/caption")).fill_width().gap(14.0).align(AlignItems::BASELINE).wrap()
             .child(text(st.name, 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/name")))
             .child(text(STYLE_DESC[i], 13.0, Paint::DIM).key(format!("{h}/desc")).grow(1.0)))
@@ -49,7 +49,7 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
 fn pic(h: &str, k: &str, id: u32, w: f32) -> El<Msg> { pic_at(h, k, id, w, 0.0) }
 /// A picture in the style's marks, held at a looseness (1: always shown as marks).
 fn pic_at(h: &str, k: &str, id: u32, w: f32, loose: f32) -> El<Msg> {
-    col().key(format!("{h}/{k}-box")).width(w).child(picture(id, ratio(id)).key(format!("{h}/{k}")).pic_fx(STYLE_SLOT).loose(loose))
+    col().key(format!("{h}/{k}-box")).width(w).child(picture(id, ratio(id)).key(format!("{h}/{k}")).markr(STYLE_SLOT).loose(loose))
 }
 
 // ── 1 Algorithmic / Digital Gaze: a feed, framed and measured ───────────────────────────────────────
@@ -221,7 +221,7 @@ fn linocut(s: &Gallery, h: &str) -> El<Msg> {
                 .child(text(format!("第 {} 张，共 3 张", s.choices[3] % 3 + 1), 13.0, Paint::DIM))))
         .child(col().key(format!("{h}/right")).width(380.0).gap(10.0)
             // The print itself is held loose: cut in strokes that follow the form.
-            .child(col().key(format!("{h}/print-box")).width(380.0).child(picture(shown, ratio(shown)).key(format!("{h}/print")).pic_fx(STYLE_SLOT).loose(1.0)))
+            .child(col().key(format!("{h}/print-box")).width(380.0).child(picture(shown, ratio(shown)).key(format!("{h}/print")).markr(STYLE_SLOT).loose(1.0)))
             .child(text("木版　34 × 28 厘米", 12.0, Paint::DIM)))
 }
 
@@ -371,7 +371,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     // The pointer stirs the field map where it passes: a point under it that stirs as it moves.
     let stylus = s.thread_at.map(|(x, y)| space(1.0, 1.0).key(format!("{h}/stylus")).stirr(Stirr { energy: 1.0, radius: Some(72.0), scope: Scope::Container(Some(format!("{h}/comp"))) }).absolute(Some(x), Some(y), None, None));
     // Its own scope for ripples, the map and the threads (they stop at its edge).
-    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).height(height).gap(0.0).gaze_scope().ripple_scope().on_move(|p| Some(Msg::ThreadAt(p)));
+    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).height(height).gap(0.0).gaze_scope().ripplr_scope().on_move(|p| Some(Msg::ThreadAt(p)));
     comp.style.padding.right = taffy::prelude::length(72.0);
     // The tangle: content, drawn under any material, its knot under the picture's bottom right corner
     // (behind it) and its strand from the top of the page to just above the footer, clear of the text to read.

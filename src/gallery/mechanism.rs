@@ -35,7 +35,7 @@ const GROUND: u32 = 99;
 
 /// The materials the switch offers: (name, material). The first is the two-tone drawing.
 /// (the name's message key, the material).
-pub const MATS: [(&str, Material); 5] = [("mech.mat0", Material::Plain), ("mech.mat1", Material::Ascii), ("mech.mat2", Material::Dot), ("mech.mat3", Material::Halftone), ("mech.mat4", Material::Lino)];
+pub const MATS: [(&str, Material); 5] = [("mech.mat0", Material::Plain), ("mech.mat1", Material::Charr), ("mech.mat2", Material::Dottr), ("mech.mat3", Material::Halftonr), ("mech.mat4", Material::Carvr)];
 
 /// The gears: teeth, pitch radius, centre (x, y). They mesh: centre distances are the sums of the radii.
 const MODULE: f32 = 0.05;
