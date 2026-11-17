@@ -402,15 +402,17 @@ fn the_walk_goes_through_the_four_states_and_a_person_takes_it_over() {
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
     ui.state.open("", 2);
     let t0 = ui.now();
-    let at = |ui: &mut Ui<Body, Msg>, s: f32| { let d = t0 + s - ui.now(); run(ui, d); (ui.state.at, ui.state.spec.material) };
-    assert_eq!(at(&mut ui, 0.5), (1, 0), "the source first");
-    assert_eq!(at(&mut ui, 1.0), (2, 0), "the specimen from 0.7 s");
+    let at = |ui: &mut Ui<Body, Msg>, s: f32| { let d = t0 + s - ui.now(); run(ui, d); (ui.state.at, ui.state.spec.loosen, ui.state.spec.material) };
+    assert_eq!(at(&mut ui, 0.5), (1, false, 0), "the source first");
+    assert_eq!(at(&mut ui, 1.0), (2, false, 0), "the specimen from 0.7 s");
     assert!(ui.node("body/specimen/material").is_some());
-    assert_eq!(at(&mut ui, 2.7), (3, 1), "near pressed at 2.5 s");
-    assert_eq!(at(&mut ui, 3.3), (3, 2), "dot at 3.1 s");
-    assert_eq!(at(&mut ui, 3.9), (3, 3), "lino at 3.7 s");
-    assert_eq!(at(&mut ui, 4.5), (2, 0), "plain at 4.3 s");
+    assert_eq!(at(&mut ui, 2.7), (3, true, 0), "Loosen pressed at 2.5 s: the card held loose, in plain");
+    assert_eq!(at(&mut ui, 3.1), (3, true, 1), "near at 2.9 s");
+    assert_eq!(at(&mut ui, 3.6), (3, true, 2), "dottr at 3.4 s");
+    assert_eq!(at(&mut ui, 4.1), (3, true, 3), "carvr at 3.9 s");
+    assert_eq!(at(&mut ui, 4.6), (3, false, 3), "Loosen off at 4.4 s: the card closes in carvr");
     assert_eq!(at(&mut ui, 5.0).0, 4, "gathered at 4.7 s");
+    assert_eq!(at(&mut ui, 6.2), (4, false, 0), "the card, gone, is set back");
     at(&mut ui, 6.6);
     assert!(ui.state.walk.is_none() && ui.state.seen, "the landing state");
     at(&mut ui, 8.0);
@@ -425,8 +427,9 @@ fn the_walk_goes_through_the_four_states_and_a_person_takes_it_over() {
     ui.press(x, y);
     ui.release(x, y);
     assert_eq!(ui.state.walking(), 2, "taken over");
+    assert!(ui.state.spec.loosen && ui.state.at == 3, "the press reached the switch");
     run(&mut ui, 4.0);
-    assert_eq!(ui.state.at, 2, "nothing more is pressed");
+    assert_eq!((ui.state.at, ui.state.spec.material), (3, 0), "nothing more is pressed");
     ui.state.update(Msg::Play, ui.now());
     run(&mut ui, 4.5);
     assert_eq!(ui.state.at, 4, "played on to the body");
@@ -448,4 +451,49 @@ fn skip_reaches_the_body_within_a_second() {
     ui.state.update(Msg::Skip, ui.now());
     run(&mut ui, 1.0);
     assert!(ui.state.at == 4 && ui.state.walk.is_none() && ui.state.seen && ui.now() >= ui.state.lands, "at the body, landed");
+}
+
+#[test]
+fn state_03_is_the_card_held_loose_and_the_rail_goes_between_02_and_03() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("material", 0);
+    ui.relayout();
+    run(&mut ui, 0.5);
+    assert_eq!((ui.state.at, ui.state.spec.loosen, ui.state.spec.material), (3, true, body::REST_MATERIAL), "loose, in its material");
+    assert!(ui.export_tree().find("body/specimen/row-Loosen/0").is_some_and(|n| n.legible) && ui.export_tree().find("body/specimen").is_some_and(|n| !n.legible), "the labels are text to read, the card's shapes are not");
+    // 03 → 02 on the rail: the card closes at once, and plain is committed a moment later.
+    ui.state.update(Msg::Show(2), ui.now());
+    ui.relayout();
+    run(&mut ui, 0.1);
+    assert_eq!((ui.state.at, ui.state.spec.loosen), (2, false), "closed at once");
+    run(&mut ui, 0.4);
+    assert_eq!(ui.state.spec.material, 0, "committed to plain");
+    // A press on Loosen reaches the switch (nothing drawn over the card takes it) and is state 03.
+    let (x, y) = ui.node("body/specimen/loosen").unwrap().rect.center();
+    click(&mut ui, x, y);
+    assert!(ui.state.spec.loosen && ui.state.at == 3, "pressed, held loose");
+}
+
+#[test]
+fn the_walk_gives_way_when_the_page_is_not_ready() {
+    // Not ready when the card would come: one morph to the body, the same landing.
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", 2);
+    ui.state.set_ready(0.5);
+    run(&mut ui, 1.0);
+    assert!(ui.state.walk.is_none() && ui.state.seen && ui.state.at == 4, "straight to the body");
+    run(&mut ui, 3.0);
+    assert!(ui.state.turn_rate() > 0.1, "the idle turn eased in");
+    // Ready for the card, not for the materials: their presses are left out, the walk still lands on time.
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.open("", 2);
+    let t0 = ui.now();
+    run(&mut ui, 2.0);
+    ui.state.set_ready(0.5);
+    let d = t0 + 4.6 - ui.now();
+    run(&mut ui, d);
+    assert_eq!((ui.state.at, ui.state.spec.material), (3, 0), "loose, no material pressed");
+    let d = t0 + 6.6 - ui.now();
+    run(&mut ui, d);
+    assert!(ui.state.at == 4 && ui.state.walk.is_none(), "landed");
 }

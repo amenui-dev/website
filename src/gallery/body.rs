@@ -23,7 +23,7 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     changed
 }
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.page == Page::Body && s.body.moving()).then_some(t) }
-/// The scene's look on its page: its form's palette on a dark ground, a bloom, a vignette.
+/// The scene's look on its page: its form's palette on a dark ground, a bloom.
 pub fn look(s: &Gallery, l: &mut Look) {
     if s.page != Page::Body { return; }
     let b = scene::look(s.body.form, s.body.gather.value);
@@ -31,6 +31,9 @@ pub fn look(s: &Gallery, l: &mut Look) {
     l.material = b.material;
     l.post = b.post;
     if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
+    // A commit whose front is still out when the caption changes ends at once (its front has left the
+    // card; only the caption would be held in the old frame).
+    if s.body.flushing() { l.fx.wave_speed = 1.0e6; }
     // The specimen's lattice pitch (the morphs' cells too).
     l.fx.pitch = s.body.spec.pitch;
 }

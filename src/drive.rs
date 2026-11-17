@@ -13,7 +13,8 @@ use amenui::tree::TreeNode;
 struct Gallery(crate::gallery::GalleryUi);
 impl Driven for Gallery {
     fn now(&self) -> f32 { self.0.now() }
-    fn tick(&mut self, t: f32) { self.0.tick(t) }
+    // The home page's walk hears how ready the page is to draw what comes next (it gives way).
+    fn tick(&mut self, t: f32) { let r = self.0.readiness(); self.0.state.body.set_ready(r); self.0.tick(t) }
     fn apply(&mut self, input: &Input) -> Result<(), DriveError> { self.0.apply(input) }
     fn look(&self) -> Look { Driven::look(&self.0) }
     fn tree(&self) -> TreeNode { self.0.export_tree() }
