@@ -36,13 +36,17 @@ shell.style = Style
 shell.reset = Reset
 
 # The documentation
-nav.start = Getting started
+nav.start = Start
 nav.lab = Lab
 lab.title = [ LAB ]  small live pieces, one thing each
 lab.intro = Each cell is one example file written against the public API. Move, drag or touch; the numbers under each are the ones driving it.
 nav.decode = Decode transition
 nav.stirr = Field map
 nav.concepts = Concepts
+nav.guides = Guides
+nav.reference = Reference
+nav.release-notes = Release notes
+nav.experiments = Experiments
 nav.components = Components
 nav.styles = Styles and presets
 nav.ai = For AI
@@ -116,22 +120,14 @@ craft.stack.auto = From the material
 craft.stack.plain = Plain
 craft.stack.thick = Thick
 craft.stack.marks = Marks
-body.p1 = Before the tide turns, the flat is a sheet of grey water no deeper than a hand. Gulls stand in it as if on glass. The light comes in low from the east and lies along every ripple, so the surface is drawn in fine bright lines that shift whenever the wind changes its mind. Far out, a row of wooden posts marks a channel that only boats with shallow keels can use, and each post carries a small crown of weed that lifts and falls with the swell.
-body.p2 = As the water drains away, the ground underneath shows its own pattern. Sand ridges run side by side for a while, part around a stone, and join again beyond it. Between them the hollows keep a little water, each a mirror the size of a plate. Worms leave coiled casts, crabs leave tracks like a row of stitches, and a heron walks slowly from one pool to the next, lifting each foot clear before it sets it down.
-body.p3 = By noon the colour has gone out of everything. Sky, mud and sea are the same pale tone, and distance is hard to judge: a figure walking along the far edge could be near or very far. Sound carries instead. A spade striking a shell, a dog on the dyke, the faint tick of the mud as it dries in the sun all arrive clearly from places that cannot be seen.
-body.p4 = In the afternoon the water comes back without a wave. It appears first in the channels, filling them from below, then spills over their edges in thin sheets that meet and widen. The ridges go under one by one. People who walked out turn back early, because the flat fills faster than it seems to, and the way home is a line of posts that grows shorter as the water rises around them.
-body.p5 = At dusk only the posts remain, each with its reflection standing beneath it, and the gulls have moved to the dyke. The surface is still enough to hold the first lights of the village. Then the wind returns, the reflections break into short strokes, and the whole flat is drawn again in the fine lines it began the day with.
-body.label = A passage that gathers into a turning body of its own glyphs
+body.label = A turning body made of the text of its own source
 nav.body = Body
 body.rock = ROCK
 body.cloud = CLOUD
 body.form = FORM
 body.seed = SEED
-body.release = RELEASE ·
+body.view-source = VIEW SOURCE ·
 body.gather = GATHER ·
-body.language = LANGUAGE
-body.to-lab = LAB ↗
-body.to-gallery = COMPONENTS ↗
 
 # Loose Thread's page (English whatever the language: DESIGN.md §4.4)
 thread.kicker = amenui — no. 10
@@ -143,3 +139,23 @@ thread.black = black
 thread.paper = paper
 thread.binary = 1-bit
 thread.invert = invert
+
+# The web pages around the canvas (web/shell.html, written by web/build.py)
+web.sections = Sections
+web.docs = docs
+web.components = components
+web.lab = lab
+web.scenes = scenes
+web.search = search
+web.menu = menu
+web.canvas = The page, drawn by amenui
+web.text-input = Text input
+web.eyebrow = Rust · wgpu · native + web
+web.lead = amenui is a GUI framework that draws everything itself. Text, shapes and pictures keep their true outlines, and can loosen, morph and close again.
+web.start = Get started
+web.copy = copy
+web.copied = copied
+web.fail = This browser could not start WebGPU or WebGL2. The documentation can be read on GitHub without it: <a href="https://github.com/amenui-dev/website/tree/main/docs/site/en">docs ↗</a>
+web.description = amenui is a GUI framework in Rust that draws everything itself, on the desktop and on the web.
+web.not-found = Not found
+web.not-found-text = There is no page at this address.

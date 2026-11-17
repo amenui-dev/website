@@ -1,6 +1,7 @@
-//! The amenui website: the landing page (the Body scene), the Lab, the showcase scenes, a page for every
+//! The amenui website: the home page (the Body scene), the Lab, the showcase scenes, a page for every
 //! component, material, mark set and preset, and the documentation, all drawn by amenui itself. The same
-//! code runs in a native window (`window`) and on the web (`web/`, built to one canvas).
+//! code runs in a native window (`window`) and on the web (`web/`: a small HTML page per address with
+//! the navigation in HTML, and the canvas under it).
 pub mod demo;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod drive;
@@ -37,8 +38,12 @@ impl amenui::app::App for gallery::Gallery {
     fn set_reduced_motion(&mut self, on: bool) { self.lab.reduced = on; self.body.reduced = on; }
 }
 
-/// The renderer's pictures, before the first frame.
+/// The renderer's pictures (photographs drawn in marks), before the first frame.
 pub fn setup(r: &mut amenui::render::Renderer) { for (id, w, h, px) in demo::pictures() { r.set_picture(id, w, h, &px); } }
+/// On the web the pictures wait until a page needs them (`pictures`): home shows none, and making
+/// them is most of what starting would cost.
+#[cfg(target_arch = "wasm32")]
+fn web_setup(_: &mut amenui::render::Renderer) {}
 
 /// The site in one `Ui`. The Body scene is the landing page; any other page is one hash away (`#gallery`
 /// is the gallery's first, `#lab` the Lab).
@@ -48,9 +53,11 @@ pub fn make(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> galle
     ui
 }
 
-// Web entry: the page (`web/page.html`) is a canvas that forwards events to the exports `web_app!` makes.
+// Web entry: the page (`web/shell.html`, `web/app.js`) is a canvas that forwards events to the exports
+// `web_app!` makes. The page passes the address's path (`components/button/`, empty for home) or an older
+// hash name as the route.
 #[cfg(target_arch = "wasm32")]
-amenui::web_app!(gallery::Gallery, gallery::Msg, setup, make);
+amenui::web_app!(gallery::Gallery, gallery::Msg, web_setup, make);
 
 /// The readout's choice: 0 hidden, 1 shown, 2 with more (the page keeps it in localStorage).
 #[cfg(target_arch = "wasm32")]
@@ -59,3 +66,52 @@ pub fn readout() -> u8 { host(|s| s.ui.state.overlay).unwrap_or(0) }
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn set_readout(v: u8) { host(|s| { s.ui.state.overlay = v.min(2); s.ui.relayout(); }); }
+
+#[cfg(target_arch = "wasm32")]
+mod site_exports {
+    use super::{gallery, host};
+    use crate::showcase::scenes::body;
+    use wasm_bindgen::prelude::wasm_bindgen;
+
+    /// Make the pictures, once: the page calls it before showing any page but home.
+    #[wasm_bindgen]
+    pub fn pictures() {
+        thread_local! { static MADE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+        if MADE.with(|m| m.replace(true)) { return; }
+        host(|s| super::setup(&mut s.r));
+    }
+    /// The current page's path under the site's base (`components/button/`; empty for home).
+    #[wasm_bindgen]
+    pub fn path() -> String { host(|s| s.ui.state.page.path()).unwrap_or_default() }
+    /// The current page's name, for the document's title.
+    #[wasm_bindgen]
+    pub fn title() -> String { host(|s| s.ui.state.page.name()).unwrap_or_default() }
+    /// The graphics backend in use: `webgpu` or `webgl2`.
+    #[wasm_bindgen]
+    pub fn backend() -> String { host(|s| s.ui.perf().backend.to_lowercase()).unwrap_or_default() }
+    /// How many glyphs the home page's body is made of.
+    #[wasm_bindgen]
+    pub fn glyphs() -> u32 { host(|s| s.ui.state.body.glyphs() as u32).unwrap_or(0) }
+    /// The home page's stage (CSS px from the canvas's top left), laid out by the page; a zero-sized
+    /// one gives the scene's own.
+    #[wasm_bindgen]
+    pub fn set_stage(x0: f32, y0: f32, x1: f32, y1: f32) { host(|s| { s.ui.state.body.set_stage(Some([x0, y0, x1, y1])); s.ui.relayout(); }); }
+    /// The home page's state for the address (`source`, `body/cloud/08`, empty for the defaults).
+    #[wasm_bindgen]
+    pub fn hero() -> String { host(|s| s.ui.state.body.state()).unwrap_or_default() }
+    /// Open a state from the address at rest; an empty one plays the short path when `intro` is set.
+    #[wasm_bindgen]
+    pub fn set_hero(state: &str, intro: bool) { host(|s| { s.ui.state.body.open(state, intro); s.ui.relayout(); }); }
+    /// The rail row: `source`, `body`, `form`, `seed+`, `seed-`.
+    #[wasm_bindgen]
+    pub fn hero_press(what: &str, t: f32) {
+        let m = match what { "source" => body::Msg::Show(1), "body" => body::Msg::Show(4), "form" => body::Msg::Form, "seed+" => body::Msg::Seed(1), "seed-" => body::Msg::Seed(-1), _ => return };
+        host(|s| { s.ui.tick(t); gallery::update(&mut s.ui.state, gallery::Msg::Body(m)); s.ui.relayout(); });
+    }
+    /// The home page's form (0 rock, 1 cloud) and seed, for the rail row.
+    #[wasm_bindgen]
+    pub fn hero_form() -> Vec<u32> { host(|s| vec![s.ui.state.body.form, s.ui.state.body.seed]).unwrap_or_default() }
+    /// Open the search over every page.
+    #[wasm_bindgen]
+    pub fn open_search() { host(|s| { gallery::update(&mut s.ui.state, gallery::Msg::Search(true)); s.ui.relayout(); }); }
+}

@@ -16,9 +16,11 @@ mod styles;
 pub mod three;
 pub mod particles;
 pub mod presets;
+pub mod routes;
+pub mod english;
 
 use crate::demo::{self, Demo};
-use amenui::el::{El, Font, Paint, col, row, space, text};
+use amenui::el::{El, Paint, col, row, space, text};
 use amenui::morph::{Cmd, Ease, FlowSpec, MorphSpec};
 use amenui::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, PicFx, THEMES, Theme, gaze, set, styles};
 use amenui::text::Face;
@@ -27,6 +29,7 @@ use std::rc::Rc;
 use taffy::AlignItems;
 
 pub use scenes::{SCENES, SMsg, Scenes};
+pub use routes::Section;
 /// The component indices in `COMPONENTS`.
 pub mod comp { pub use super::pages::{BUTTON, CARD, CHOICE, DIALOG, DIVIDER, IMAGE, INPUT, LIST, NUMBER, SCROLL, SLIDER, SWITCH, TABS}; }
 pub use pages::{COMPONENTS, Comp, FLOW_PARAMS, MORPH_NAMES, MORPH_PARAMS, ParamDef, flow_slot, morph_slot};
@@ -412,7 +415,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
 }
@@ -515,7 +518,6 @@ impl Gallery {
         self.shape = i;
     }
     pub fn draft(&self, t: Target) -> Option<&str> { self.edit.as_ref().filter(|(k, _)| *k == t).map(|(_, d)| d.as_str()) }
-    /// Go to the page a hash names; returns whether it names one.
     /// The look as a recipe: the active preset (the first when none is chosen) as `Preset::recipe`.
     pub fn recipe(&self) -> String { self.presets[self.style.unwrap_or(0).min(self.presets.len().saturating_sub(1))].recipe() }
     /// Take a recipe (`look:v1:…`): its preset replaces the built-in one it names, and becomes the look.
@@ -526,11 +528,20 @@ impl Gallery {
         self.apply_style(i);
         Ok(())
     }
+    /// Go to the page an address names: a hash name (`#button`, `button`), a path (`components/button/`,
+    /// with a slash in it, or `/` for home) or a look recipe (the look changes, the page stays).
+    /// A page by its path (`components/button/`), its older hash name (`button`) or a recipe; the home
+    /// page's state may follow after `#` (`/#source`, `body#body/cloud/08`), opened at rest.
     pub fn route(&mut self, hash: &str) -> bool {
-        // A recipe in the address: the look changes, the page stays.
         if hash.trim_start_matches('#').starts_with(amenui::preset::RECIPE_PREFIX) { return self.take_recipe(hash).is_ok(); }
-        match Page::from_hash(hash) {
-            Some(p) => { self.page = p; self.edit = None; self.enter(p); true }
+        let (hash, state) = hash.trim_start_matches('#').split_once('#').unwrap_or((hash, ""));
+        let page = if hash.contains('/') { Page::from_path(hash) } else { Page::from_hash(hash) };
+        match page {
+            Some(p) => {
+                self.page = p; self.edit = None; self.enter(p);
+                if p == Page::Body && !state.is_empty() { self.body.open(state, false); }
+                true
+            }
             None => false,
         }
     }
@@ -662,13 +673,37 @@ pub fn update(s: &mut Gallery, m: Msg) {
     }
 }
 
+/// The interface. The demos are in English whatever the language: in English all of it, otherwise the
+/// page under the chrome except the documentation's chrome and prose, whose demos (a component's
+/// previews and examples) are in English too; the framework's own files shown as they are (agents,
+/// llms, release notes, the registry) are left alone.
 pub fn view(s: &Gallery) -> El<Msg> {
+    let e = view_in(s);
+    match s.page {
+        Page::Ai(_) | Page::Registry if s.locale == amenui::i18n::Locale::En => english::tree(e, Rc::new(|k| k.starts_with("doc/ai-") || k.starts_with("doc/registry"))),
+        _ if s.locale == amenui::i18n::Locale::En => english::tree(e, Rc::new(|_| false)),
+        // The page under the chrome; inside it, the documentation's chrome and prose (`doc/…`) stay as
+        // written except a component's previews and example boxes.
+        _ => english::demos(e, Rc::new(|k| {
+            // (A component's preview column holds the preview and its parameters; its tabs are chrome.)
+            if k.starts_with("page/") || k.ends_with("/preview-col") { english::Part::Page }
+            // A page's title and its description (`button/title`) are the page's name, in its language.
+            else if (k.ends_with("/title") || k.ends_with("/desc")) && k.matches('/').count() == 1 { english::Part::Chrome }
+            else if k.starts_with("doc/") { if k.ends_with("/preview") || k.ends_with("/box") || k.ends_with("/source") { english::Part::Demo } else { english::Part::Chrome } }
+            // A scene's name on the list is the one its own page flies it to (scenes keep the
+            // interface language in Chinese: their type is set to fit it).
+            else if k.starts_with("scenes/title") { english::Part::Chrome }
+            else { english::Part::Same }
+        })),
+    }
+}
+fn view_in(s: &Gallery) -> El<Msg> {
     let narrow = s.width < NARROW;
     let th = s.theme();
     // A scene has the whole window under the top bar.
     // The Body scene is the whole window, full-bleed, no chrome: its own markings lead elsewhere.
     if s.page == Page::Body {
-        return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s));
+        return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s)).child(docs::search(s));
     }
     if let Page::Scene(i) = s.page {
         // On a scene the top bar is chrome, like the strip: fronts the scene makes pass it by.
@@ -722,30 +757,23 @@ fn perf_item(s: &Gallery) -> usize {
     if s.quality == 0.0 { 1 } else { 2 + amenui::perf::LEVELS.iter().position(|&l| l == s.quality).unwrap_or(0) }
 }
 
+/// The canvas's own bar under the site's navigation: the controls that change the look of the page
+/// and the performance readout. (The site's name, its sections and the language are in the page's
+/// HTML navigation bar.)
 fn top_bar(s: &Gallery) -> El<Msg> {
     let theme_names: Vec<&str> = THEMES.iter().map(|t| t.name).collect();
     let material_names: Vec<&str> = MATERIALS.iter().map(|m| m.1).collect();
     let style_names: Vec<&str> = styles().iter().map(|t| t.name).collect();
     let material_now = MATERIALS.iter().position(|m| m.0 == s.material);
     let tr = amenui::i18n::tr;
-    let name = if matches!(s.page, Page::Scene(_)) {
-        button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
-    } else { text("amenui", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
     let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
     let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
-    let names: Vec<String> = crate::LOCALES.iter().map(|l| l.name()).collect();
-    let langs: Vec<&str> = names.iter().map(String::as_str).collect();
-    let lang_now = crate::LOCALES.iter().position(|l| *l == s.locale);
-    row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 10.0).align(AlignItems::CENTER)
-        .child(name)
+    row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 6.0).align(AlignItems::CENTER)
         .child(space(0.0, 0.0).grow(1.0))
         // On a phone's width the controls stay on one line that scrolls sideways; wider, they wrap.
         .child({ let r = row().key("top/controls").gap(16.0).align(AlignItems::CENTER); if s.width < NARROW { r.scroll_x().fill_width().min_width(0.0) } else { r.wrap().shrink().min_width(0.0) } }
             .child(menu("perf", &tr("shell.perf"), &perf,
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
-            .child(button_as("top/body", &tr("nav.body"), Variant::Quiet, Msg::Go(Page::Body)))
-            .child(button_as("top/scenes", &tr("shell.scenes"), Variant::Quiet, Msg::Go(Page::Scenes)))
-            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(crate::LOCALES[i.min(crate::LOCALES.len() - 1)])))
             .child(menu("theme", &tr("shell.theme"), &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
             .child(menu("material", &tr("shell.material"), &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
             .child(menu("style", &tr("shell.style"), &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))
@@ -759,30 +787,34 @@ fn comp_pages() -> Vec<Page> {
     v
 }
 
-/// The groups and their pages.
-fn groups() -> Vec<(String, Vec<Page>)> {
+/// The rail's groups and their pages: those of the current page's section only (the sections
+/// themselves are in the page's navigation bar).
+fn groups(section: Section) -> Vec<(String, Vec<Page>)> {
     let tr = amenui::i18n::tr;
-    // The components in six groups (registry.json's `group`), shadcn's way; the long list with the list.
-    let comps: Vec<Page> = comp_pages().into_iter().chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
-    let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
-    let mut v = vec![
-        (tr("nav.start"), (0..docs::START as u8).map(Page::Doc).collect()),
-        (tr("nav.concepts"), (docs::START as u8..docs::DOCS.len() as u8).map(Page::Doc).chain([Page::Stirr]).collect::<Vec<_>>()),
-        (tr("nav.lab"), std::iter::once(Page::Lab).chain((0..lab::COUNT as u8).map(Page::Experiment)).chain([Page::Decode]).collect()),
-    ];
-    for (g, key) in docs::GROUPS { v.push((format!("{} · {}", tr("nav.components"), tr(key)), comps.iter().filter(|p| docs::group_of(&name_of(p)) == g).copied().collect())); }
-    v.extend([
-        (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style)).collect()),
-        (tr("nav.ai"), vec![Page::Ai(0), Page::Ai(1), Page::Registry]),
-        (tr("nav.changelog"), vec![Page::Ai(2)]),
-        (tr("nav.marks"), set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks).collect()),
-        (tr("nav.materials"), (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
-        (tr("nav.annotation"), vec![Page::Gaze]),
-        (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
-        (tr("nav.type"), vec![Page::Type, Page::Demo]),
-        (tr("nav.scenes"), [Page::Body, Page::Scenes].into_iter().chain((0..scenes::COUNT as u8).map(Page::Scene)).collect()),
-    ]);
-    v
+    match section {
+        Section::Home => vec![],
+        Section::Docs => {
+            let mut v: Vec<(String, Vec<Page>)> = routes::DOC_GROUPS.iter().map(|(g, key)| (tr(key), (0..docs::DOCS.len() as u8).filter(|&i| routes::doc_group(docs::DOCS[i as usize]) == *g).map(Page::Doc).collect())).collect();
+            v[3].1.extend([Page::Registry, Page::Ai(0), Page::Ai(1)]);
+            v.push((tr("nav.release-notes"), vec![Page::Ai(2)]));
+            v
+        }
+        Section::Components => {
+            // The components in six groups (registry.json's `group`), shadcn's way.
+            let comps: Vec<Page> = (0..COMPONENTS.len()).map(Page::Comp).chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
+            let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
+            docs::GROUPS.iter().map(|(g, key)| (tr(key), comps.iter().filter(|p| docs::group_of(&name_of(p)) == *g).copied().collect())).collect()
+        }
+        Section::Lab => vec![
+            (tr("nav.experiments"), std::iter::once(Page::Lab).chain((0..lab::COUNT as u8).map(Page::Experiment)).chain([Page::Decode, Page::Stirr]).collect()),
+            (tr("nav.styles"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style)).collect()),
+            (tr("nav.marks"), set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks).collect()),
+            (tr("nav.materials"), (0..MATERIAL_COUNT as u8).map(Page::Material).collect()),
+            (tr("nav.annotation"), vec![Page::Gaze, Page::Type]),
+            (tr("nav.transforms"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three]),
+        ],
+        Section::Scenes => vec![(tr("nav.scenes"), std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).collect())],
+    }
 }
 
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
@@ -798,7 +830,7 @@ fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
 
 fn rail(s: &Gallery) -> El<Msg> {
     let mut r = col().key("rail").width(RAIL).scroll().bar().pad(12.0, 16.0).gap(2.0);
-    for (gi, (name, pages)) in groups().into_iter().enumerate() {
+    for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
         if gi > 0 { r = r.child(space(1.0, 14.0)); }
         r = r.child(row().key(format!("rail/group/{gi}")).pad(12.0, 4.0).child(text(name, 12.0, Paint::DIM)));
         for p in pages { r = r.child(rail_item(s, p, 30.0)); }
@@ -809,7 +841,7 @@ fn rail(s: &Gallery) -> El<Msg> {
 /// The rail on narrow windows: one row that scrolls sideways, the group names as dim labels.
 fn rail_row(s: &Gallery) -> El<Msg> {
     let mut r = row().key("rail").fill_width().scroll_x().bar().pad(12.0, 6.0).gap(4.0).align(AlignItems::CENTER);
-    for (gi, (name, pages)) in groups().into_iter().enumerate() {
+    for (gi, (name, pages)) in groups(s.page.section()).into_iter().enumerate() {
         r = r.child(row().key(format!("rail/group/{gi}")).pad(if gi > 0 { 12.0 } else { 4.0 }, 0.0).child(text(name, 12.0, Paint::DIM)));
         for p in pages { r = r.child(rail_item(s, p, 32.0)); }
     }
@@ -885,7 +917,6 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             body::key(s, k) || scenes::key(s, k, shift)
         })
         .on_input(scenes::heard)
-        .on_pointer(body::pointer)
         .on_key_up(scenes::key_up)
         .on_shortcut(|s, c| { if c == 'k' { update(s, Msg::Search(!s.search)); true } else { false } })
         .on_scrolled(docs::scrolled)

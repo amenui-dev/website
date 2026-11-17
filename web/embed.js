@@ -15,7 +15,7 @@
 (() => {
   const CSS = `:host { display: block; position: relative; min-height: 120px; contain: content; }
     .stage { position: absolute; inset: 0; }
-    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 1; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
     .msg { position: absolute; inset: 0; display: grid; place-items: center; font: 13px system-ui, sans-serif; color: #888; }
     .a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
     .a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
@@ -33,15 +33,21 @@
       window.__labMounted = true;
       root.innerHTML = `<style>${CSS}</style><div class="stage"><canvas class="c" tabindex="0"></canvas><textarea class="ta" tabindex="-1" aria-label="text input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea><div class="a11y"></div><div class="msg">…</div></div>`;
       const first = this.getAttribute('recipe') || this.getAttribute('page') || 'body';
+      // The module and the faces, from the files the page names (`window.AMENUI_FILES`, as the site's
+      // build writes it into the page).
+      const F = window.AMENUI_FILES;
+      const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r; });
       this.ready = mount(root.querySelector('.stage'), {
-        hash: '#' + first, ownsHash: false, keys: this,
-        onRoute: page => this.dispatchEvent(new CustomEvent('amenui-route', { detail: { page }, bubbles: true, composed: true })),
+        route: '#' + first, keys: this,
+        load: () => ({ module: get(F.wasm), fonts: Promise.all(F.fonts.map(f => get(f.url).then(r => r.arrayBuffer()))) }),
+        onRoute: (path, page) => this.dispatchEvent(new CustomEvent('amenui-route', { detail: { page, path }, bubbles: true, composed: true })),
       }).then(api => {
         this.api = api;
         this.sync(true);
+        root.querySelector('.msg').remove();
         this.dispatchEvent(new CustomEvent('amenui-ready', { bubbles: true, composed: true }));
         return api;
-      });
+      }, e => { root.querySelector('.msg').textContent = 'This browser could not start WebGPU or WebGL2.'; throw e; });
     }
     attributeChangedCallback() { if (this.api) this.sync(false); }
     sync(first) {
