@@ -30,10 +30,16 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
   let el, input, list, none, data = null, loading = null, found = [], active = 0, back = null;
   const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const low = s => s.toLowerCase();
-  const load = () => loading || (loading = fetch(S.index).then(r => { if (!r.ok) throw new Error(S.index + ': HTTP ' + r.status); return r.json(); }).then(j => {
-    // Each entry: [url, title, crumb, keywords, canvas, [[heading, anchor, text], …]], with lowercase copies.
-    data = j.map(([url, title, crumb, kw, canvas, secs]) => ({ url, title, crumb, canvas, secs, lt: low(title), lk: low(kw), ls: secs.map(s => [low(s[0]), low(s[2])]) }));
+  const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r.json(); });
+  // The index comes in two files: the pages with their headings (each entry [url, title, crumb,
+  // keywords, canvas, [[heading, anchor], …]]), then the text of every section, which is added to them.
+  const load = () => loading || (loading = get(S.index).then(j => {
+    data = j.pages.map(([url, title, crumb, kw, canvas, secs]) => ({ url, title, crumb, canvas, secs: secs.map(s => [s[0], s[1], '']), lt: low(title), lk: low(kw), ls: secs.map(s => [low(s[0]), '']) }));
     if (el && el.classList.contains('open')) run();
+    return get(j.text).then(text => {
+      text.forEach((t, i) => t.forEach((x, k) => { data[i].secs[k][2] = x; data[i].ls[k][1] = low(x); }));
+      if (el && el.classList.contains('open')) run();
+    });
   }));
   const build = () => {
     const st = D.createElement('style'); st.textContent = CSS; D.head.appendChild(st);

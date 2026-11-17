@@ -6,7 +6,8 @@
 #
 #   BASE=/website/ python3 web/build.py      (BASE: where the site is served; "/" on its own domain)
 #
-# Needs: fontTools; `wasm-opt` on PATH is used when it makes the module smaller to transfer.
+# Needs: fontTools; `wasm-opt` on PATH is used when it makes the module smaller to transfer; RENDER=
+# (the render tool) draws the docs stages' stills, written as WebP when Pillow is there.
 import gzip, hashlib, html, json, os, pathlib, re, shutil, subprocess, sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -186,23 +187,42 @@ def doc_frame(lang, path, title, description, main):
             f'<script>window.DOCS={json.dumps(cfg, ensure_ascii=False, separators=(",", ":"))}</script>\n<script src="{BASE + docs_js_fn}" defer></script>\n'
             f'{SEARCH_TOKEN}</body>\n</html>\n')
 
-# Build-time stills of the live stages (`STILLS`: a directory of `<route with - for />.png`, made by
-# the offscreen renderer); without them a stage is an empty frame until it is run.
-stills_dir = os.environ.get('STILLS')
+# Build-time stills of the live stages (A.6, F.8): each stage's route drawn by the offscreen renderer at
+# the stage's desktop size (inside its frame, 718 x 449, at scale 2), so its first live frame is the
+# same picture. Made
+# when `RENDER` names the render tool (it needs a GPU or Mesa's lavapipe); without it a stage is an
+# empty frame until it is run.
 stills = {}
-if stills_dir:
-    for f in sorted(pathlib.Path(stills_dir).glob('*.png')):
-        b = f.read_bytes()
-        stills[f.stem.replace('~', '/')] = hashed('stills/' + f.stem.replace('~', '-').strip('-') + '.png', b)
+render_bin = os.environ.get('RENDER')
+if render_bin:
+    import concurrent.futures
+    shots = dist / 'stills'
+    shots.mkdir(exist_ok=True)
+    routes = docs_html.stage_routes({'root': root, 'fw': fw, 'data': data})
+    def shoot(route):
+        png = shots / (route.strip('/').replace('/', '-') + '.png')
+        r = subprocess.run([render_bin, '--page', route, '--size', '1436x898', '--scale', '2', '--at', '1500', '--locale', 'en', '--out', str(png)], capture_output=True, text=True)
+        return route, png if r.returncode == 0 and png.exists() else None
+    with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
+        for route, png in pool.map(shoot, routes):
+            if not png: print(f'still: {route} could not be drawn'); continue
+            try:
+                from PIL import Image
+                import io
+                buf = io.BytesIO()
+                Image.open(png).convert('RGB').save(buf, 'WEBP', quality=82, method=6)
+                stills[route] = hashed('stills/' + png.stem + '.webp', buf.getvalue())
+            except ImportError:
+                stills[route] = hashed('stills/' + png.name, png.read_bytes())
+    print(f'stills: {len(stills)} of {len(routes)} stages, {sum((out / f).stat().st_size for f in stills.values())} bytes')
 def stage_html(p, lang, href):
     t = lambda k: tr(lang, k)
     route = p.stage if p.stage is not None else p.canvas
     still = stills.get(route)
-    img = f'<img src="{BASE + still}" alt="" width="1440" height="900" decoding="async">' if still else ''
+    img = f'<img src="{BASE + still}" alt="" width="1436" height="898" decoding="async">' if still else ''
     return (f'<figure class="stage" data-route="{html.escape(route or "/")}"><div class="box"><button type="button" class="run" aria-label="{html.escape(t("web.docs.run"))}">{img}</button></div>'
             f'<figcaption><span class="state">{html.escape(t("web.docs.stage"))}</span><span class="acts"><a href="{href(route)}">{html.escape(t("web.docs.open"))}&nbsp;↗</a></span></figcaption></figure>')
 
-(out / 'stills').mkdir(exist_ok=True)
 built = docs_html.build({'root': root, 'fw': fw, 'out': out, 'base': BASE, 'langs': langs, 'cats': cats, 'data': data, 'version': version, 'frame': doc_frame, 'stage_html': stage_html})
 redirects = built['redirects']
 
@@ -235,9 +255,13 @@ for lang in langs:
             it = desc.get(p['path'].strip('/').split('/')[-1])
             if it: text = it.get('description_en') if lang == 'en' else it.get('description', '')
         entries.append([p['path'], title, names.get(sec, sec), kw, 1, [['', '', text]] if text else []])
-    b = json.dumps(entries, ensure_ascii=False, separators=(',', ':')).encode()
-    index_urls[lang] = BASE + hashed(f'search/{lang}.json', b)
-    print(f'search index {lang}: {len(entries)} entries, {len(b)} bytes, gzip {gz(b)}')
+    # Two files: the titles and headings, small enough to answer at once, and the sections' text, which
+    # follows (the search shows title matches first and adds text matches when it arrives).
+    text = json.dumps([[sec[2] for sec in e[5]] for e in entries], ensure_ascii=False, separators=(',', ':')).encode()
+    text_url = BASE + hashed(f'search/{lang}.text.json', text)
+    heads = json.dumps({'text': text_url, 'pages': [e[:5] + [[[sec[0], sec[1]] for sec in e[5]]] for e in entries]}, ensure_ascii=False, separators=(',', ':')).encode()
+    index_urls[lang] = BASE + hashed(f'search/{lang}.json', heads)
+    print(f'search index {lang}: {len(entries)} entries; titles and headings gzip {gz(heads)}, text gzip {gz(text)}')
 # The docs pages, with their search line now that the index has its name.
 doc_sizes = []
 for w in built['pages']:

@@ -142,7 +142,11 @@ html:not(.js) .stage .run { cursor: default; }
 .stage .acts { display: flex; gap: 16px; }
 
 /* The docs index: groups behind section headers (D.4). */
-.prose h2.sec small { font: inherit; color: var(--dim); margin-right: 16px; }
+/* Section header (D.4): a hairline with an index and a name set into it, 11 px; 48 px above, 24 below. */
+.prose h2.sec { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; gap: 12px; margin: 48px 0 24px; }
+.prose h2.sec::before { flex-basis: 16px; }
+.prose h2.sec small { font: inherit; color: var(--dim); }
+.prose h2.sec small::after { content: ""; display: inline-block; width: 16px; height: 1px; background: var(--hairline); vertical-align: middle; margin-left: 12px; }
 .idx { list-style: none; padding: 0; margin: 0 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); column-gap: 24px; }
 .idx li { min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
 .idx a { display: flex; gap: 12px; color: var(--ink); text-decoration: none; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; -webkit-font-smoothing: none; }

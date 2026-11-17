@@ -40,13 +40,17 @@ jobs:
         run: |
           curl -sSL "https://github.com/WebAssembly/binaryen/releases/download/version_123/binaryen-version_123-x86_64-linux.tar.gz" | tar xz
           echo "$PWD/binaryen-version_123/bin" >> "$GITHUB_PATH"
-      - name: fonttools
-        run: pip install fonttools
+      - name: fonttools and Pillow; Mesa's lavapipe for the offscreen renderer (the docs stages' stills)
+        run: |
+          pip install fonttools pillow
+          sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers
       - name: Build
         env:
           BASE: ${{ vars.SITE_BASE || '/website/' }}
-          SITE_PROFILE: dev
+          SITE_PROFILE: quick
+          RENDER: target/quick/render
         run: |
+          cargo build --profile quick --bin render --bin site
           cargo build --release --lib --target wasm32-unknown-unknown
           wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
           python3 web/build.py

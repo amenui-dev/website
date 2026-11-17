@@ -96,7 +96,7 @@ def build(ctx):
             t, body = split_title(front(ff.read_text())[1])
             md[lang], title[lang], cl[lang] = body, t or short, c
         canvas = f'lab/{short}/' if name.startswith('lab-') else f'scenes/{short}/'
-        if canvas not in canvas_paths: canvas = '' if short == 'body' else None
+        if canvas not in canvas_paths: canvas = None
         pages.append(Page(f'recipe-{short}', 'recipes', f'docs/recipes/{short}/', md=md, title=title, content_lang=cl, src=('site', f'docs/site/{{lang}}/{name}.md'), hidden=True, canvas=canvas))
     placed = {s for v in SITE.values() for s in v}
     for f in (root / 'docs/site/en').glob('*.md'):
@@ -255,6 +255,16 @@ def build(ctx):
     for rel in ['llms.txt', 'AGENTS.md', 'registry.json']:
         (ctx['out'] / rel).write_bytes((fw / rel).read_bytes())
     return {'pages': written + index, 'redirects': redirects}
+
+
+def stage_routes(ctx):
+    """The canvas routes the docs pages run as live stages: each component's specimen and each Lab
+    experiment's page (for the build-time stills)."""
+    canvas = {p['path'] for p in ctx['data']['pages']}
+    reg = json.loads((ctx['fw'] / 'registry.json').read_text())
+    out = [f'components/{i["name"].replace("_", "-")}/' for i in reg['items'] if i['name'] != 'base']
+    out += [f'lab/{f.stem[4:]}/' for f in sorted((ctx['root'] / 'docs/site/en').glob('lab-*.md'))]
+    return [r for r in out if r in canvas]
 
 
 def norm(p):
