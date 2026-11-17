@@ -96,7 +96,7 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
       if (!ok) continue;
       let best = -1, bs = 0;
       // A page found by its title is shown by its opening; otherwise by the section with most words.
-      if (words.every(w => p.lt.includes(w)) && p.secs.length && !p.secs[0][1]) { out.push({ p, score, sec: 0 }); continue; }
+      if (words.every(w => p.lt.includes(w) || p.lk.split(" ").includes(w)) && p.secs.length && !p.secs[0][1]) { out.push({ p, score, sec: 0 }); continue; }
       p.ls.forEach(([h, t], i) => {
         let s = 0;
         for (const w of words) { if (h.includes(w)) s += 12; if (t.includes(w)) s += 2 + Math.min(4, t.split(w).length - 2); }
