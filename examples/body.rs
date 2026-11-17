@@ -85,6 +85,9 @@ pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
 /// the material state 03 rests in, and how long after the card loosens (or closes) its material is
 /// committed when a state is chosen on the rail (s).
 pub const SPEC_LOOSE: f32 = 0.6;
+/// The button's fill in state 03: as loose as its label still reads against it (I.2 item 3: 0.6 down
+/// by 0.1 until the audit passes).
+pub const BUTTON_LOOSE: f32 = 0.3;
 pub const REST_MATERIAL: usize = 2;
 pub const SECOND_PRESS: f32 = 0.2;
 /// The morphs' cells: at most this many (desktop, phone; the framework widens the cells past it), each
@@ -1208,15 +1211,20 @@ impl Body {
                 .child(amenui::widgets::slider(&k("pitch"), sp.pitch, spec, w - 40.0 - 96.0 - 52.0, |v| Msg::Spec(SpecMsg::Pitch(v))))
                 .child(text_lh(format!("{} px", sp.pitch as u32), SIZE, LINE, Paint::TEXT).font(Font::Mono))));
         }
-        let rows = rows.child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit().legible(true)));
-        let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0).border(1.0, Paint::FAINT)
-            .material(SPEC_MATERIALS[sp.material].1.id()).loosen(if sp.loosen { SPEC_LOOSE } else { 0.0 })
-            .child(rows)
-            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).legible(true)));
-        // Held loose, the card's shapes (its frame, the switch, the track and thumb) take the whole
-        // looseness and its text stays text to read, under the framework's legibility cap: the shapes are
-        // marked as decoration, every text as legible. The segmented control and the button stay
-        // legible as a whole: their labels sit on their fills, and a loose fill takes the label with it.
+        let rows = rows.child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit()));
+        // Each part holds its own looseness (a subtree is never less loose than its parent): the frame
+        // and the rows at `SPEC_LOOSE`, the button's fill at `BUTTON_LOOSE`, where its label still reads.
+        let hold = |k: f32| if sp.loosen { k } else { 0.0 };
+        let frame = col().key(k("frame")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None).radius(6.0).border(1.0, Paint::FAINT).loosen(hold(SPEC_LOOSE));
+        let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0)
+            .material(SPEC_MATERIALS[sp.material].1.id())
+            .child(frame)
+            .child(rows.loosen(hold(SPEC_LOOSE)))
+            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).loosen(hold(BUTTON_LOOSE))));
+        // Held loose, the card's shapes (its frame, the switch, the track and thumb, the segmented
+        // control's frame and selected segment, the button's fill) take the whole looseness and its text
+        // stays text to read, under the framework's legibility cap: the shapes are marked as decoration,
+        // every text as legible.
         fn text_legible<M>(e: &mut El<M>) {
             if matches!(e.content, amenui::el::Content::Text { .. }) { e.ripple.legible = Some(true); }
             for c in &mut e.children { text_legible(c); }
