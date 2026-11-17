@@ -123,6 +123,12 @@ mod site_exports {
     /// The home page's form (0 rock, 1 cloud) and seed, for the rail row.
     #[wasm_bindgen]
     pub fn hero_form() -> Vec<u32> { host(|s| vec![s.ui.state.body.form, s.ui.state.body.seed]).unwrap_or_default() }
+    /// The body's circle on the canvas (centre x, y and radius, CSS px), empty while it is the listing:
+    /// a touch that starts inside it turns the body instead of scrolling the page.
+    #[wasm_bindgen]
+    pub fn hero_circle() -> Vec<f32> {
+        host(|s| { let b = &s.ui.state.body; if s.ui.state.page != gallery::Page::Body || b.target() < 0.5 { vec![] } else { let (x, y, r) = b.placement(); vec![x, y, r] } }).unwrap_or_default()
+    }
     /// Open the search over every page.
     #[wasm_bindgen]
     pub fn open_search() { host(|s| { gallery::update(&mut s.ui.state, gallery::Msg::Search(true)); s.ui.relayout(); }); }

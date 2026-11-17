@@ -13,7 +13,7 @@
 //! - Glyphs are one size in body space; only perspective changes their size on screen.
 //! - The lamp is a point light; one continuous ramp from dim accent to ink, no bands: opacity keeps the
 //!   text legible everywhere, the colour carries the light.
-//! - Dragging turns the body; a click leaves it as it is. Two readouts name what is under the lamp
+//! - Dragging turns the body; a click sends a ring round. Two readouts name what is under the lamp
 //!   and how far the body has turned.
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, GlyphAt, Key, Paint, Point, Pose, Reveal, canvas, layers, text_lh};
@@ -56,6 +56,16 @@ pub const FRAME: f32 = 1_600.0;
 pub const FADE: f32 = 0.15;
 pub const FADE_INTRO: f32 = 0.2;
 pub const REST_LIGHT: [f32; 3] = [-0.9, 0.9, 1.6];
+/// The surface round the point under the pointer rises (within this distance, body units) and is lit
+/// more; a click's ring crosses the surface at this speed (units/s), this wide, lifting what it passes.
+pub const BULGE: f32 = 0.35;
+pub const RING_SPEED: f32 = 1.6;
+pub const RING_WIDTH: f32 = 0.12;
+/// A flick slows with this time constant (s); the idle turn comes back this long after the last
+/// input (s), easing in over a second; an arrow key turns the body this far (rad).
+pub const FLICK_TAU: f32 = 1.2;
+pub const IDLE_AFTER: f32 = 2.0;
+pub const KEY_TURN: f32 = 0.6;
 /// How the text is drawn on the form: nothing turned away, glyphs fading out from facing 0.5 (gone at
 /// 0.3), a glyph more than a third covered by nearer ones left out, the far side dimmer.
 pub const FORM_FX: FormFx = FormFx { back: 0.0, edge: 0.5, overlap: 0.35, fog: 0.6 };
@@ -164,12 +174,17 @@ pub struct Body {
     pub omega: f32,
     /// The spring between the listing (0) and the body (1).
     pub gather: Animated,
-    pub yaw: f32, pub pitch: f32, pub spin: f32, pub tip: f32,
+    /// The turn, and its free rates (rad/s: a flick's or an arrow key's, slowing by `FLICK_TAU`); the
+    /// idle turn's share (0..1) is added on top, and the time of the last input it waits for.
+    pub yaw: f32, pub pitch: f32, pub spin: f32, pub tip: f32, pub idle: f32, pub last_input: f32,
     /// The pointer over the picture (window px) and the lamp following it (view space).
     pub ptr: Option<(f32, f32)>, pub lamp: [Animated; 3],
     /// The glyph of the text drawn under the pointer (its number among the text's glyphs).
     pub under: Option<usize>,
-    grab: Option<(f32, f32, f32, f32)>, vel: Velocity, dragged: bool,
+    /// The pointer is over the body; the point under it (body space) and the bulge's strength; the
+    /// rings sent by clicks (body-space origin, start).
+    pub over: bool, pub touch_at: Option<[f32; 3]>, pub bulge: Animated, pub rings: Vec<([f32; 3], f32)>,
+    grab: Option<Grab>, vel: Velocity, dragged: bool,
     pub motes: Vec<Mote>, made: u32,
     /// The window (logical px), and the stage (x0, y0, x1, y1): the rectangle the host's page lays
     /// out for the scene, which the listing fills and the body and its readouts stay in.
@@ -191,6 +206,10 @@ pub struct Body {
     pub t: f32,
     cache: Rc<RefCell<Cache>>,
 }
+/// A press on the body: where (window px), the turn then, and the point under it (body space) with its
+/// distance from the centre (the arcball's radius), none when it was off the body.
+#[derive(Clone, Copy, Debug)]
+struct Grab { x: f32, y: f32, yaw: f32, pitch: f32, on: Option<([f32; 3], f32)> }
 /// The lamp's spring: it trails the hand a little.
 const LAMP: Spring = Spring { stiffness: 90.0, damping: 18.0, rest_distance: 0.001, rest_speed: 0.005, mass: 1.0 };
 /// The gather spring: about 0.9 s from the listing to the body.
@@ -199,8 +218,8 @@ impl Default for Body {
     fn default() -> Self {
         let lamp = |v: f32| Animated::new(v, Spring { ..LAMP });
         Self {
-            form: 0, seed: DEFAULT_SEED, omega: 0.16, gather: Animated::new(1.0, Spring { ..GATHER }), yaw: -0.4, pitch: -0.22, spin: 0.16, tip: 0.0,
-            ptr: None, under: None, lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
+            form: 0, seed: DEFAULT_SEED, omega: 0.16, gather: Animated::new(1.0, Spring { ..GATHER }), yaw: -0.4, pitch: -0.22, spin: 0.0, tip: 0.0, idle: 1.0, last_input: f32::NEG_INFINITY,
+            ptr: None, under: None, over: false, touch_at: None, bulge: Animated::new(0.0, Spring { ..LAMP }), rings: vec![], lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, vel: Velocity::default(), dragged: false, motes: vec![], made: 0,
             size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, cache: Rc::default(),
@@ -402,9 +421,9 @@ pub fn lit_paint(l: f32) -> Paint {
 /// the line's tangent (`run`) and the line's height across it (`gap`) are foreshortened on screen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CellLook { pub paint: Paint, pub alpha: f32, pub run: f32, pub gap: f32, pub facing: f32 }
-pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint) -> CellLook {
+pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint, boost: f32) -> CellLook {
     let (p, n, t) = (v.rot(sp.p), v.rot(sp.n), v.rot(sp.t));
-    let paint = lit_paint(lit(light, p, n));
+    let paint = lit_paint((lit(light, p, n) + boost).min(1.0));
     let run = (t[0] * t[0] + t[1] * t[1]).sqrt();
     // Across the line: the part of the projected bitangent square to the projected line.
     let b = cross(n, t);
@@ -412,6 +431,31 @@ pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint) -> CellLook {
     let facing = dot3(n, norm(sub([0.0, 0.0, 4.0], p)));
     let alpha = paint.alpha * FORM_FX.facing_alpha(facing);
     CellLook { paint, alpha, run, gap, facing }
+}
+
+/// What the hand does to the surface: the bulge round the point under the pointer (body space, with
+/// its strength) and the rings of clicks (body-space origin, radius now).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Touch { pub at: Option<[f32; 3]>, pub k: f32, pub rings: Vec<([f32; 3], f32)> }
+impl Touch {
+    /// How far a surface point (body space) is pushed out along its normal, and how much more lit it is.
+    pub fn push(&self, p: [f32; 3]) -> (f32, f32) {
+        let (mut out, mut boost) = (0.0, 0.0);
+        if let Some(h) = self.at {
+            let g = dot3(sub(p, h), sub(p, h)).sqrt();
+            if g < BULGE { let f = 1.0 - g / BULGE; out += 0.07 * f * f * self.k; boost += 0.25 * f * self.k; }
+        }
+        for &(o, r) in &self.rings {
+            let x = (dot3(sub(p, o), sub(p, o)).sqrt() - r) / RING_WIDTH;
+            if x.abs() < 1.0 { out += 0.05 * 0.5 * (1.0 + (std::f32::consts::PI * x).cos()); }
+        }
+        (out, boost)
+    }
+    /// The surface point pushed out.
+    pub fn moved(&self, sp: &SurfacePoint) -> (SurfacePoint, f32) {
+        let (out, boost) = self.push(sp.p);
+        (SurfacePoint { p: [sp.p[0] + sp.n[0] * out, sp.p[1] + sp.n[1] * out, sp.p[2] + sp.n[2] * out], ..*sp }, boost)
+    }
 }
 
 /// How the word of glyph `gi` faces the viewer: as its middle cell does.
@@ -598,7 +642,7 @@ impl Body {
     /// its depth and how it faces the viewer for `El::form`. `shown` says which glyphs the listing
     /// shows; the rest wait unseen where they would have been.
     fn poser(&self, origin: (f32, f32), shown: Rc<Vec<bool>>) -> impl Fn(GlyphAt) -> Pose + 'static {
-        let (g, v, l, cache, dim) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light(), self.cache.clone(), self.dim());
+        let (g, v, l, cache, dim, touch) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light(), self.cache.clone(), self.dim(), self.touch());
         let (_, _, rpx) = self.placement();
         let em_px = em_px(rpx, self.cache.borrow().em);
         move |a: GlyphAt| {
@@ -610,9 +654,12 @@ impl Body {
             let Some(sp) = c.text.cell.get(gi).and_then(|&k| c.pts.get(k)) else { return Pose { alpha: flat_alpha, ..Pose::default() } };
             let e = progress(g, gi, n);
             if e <= 0.0 { return Pose { alpha: flat_alpha, ..Pose::default() }; }
+            // Lifted along its normal by the hand (the bulge, a ring), and lit more near the pointer.
+            let (moved, boost) = touch.moved(sp);
+            let sp = &moved;
             let (p, t) = (v.rot(sp.p), v.rot(sp.t));
             let ([sx, sy], k) = v.project(p);
-            let CellLook { paint, run, gap, .. } = cell_look(&v, l, sp);
+            let CellLook { paint, run, gap, .. } = cell_look(&v, l, sp, boost);
             // A word faces the viewer as its middle does, so it comes and goes whole by its middle
             // (by its end, a long word would leave a hole in the line).
             let facing = word_facing(&v, &c, gi);
@@ -680,7 +727,7 @@ impl Body {
         for (gi, &k) in c.text.cell.iter().enumerate() {
             let Some(sp) = c.pts.get(k) else { continue };
             if v.rot(sp.n)[2] < -0.25 { continue; }
-            let look = cell_look(&v, l, sp);
+            let look = cell_look(&v, l, sp, 0.0);
             if look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi)) >= 0.15 { continue; }
             let ([x, y], s) = v.project(v.rot(sp.p));
             d.dot(x, y, dot_r * s, Paint { tone: 1.0, accent: look.paint.accent, alpha: 0.30 * g, hue: 0 });
@@ -820,7 +867,7 @@ impl Body {
         stage
             .on_point(|p| Some(Msg::Point(p)))
             .on_key(|k, _| Self::takes(k).then_some(Msg::Key(k)))
-            .cursor(if grabbing { amenui::el::Cursor::Grabbing } else { amenui::el::Cursor::Grab })
+            .cursor(if grabbing { amenui::el::Cursor::Grabbing } else if self.over { amenui::el::Cursor::Grab } else { amenui::el::Cursor::Default })
             .role(amenui::el::Role::Img).label(tr("body.label"))
     }
     /// Where the listing's caret is (window px): one cell after the last line shown.
@@ -839,19 +886,64 @@ impl Body {
     /// The scene's keys: 1 and 4 the states, Space and Enter between them, F the form, [ and ] the
     /// seed, ← → a turn.
     pub fn takes(k: Key) -> bool { matches!(k, Key::Char(' ' | '1' | '4' | 'f' | 'F' | '[' | ']') | Key::Enter | Key::Left | Key::Right) }
+    /// What the hand does to the surface now (none in the listing).
+    pub fn touch(&self) -> Touch {
+        let r = self.cache.borrow().radius.max(1e-3);
+        Touch { at: self.touch_at, k: self.bulge.value.clamp(0.0, 1.0), rings: self.rings.iter().map(|&(o, t0)| (o, RING_SPEED * r * (self.t - t0))).collect() }
+    }
+    /// How fast the body turns about the vertical now (rad/s): its free rate and the idle turn's share.
+    pub fn turn_rate(&self) -> f32 { let u = self.idle.clamp(0.0, 1.0); self.spin + if self.idle_on() { u * u * (3.0 - 2.0 * u) * self.omega } else { 0.0 } }
+    fn idle_on(&self) -> bool { self.target() >= 0.5 && !self.reduced && self.grab.is_none() }
+    /// Where the ray through a window point meets the body (view space), with the normal.
+    fn hit_at(&self, x: f32, y: f32, v: &View) -> Option<([f32; 3], [f32; 3])> { self.hit((x - v.c.0) / v.r, -(y - v.c.1) / v.r, v) }
+    /// The turn that brings `q` (body space) to where the ray through a window point meets the sphere
+    /// of `q`'s distance (the arcball): the point under the pointer stays under it. Pitch is clamped.
+    fn arcball(&self, q: [f32; 3], rho: f32, x: f32, y: f32, v: &View) -> Option<(f32, f32)> {
+        let (px, py) = ((x - v.c.0) / v.r, -(y - v.c.1) / v.r);
+        let (o, d) = ([0.0, 0.0, 4.0], norm([px, py, -4.0]));
+        let b = dot3(o, d);
+        let disc = b * b - (dot3(o, o) - rho * rho);
+        if disc < 0.0 { return None; }
+        let s = -b - disc.sqrt();
+        let t = [o[0] + d[0] * s, o[1] + d[1] * s, o[2] + d[2] * s];
+        // About the vertical first: x' = q.x cos Y + q.z sin Y = ρ cos(Y − φ) must be t.x.
+        let rxz = q[0].hypot(q[2]);
+        if rxz < 1e-4 { return None; }
+        let (phi, a) = (q[2].atan2(q[0]), (t[0] / rxz).clamp(-1.0, 1.0).acos());
+        let tau = std::f32::consts::TAU;
+        let near = |y: f32| y + ((self.yaw - y) / tau).round() * tau;
+        let (y1, y2) = (near(phi + a), near(phi - a));
+        let yaw = if (y1 - self.yaw).abs() <= (y2 - self.yaw).abs() { y1 } else { y2 };
+        // Then about the horizontal: (q.y, z') turned by the pitch is (t.y, t.z).
+        let zp = -q[0] * yaw.sin() + q[2] * yaw.cos();
+        let mut pitch = t[2].atan2(t[1]) - zp.atan2(q[1]);
+        pitch -= (pitch / tau).round() * tau;
+        Some((yaw, pitch.clamp(-1.0, 1.0)))
+    }
     /// The lamp to the pointer: just in front of the surface where the pointer's ray meets the body,
     /// else on a plane in front of it; back to its rest place when the pointer is gone.
     fn point_lamp(&mut self, at: Option<(f32, f32)>) {
-        let target = match at {
-            None => REST_LIGHT,
-            Some((x, y)) => {
-                let v = self.view();
-                let (px, py) = ((x - v.c.0) / v.r, -(y - v.c.1) / v.r);
-                match self.hit(px, py, &v) { Some((h, n)) => [h[0] + 0.55 * n[0], h[1] + 0.55 * n[1], h[2] + 0.55 * n[2]], None => [px, py, 1.2] }
-            }
-        };
+        let v = self.view();
+        let body = self.target() >= 0.5;
+        let hit = at.and_then(|(x, y)| self.hit_at(x, y, &v)).filter(|_| body);
+        self.over = hit.is_some();
         let now = self.t;
+        // The bulge goes with the point under the pointer, and dies away where it was when there is none.
+        if let Some((h, _)) = hit { self.touch_at = Some(v.unrot(h)); }
+        let k = self.bulge.velocity;
+        self.bulge.to(if hit.is_some() { 1.0 } else { 0.0 }, k, now);
+        let target = match (at, hit) {
+            (None, _) => REST_LIGHT,
+            (Some(_), Some((h, n))) => [h[0] + 0.55 * n[0], h[1] + 0.55 * n[1], h[2] + 0.55 * n[2]],
+            (Some((x, y)), None) => [(x - v.c.0) / v.r, -(y - v.c.1) / v.r, 1.2],
+        };
         for (a, t) in self.lamp.iter_mut().zip(target) { let v = a.velocity; a.to(t, v, now); }
+    }
+    /// A turn by an arrow key: `KEY_TURN` in all, slowing as a flick does (at once with reduced motion).
+    fn nudge(&mut self, dir: f32, now: f32) {
+        self.last_input = now;
+        self.idle = 0.0;
+        if self.reduced { self.yaw += dir * KEY_TURN; } else { self.spin += dir * KEY_TURN / FLICK_TAU; }
     }
     /// Where the ray through the screen point (view units) meets the form, with its normal (view space).
     fn hit(&self, px: f32, py: f32, v: &View) -> Option<([f32; 3], [f32; 3])> {
@@ -882,8 +974,8 @@ impl Experiment for Body {
     fn view(&self, key: &str) -> El<Msg> { self.view_in(key) }
     fn update(&mut self, m: Msg, now: f32) {
         match m {
-            Msg::Key(Key::Left) => { self.spin -= 0.6; }
-            Msg::Key(Key::Right) => { self.spin += 0.6; }
+            Msg::Key(Key::Left) => self.nudge(-1.0, now),
+            Msg::Key(Key::Right) => self.nudge(1.0, now),
             Msg::Key(Key::Char('1')) | Msg::Show(1) => self.go(0.0, now, FADE),
             Msg::Key(Key::Char('4')) | Msg::Show(_) => self.go(1.0, now, FADE),
             Msg::Key(Key::Char('f' | 'F')) | Msg::Form => { self.form = 1 - self.form; self.changed = now; }
@@ -900,31 +992,57 @@ impl Experiment for Body {
             Msg::Num(..) => {}
             Msg::Point(p) => {
                 self.ptr = p.map(|q| (q.x, q.y));
+                self.point_lamp(self.ptr);
                 // The glyph drawn under the pointer, as the runtime found it (`Ui::glyph_at`); while
-                // dragging none is given, and the last one stays.
-                // Between glyphs the last one stays while the pointer is on the body.
+                // dragging none is given, and the last one stays; between glyphs too, while the
+                // pointer is on the body.
                 match p {
                     Some(q) if q.down => {}
                     Some(q) if q.glyph.is_some() => self.under = q.glyph,
-                    Some(q) => { let v = self.view(); if self.hit((q.x - v.c.0) / v.r, -(q.y - v.c.1) / v.r, &v).is_none() { self.under = None; } }
-                    None => self.under = None,
+                    Some(_) if self.over => {}
+                    _ => self.under = None,
                 }
-                self.point_lamp(self.ptr);
+                let body = self.target() >= 0.5;
+                let v = self.view();
                 match (p, self.grab) {
-                    (Some(q), Some((x0, y0, yaw0, pitch0))) if q.down => {
-                        if (q.x - x0).hypot(q.y - y0) > 5.0 { self.dragged = true; }
-                        if self.dragged && self.target() >= 0.5 {
-                            let r = self.placement().2.max(60.0);
-                            self.yaw = yaw0 + (q.x - x0) / r;
-                            self.pitch = (pitch0 + (q.y - y0) / r).clamp(-1.0, 1.0);
-                            self.vel.push(now, q.x, q.y);
+                    (Some(q), Some(g)) if q.down => {
+                        if (q.x - g.x).hypot(q.y - g.y) > 5.0 { self.dragged = true; }
+                        if self.dragged && body {
+                            // The arcball: the point pressed stays under the pointer. Pressed off the
+                            // body, or dragged past its sphere, the turn follows the pointer's travel.
+                            let turned = g.on.and_then(|(q0, rho)| self.arcball(q0, rho, q.x, q.y, &v));
+                            let (yaw, pitch) = turned.unwrap_or_else(|| {
+                                let r = self.placement().2.max(60.0);
+                                (g.yaw + (q.x - g.x) / r, (g.pitch + (q.y - g.y) / r).clamp(-1.0, 1.0))
+                            });
+                            (self.yaw, self.pitch) = (yaw, pitch);
+                            self.vel.push(now, yaw, pitch);
                         }
+                        self.last_input = now;
                     }
-                    (Some(q), None) if q.down => { self.grab = Some((q.x, q.y, self.yaw, self.pitch)); self.dragged = false; self.vel.clear(); self.vel.push(now, q.x, q.y); }
-                    (_, Some(_)) => {
-                        // Let go: a drag keeps turning at its speed; a click leaves the body as it is.
-                        if self.dragged { let r = self.placement().2.max(60.0); let (vx, vy) = self.vel.get(); self.spin = (vx / r).clamp(-8.0, 8.0); self.tip = (vy / r).clamp(-4.0, 4.0); }
-                        self.grab = None; self.dragged = false; self.vel.clear();
+                    (Some(q), None) if q.down => {
+                        let on = self.hit_at(q.x, q.y, &v).map(|(h, _)| (v.unrot(h), dot3(h, h).sqrt()));
+                        self.grab = Some(Grab { x: q.x, y: q.y, yaw: self.yaw, pitch: self.pitch, on });
+                        self.dragged = false;
+                        self.vel.clear();
+                        self.vel.push(now, self.yaw, self.pitch);
+                        // The hand holds it: the turn stops until it lets go.
+                        (self.spin, self.tip, self.idle, self.last_input) = (0.0, 0.0, 0.0, now);
+                    }
+                    (_, Some(g)) => {
+                        // Let go: a drag keeps turning at its speed; a click sends a ring from where it
+                        // pressed (none with reduced motion) and leaves the body where it is.
+                        if self.dragged {
+                            let (vy, vp) = self.vel.get();
+                            (self.spin, self.tip) = (vy.clamp(-8.0, 8.0), vp.clamp(-4.0, 4.0));
+                        } else if body && !self.reduced && let Some((o, _)) = g.on {
+                            if self.rings.len() >= 4 { self.rings.remove(0); }
+                            self.rings.push((o, now));
+                        }
+                        self.grab = None;
+                        self.dragged = false;
+                        self.vel.clear();
+                        self.last_input = now;
                     }
                     _ => {}
                 }
@@ -952,22 +1070,36 @@ impl Experiment for Body {
         }
         changed |= self.gather.step(now);
         for a in &mut self.lamp { changed |= a.step(now); }
+        changed |= self.bulge.step(now);
         let body = self.target() >= 0.5;
         if self.grab.is_none() {
-            let idle = if body && !self.reduced { self.omega } else { 0.0 };
-            let k = (-1.3 * dt).exp();
-            self.spin = idle + (self.spin - idle) * k;
+            // A flick or a key's turn slows; the idle turn comes back 2 s after the last input, over 1 s.
+            let k = (-dt / FLICK_TAU).exp();
+            self.spin *= k;
             self.tip *= k;
-            if (self.spin - idle).abs() < 1e-3 { self.spin = idle; }
+            if self.spin.abs() < 1e-3 { self.spin = 0.0; }
             if self.tip.abs() < 1e-3 { self.tip = 0.0; }
-            if self.spin != 0.0 || self.tip != 0.0 { self.yaw += self.spin * dt; self.pitch = (self.pitch + self.tip * dt).clamp(-1.0, 1.0); changed = true; }
+            if self.idle_on() && now - self.last_input >= IDLE_AFTER { self.idle = (self.idle + dt).min(1.0); }
+            let rate = self.turn_rate();
+            if rate != 0.0 || self.tip != 0.0 {
+                self.yaw += rate * dt;
+                self.pitch = (self.pitch + self.tip * dt).clamp(-1.0, 1.0);
+                changed = true;
+                // What is under a pointer that stays still changes as the body turns under it.
+                if self.ptr.is_some() { self.point_lamp(self.ptr); }
+            }
         }
+        // Rings cross the surface and leave it.
+        let r = self.cache.borrow().radius;
+        let before = self.rings.len();
+        self.rings.retain(|&(_, t0)| RING_SPEED * r * (now - t0) < 2.4 * r + RING_WIDTH);
+        changed |= !self.rings.is_empty() || before != self.rings.len();
         for m in &mut self.motes { m.age += dt; m.x += m.vx * dt; m.y += m.vy * dt; m.vy -= 3.0 * dt; }
         let before = self.motes.len();
         self.motes.retain(|m| m.age < MOTE_LIFE);
         changed |= before != self.motes.len() || !self.motes.is_empty();
         // Rim cells shed a few motes while it turns (from the budget; never in the listing).
-        if body && self.gather.value > 0.97 && !self.reduced && dt > 0.0 && self.spin.abs() > 0.01 {
+        if body && self.gather.value > 0.97 && !self.reduced && dt > 0.0 && self.turn_rate().abs() > 0.01 {
             let v = self.view();
             let c = self.cache.borrow();
             let want = amenui::budget::grant(1).min(30usize.saturating_sub(self.motes.len()));
@@ -988,7 +1120,7 @@ impl Experiment for Body {
         changed || (body && !self.reduced && self.omega > 0.0)
     }
     fn moving(&self) -> bool {
-        self.gather.moving() || self.lamp.iter().any(Animated::moving) || !self.motes.is_empty() || self.grab.is_some()
+        self.gather.moving() || self.lamp.iter().any(Animated::moving) || self.bulge.moving() || !self.rings.is_empty() || !self.motes.is_empty() || self.grab.is_some()
             || self.spin != 0.0 || self.tip != 0.0 || (self.target() >= 0.5 && !self.reduced && self.omega > 0.0)
             || self.intro_pending || self.intro_at.is_some() || self.front_at.is_some() || self.fade.is_some()
     }

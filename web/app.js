@@ -253,6 +253,12 @@ function site() {
     D.title = path === '' ? 'amenui' : (t ? t + ' · amenui' : 'amenui');
     place(); showRail();
   };
+  // On a phone the page scrolls under a vertical drag, except one that starts on the body: that turns it.
+  D.getElementById('main').addEventListener('touchstart', e => {
+    if (!api || !isHome() || e.touches.length !== 1) return;
+    const c = api.w.hero_circle(), r = e.target.getBoundingClientRect(), t = e.touches[0];
+    if (c.length === 3 && Math.hypot(t.clientX - r.left - c[0], t.clientY - r.top - c[1]) < c[2]) e.preventDefault();
+  }, { passive: false });
   const status = D.querySelector('.status'), f2 = status.querySelector('.f2'), quality = status.querySelector('.quality');
   let running = false, lastDrawn = -1;
   // `F2` opens the full readout (the canvas draws it over the stage's bottom right); while it is open

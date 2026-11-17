@@ -37,8 +37,6 @@ pub fn page(s: &Gallery) -> El<Msg> { s.body.view_in("body").map(Rc::new(Msg::Bo
 pub fn fresh(s: &Gallery) -> Body {
     let mut b = Body::default();
     (b.reduced, b.stage, b.text_centre, b.form, b.seed) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.form, s.body.seed);
-    // With reduced motion the body starts still (no idle turn to ease out of).
-    if b.reduced { b.spin = 0.0; }
     b.resize(s.width, s.height);
     b.entered = s.clock;
     b.t = s.clock;

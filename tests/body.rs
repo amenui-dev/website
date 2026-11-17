@@ -89,8 +89,8 @@ fn a_click_never_releases_it_and_a_drag_turns_it() {
     ui.release(cx + 180.0, cy);
     assert!(ui.state.yaw > yaw0 + 0.4, "dragged round: {} → {}", yaw0, ui.state.yaw);
     assert!(ui.state.target() >= 0.5, "a drag does not release");
-    run(&mut ui, 6.0);
-    assert!((ui.state.spin - ui.state.omega).abs() < 0.02, "back to the idle turn: {}", ui.state.spin);
+    run(&mut ui, 8.0);
+    assert!((ui.state.turn_rate() - ui.state.omega).abs() < 0.02, "back to the idle turn: {}", ui.state.turn_rate());
     // At any pointer place, nothing shows in the listing: no partial words.
     for (px, py) in [(cx, cy), (cx - r * 0.5, cy - r * 0.3), (cx + r * 0.7, cy + r * 0.2), (100.0, 100.0)] {
         ui.pointer_move(px, py);
@@ -310,4 +310,89 @@ fn the_short_path_sends_one_front_from_the_caret() {
     ui.state.open("", true);
     run(&mut ui, 1.0);
     assert!(ui.state.fronted.is_none());
+}
+
+#[test]
+fn a_drag_keeps_the_point_under_the_pointer_and_a_flick_slows_into_the_idle_turn() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    run(&mut ui, 0.5);
+    let (cx, cy, r) = ui.state.placement();
+    let (x0, y0) = (cx - r * 0.2, cy - r * 0.1);
+    // A point on a glyph there, so the glyph readout names the glyph pressed.
+    let (x0, y0) = (0..400).map(|k| (x0 + (k % 20) as f32 - 10.0, y0 + (k / 20) as f32 - 10.0)).find(|&(x, y)| ui.glyph_at(x, y).is_some()).expect("a glyph");
+    ui.pointer_move(x0, y0);
+    run(&mut ui, 0.05);
+    ui.press(x0, y0);
+    let (_, _, at) = ui.state.glyph_under_lamp().expect("a glyph under the pointer");
+    let off = (at.0 - x0, at.1 - y0);
+    for k in 1..=12 {
+        let (x, y) = (x0 + 14.0 * k as f32, y0 + 5.0 * k as f32);
+        ui.pointer_move(x, y);
+        run(&mut ui, 1.0 / 60.0);
+        let (_, _, at) = ui.state.glyph_under_lamp().unwrap();
+        let miss = (at.0 - x - off.0).hypot(at.1 - y - off.1);
+        assert!(miss < 4.0, "step {k}: the pressed point is {miss:.1} px from the pointer");
+    }
+    // A flick: it keeps turning, slows, and the idle turn is back 2 s after the release, eased in.
+    ui.release(x0 + 168.0, y0 + 60.0);
+    let fast = ui.state.turn_rate();
+    assert!(fast > ui.state.omega * 3.0, "it keeps the drag's speed: {fast}");
+    run(&mut ui, 1.2);
+    let slower = ui.state.turn_rate();
+    assert!((slower / fast - (-1.0f32).exp()).abs() < 0.05, "slows with a 1.2 s time constant: {fast} → {slower}");
+    run(&mut ui, 0.7);
+    assert_eq!(ui.state.idle, 0.0, "no idle turn within 2 s of the release");
+    run(&mut ui, 1.4);
+    assert!(ui.state.idle >= 1.0, "the idle turn eased in over a second");
+}
+
+#[test]
+fn a_click_sends_one_ring_and_the_arrows_turn_it() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    run(&mut ui, 0.5);
+    let (cx, cy, _) = ui.state.placement();
+    click(&mut ui, cx, cy);
+    assert_eq!(ui.state.rings.len(), 1, "one ring from the click");
+    run(&mut ui, 0.3);
+    let lifted = glyphs(&ui);
+    assert!(!lifted.is_empty());
+    run(&mut ui, 2.0);
+    assert!(ui.state.rings.is_empty(), "it has crossed the surface");
+    // Off the body a click sends none; with reduced motion none.
+    click(&mut ui, 40.0, 40.0);
+    assert!(ui.state.rings.is_empty());
+    ui.state.reduced = true;
+    click(&mut ui, cx, cy);
+    assert!(ui.state.rings.is_empty(), "reduced motion: no ring");
+    // → turns it by 0.6 rad: at once with reduced motion, else slowing as a flick does.
+    ui.state.omega = 0.0;
+    let yaw = ui.state.yaw;
+    ui.state.update(Msg::Key(amenui::el::Key::Right), ui.now());
+    assert!((ui.state.yaw - yaw - body::KEY_TURN).abs() < 1e-4);
+    ui.state.reduced = false;
+    let yaw = ui.state.yaw;
+    ui.state.update(Msg::Key(amenui::el::Key::Left), ui.now());
+    run(&mut ui, 10.0);
+    assert!((yaw - ui.state.yaw - body::KEY_TURN).abs() < 0.02, "turned {}", yaw - ui.state.yaw);
+}
+
+#[test]
+fn the_bulge_lifts_and_lights_the_surface_near_the_pointer() {
+    let t = body::Touch { at: Some([0.0, 0.0, 1.0]), k: 1.0, rings: vec![] };
+    let (out, boost) = t.push([0.0, 0.0, 1.0]);
+    assert!((out - 0.07).abs() < 1e-6 && (boost - 0.25).abs() < 1e-6);
+    assert_eq!(t.push([0.0, body::BULGE, 1.0]), (0.0, 0.0), "nothing at 0.35");
+    let ring = body::Touch { at: None, k: 0.0, rings: vec![([0.0, 0.0, 1.0], 0.5)] };
+    assert!((ring.push([0.0, 0.5, 1.0]).0 - 0.05).abs() < 1e-6, "the ring lifts what it passes by 0.05");
+    assert_eq!(ring.push([0.0, 0.0, 1.0]).0, 0.0);
+    // Over the body the cursor is a hand; off it, the arrow.
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    run(&mut ui, 0.5);
+    let (cx, cy, _) = ui.state.placement();
+    ui.pointer_move(cx, cy);
+    run(&mut ui, 0.05);
+    assert_eq!(ui.cursor(), amenui::el::Cursor::Grab);
+    ui.pointer_move(30.0, 30.0);
+    run(&mut ui, 0.05);
+    assert_eq!(ui.cursor(), amenui::el::Cursor::Default);
 }
