@@ -59,8 +59,19 @@ def words(md):
 
 
 def label(title):
-    """A title as plain text, for the sidebar, the page-end cells and search (code spans unmarked)."""
+    """A title as plain text, for search and the document's title (code spans unmarked)."""
     return title.replace('`', '')
+
+
+FILE_NAME = re.compile(r'(?<![\w./-])((?:[\w-]+/)*[\w-]+\.(?:md|txt|rs|toml|json|js|wgsl))(?![\w])')
+
+
+def label_html(title):
+    """A title for a label (the sidebar, the index, the page-end cells): escaped, its code spans and
+    the file names in it (`AGENTS.md`, `llms.txt`) as `<code>`, which keep their case where labels
+    are set in capitals."""
+    plain = lambda x: FILE_NAME.sub(lambda m: f'<code>{m.group(1)}</code>', esc(x))
+    return ''.join(f'<code>{esc(x)}</code>' if i % 2 else plain(x) for i, x in enumerate(title.split('`')))
 
 
 def has_cjk(s):
@@ -518,7 +529,9 @@ def examples_of(src):
     for i, l in enumerate(lines):
         if l.startswith('/// ') and i + 1 < len(lines) and lines[i + 1].startswith('pub fn ex_'):
             end = next((j for j in range(i + 1, len(lines)) if lines[j] == '}'), len(lines) - 1)
-            out.append((l[4:], '\n'.join(lines[i + 1:end + 1])))
+            # Each example is the call in a function named `view`, as an application writes it.
+            body = re.sub(r'^pub fn ex_\d+\(\)', 'fn view()', '\n'.join(lines[i + 1:end + 1]))
+            out.append((l[4:], body))
     return out
 
 
@@ -566,10 +579,13 @@ def component_html(p, lang, tr, by_name, fw, link):
     parts.append(f'<p>{esc(t("docs.install.files"))}: ' + ', '.join(f'<code>{esc(f)}</code>' for f in closure(name, by_name)) + '</p>')
     parts.append(h2(t('docs.sec.usage')))
     fns = it.get('functions', [])
-    parts.append(code_block(f'use amenui::widgets::{{{", ".join(fns)}}};' + ('\n\n' + exs[0][1] if exs else ''), 'rust', t))
-    if exs:
+    # Usage: the import and the first example's call; an example that prints the same is not repeated.
+    usage = exs[0][1] if exs else ''
+    parts.append(code_block(f'use amenui::widgets::{{{", ".join(fns)}}};' + ('\n\n' + usage if usage else ''), 'rust', t))
+    more = [(label, c) for label, c in exs if c != usage]
+    if more:
         parts.append(h2(t('docs.sec.examples')))
-        for ex_label, c in exs:
+        for ex_label, c in more:
             hid = slug(esc(pick(ex_label, lang)), ids)
             parts.append(f'<h3 id="{hid}"><a href="#{hid}">{esc(pick(ex_label, lang))}</a></h3>')
             parts.append(code_block(c, 'rust', t))
@@ -636,7 +652,7 @@ def write_page(ctx, p, lang, nav, tr):
     path_line = ' / '.join(crumbs) + ' /'
     # Below 1,080 px the path line opens the sidebar: the same path as text, with the page's name.
     names = [t('web.docs'), gname] + ([sub_name(p.sub, t)] if p.sub else []) + [label(p.title[lang])]
-    path_open = esc(' / '.join(n.lower() if lang == 'en' else n for n in names))
+    path_open = ' / '.join(label_html(n.lower() if lang == 'en' else n) for n in names)
     title = p.title[lang]
     toc = [(txt, hid) for lv, txt, hid in heads if lv == 2]
     cl = p.content_lang[lang]
@@ -647,7 +663,7 @@ def write_page(ctx, p, lang, nav, tr):
     nxt = vis[i + 1] if 0 <= i < len(vis) - 1 else None
     pn = ''
     if prev or nxt:
-        cell = lambda q, cls: f'<a class="{cls}" href="{href(q.path)}" rel="{cls}"><small>{"← " if cls == "prev" else ""}{q.num}{" →" if cls == "next" else ""}</small><span>{esc(label(q.title[lang]))}</span></a>' if q else '<span></span>'
+        cell = lambda q, cls: f'<a class="{cls}" href="{href(q.path)}" rel="{cls}"><small>{"← " if cls == "prev" else ""}{q.num}{" →" if cls == "next" else ""}</small><span>{label_html(q.title[lang])}</span></a>' if q else '<span></span>'
         pn = f'<nav class="pn" aria-label="{attr(t("web.docs.pages"))}">' + cell(prev, 'prev') + cell(nxt, 'next') + '</nav>'
     edit = raw = ''
     if p.src:
@@ -722,7 +738,7 @@ def sidebar(nav, here, lang, t, href):
 
 def row(p, here, lang, href):
     cur = p is here
-    return f'<li><a href="{href(p.path)}"' + (' aria-current="page"><i class="here" aria-hidden="true">▸</i>' if cur else '>') + f'{esc(label(p.title[lang]))}</a></li>'
+    return f'<li><a href="{href(p.path)}"' + (' aria-current="page"><i class="here" aria-hidden="true">▸</i>' if cur else '>') + f'{label_html(p.title[lang])}</a></li>'
 
 
 def write_index(ctx, nav, tr):
@@ -744,7 +760,7 @@ def write_index(ctx, nav, tr):
                     parts.append(f'<li class="subhead">{esc(sub_name(p.sub, t))}</li>')
                 last = p.sub
                 d = desc_of(p.out[lang][0]) if g not in ('components',) and not (p.sub and g != 'components') else ''
-                parts.append(f'<li><a href="{href(p.path)}"><small>{p.num}</small><span>{esc(label(p.title[lang]))}</span></a>' + (f'<p>{esc(d)}</p>' if d else '') + '</li>')
+                parts.append(f'<li><a href="{href(p.path)}"><small>{p.num}</small><span>{label_html(p.title[lang])}</span></a>' + (f'<p>{esc(d)}</p>' if d else '') + '</li>')
             parts.append('</ul>')
         body = '\n'.join(parts)
         main = (f'<main id="main" class="doc-main index"><p class="path"><span class="path-text">{esc(t("web.docs"))} /</span><a class="path-open" href="#side" aria-controls="side">{esc(t("web.docs"))} / <span aria-hidden="true">▾</span></a></p>'

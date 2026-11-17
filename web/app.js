@@ -45,6 +45,8 @@ async function mount(stage, opts) {
     // Motion keeps the clock's time: when a late frame finds it over and draws nothing, the screen
     // still holds the last frame drawn in it, so the frame at rest is drawn now.
     if (moving && d !== 0 && w.frames()[0] === drawn) { w.redraw(); d = w.frame(now()); }
+    // A stage route draws its specimen at the scale that fits its box: a new scale draws again.
+    if (w.fit_stage && w.fit_stage()) d = 0;
     moving = d === 0;
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }

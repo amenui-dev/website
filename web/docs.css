@@ -75,7 +75,7 @@ html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
 .prose code { font: .92em var(--code); background: var(--raised); padding: 1px 4px; }
 
 /* Code blocks: raised ground, hairline frame, a 28 px header with the language and copy. */
-.code { margin: 24px 0; background: var(--raised); border: 1px solid var(--hairline); }
+.code { margin: 24px 0; min-width: 0; max-width: 100%; background: var(--raised); border: 1px solid var(--hairline); }
 .code figcaption { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px; border-bottom: 1px solid var(--hairline);
   font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .code .copy { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--dim); background: none; border: 0; padding: 0 0 0 16px; height: 28px; cursor: pointer; }
@@ -87,7 +87,6 @@ html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
 .code .l { counter-increment: l; }
 .code .l::before { content: counter(l); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--dim); -webkit-user-select: none; user-select: none; }
 .code .c { color: var(--dim); } .code .s, .code .n { color: var(--second); } .code .hl { color: var(--accent); }
-@media (min-width: 1080px) { .prose .code { margin-right: -24px; } }
 
 /* Tables: header row 11 px uppercase dim, a hairline under each row, scrolling in their own box. */
 .table { overflow-x: auto; margin: 24px 0; }
@@ -207,3 +206,6 @@ html[lang="zh-Hans"] .nf p { font: 16px/1.75 var(--cjk); }
 /* View transitions (F.8, with the chrome's): the sidebar holds and its marker glides. */
 .doc .side { view-transition-name: side; }
 @media print { .bar, .side, .toc, .pn, .foot, .stage { display: none !important; } .docs { display: block; padding: 0; } }
+/* A code name inside a label set in capitals keeps its case; zh-Hans labels are not transformed. */
+.side code, .path code, .pn code, .toc code, .toc-inline code, .idx code, .prose h3 code, .prose h4 code, .prose th code, .prose h2.sec code, .stage figcaption code { text-transform: none; font: inherit; letter-spacing: 0; }
+html[lang="zh-Hans"] .side, html[lang="zh-Hans"] .side *, html[lang="zh-Hans"] .path, html[lang="zh-Hans"] .pn a, html[lang="zh-Hans"] .toc *, html[lang="zh-Hans"] .toc-inline, html[lang="zh-Hans"] .prose h3, html[lang="zh-Hans"] .prose h4, html[lang="zh-Hans"] .prose th, html[lang="zh-Hans"] .prose h2.sec, html[lang="zh-Hans"] .idx a, html[lang="zh-Hans"] .idx .subhead, html[lang="zh-Hans"] .only-en, html[lang="zh-Hans"] .stage figcaption, html[lang="zh-Hans"] .foot { text-transform: none; }

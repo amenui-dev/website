@@ -57,8 +57,8 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
     input.addEventListener('input', run);
     input.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); select(active + (e.key === 'ArrowDown' ? 1 : -1)); }
-      else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && list.children[active] && list.children[active].querySelector('.to-docs') && input.selectionStart === input.value.length) { e.preventDefault(); side = e.key === 'ArrowRight' ? 1 : 0; select(active); }
-      else if (e.key === 'Enter') { e.preventDefault(); const a = target(active); if (a) go(a, e); }
+      // ← and → stay with the caret; Shift+Enter opens the selected row's docs page when it has one.
+      else if (e.key === 'Enter') { e.preventDefault(); const li = list.children[active]; const a = e.shiftKey && li && li.querySelector('.to-docs') || target(active); if (a) go(a, e); }
       else if (e.key === 'Escape') { e.preventDefault(); close(); }
       else if (e.key === 'Tab') e.preventDefault();
       e.stopPropagation();
@@ -77,8 +77,11 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
     const a = target(active);
     [...list.children].forEach((li, j) => { li.classList.toggle('on', j === active); for (const x of li.querySelectorAll('a')) x.setAttribute('aria-selected', String(x === a)); });
     input.setAttribute('aria-activedescendant', a.id);
+    hint(!!list.children[active].querySelector('.to-docs'));
     if (!quiet) a.scrollIntoView({ block: 'nearest' });
   };
+  // The footer names Shift+Enter only while the selected row has a docs page.
+  const hint = docs => { const f = el.querySelector('.foot'); f.textContent = docs ? S.t.hint + ' · ' + S.t.hintDocs : S.t.hint; };
   // A canvas route is taken inside the running app when there is one; anything else is a navigation.
   const go = a => {
     const r = a.dataset.route;
@@ -137,10 +140,10 @@ html[lang="zh-Hans"] .find .x, html[lang="zh-Hans"] .find input { font-family: "
     list.innerHTML = '';
     none.hidden = true;
     if (!data) { if (q) { none.textContent = S.t.loading; none.hidden = false; } return; }
-    if (!q) return;
+    if (!q) { hint(false); return; }
     const words = low(q).split(/\s+/).filter(Boolean);
     found = find(q);
-    if (!found.length) { none.textContent = S.t.none; none.hidden = false; return; }
+    if (!found.length) { none.textContent = S.t.none; none.hidden = false; hint(false); return; }
     list.innerHTML = found.map(({ p, sec }, i) => {
       const s = sec >= 0 ? p.secs[sec] : null;
       const at = s && s[1] ? '#' + s[1] : '';

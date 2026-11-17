@@ -20,7 +20,7 @@ A custom material on one element | 单个元素上的自定义材质
 A 3D object in a card | 卡片里的三维物体
 Morph A into B | 把 A 变形为 B
 A custom preset | 自定义预设
-A stack of cards that fans | 展开成扇形的卡片堆
+A stack of cards that fans | 可扇形展开的卡片堆
 A menu with submenus and a safe zone | 带子菜单和安全区的菜单
 Design | 设计
 1. The pipeline | 1. 管线
@@ -38,7 +38,7 @@ Design | 设计
 1.8 Input | 1.8 输入
 1.8.1 Text input | 1.8.1 文字输入
 1.8.2 Pointer, touch and wheel | 1.8.2 指针、触摸和滚轮
-1.8.3 How scrolling looks | 1.8.3 滚动的样子
+1.8.3 How scrolling looks | 1.8.3 滚动的外观
 1.8.4 Gesture physics (`src/gesture.rs`) | 1.8.4 手势物理（`src/gesture.rs`）
 1.8.5 Nested menus and the safe zone | 1.8.5 嵌套菜单和安全区
 1.9 Platforms | 1.9 平台
@@ -54,8 +54,8 @@ Design | 设计
 1.19 Drawing only what changed | 1.19 只绘制变化的部分
 1.20 Languages | 1.20 语言
 1.21 The finishing pass: post effects, dithering and palettes | 1.21 收尾处理：后期效果、抖动和调色板
-1.22 Marks that move by themselves: shedding and flow fields | 1.22 自己会动的记号：脱落和流场
-1.23 How loading looks | 1.23 载入的样子
+1.22 Marks that move by themselves: shedding and flow fields | 1.22 自行运动的记号：脱落和流场
+1.23 How loading looks | 1.23 载入时的外观
 1.24 A stack of cards | 1.24 卡片堆
 1.25 A dot chart | 1.25 点阵图表
 1.26 Fields, drawings and glyph poses | 1.26 场、绘图和字形姿态
@@ -71,4 +71,4 @@ Design | 设计
 6. Scenes | 6. 场景
 7. What is done and its acceptance | 7. 已完成的部分和验收
 8. Layout | 8. 布局
-9. Where the implementation differs from the design | 9. 实现与设计不一致的地方
+9. Where the implementation differs from the design | 9. 实现与设计的差异

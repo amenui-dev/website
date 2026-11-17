@@ -182,3 +182,4 @@ web.search.results = Results
 web.search.none = No results
 web.search.loading = Loading the index…
 web.search.hint = ↑ ↓ to move · enter to open · esc to close
+web.search.hint.docs = ⇧ enter for docs

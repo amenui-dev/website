@@ -128,13 +128,18 @@ pub fn components(s: &Gallery) -> El<Msg> {
 /// A compact instance of a widget whose first example is wider than a card or taller than its
 /// preview (at most 200 × 104 px): the same widget, smaller where it has a size, fewer items where it
 /// has a list.
-fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
+pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
     use amenui::mesh::{MeshId, Scene3d};
     use amenui::widgets::*;
     let k = |n: &str| format!("{key}/{n}");
     Some(match name.replace('-', "_").as_str() {
         "orbit" => orbit(&k("o"), Scene3d::single(MeshId::CUBE), &Orbit::default(), |_| Msg::Nothing).width(150.0).height(100.0),
-        "card_stack" => card_stack(&k("cs"), &Stack::default(), 150.0, 96.0, |_| Msg::Nothing),
+        // Three cards, the two under the top one turned out a little, settled.
+        "card_stack" => {
+            let mut d = Stack::default();
+            (d.count, d.angle0, d.falloff) = (3, 10.0, 2.0);
+            card_stack(&k("cs"), &super::lab::fanned(&d), 150.0, 96.0, |_| Msg::Nothing)
+        }
         // The tip and the toast are placed by insets from their boxes' far edges; here from the near
         // ones, so they stay in the card at any width.
         "tooltip" => {
@@ -145,9 +150,12 @@ fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
         }
         "toast" => col().width(200.0).height(76.0).child(toast(&k("to"), "Saved", "Three changes written", true, Msg::Nothing).width(200.0).absolute(Some(0.0), Some(0.0), None, None)),
         "bottom_sheet" => {
-            let body = col().gap(6.0).child(text("One line", 13.0, Paint::TEXT));
-            amenui::el::layers([col().fill_width().fill_height(), bottom_sheet(&k("bs"), &Sheet::resting(104.0, 1), "Share to", body, |_| Msg::Nothing)])
-                .width(160.0).height(104.0).radius(12.0).border(1.0, Paint::DIM).clip()
+            // The handle and the title: at the low detent the body is below the frame's edge.
+            let body = space(0.0, 0.0);
+            // The sheet rests 8 px inside the frame, so both their borders are whole.
+            let sheet = amenui::el::layers([col().fill_width().fill_height(), bottom_sheet(&k("bs"), &Sheet::resting(PREVIEW_H - 16.0, 1), "Share to", body, |_| Msg::Nothing)])
+                .fill_width().fill_height().clip();
+            col().width(160.0).height(PREVIEW_H).pad(8.0, 8.0).radius(12.0).border(1.0, Paint::FAINT).child(sheet)
         }
         "pagination" => pagination(&k("pg"), 2, 5, |_| Msg::Nothing),
         // One match under the query; the query field as wide as the card allows.
@@ -166,17 +174,19 @@ fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
         "floating" => {
             let mut f = Floating::default();
             f.area = (160.0, 100.0);
-            f.size = (72.0, 40.0);
+            f.size = (88.0, 44.0);
             f.place(3);
-            amenui::el::layers([floating(&k("fl"), &f, text("00:42", 12.0, Paint::TEXT).key(k("t")), |_| Msg::Nothing)])
+            let label = row().fill_width().fill_height().center().child(text("00:42", 13.0, Paint::TEXT).font(Font::Mono).key(k("t")));
+            amenui::el::layers([floating(&k("fl"), &f, label, |_| Msg::Nothing)])
                 .width(160.0).height(100.0).radius(8.0).border(1.0, Paint::FAINT).clip()
         }
         // The open sheet's panel and the open context menu, without the modal layer each puts over
         // the page; the skip link as it shows when it has focus.
         "sheet" => {
             let open = sheet(&k("sh"), true, "Filter", 150.0, Msg::Nothing, text("Conditions", 13.0, Paint::TEXT));
+            // The panel 8 px inside the frame, so both their borders are whole.
             let panel = open.children.into_iter().nth(1)?;
-            row().width(200.0).height(100.0).radius(8.0).border(1.0, Paint::FAINT).clip().justify(taffy::JustifyContent::END).child(panel)
+            row().width(200.0).height(PREVIEW_H).pad(8.0, 6.0).radius(8.0).border(1.0, Paint::FAINT).justify(taffy::JustifyContent::END).child(panel)
         }
         "context_menu" => {
             let open = context_menu(&k("cm"), Some((0.0, 0.0)), &["Open", "Rename"], 0, |_| Msg::Nothing, |_| Msg::Nothing, Msg::Nothing);
@@ -184,6 +194,10 @@ fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
             m.style.position = taffy::Position::Relative;
             m
         }
+        // One small rectangle and the formula line under it, without its number controls.
+        "caption" => col().gap(8.0)
+            .child(space(72.0, 36.0).key(k("rect")).radius(6.0).fill(Paint::ACCENT))
+            .child(caption(&k("cap"), "rect(w=72, r=6)", &[], |_, _| Msg::Nothing)),
         "skip_link" => row().key(k("sl")).height(32.0).pad(12.0, 0.0).radius(6.0).center().fill(Paint::ACCENT)
             .child(text("Skip to content", 13.0, Paint::GROUND)),
         _ => return None,

@@ -153,7 +153,7 @@ SEARCH_TOKEN = '@@SEARCH-INDEX@@'
 def search_boot(lang, index_url):
     t = lambda k: tr(lang, k)
     cfg = {'js': BASE + search_fn, 'index': index_url, 'base': BASE + ('' if lang == 'en' else lang + '/'),
-           't': {'search': t('web.search'), 'placeholder': t('web.search.placeholder'), 'results': t('web.search.results'), 'none': t('web.search.none'), 'loading': t('web.search.loading'), 'hint': t('web.search.hint'), 'docs': t('web.docs')}}
+           't': {'search': t('web.search'), 'placeholder': t('web.search.placeholder'), 'results': t('web.search.results'), 'none': t('web.search.none'), 'loading': t('web.search.loading'), 'hint': t('web.search.hint'), 'hintDocs': t('web.search.hint.docs'), 'docs': t('web.docs')}}
     return ('<script>window.SEARCH=%s;(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});'
             'D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);'
             'if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);'

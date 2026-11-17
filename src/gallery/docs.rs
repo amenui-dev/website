@@ -127,7 +127,10 @@ pub fn examples_of(src: &str) -> Vec<(String, String)> {
     for (i, l) in lines.iter().enumerate() {
         if let Some(label) = l.strip_prefix("/// ") && lines.get(i + 1).is_some_and(|n| n.starts_with("pub fn ex_")) {
             let end = (i + 1..lines.len()).find(|&j| lines[j] == "}").unwrap_or(lines.len() - 1);
-            out.push((label.to_owned(), lines[i + 1..=end].join("\n")));
+            // Each example is the call in a function named `view`, as an application writes it.
+            let body = lines[i + 1..=end].join("\n");
+            let body = match body.split_once("()") { Some((head, rest)) if head.starts_with("pub fn ex_") => format!("fn view(){rest}"), _ => body };
+            out.push((label.to_owned(), body));
         }
     }
     out

@@ -287,10 +287,11 @@ pub fn index_preview(s: &Gallery, c: usize) -> El<Msg> {
         SLIDER => slider(&k("live"), s.level, slider_spec(s), 200.0, Msg::Level).label("Value"),
         TABS => tabs(&k("live"), &["All", "Images", "Text"], s.tab.min(2), 14.0, 2.0, Msg::Tab, text("Content", 13.0, Paint::DIM).key(k("panel"))).width(200.0),
         CHOICE => segmented(&k("live"), &["Small", "Medium", "Large"], s.pick, 30.0, Msg::Pick),
-        LIST => list(&k("live"), &[("Photo", "JPG"), ("Notes", "MD"), ("Voice", "M4A")], s.row, 28.0, 84.0, Msg::Row).width(200.0),
+        LIST => list(&k("live"), &[("Photo", "JPG"), ("Notes", "MD"), ("Voice", "M4A")], s.row, 28.0, 90.0, Msg::Row).width(200.0),
         CARD => card(k("live"), Some("Title"), text("Related content, together.", 13.0, Paint::TEXT)).width(200.0),
         DIALOG => button_as(k("open"), "Rename…", Variant::Default, Msg::Dialog(1)),
-        IMAGE => col().width((100.0 / ratio(BUST)).min(200.0)).child(picture(BUST, ratio(BUST)).key(k("live")).markr(IMAGE_SLOT)),
+        // Inset by the card's padding inside the preview's height too: 16 px above and below.
+        IMAGE => col().width(((super::index::PREVIEW_H - 32.0) / ratio(BUST)).min(200.0)).child(picture(BUST, ratio(BUST)).key(k("live")).markr(IMAGE_SLOT)),
         DIVIDER => col().width(200.0).gap(10.0).child(text("Above", 13.0, Paint::TEXT)).child(divider(1.0)).child(text("Below", 13.0, Paint::TEXT)),
         SCROLL => {
             let mut c = col().key(k("lines")).gap(6.0);

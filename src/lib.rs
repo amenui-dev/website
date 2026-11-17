@@ -92,6 +92,10 @@ mod site_exports {
     /// slow machine) shows where the clock says, not the last frame drawn in it.
     #[wasm_bindgen]
     pub fn redraw() { host(|s| s.ui.invalidate()); }
+    /// On a stage route, draw the specimen at the scale that keeps it inside the box (the page calls
+    /// it after every frame; it lays out again only when the scale changes).
+    #[wasm_bindgen]
+    pub fn fit_stage() -> bool { host(|s| { let changed = gallery::fit_stage(&mut s.ui); if changed { s.ui.invalidate(); } changed }).unwrap_or(false) }
     /// The current page's path under the site's base (`components/button/`; empty for home).
     #[wasm_bindgen]
     pub fn path() -> String { host(|s| s.ui.state.page.path()).unwrap_or_default() }
