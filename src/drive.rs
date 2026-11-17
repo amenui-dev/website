@@ -69,15 +69,25 @@ pub fn render_paced(spec: &RenderSpec, faces: Vec<Face>, fps: f32) -> Result<Ren
     let locale = spec.locale.as_deref().and_then(Locale::from_tag);
     let mut d = open_in(&spec.page, faces, (spec.w, spec.h, spec.scale.max(0.25)), (None, None, locale))?;
     let mut o = Offscreen::try_new(spec.w, spec.h)?;
-    let mut order: Vec<&amenui::drive::Event> = spec.events.iter().collect();
-    order.sort_by(|a, b| a.at_ms.total_cmp(&b.at_ms));
+    // Each event's time in s: `at_ms`, or its place on the look's beat (`at`).
+    let beat = d.look().beat;
+    let mut order = Vec::with_capacity(spec.events.len());
+    for (i, e) in spec.events.iter().enumerate() {
+        let t = match &e.at {
+            Some(at) => beat.parse_at(at).ok_or_else(|| DriveError::AtEvent { index: i, inner: Box::new(DriveError::BadBeatTime { at: at.clone() }) })?,
+            None => e.at_ms / 1000.0,
+        };
+        order.push((i, t, e));
+    }
+    order.sort_by(|a, b| a.1.total_cmp(&b.1));
     let (end, step) = (spec.at_ms.max(0.0) / 1000.0, 1.0 / fps.max(0.1));
     let (mut next, mut k, mut px) = (0, 0u32, vec![]);
     loop {
         let t = (k as f32 * step).min(end);
-        while next < order.len() && order[next].at_ms / 1000.0 <= t + 1e-6 {
+        while next < order.len() && order[next].1 <= t + 1e-6 {
             d.tick(t);
-            d.apply(&order[next].input).map_err(|e| DriveError::AtEvent { index: next, inner: Box::new(e) })?;
+            let (i, _, e) = order[next];
+            d.apply(&e.input).map_err(|err| DriveError::AtEvent { index: i, inner: Box::new(err) })?;
             next += 1;
         }
         d.tick(t);

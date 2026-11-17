@@ -12,7 +12,7 @@ cargo test --release
 cargo run --release --bin check
 ```
 
-窗口打开 `--` 后面写的页面：`body`（落地的场景）、一个组件（比如 `button`），或者一个 `look:v2:` 配方。
+窗口打开 `--` 后面写的页面：`body`（落地的场景）、一个组件（比如 `button`），或者一个 `look:v3:` 配方。
 
 ## 网页（wasm 包）
 
@@ -25,7 +25,7 @@ BASE=/ python3 web/build.py
 python3 -m http.server -d dist/site
 ```
 
-`BASE` 是网站所在的路径（在自己的域名上是 `/`）。页面跟着地址走：`/components/button/` 打开一个组件，`/zh-Hans/…` 是同一页的中文版，`#look:v2:…` 套用一个配方。
+`BASE` 是网站所在的路径（在自己的域名上是 `/`）。页面跟着地址走：`/components/button/` 打开一个组件，`/zh-Hans/…` 是同一页的中文版，`#look:v3:…` 套用一个配方。
 
 ## 嵌进别的页面：`<amenui-view>`
 
@@ -36,7 +36,7 @@ python3 -m http.server -d dist/site
 | 属性 | 作用 |
 |---|---|
 | `page` | 显示哪一页：组件名（`button`）、`body`，或任何页面的 hash。 |
-| `recipe` | 一个 `look:v2:` 配方：套用它描述的外观。 |
+| `recipe` | 一个 `look:v3:` 配方：套用它描述的外观。 |
 | `theme`、`material` | 按名字，和渲染工具接受的一样（`dark`、`dottr`）。 |
 | `locale` | `zh-Hans` 或 `en`。 |
 

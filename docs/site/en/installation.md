@@ -12,7 +12,7 @@ cargo test --release
 cargo run --release --bin check
 ```
 
-The window opens on the page named after `--`: `body` (the landing scene), a component such as `button`, or a `look:v2:` recipe.
+The window opens on the page named after `--`: `body` (the landing scene), a component such as `button`, or a `look:v3:` recipe.
 
 ## The web (wasm bundle)
 
@@ -25,7 +25,7 @@ BASE=/ python3 web/build.py
 python3 -m http.server -d dist/site
 ```
 
-`BASE` is where the site is served (`/` on its own domain). The page follows its address: `/components/button/` opens a component, `/zh-Hans/…` the same page in Chinese, and `#look:v2:…` applies a recipe.
+`BASE` is where the site is served (`/` on its own domain). The page follows its address: `/components/button/` opens a component, `/zh-Hans/…` the same page in Chinese, and `#look:v3:…` applies a recipe.
 
 ## Embedding: `<amenui-view>`
 
@@ -36,7 +36,7 @@ One `<amenui-view>` per document: the module holds one runtime and one renderer.
 | Attribute | What it does |
 |---|---|
 | `page` | The page to show: a component's name (`button`), `body`, any page's hash. |
-| `recipe` | A `look:v2:` recipe: the look it describes. |
+| `recipe` | A `look:v3:` recipe: the look it describes. |
 | `theme`, `material` | By name, as the render tool takes them (`dark`, `dottr`). |
 | `locale` | `zh-Hans` or `en`. |
 

@@ -374,7 +374,7 @@ pub struct Gallery {
     pub depth_marks: amenui::style::Marks,
     /// The field map's numbers (DESIGN.md §1.29): the applied preset's, edited on `#stirr`.
     pub map: amenui::fieldmap::MapFx,
-    pub hold_ms: f32,
+    pub beat: amenui::beat::Beat,
     pub rip_count: u32,
     /// Ten fast presses of the counter in progress: when they started (state clock) and how many are done.
     pub rip_burst: Option<(f32, u32)>,
@@ -422,7 +422,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
+            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
 }
@@ -464,7 +464,7 @@ impl Gallery {
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
         let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
-                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, hold_ms: self.hold_ms };
+                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
@@ -527,7 +527,7 @@ impl Gallery {
         self.post = st.post.look();
         self.depth_marks = st.marks;
         self.map = it.map;
-        self.hold_ms = it.hold_ms;
+        self.beat = it.beat;
     }
     /// Opening a page that has a style of its own applies it: a style page its preset, a scene its
     /// default.
@@ -554,7 +554,7 @@ impl Gallery {
         (self.theme, self.demo.theme, self.faces, self.material, self.demo.material) = (d.theme, d.demo.theme, d.faces, d.material, d.demo.material);
         (self.mats, self.gaze, self.loose_scale, self.demo.fx, self.style_pic) = (d.mats, d.gaze, d.loose_scale, d.demo.fx, d.style_pic);
         (self.recompose, self.press_ms, self.roles, self.scroll, self.transition) = (d.recompose, d.press_ms, d.roles, d.scroll, d.transition);
-        (self.post, self.depth_marks, self.map, self.hold_ms) = (d.post, d.depth_marks, d.map, d.hold_ms);
+        (self.post, self.depth_marks, self.map, self.beat) = (d.post, d.depth_marks, d.map, d.beat);
     }
     /// The key of morph candidate `i` on the morph page.
     pub fn shape_key(i: usize) -> String { format!("morph/c{i}") }
@@ -569,7 +569,7 @@ impl Gallery {
     pub fn draft(&self, t: Target) -> Option<&str> { self.edit.as_ref().filter(|(k, _)| *k == t).map(|(_, d)| d.as_str()) }
     /// The look as a recipe: the active preset (the first when none is chosen) as `Preset::recipe`.
     pub fn recipe(&self) -> String { self.presets[self.style.unwrap_or(0).min(self.presets.len().saturating_sub(1))].recipe() }
-    /// Take a recipe (`look:v2:…`): its preset replaces the built-in one it names, and becomes the look.
+    /// Take a recipe (`look:v3:…`): its preset replaces the built-in one it names, and becomes the look.
     pub fn take_recipe(&mut self, r: &str) -> Result<(), amenui::error::PresetError> {
         let p = amenui::preset::Preset::from_recipe(r)?;
         let i = self.presets.iter().position(|q| q.hash == p.hash).unwrap_or(0);

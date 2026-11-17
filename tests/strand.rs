@@ -2,7 +2,7 @@
 //! floating window dragged past a decorative title writes it out as a thread whose tail runs with the
 //! map's flow; text to read has no thread and holds (its fill, its place); it all goes back to nothing
 //! when the map settles; the budget keeps it one line; recomposing and morphing elements have no
-//! thread; `hold_ms` holds the pose for a beat; 回 is four outlines (two rings, each an outer and an inner
+//! thread; a beat holds the pose for a step; 回 is four outlines (two rings, each an outer and an inner
 //! edge) and three bridges; a 64 px title loosened is a few long chords well off its outline; the Loose
 //! Thread page loosens its title all the way, holds it, and lets it go, with its tangle at rest.
 use amenui::strand::Kind;
@@ -67,10 +67,14 @@ fn the_loose_thread_page_loosens_its_title_all_the_way_and_text_to_read_holds() 
     let (_, kk, segs) = ui.strands().iter().find(|s| s.0 == format!("{h}/title")).expect("the title's thread").clone();
     let head: Vec<&amenui::strand::Seg> = segs.iter().take_while(|s| s.kind == Kind::Tail).collect();
     let tail: Vec<&amenui::strand::Seg> = segs.iter().rev().take_while(|s| s.kind == Kind::Tail).collect();
-    assert!(!head.is_empty() && !tail.is_empty(), "two tails");
+    // A tail takes a clear way out to the scope's edge, or there is none: the head may have no clear way
+    // past the text to read, the end has one.
+    assert!(!tail.is_empty(), "no tail at the end");
     let span = |v: &[&amenui::strand::Seg]| { let (a, b) = (v.first().expect("a piece").a, v.last().expect("a piece").b); ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt() };
-    let (lh, lt) = (span(&head), span(&tail));
-    assert!(lt >= 300.0 * kk && lh >= 0.5 * lt, "tails {lh} and {lt} at {kk}");
+    let on_edge = |p: [f32; 2]| [p[0] - scope[0], p[1] - scope[1], scope[2] - p[0], scope[3] - p[1]].iter().any(|d| d.abs() <= 1.0);
+    let lt = span(&tail);
+    assert!(on_edge(tail.last().expect("a piece").b) || lt >= 300.0 * kk, "the end's tail {lt} at {kk} stops short of the edge");
+    if let Some(first) = head.first() { assert!(on_edge(first.a), "the head's tail starts at {:?}, not at the scope's edge", first.a); }
     for s in &segs {
         for p in [s.a, s.b] {
             assert!(p[0] >= scope[0] - 0.5 && p[1] >= scope[1] - 0.5 && p[0] <= scope[2] + 0.5 && p[1] <= scope[3] + 0.5, "{p:?} out of the scope");

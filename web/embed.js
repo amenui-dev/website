@@ -3,7 +3,7 @@
 //
 //   <amenui-view page="button" theme="dark" material="dottr" locale="en" style="height: 480px"></amenui-view>
 //
-// Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v2:…`
+// Attributes: `page` (a gallery page's hash, such as `button` or `body`), `recipe` (a `look:v3:…`
 // string; wins over the page's own look), `theme` and `material` (names as the render tool takes
 // them), `locale` (`zh-Hans`, `en`). Events: `amenui-ready` once it draws, `amenui-route` with
 // `detail.page` whenever the page changes inside it. Methods: `focus()`.
