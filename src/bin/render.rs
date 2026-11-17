@@ -8,7 +8,8 @@
 //! {"at_ms": 260, "kind": "release", "target": "button/live"}]` (kinds: press, release, move, key, wheel,
 //! text; see `amenui::drive::Input`). Problems in the view (duplicate keys…) are printed; `--strict` makes
 //! them an error.
-use amenui::drive::{RenderSpec, parse_events, render};
+use amenui::drive::{RenderSpec, parse_events};
+use website::drive::render;
 
 const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--strict]";
 

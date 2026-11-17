@@ -23,7 +23,8 @@ impl Driven for Gallery {
     fn recipe(&self) -> Option<String> { Some(self.0.state.recipe()) }
 }
 
-/// Open a site page by its hash, or a recipe (`recipe-form`, or just `form`), at `w` × `h` device px and
+/// Open a site page by its hash or path (the home page's state may follow after `#`: `body#source`), or
+/// a recipe (`recipe-form`, or just `form`), at `w` × `h` device px and
 /// `scale`, with the material and theme given (else the page's).
 pub fn open(page: &str, faces: Vec<Face>, w: u32, h: u32, scale: f32, material: Option<Material>, theme: Option<usize>) -> Result<Box<dyn Driven>, LookError> {
     open_in(page, faces, (w, h, scale), (material, theme, None))
@@ -32,11 +33,14 @@ pub fn open(page: &str, faces: Vec<Face>, w: u32, h: u32, scale: f32, material: 
 /// their own language.
 pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (material, theme, locale): (Option<Material>, Option<usize>, Option<Locale>)) -> Result<Box<dyn Driven>, LookError> {
     use crate::gallery::{self, Msg, Page};
-    let Some(p) = Page::from_hash(page) else { return amenui::drive::open_in(page, faces, (w, h, scale), (material, theme, locale)) };
+    let (name, state) = page.split_once('#').unwrap_or((page, ""));
+    let found = if name.contains('/') { Page::from_path(name) } else { Page::from_hash(name) };
+    let Some(p) = found else { return amenui::drive::open_in(page, faces, (w, h, scale), (material, theme, locale)) };
     let mut ui = gallery::new_ui(faces, w, h, scale);
     ui.pointer_leave();
     if let Some(l) = locale { gallery::update(&mut ui.state, Msg::Locale(l)); }
     gallery::update(&mut ui.state, Msg::Go(p));
+    if p == Page::Body && !state.is_empty() { ui.state.body.open(state, false); }
     if let Some(m) = material { gallery::update(&mut ui.state, Msg::Material(m.id() as usize)); }
     if let Some(t) = theme { gallery::update(&mut ui.state, Msg::Theme(t)); }
     ui.relayout();
