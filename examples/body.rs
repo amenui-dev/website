@@ -97,8 +97,10 @@ impl Default for Body {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg { Point(Option<Point>), Key(Key), Form, Seed(i32), Gather, Language, Go(&'static str), Num(usize, Edit) }
 
-/// The passage, from the language catalog (an original description of a tidal flat through a day).
-pub fn passage() -> String { (1..=5).map(|i| lab::i18n::tr(&format!("body.p{i}"))).collect::<Vec<_>>().join("\n\n") }
+/// The scene's words: English whatever the interface language (the page and its markings show no Chinese).
+fn tr(key: &str) -> String { lab::i18n::Locale::En.tr(key) }
+/// The passage, from the English catalog (an original description of a tidal flat through a day).
+pub fn passage() -> String { (1..=5).map(|i| tr(&format!("body.p{i}"))).collect::<Vec<_>>().join("\n\n") }
 
 // ── The forms ────────────────────────────────────────────────────────────────────────────────────
 
@@ -361,7 +363,6 @@ impl Body {
             c.pts.iter().map(|sp| v.project(v.rot(sp.p)).0).max_by(|a, b| (a[0] * dx + a[1] * dy).total_cmp(&(b[0] * dx + b[1] * dy))).map_or(fallback, |p| (p[0], p[1]))
         };
         let (fl, fs, fg) = (edge(-1.0, 0.25, (cx - r * 0.93, cy - r * 0.28)), edge(0.75, -0.66, (cx + r * 0.72, cy - r * 0.62)), edge(0.8, 0.6, (cx + r * 0.8, cy + r * 0.5)));
-        let tr = lab::i18n::tr;
         let form = if self.form == 0 { tr("body.rock") } else { tr("body.cloud") };
         vec![
             Marking { key: "form", text: format!("{}  {}", tr("body.form"), form), from: fl, elbow: (fl.0 - r * 0.22, fl.1 - r * 0.18), to: (fl.0 - r * 0.55, fl.1 - r * 0.18), left: true, alpha: a, msg: Msg::Form },
@@ -395,7 +396,6 @@ impl Body {
         // At rest on the page no pose at all: every glyph is exactly the plain layout's.
         let passage = if self.flat() { passage } else { passage.pose(self.poser()) };
         let marks = self.markings();
-        let tr = lab::i18n::tr;
         let mut parts = vec![
             canvas(self.back()).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(lab::el::Response::Ignore),
             col().key(format!("{key}/page")).width(w).height(h).center().child(col().key(format!("{key}/column")).width(WIDTH.min(w - 48.0)).child(passage)),
@@ -411,7 +411,8 @@ impl Body {
             parts.push(e);
         }
         // The corners: the language, and the way out to the Lab and the components.
-        parts.push(mark(format!("{key}/mark/lang"), tr("body.language"), w - 96.0, 22.0, 0.7, Msg::Language));
+        let lang = if lab::i18n::current() == lab::i18n::Locale::En { "EN" } else { "ZH" };
+        parts.push(mark(format!("{key}/mark/lang"), format!("{}  {lang}", tr("body.language")), w - 112.0, 22.0, 0.7, Msg::Language));
         parts.push(mark(format!("{key}/mark/lab"), tr("body.to-lab"), 26.0, h - 34.0, 0.55, Msg::Go("lab")));
         parts.push(mark(format!("{key}/mark/gallery"), tr("body.to-gallery"), 26.0 + 90.0, h - 34.0, 0.55, Msg::Go("gallery")));
         layers(parts).key(key.to_owned()).width(w).height(h).clip()
