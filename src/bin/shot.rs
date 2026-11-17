@@ -1,6 +1,6 @@
 //! Render the demo off-screen to PNG files through a short scripted sequence. No window, no surface.
 //! usage: shot <out_dir> <width> <height> <scale>     (device px)
-use amenui::demo::{self, DemoUi};
+use website::demo::{self, DemoUi};
 use amenui::el::Key;
 use amenui::offscreen::{Offscreen, save_png};
 

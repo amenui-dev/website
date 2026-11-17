@@ -5,11 +5,11 @@
 //! material. A right-hand outline follows the scroll; prev / next links close every page; ⌘K / Ctrl+K
 //! or `/` searches every page.
 use super::{Gallery, Msg, Page};
-use crate::el::{El, Font, Paint, Role, col, row, space, text, text_lh};
-use crate::i18n::{Locale, tr};
-use crate::morph::Cmd;
-use crate::style::{MATERIAL_COUNT, Material};
-use crate::widgets::{SELECTED, TextEdit, Variant, button_as, command, command_matches, dialog};
+use amenui::el::{El, Font, Paint, Role, col, row, space, text, text_lh};
+use amenui::i18n::{Locale, tr};
+use amenui::morph::Cmd;
+use amenui::style::{MATERIAL_COUNT, Material};
+use amenui::widgets::{SELECTED, TextEdit, Variant, button_as, command, command_matches, dialog};
 use taffy::AlignItems;
 
 /// The prose pages, by slug, in reading order: the first six are 开始 (with the command line and the
@@ -36,8 +36,8 @@ const EN: [&str; 23] = [
     include_str!("../../docs/site/en/theming.md"), include_str!("../../docs/site/en/rtl.md"), include_str!("../../docs/site/en/registry-schema.md"),
 ];
 /// The For-AI pages and the changelog: (hash name, title key, source).
-pub const AI: [(&str, &str, &str); 3] = [("ai-agents", "docs.ai.agents", include_str!("../../AGENTS.md")), ("ai-llms", "docs.ai.llms", include_str!("../../llms.txt")), ("changelog", "docs.changelog", include_str!("../../CHANGELOG.md"))];
-const REGISTRY: &str = include_str!("../../registry.json");
+pub const AI: [(&str, &str, &str); 3] = [("ai-agents", "docs.ai.agents", amenui::sources::AGENTS), ("ai-llms", "docs.ai.llms", amenui::sources::LLMS), ("changelog", "docs.changelog", amenui::sources::CHANGELOG)];
+const REGISTRY: &str = amenui::sources::REGISTRY;
 
 /// A prose page's source in a language (English when the language has none).
 pub fn source(i: usize, l: Locale) -> &'static str { match l { Locale::ZhHans => ZH[i], Locale::En => EN[i] } }
@@ -86,18 +86,18 @@ fn header_line(src: &str, part: &str) -> String {
 /// The source of a widget file by its path.
 fn widget_source(path: &str) -> &'static str {
     match path.rsplit('/').next().unwrap_or("") {
-        "button.rs" => include_str!("../widgets/button.rs"), "number.rs" => include_str!("../widgets/number.rs"), "input.rs" => include_str!("../widgets/input.rs"),
-        "switch.rs" => include_str!("../widgets/switch.rs"), "slider.rs" => include_str!("../widgets/slider.rs"), "tabs.rs" => include_str!("../widgets/tabs.rs"),
-        "choice.rs" => include_str!("../widgets/choice.rs"), "list.rs" => include_str!("../widgets/list.rs"), "card.rs" => include_str!("../widgets/card.rs"),
-        "dialog.rs" => include_str!("../widgets/dialog.rs"), "image.rs" => include_str!("../widgets/image.rs"), "divider.rs" => include_str!("../widgets/divider.rs"),
-        "scroll.rs" => include_str!("../widgets/scroll.rs"), "menu.rs" => include_str!("../widgets/menu.rs"), "orbit.rs" => include_str!("../widgets/orbit.rs"),
-        "checkbox.rs" => include_str!("../widgets/checkbox.rs"), "radio.rs" => include_str!("../widgets/radio.rs"), "select.rs" => include_str!("../widgets/select.rs"),
-        "tooltip.rs" => include_str!("../widgets/tooltip.rs"), "popover.rs" => include_str!("../widgets/popover.rs"), "toast.rs" => include_str!("../widgets/toast.rs"),
-        "progress.rs" => include_str!("../widgets/progress.rs"), "accordion.rs" => include_str!("../widgets/accordion.rs"), "table.rs" => include_str!("../widgets/table.rs"),
-        "badge.rs" => include_str!("../widgets/badge.rs"), "avatar.rs" => include_str!("../widgets/avatar.rs"), "skeleton.rs" => include_str!("../widgets/skeleton.rs"),
-        "breadcrumb.rs" => include_str!("../widgets/breadcrumb.rs"), "pagination.rs" => include_str!("../widgets/pagination.rs"), "sheet.rs" => include_str!("../widgets/sheet.rs"),
-        "context_menu.rs" => include_str!("../widgets/context_menu.rs"), "command.rs" => include_str!("../widgets/command.rs"), "toggle.rs" => include_str!("../widgets/toggle.rs"),
-        "bottom_sheet.rs" => include_str!("../widgets/bottom_sheet.rs"), "floating.rs" => include_str!("../widgets/floating.rs"), "caption.rs" => include_str!("../widgets/caption.rs"), "nested_menu.rs" => include_str!("../widgets/nested_menu.rs"), "card_stack.rs" => include_str!("../widgets/card_stack.rs"), "dot_chart.rs" => include_str!("../widgets/dot_chart.rs"),
+        "button.rs" => amenui::sources::widget::BUTTON, "number.rs" => amenui::sources::widget::NUMBER, "input.rs" => amenui::sources::widget::INPUT,
+        "switch.rs" => amenui::sources::widget::SWITCH, "slider.rs" => amenui::sources::widget::SLIDER, "tabs.rs" => amenui::sources::widget::TABS,
+        "choice.rs" => amenui::sources::widget::CHOICE, "list.rs" => amenui::sources::widget::LIST, "card.rs" => amenui::sources::widget::CARD,
+        "dialog.rs" => amenui::sources::widget::DIALOG, "image.rs" => amenui::sources::widget::IMAGE, "divider.rs" => amenui::sources::widget::DIVIDER,
+        "scroll.rs" => amenui::sources::widget::SCROLL, "menu.rs" => amenui::sources::widget::MENU, "orbit.rs" => amenui::sources::widget::ORBIT,
+        "checkbox.rs" => amenui::sources::widget::CHECKBOX, "radio.rs" => amenui::sources::widget::RADIO, "select.rs" => amenui::sources::widget::SELECT,
+        "tooltip.rs" => amenui::sources::widget::TOOLTIP, "popover.rs" => amenui::sources::widget::POPOVER, "toast.rs" => amenui::sources::widget::TOAST,
+        "progress.rs" => amenui::sources::widget::PROGRESS, "accordion.rs" => amenui::sources::widget::ACCORDION, "table.rs" => amenui::sources::widget::TABLE,
+        "badge.rs" => amenui::sources::widget::BADGE, "avatar.rs" => amenui::sources::widget::AVATAR, "skeleton.rs" => amenui::sources::widget::SKELETON,
+        "breadcrumb.rs" => amenui::sources::widget::BREADCRUMB, "pagination.rs" => amenui::sources::widget::PAGINATION, "sheet.rs" => amenui::sources::widget::SHEET,
+        "context_menu.rs" => amenui::sources::widget::CONTEXT_MENU, "command.rs" => amenui::sources::widget::COMMAND, "toggle.rs" => amenui::sources::widget::TOGGLE,
+        "bottom_sheet.rs" => amenui::sources::widget::BOTTOM_SHEET, "floating.rs" => amenui::sources::widget::FLOATING, "caption.rs" => amenui::sources::widget::CAPTION, "nested_menu.rs" => amenui::sources::widget::NESTED_MENU, "card_stack.rs" => amenui::sources::widget::CARD_STACK, "dot_chart.rs" => amenui::sources::widget::DOT_CHART,
         _ => "",
     }
 }
@@ -110,7 +110,7 @@ pub fn widget_names() -> Vec<String> {
 }
 /// The examples file of a component (registry name → `examples/components/<name>.rs`).
 fn example_name(name: &str) -> &str { match name { "scroll_area" | "scroll-area" => "scroll", n => n } }
-pub fn example_source(name: &str) -> Option<&'static str> { crate::recipes::components::all().into_iter().find(|(n, _)| *n == example_name(name)).map(|(_, s)| s) }
+pub fn example_source(name: &str) -> Option<&'static str> { amenui::recipes::components::all().into_iter().find(|(n, _)| *n == example_name(name)).map(|(_, s)| s) }
 /// The examples in a file: (label, the function's source).
 pub fn examples_of(src: &str) -> Vec<(String, String)> {
     let mut out = vec![];
@@ -208,7 +208,7 @@ fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) ->
 pub fn prose(s: &Gallery, i: usize) -> El<Msg> {
     let src = source(i, s.locale);
     let w = doc_w(s, 820.0);
-    let (body, out) = crate::markdown::render(src, &format!("doc/{}/md", DOCS[i]), w, &|t| link(t));
+    let (body, out) = amenui::markdown::render(src, &format!("doc/{}/md", DOCS[i]), w, &|t| link(t));
     // The outline lists the page's second-level headings, by their keys.
     frame(s, DOCS[i], body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
 }
@@ -218,7 +218,7 @@ pub fn ai(s: &Gallery, i: usize) -> El<Msg> {
     let w = doc_w(s, 820.0);
     // llms.txt is plain text: shown as a block of code.
     let body = if hash == "ai-llms" { col().key("doc/ai-llms/md").gap(14.0).child(text(tr("docs.ai.llms"), 30.0, Paint::INK).font(Font::Display).heading(1)).child(code("doc/ai-llms/txt", src)) }
-        else { crate::markdown::render(src, &format!("doc/{hash}/md"), w, &|t| link(t)).0 };
+        else { amenui::markdown::render(src, &format!("doc/{hash}/md"), w, &|t| link(t)).0 };
     frame(s, hash, body, &[])
 }
 /// The registry as a table, and the recipes.
@@ -226,9 +226,9 @@ pub fn registry(s: &Gallery) -> El<Msg> {
     let mut md = format!("# {}\n\n{}\n\n| {} | {} | {} |\n|---|---|---|\n", tr("docs.ai.registry"), tr("docs.registry.lead"), tr("docs.api.name"), tr("docs.api.functions"), tr("docs.api.files"));
     for it in items() { md.push_str(&format!("| [{}](#{}) | `{}` | `{}` |\n", it.name, page_hash(&it.name), it.functions.join(", "), it.files.join(", "))); }
     md.push_str(&format!("\n## {}\n\n", tr("docs.recipes")));
-    for (n, _, what) in crate::recipes::RECIPES { md.push_str(&format!("- [{n}](#recipe-{n}): {what}\n")); }
+    for (n, _, what) in amenui::recipes::RECIPES { md.push_str(&format!("- [{n}](#recipe-{n}): {what}\n")); }
     let w = doc_w(s, 900.0);
-    let (body, _) = crate::markdown::render(&md, "doc/ai-registry/md", w, &|t| link(t));
+    let (body, _) = amenui::markdown::render(&md, "doc/ai-registry/md", w, &|t| link(t));
     frame(s, "ai-registry", body, &[])
 }
 /// A link target as a message: `#hash` goes to that page.
@@ -248,7 +248,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let src = it.files.first().map(|f| widget_source(f)).unwrap_or("");
     let ex_src = example_source(name).unwrap_or("");
     let examples = examples_of(ex_src);
-    let mut previews = crate::recipes::components::examples(example_name(name));
+    let mut previews = amenui::recipes::components::examples(example_name(name));
     let as_msg = |e: El<()>| e.map(std::rc::Rc::new(|_| Msg::Nothing));
     let titles = [tr("docs.sec.preview"), tr("docs.sec.install"), tr("docs.sec.usage"), tr("docs.sec.examples"), tr("docs.sec.api"), tr("docs.sec.keyboard"), tr("docs.sec.rtl"), tr("docs.sec.materials")];
     let title = if l == Locale::En { name.replace('_', " ") } else { it.title.clone() };
@@ -260,7 +260,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
         .child(text_lh(desc, 16.0, 27.0, Paint::DIM).key(format!("{h}/desc")));
     // 1. Preview / code.
     let first = if previews.is_empty() { None } else { Some(as_msg(previews.remove(0))) };
-    let shown = live.or_else(|| crate::recipes::components::examples(example_name(name)).into_iter().next().map(|e| as_msg(e).rekey(&format!("doc/{h}/live")))).unwrap_or_else(|| text("—", 14.0, Paint::DIM));
+    let shown = live.or_else(|| amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| as_msg(e).rekey(&format!("doc/{h}/live")))).unwrap_or_else(|| text("—", 14.0, Paint::DIM));
     let tabs = row().key(format!("doc/{h}/tabs")).gap(4.0).role(Role::TabList)
         .child(tab(&h, 0, &tr("docs.tab.preview"), s.doc_tab == 0)).child(tab(&h, 1, &tr("docs.tab.code"), s.doc_tab == 1));
     let pane = if s.doc_tab == 1 { code(&format!("doc/{h}/source"), ex_src) }
@@ -268,7 +268,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let mut preview = col().key(format!("doc/{h}/preview-col")).gap(10.0).fill_width().min_width(0.0).child(tabs).child(pane);
     if let Some(p) = params { preview = preview.child(p); }
     // 2. Installation: the add command and the files it copies.
-    let files = crate::add::files(REGISTRY, &[name]).unwrap_or_default();
+    let files = amenui::add::files(REGISTRY, &[name]).unwrap_or_default();
     let install = col().key(format!("doc/{h}/install")).gap(10.0).fill_width().min_width(0.0)
         .child(text_lh(tr("docs.install.lead"), 15.0, 26.0, Paint::TEXT))
         .child(code(&format!("doc/{h}/add"), &format!("cargo run --release --bin amenui -- add {name} --to ../my-app")))
@@ -290,25 +290,25 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let api_md = format!("| | |\n|---|---|\n| {} | `{}` |\n| {} | {} |\n| {} | `{}` |\n| {} | {} |\n| {} | {} |\n| {} | {} |\n",
         tr("docs.api.functions"), it.functions.join("`, `"), tr("docs.api.props"), header_line(src, "Props:"), tr("docs.api.files"), it.files.join("`, `"),
         tr("docs.api.deps"), it.deps.join(", "), tr("docs.api.response"), it.response, tr("docs.api.recompose"), it.recompose);
-    let api = crate::markdown::render(&api_md, &format!("doc/{h}/api"), doc_w(s, 780.0), &|t| link(t)).0;
+    let api = amenui::markdown::render(&api_md, &format!("doc/{h}/api"), doc_w(s, 780.0), &|t| link(t)).0;
     // 6. Keyboard and accessibility.
     let kb_md = format!("| | |\n|---|---|\n| {} | {} |\n| {} | {} |\n", tr("docs.kb.states"), header_line(src, "States:"), tr("docs.kb.keys"), header_line(src, "Messages:"));
     let kb = col().key(format!("doc/{h}/kb-col")).gap(10.0).fill_width().min_width(0.0)
-        .child(crate::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0)
+        .child(amenui::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0)
         .child(text_lh(tr("docs.kb.mirror"), 14.0, 24.0, Paint::DIM).width(doc_w(s, 780.0)).key(format!("doc/{h}/kb-mirror")));
     // 7. Right to left: the first example in a subtree that runs right to left, and what follows.
-    let rtl_ex = crate::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/rtl/k"));
+    let rtl_ex = amenui::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/rtl/k"));
     let rtl = col().key(format!("doc/{h}/rtl")).gap(10.0).fill_width().min_width(0.0)
         .child(text_lh(tr("docs.rtl.note"), 14.0, 24.0, Paint::TEXT).width(doc_w(s, 780.0)).key(format!("doc/{h}/rtl-note")))
         .child(row().key(format!("doc/{h}/rtl/box")).fill_width().min_width(0.0).pad(24.0, 20.0).radius(6.0).border(1.0, Paint::FAINT).rtl(true).child(rtl_ex));
     // 8. Under every material: the first example, small, once per material.
     let mut strip = row().key(format!("doc/{h}/mats")).wrap().gap(10.0).fill_width();
-    let first_ex = crate::recipes::components::examples(example_name(name)).into_iter().next();
+    let first_ex = amenui::recipes::components::examples(example_name(name)).into_iter().next();
     if let Some(e0) = first_ex {
         let _ = e0;
         for m in 0..MATERIAL_COUNT as u8 {
             let mat = Material::from_id(m);
-            let e = crate::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/mat{m}/k"));
+            let e = amenui::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/mat{m}/k"));
             strip = strip.child(col().key(format!("doc/{h}/mat{m}")).gap(6.0).width(220.0)
                 .child(col().key(format!("doc/{h}/mat{m}/box")).width(220.0).height(120.0).pad(12.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).clip().material(mat.id()).align(AlignItems::START).child(e))
                 .child(text(mat.name(), 12.0, Paint::DIM).font(Font::Mono)));
@@ -340,15 +340,15 @@ pub fn search_run(s: &mut Gallery, i: usize) {
     if let Some(p) = all.get(i) { s.search = false; s.search_q = TextEdit::default(); super::update(s, Msg::Go(*p)); }
 }
 /// Up / Down / Enter in the search's field.
-pub fn search_key(s: &mut Gallery, k: crate::el::Key) -> bool {
+pub fn search_key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     if !s.search { return false; }
     let names: Vec<String> = Page::all().iter().map(|p| p.name().to_owned()).collect();
     let refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let found = command_matches(&s.search_q.text, &refs);
     match k {
-        crate::el::Key::Down => { s.search_active = (s.search_active + 1).min(found.len().saturating_sub(1)); true }
-        crate::el::Key::Up => { s.search_active = s.search_active.saturating_sub(1); true }
-        crate::el::Key::Enter => { if let Some(&i) = found.get(s.search_active) { search_run(s, i); } true }
+        amenui::el::Key::Down => { s.search_active = (s.search_active + 1).min(found.len().saturating_sub(1)); true }
+        amenui::el::Key::Up => { s.search_active = s.search_active.saturating_sub(1); true }
+        amenui::el::Key::Enter => { if let Some(&i) = found.get(s.search_active) { search_run(s, i); } true }
         _ => false,
     }
 }
@@ -358,7 +358,7 @@ pub fn scrolled(s: &mut Gallery, key: &str, _off: f32, at: &dyn Fn(&str) -> Opti
     let page = s.page;
     let keys: Vec<String> = match page {
         Page::Comp(_) | Page::Widget(_) => (0..7).map(|i| format!("doc/{}/sec{i}", page.hash())).collect(),
-        Page::Doc(i) => crate::markdown::parse(source(i as usize, s.locale)).iter().enumerate().filter(|(_, b)| matches!(b, crate::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/{}/md/h{j}", DOCS[i as usize])).collect(),
+        Page::Doc(i) => amenui::markdown::parse(source(i as usize, s.locale)).iter().enumerate().filter(|(_, b)| matches!(b, amenui::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/{}/md/h{j}", DOCS[i as usize])).collect(),
         _ => return false,
     };
     let mut now = 0;

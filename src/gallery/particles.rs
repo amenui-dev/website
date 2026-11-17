@@ -4,10 +4,10 @@
 use super::pages::{ParamDef, header, section};
 use super::{Gallery, IMAGE_SLOT, Msg, Target};
 use crate::demo::SKY;
-use crate::el::{El, Font, Paint, Scope, col, picture, row, scene3d, stack, text, text_lh};
-use crate::mesh::{Mat4, MeshId, Scene3d};
-use crate::morph::{Cmd, MorphSpec, Particles};
-use crate::widgets::{Variant, button_as, number, segmented};
+use amenui::el::{El, Font, Paint, Scope, col, picture, row, scene3d, stack, text, text_lh};
+use amenui::mesh::{Mat4, MeshId, Scene3d};
+use amenui::morph::{Cmd, MorphSpec, Particles};
+use amenui::widgets::{Variant, button_as, number, segmented};
 use taffy::AlignItems;
 
 pub const FORMS: [&str; 4] = ["网格", "文字", "图片", "另一个网格"];
@@ -20,7 +20,7 @@ pub struct Parts { pub shape: usize, pub count: f32, pub duration_ms: f32, pub s
 impl Default for Parts { fn default() -> Self { Self { shape: 0, count: 200_000.0, duration_ms: 1400.0, stagger: 0.35, curl: 60.0 } } }
 
 const fn p(name: &'static str, min: f32, max: f32, step: f32, decimals: usize, unit: &'static str, default: f32) -> ParamDef {
-    ParamDef { name, spec: crate::widgets::Spec { min, max, step, decimals, unit }, default }
+    ParamDef { name, spec: amenui::widgets::Spec { min, max, step, decimals, unit }, default }
 }
 /// The page's numbers, in the order of `slot`: the morph's, then `Particles`.
 pub const PARAMS: [ParamDef; 12] = [
@@ -94,5 +94,5 @@ pub fn page(s: &Gallery) -> El<Msg> {
         .child(section(h, "舞台", col().fill_width().gap(14.0).child(stage).child(controls)
             .child(text("读数（F2）里写着粒子数和它们在哪里模拟。", 13.0, Paint::DIM))))
         .child(section(h, "参数", nums))
-        .child(crate::el::space(1.0, 24.0))
+        .child(amenui::el::space(1.0, 24.0))
 }

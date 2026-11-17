@@ -3,9 +3,9 @@
 //!
 //! usage: labsheet <out_dir> [cells | page | decode | perf] …   (all when none is named)
 use amenui::experiment::{Experiment, IDLE_S, ui};
-use amenui::gallery::{self, Msg, Page};
+use website::gallery::{self, Msg, Page};
 use amenui::offscreen::{Offscreen, crop, save_png, sheet};
-use amenui::recipes::lab as x;
+use website::showcase::lab as x;
 
 fn faces() -> Vec<amenui::text::Face> { amenui::text::load_bundled("assets").expect("fonts") }
 const CW: u32 = 460;
@@ -105,7 +105,7 @@ fn decode(out: &str) {
 /// release, the page again), one large still at 1600 × 1000 (`body-large.png`, and `body-cloud.png`),
 /// and what a frame costs with one and with three copies of the passage.
 fn body(out: &str) {
-    use amenui::recipes::scenes::body;
+    use website::showcase::scenes::body;
     amenui::i18n::set_current(amenui::i18n::Locale::En);
     let step = |u: &mut amenui::ui::Ui<body::Body, body::Msg>, t: &mut f32, n: u32| { for _ in 0..n { *t += 1.0 / 60.0; u.tick(*t); } };
     let (w, h) = (1280u32, 800u32);

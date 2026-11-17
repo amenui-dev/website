@@ -10,7 +10,7 @@
 //! does the material specimens and sheets; `perf` times a frame of every material page, fully loosened; `components` only does the
 //! component sheets)
 use amenui::el::Key;
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::offscreen::{Offscreen, save_png};
 use amenui::style::{GAZE_MODES, MATERIAL_COUNT, MATERIALS, Material, styles};
 
@@ -249,8 +249,8 @@ fn materials(out: &str, scale: f32) {
 /// Put a component page in the state that shows the most of it: the input focused (its caret), the
 /// dialog open.
 fn stage_component(ui: &mut GalleryUi, c: usize) {
-    use amenui::gallery::comp::{DIALOG, INPUT};
-    let h = amenui::gallery::COMPONENTS[c].hash;
+    use website::gallery::comp::{DIALOG, INPUT};
+    let h = website::gallery::COMPONENTS[c].hash;
     if c == INPUT || c == DIALOG {
         let key = if c == INPUT { format!("{h}/live") } else { format!("{h}/open") };
         let (x, y) = ui.node(&key).expect("control").rect.center();
@@ -278,8 +278,8 @@ fn components(out: &str, scale: f32) {
         for &ti in themes {
             let tname = THEME_FILE[ti];
             let mut tiles = vec![];
-            for c in 0..amenui::gallery::COMPONENTS.len() {
-                let hash = amenui::gallery::COMPONENTS[c].hash;
+            for c in 0..website::gallery::COMPONENTS.len() {
+                let hash = website::gallery::COMPONENTS[c].hash;
                 let mut ui = gallery::new_ui(faces(), w, h, scale);
                 ui.pointer_leave();
                 send(&mut ui, Msg::Go(Page::Comp(c)));

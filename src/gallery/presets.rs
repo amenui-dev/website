@@ -3,9 +3,9 @@
 //! interaction and transition, with number controls made from the preset's own data.
 use super::pages::{header, section};
 use super::{Gallery, Msg, Target};
-use crate::el::{El, Paint, col, row, text};
-use crate::preset::Preset;
-use crate::widgets::{Edit, Spec, TextEdit, Variant, button_as, choice, number, textarea};
+use amenui::el::{El, Paint, col, row, text};
+use amenui::preset::Preset;
+use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, choice, number, textarea};
 use taffy::AlignItems;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,7 +16,7 @@ pub enum PreMsg { From(usize), To(usize), Play, Export, Recipe, Import, Json(Tex
 pub fn editable(p: &Preset) -> Vec<(String, f32)> {
     p.numbers().into_iter().filter(|(k, _)| k.starts_with("interaction.") || k.starts_with("transition.") || k == "loose_scale" || k == "pitch")
         // Only the steps in use.
-        .filter(|(k, _)| !k.starts_with("transition.steps.") || k.split('.').nth(2).and_then(|i| i.parse::<usize>().ok()).is_some_and(|i| p.transition.steps[i].kind != crate::preset::StepKind::None))
+        .filter(|(k, _)| !k.starts_with("transition.steps.") || k.split('.').nth(2).and_then(|i| i.parse::<usize>().ok()).is_some_and(|i| p.transition.steps[i].kind != amenui::preset::StepKind::None))
         .collect()
 }
 /// A label for a number's path: the step's own names for a–e.
@@ -52,7 +52,7 @@ pub fn update(s: &mut Gallery, m: PreMsg) {
         PreMsg::Play => s.apply_style(s.pre_to),
         PreMsg::Export => { s.pre_json = TextEdit::new(&s.presets[s.pre_to].to_json()); s.pre_note = format!("{} 的数据（可以复制，改了以后按“导入”）", s.presets[s.pre_to].name); }
         PreMsg::Recipe => { s.pre_json = TextEdit::new(&s.presets[s.pre_to].recipe()); s.pre_note = format!("{} 的配方：和内置的差别，可以放进网址的 # 后面，或粘贴回来导入", s.presets[s.pre_to].name); }
-        PreMsg::Import if s.pre_json.text.trim().trim_start_matches('#').starts_with(crate::preset::RECIPE_PREFIX) => match Preset::from_recipe(&s.pre_json.text) {
+        PreMsg::Import if s.pre_json.text.trim().trim_start_matches('#').starts_with(amenui::preset::RECIPE_PREFIX) => match Preset::from_recipe(&s.pre_json.text) {
             Ok(p) => { s.pre_note = format!("已导入配方：{}", p.name); let i = s.presets.iter().position(|q| q.hash == p.hash).unwrap_or(s.pre_to); s.presets[i] = p; s.pre_to = i; }
             Err(e) => s.pre_note = e.to_string(),
         },
@@ -97,5 +97,5 @@ pub fn page(s: &Gallery) -> El<Msg> {
             .child(play)))
         .child(section(h, "目标风格的数", nums))
         .child(section(h, "数据", json))
-        .child(crate::el::space(1.0, 24.0))
+        .child(amenui::el::space(1.0, 24.0))
 }

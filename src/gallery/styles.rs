@@ -3,9 +3,9 @@
 use super::pages::ratio;
 use super::{Gallery, Msg, STYLE_SLOT, Target};
 use crate::demo::{BUST, SKY, SPHERE, TERRAIN};
-use crate::el::{El, Font, Paint, Scope, Stirr, col, picture, row, space, text, text_lh};
-use crate::style::styles;
-use crate::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, switch};
+use amenui::el::{El, Font, Paint, Scope, Stirr, col, picture, row, space, text, text_lh};
+use amenui::style::styles;
+use amenui::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, switch};
 use taffy::{AlignItems, JustifyContent};
 
 pub const STYLE_DESC: [&str; 10] = [
@@ -355,16 +355,16 @@ fn tangle(r: f32, above: f32, below: f32) -> std::rc::Rc<Vec<[f32; 2]>> {
     MADE.with(|m| {
         let mut m = m.borrow_mut();
         if let Some((k, p)) = m.as_ref() && *k == key { return p.clone(); }
-        let p = std::rc::Rc::new(crate::strand::figure(17, r, above, below));
+        let p = std::rc::Rc::new(amenui::strand::figure(17, r, above, below));
         *m = Some((key, p.clone()));
         p
     })
 }
 fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
-    use crate::el::Role;
-    use crate::style::{THREAD, THREAD_PAPER, theme_index};
+    use amenui::el::Role;
+    use amenui::style::{THREAD, THREAD_PAPER, theme_index};
     // English whatever the language (the demo pages show no Chinese).
-    let en = |k: &str| crate::i18n::Locale::En.tr(k);
+    let en = |k: &str| amenui::i18n::Locale::En.tr(k);
     let narrow = s.width < super::NARROW;
     let w = if narrow { (s.width - 40.0).max(280.0) } else { 640.0 };
     let (pic_w, side_w, height) = if narrow { (w, w, 760.0) } else { (300.0, 260.0, 480.0) };
@@ -380,7 +380,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
         let progress = s.thread_drawn.map_or(1.0, |d| ((s.clock - d) / THREAD_DRAW_S).clamp(0.0, 1.0));
         let (cx, cy) = (pic_w + 20.0, 0.66 * height);
         let pts: Vec<[f32; 2]> = tangle(r, cy - 4.0, height - cy - 34.0).iter().map(|p| [p[0] + 90.0, p[1] + cy]).collect();
-        comp = comp.child(space(180.0, height).key(format!("{h}/tangle")).trace(crate::strand::Trace { points: std::rc::Rc::new(pts), progress, weight: 1.0, pull: 2.5, ..Default::default() }).absolute(Some(cx - 90.0), Some(0.0), None, None));
+        comp = comp.child(space(180.0, height).key(format!("{h}/tangle")).trace(amenui::strand::Trace { points: std::rc::Rc::new(pts), progress, weight: 1.0, pull: 2.5, ..Default::default() }).absolute(Some(cx - 90.0), Some(0.0), None, None));
     }
     if let Some(st) = stylus { comp = comp.child(st); }
     let paper = s.theme == theme_index(THREAD_PAPER.name);
@@ -388,8 +388,8 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     let word = |t: String, on: bool| text(t, 12.0, if on { Paint::ACCENT } else { Paint::TEXT }).whisper();
     let grounds = [THREAD.name, THREAD_PAPER.name];
     let pick = usize::from(paper);
-    let keys = move |k: crate::el::Key, _: bool| -> Option<Msg> {
-        use crate::el::Key;
+    let keys = move |k: amenui::el::Key, _: bool| -> Option<Msg> {
+        use amenui::el::Key;
         let to = match k { Key::Left | Key::Up | Key::Home => 0, Key::Right | Key::Down | Key::End => 1, _ => return None };
         (to != pick).then(|| Msg::Theme(theme_index(grounds[to])))
     };
@@ -405,7 +405,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     comp
         .child(text(en("thread.kicker"), 11.0, Paint::TEXT).whisper().key(format!("{h}/kicker")))
         .child(space(1.0, 22.0))
-        .child(text_lh(en("thread.title"), 30.0, 40.0, Paint::INK).font(Font::Whisper).tracking(0.3).key(format!("{h}/title")).respond(crate::el::Response::Loosen).legible(false))
+        .child(text_lh(en("thread.title"), 30.0, 40.0, Paint::INK).font(Font::Whisper).tracking(0.3).key(format!("{h}/title")).respond(amenui::el::Response::Loosen).legible(false))
         .child(space(1.0, 34.0))
         .child(row().key(format!("{h}/spread")).width(w).gap(if narrow { 24.0 } else { w - pic_w - side_w }).align(AlignItems::START).wrap()
             .child(col().key(format!("{h}/fig")).gap(10.0)

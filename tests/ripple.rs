@@ -2,12 +2,12 @@
 //! element answers, that fronts from one element never stack, and that a changed string recomposes only
 //! its changed glyphs and hands over to the plain new text.
 use amenui::el::{El, Paint, Response, col, row, text};
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::morph::Recompose;
 use amenui::style::Look;
 use amenui::ui::Ui;
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 
 fn page() -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1600, 1.0);
@@ -182,54 +182,11 @@ fn a_changed_digit_recomposes_and_hands_over() {
     assert!(!ui.needs_frame(t), "moving {} births {:?}", ui.moving_at(t), ui.scene().instances.iter().map(|i| i.extra[3]).collect::<Vec<_>>());
 }
 
-#[test]
-fn unkeyed_text_is_replaced_and_slides_are_made_for_moved_glyphs() {
-    let mut ui = num_ui("7", false);
-    set(&mut ui, "8");
-    assert!(alpha_of(&ui).is_empty() || ui.scene().instances.iter().all(|i| i.paint[2] > 0.0), "no recomposition without a key");
-    // Keyed: a longer number pushes nothing here (one glyph, left aligned), but "9" → "10" changes both.
-    let mut ui = num_ui("9", true);
-    set(&mut ui, "10");
-    assert_eq!(alpha_of(&ui).iter().filter(|&&x| x == 0.0).count(), 2);
-}
-
-#[test]
-fn a_number_that_changes_every_frame_stays_bounded() {
-    // 2,000 frames in a row, a new value each: faster than the minimum interval, so it is replaced at once.
-    let mut ui = num_ui("0", true);
-    let mut peak = 0usize;
-    let mut t = ui.now();
-    for i in 1..=2000 {
-        t += 1.0 / 60.0;
-        ui.tick(t);
-        set(&mut ui, &format!("{}", i * 7919 % 100_000));
-        ui.frame_drawn();
-        peak = peak.max(ui.recompose_tiles());
-        assert!(ui.scene().instances.len() < 4000, "frame {i}: {} instances", ui.scene().instances.len());
-    }
-    assert!(peak <= 6000, "peak {peak} tiles");
-    // Every 100 ms (slower than the interval, faster than a flight): each change retargets the tiles in
-    // flight, and their number stays bounded instead of multiplying.
-    let mut peak = 0usize;
-    for i in 1..=300 {
-        for _ in 0..6 { t += 1.0 / 60.0; ui.tick(t); ui.frame_drawn(); }
-        set(&mut ui, &format!("{}", i * 7919 % 100_000));
-        peak = peak.max(ui.recompose_tiles());
-    }
-    let spec = Recompose::default();
-    assert!(peak as f32 <= spec.max_tiles, "peak {peak} tiles");
-    assert!(peak <= 6 * spec.count_max as usize * 3, "peak {peak} tiles for five digits");
-    // And it comes to rest.
-    for _ in 0..60 { t += 1.0 / 60.0; ui.tick(t); ui.frame_drawn(); }
-    assert_eq!(ui.recompose_tiles(), 0);
-    assert!(!ui.needs_frame(t));
-}
-
 struct Pic;
 fn pic_view(_: &Pic) -> El<()> {
     col().pad(40.0, 40.0)
-        .child(row().key("thumb").on_press(()).child(amenui::el::picture(amenui::demo::BUST, 1.0).key("in-control").width(120.0)))
-        .child(amenui::el::picture(amenui::demo::BUST, 1.0).key("loose-pic").width(120.0))
+        .child(row().key("thumb").on_press(()).child(amenui::el::picture(website::demo::BUST, 1.0).key("in-control").width(120.0)))
+        .child(amenui::el::picture(website::demo::BUST, 1.0).key("loose-pic").width(120.0))
 }
 
 #[test]

@@ -3,10 +3,10 @@
 //! reaches). A cell steps only while it can be seen; an experiment's own page shows it larger with its
 //! documentation (`docs/site/<language>/lab-<name>.md`).
 use super::{Gallery, Msg};
-use crate::el::{El, Font, Paint, col, text};
-use crate::experiment::Experiment;
-use crate::recipes::lab as x;
-use crate::style::{LAB, Look, Material};
+use amenui::el::{El, Font, Paint, col, text};
+use amenui::experiment::Experiment;
+use crate::showcase::lab as x;
+use amenui::style::{LAB, Look, Material};
 use std::rc::Rc;
 
 pub const COUNT: usize = 10;
@@ -27,7 +27,7 @@ macro_rules! cells {
                 c.on_visible(move |v| Some(LMsg::Seen(i, v)))
             }
             pub fn update(&mut self, m: LMsg, now: f32) {
-                if !matches!(m, LMsg::Seen(..)) { self.until = now + crate::experiment::IDLE_S; }
+                if !matches!(m, LMsg::Seen(..)) { self.until = now + amenui::experiment::IDLE_S; }
                 match m { LMsg::Seen(i, v) => self.seen[i] = v, $( LMsg::$v(m) => self.$f.update(m, now), )* }
             }
             /// Step what can be seen, every frame (the living pieces); with motion reduced only for
@@ -37,7 +37,7 @@ macro_rules! cells {
             pub fn step(&mut self, now: f32) -> bool {
                 let live = !self.reduced || now < self.until;
                 let seen = self.seen.iter().filter(|&&v| v).count();
-                let share = ((seen as f32 * crate::budget::usage().scale).ceil() as usize).clamp(1, COUNT);
+                let share = ((seen as f32 * amenui::budget::usage().scale).ceil() as usize).clamp(1, COUNT);
                 let (mut c, mut k) = (false, 0usize);
                 self.turn = (self.turn + 1) % COUNT;
                 $( if self.seen[$i] && (live || self.$f.moving()) {
@@ -69,7 +69,7 @@ pub fn update(s: &mut Gallery, m: LMsg) { let now = s.clock; s.lab.update(m, now
 pub fn tick(s: &mut Gallery, t: f32) -> bool { on_lab(s) && s.lab.step(t) }
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (on_lab(s) && s.lab.moving(t)).then_some(t) }
 /// Arriving on a Lab page starts the idle motion of what can be seen.
-pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + crate::experiment::IDLE_S; }
+pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + amenui::experiment::IDLE_S; }
 fn on_lab(s: &Gallery) -> bool { matches!(s.page, super::Page::Lab | super::Page::Experiment(_)) }
 
 /// The lab's look on its pages: its theme, plain material, nothing else.
@@ -82,7 +82,7 @@ pub fn look(s: &Gallery, l: &mut Look) {
 
 /// The grid: as many columns of at least 340 px as fit (one on a phone).
 pub fn page(s: &Gallery) -> El<Msg> {
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let mut grid = col().key("lab/grid").fill_width().min_width(0.0);
     grid.style.display = taffy::Display::Grid;
     // As many columns of at least 340 px as the page has room for; one on a phone.
@@ -102,15 +102,15 @@ pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
     let name = NAMES[i.min(COUNT - 1)];
     let src = doc(name, s.locale);
     let w = (s.width - if s.width < super::NARROW { 28.0 } else { 300.0 }).clamp(200.0, 720.0);
-    let (body, _) = crate::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
+    let (body, _) = amenui::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
     col().key(format!("lab/{name}/page")).fill_width().min_width(0.0).max_width(w).gap(18.0)
         .child(s.lab.cell(i, &format!("lab/{name}")).map(Rc::new(Msg::Lab)))
         .child(body)
 }
 
 /// An experiment's documentation in a language.
-pub fn doc(name: &str, l: crate::i18n::Locale) -> &'static str {
-    let en = l == crate::i18n::Locale::En;
+pub fn doc(name: &str, l: amenui::i18n::Locale) -> &'static str {
+    let en = l == amenui::i18n::Locale::En;
     macro_rules! pick { ($($n:literal),*) => { match name { $( $n => if en { include_str!(concat!("../../docs/site/en/lab-", $n, ".md")) } else { include_str!(concat!("../../docs/site/zh-Hans/lab-", $n, ".md")) }, )* _ => "" } } }
     pick!("lumen", "contours", "silk", "grown", "mercury", "flow", "loupe", "orbit", "spring", "stack")
 }

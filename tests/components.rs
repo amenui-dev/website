@@ -1,12 +1,10 @@
 //! Acceptance for components and the gallery, without a GPU: drag capture, text editing, the modal layer (focus trap,
 //! dismissal, beneath held loose), tabs / list / slider / number scrub, disabled controls, horizontal
 //! scroll, commits, and the gallery's hash routes.
-use amenui::el::{Drag, El, Key, Paint, Phase, col, space};
-use amenui::gallery::{self, COMPONENTS, GalleryUi, Msg, Page};
-use amenui::ui::Ui;
-use amenui::widgets::TextEdit;
+use amenui::el::Key;
+use website::gallery::{self, COMPONENTS, GalleryUi, Msg, Page};
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 
 fn gallery_at(p: Page) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1800, 1.0);
@@ -30,54 +28,6 @@ fn click(ui: &mut GalleryUi, k: &str) {
     ui.release(x, y);
 }
 fn comp(hash: &str) -> Page { Page::Comp(COMPONENTS.iter().position(|c| c.hash == hash).expect("component")) }
-
-// ── Drag capture ─────────────────────────────────────────────────────────────────────────────────
-
-#[derive(Default)]
-struct Drags { seen: Vec<Drag> }
-fn drags(_: &Drags) -> El<Drag> {
-    col().key("root").pad(20.0, 20.0)
-        .child(space(100.0, 40.0).key("handle").fill(Paint::INK).on_drag_with(Some))
-        .child(space(100.0, 40.0).key("other").on_press(Drag { phase: Phase::End, x: -1.0, y: -1.0, w: 0.0, h: 0.0, dx: 0.0, dy: 0.0 }))
-}
-
-#[test]
-fn drag_is_captured_until_release() {
-    let mut ui = Ui::new(Drags::default(), drags, |s: &mut Drags, d| s.seen.push(d), fonts(), 400, 300, 1.0);
-    ui.press(30.0, 30.0);
-    assert_eq!(ui.dragging(), Some("handle"));
-    // Far outside the element, and over another pressable one: the drag keeps going.
-    ui.pointer_move(300.0, 80.0);
-    ui.release(300.0, 80.0);
-    ui.pointer_move(10.0, 10.0);
-    let s = &ui.state.seen;
-    assert_eq!(s.iter().map(|d| d.phase).collect::<Vec<_>>(), [Phase::Start, Phase::Move, Phase::End]);
-    assert_eq!((s[0].x, s[0].y, s[0].w, s[0].h), (10.0, 10.0, 100.0, 40.0));
-    assert_eq!((s[1].dx, s[1].dy), (270.0, 50.0));
-    assert_eq!(s[1].fx(), 1.0, "fraction is clamped");
-    assert_eq!(ui.dragging(), None);
-}
-
-// ── Text input ───────────────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn text_edit_keys() {
-    let e = TextEdit::new("中文ab");
-    assert_eq!(e.caret, 4);
-    let e = e.apply(Key::Left, 99).unwrap().apply(Key::Left, 99).unwrap();
-    assert_eq!(e.caret, 2);
-    let e = e.apply(Key::Char('x'), 99).unwrap();
-    assert_eq!((e.text.as_str(), e.caret), ("中文xab", 3));
-    let e = e.apply(Key::Backspace, 99).unwrap().apply(Key::Backspace, 99).unwrap();
-    assert_eq!((e.text.as_str(), e.caret), ("中ab", 1));
-    let e = e.apply(Key::Delete, 99).unwrap();
-    assert_eq!(e.text, "中b");
-    assert_eq!(e.apply(Key::Home, 99).unwrap().caret, 0);
-    assert_eq!(e.apply(Key::End, 99).unwrap().caret, 2);
-    assert_eq!(e.apply(Key::Char('z'), 2), None, "full");
-    assert_eq!(e.apply(Key::Home, 99).unwrap().apply(Key::Backspace, 99), None, "nothing before the caret");
-    assert_eq!(e.apply(Key::Char('\u{8}'), 99), None, "control characters are not typed");
-}
 
 #[test]
 fn typing_into_the_input() {
@@ -341,7 +291,7 @@ fn every_page_has_a_plain_hash() {
     // flow and 3D, type and demo, the scene list and the scenes, Body; the documentation's prose
     // pages, the components without a gallery page of their own, the For-AI pages and the changelog;
     // the lab and its experiments, decode, the field map.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + amenui::gallery::docs::DOCS.len() + amenui::gallery::docs::widget_names().len() + 4 + 1 + amenui::gallery::lab::COUNT + 1 + 1);
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::DOCS.len() + website::gallery::docs::widget_names().len() + 4 + 1 + website::gallery::lab::COUNT + 1 + 1);
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");
@@ -372,11 +322,10 @@ fn every_page_lays_out_in_every_theme() {
 
 #[test]
 fn registry_lists_every_component_and_its_files() {
-    let root = env!("CARGO_MANIFEST_DIR");
-    let reg = std::fs::read_to_string(format!("{root}/registry.json")).expect("registry.json");
+    let reg = amenui::sources::REGISTRY;
     for c in COMPONENTS.iter() {
         assert!(reg.contains(&format!("\"name\": \"{}\"", c.hash)), "{} is not in the registry", c.hash);
         assert!(reg.contains(&format!("\"{}\"", c.file)), "{} is not in the registry", c.file);
-        assert!(std::path::Path::new(&format!("{root}/{}", c.file)).exists(), "{} does not exist", c.file);
+        assert!(c.file.strip_prefix("src/widgets/").and_then(amenui::sources::widget::get).is_some(), "{} is not one of amenui's components", c.file);
     }
 }

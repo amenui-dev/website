@@ -5,7 +5,7 @@
 //!   start and saves it (any number of them); `--exit-after` closes the window after that many ms.
 //!   It reports the adapter and, every two seconds, how many frames it drew, on stderr.
 use amenui::el::Key;
-use amenui::gallery::{self, GalleryUi};
+use website::gallery::{self, GalleryUi};
 use amenui::render::Renderer;
 use std::sync::Arc;
 use std::time::Instant;
@@ -72,8 +72,8 @@ impl App {
         eprintln!("surface: {}×{} {:?}, present mode {:?}", config.width, config.height, config.format, config.present_mode);
         let mut r = Renderer::new(device, queue, format, config.width, config.height);
         r.set_particle_tier(amenui::render::particle_tier(&adapter));
-        for (id, pw, ph, px) in amenui::demo::pictures() { r.set_picture(id, pw, ph, &px); }
-        let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).map_err(|e| e.to_string())?;
+        for (id, pw, ph, px) in website::demo::pictures() { r.set_picture(id, pw, ph, &px); }
+        let faces = amenui::text::load_bundled(amenui::text::ASSETS).map_err(|e| e.to_string())?;
         let mut ui = gallery::new_ui(faces, config.width, config.height, window.scale_factor() as f32);
         ui.perf_mut().backend = format!("{:?}", info.backend);
         ui.perf_mut().adapter = info.name.clone();

@@ -2,10 +2,10 @@
 //! input has settled the runtime stops asking for frames within the longest animation it can start; a
 //! ripple, a hover burst and the caret ask for frames (the caret as a timed wake, not every frame); a
 //! state clock (the departure board) asks for timed wakes only.
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::ui::BLINK;
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 
 /// Tick to `to` at 60 Hz, "drawing" every frame the runtime asks for. Returns how many were drawn.
 fn run(ui: &mut GalleryUi, to: f32) -> usize {

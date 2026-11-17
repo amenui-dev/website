@@ -2,10 +2,10 @@
 //! a dialog alone while it is open; activation routed to the same messages; focus from assistive
 //! technology; the keyed diff sends only what changed.
 use amenui::el::Role;
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::ui::{A11yNode, A11yOp};
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn at(p: &str) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, 1800, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash(p).unwrap()));

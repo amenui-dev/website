@@ -4,9 +4,9 @@
 use super::pages::{ParamDef, header, section};
 use super::mechanism::{self, MMsg, Mech};
 use super::{Gallery, Msg, Target};
-use crate::el::{El, Paint, Response, col, row, scene3d, text};
-use crate::mesh::{Camera, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
-use crate::widgets::{number, segmented};
+use amenui::el::{El, Paint, Response, col, row, scene3d, text};
+use amenui::mesh::{Camera, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
+use amenui::widgets::{number, segmented};
 use taffy::AlignItems;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,7 +43,7 @@ impl Default for Three {
 }
 
 const fn p(name: &'static str, min: f32, max: f32, step: f32, decimals: usize, unit: &'static str, default: f32) -> ParamDef {
-    ParamDef { name, spec: crate::widgets::Spec { min, max, step, decimals, unit }, default }
+    ParamDef { name, spec: amenui::widgets::Spec { min, max, step, decimals, unit }, default }
 }
 /// Every number of the page, in the order of `slot`.
 pub const PARAMS: [ParamDef; 18] = [
@@ -131,28 +131,28 @@ pub fn page(s: &Gallery) -> El<Msg> {
         nums = nums.child(number(&format!("three/p{i}"), d.name, v, d.spec, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));
     }
     // The ascii material's normal weight lives with the material; it is here too.
-    let ascii = crate::style::Material::Ascii as u8;
-    let aw = crate::style::MAT_PARAMS[ascii as usize][3];
+    let ascii = amenui::style::Material::Ascii as u8;
+    let aw = amenui::style::MAT_PARAMS[ascii as usize][3];
     let tg = Target::Mat(ascii, 3);
-    nums = nums.child(number("three/ascii-normal", "ASCII 法线权重", s.mats[ascii as usize].0[3], crate::widgets::Spec { min: aw.min, max: aw.max, step: aw.step, decimals: aw.decimals, unit: aw.unit }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));
-    let names: Vec<String> = mechanism::MATS.iter().map(|m| crate::i18n::tr(m.0)).collect();
+    nums = nums.child(number("three/ascii-normal", "ASCII 法线权重", s.mats[ascii as usize].0[3], amenui::widgets::Spec { min: aw.min, max: aw.max, step: aw.step, decimals: aw.decimals, unit: aw.unit }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0));
+    let names: Vec<String> = mechanism::MATS.iter().map(|m| amenui::i18n::tr(m.0)).collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let tg = Target::Three(PARAMS.len());
     let controls = col().key("three/controls").gap(12.0).max_width(400.0)
         .child(segmented("three/mat", &names, t.mech.mat, 30.0, |i| Msg::Three(TMsg::Mech(MMsg::Material(i)))))
-        .child(number("three/explode", "拆开", t.mech.explode_to, crate::widgets::Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0))
+        .child(number("three/explode", "拆开", t.mech.explode_to, amenui::widgets::Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" }, s.draft(tg), move |e| Msg::Num(tg, e)).width(300.0))
         .children(mechanism::PARTS.iter().enumerate().map(|(i, p)| {
             let on = t.mech.hover.or(t.mech.chosen) == Some(i);
-            let name = crate::i18n::tr(p.name);
+            let name = amenui::i18n::tr(p.name);
             let z = if p.teeth > 0 { format!("{name}  ·  z = {}", p.teeth) } else { name };
             text(format!("{:02}  {z}", i + 1), 13.0, if on { Paint::ACCENT } else { Paint::TEXT }).key(format!("three/part{i}"))
         }))
-        .child(text(crate::i18n::tr(mechanism::KEYS), 13.0, Paint::DIM).max_width(380.0));
+        .child(text(amenui::i18n::tr(mechanism::KEYS), 13.0, Paint::DIM).max_width(380.0));
     col().key("three/page").fill_width().max_width(1100.0).gap(34.0)
         .child(header(s, h, "三维", "El::mesh / scene3d / MeshInstances", "三维物体是页面上的又一种东西：在布局给它的矩形里画，会松开、变形，可以按到。机件由代码里的基本形搭成：齿轮按齿数比啮合，凸轮推着从动杆；两种色调的平涂、画出的轮廓线，材质可以换。网格在一张离屏图里画出明暗、法线、深度和编号，再变成和文字一样的墨与近度：轮廓和棱都是“边”。"))
         .child(section(h, "机件", row().key("three/object-row").fill_width().wrap().gap(24.0).align(AlignItems::START).child(view).child(controls)))
         .child(section(h, "两千个，一次画出", col().key("three/field-col").fill_width().gap(10.0).child(field)
             .child(row().gap(24.0).child(text(hovered, 13.0, Paint::DIM).key("three/hovered")).child(text(picked, 13.0, Paint::DIM).key("three/picked")))))
         .child(section(h, "参数", nums))
-        .child(crate::el::space(1.0, 24.0))
+        .child(amenui::el::space(1.0, 24.0))
 }

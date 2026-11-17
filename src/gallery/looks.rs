@@ -3,9 +3,9 @@
 use super::pages::{header, ratio, section};
 use super::{Gallery, IMAGE_SLOT, Msg, Page, Target};
 use crate::demo::{SKY, TERRAIN};
-use crate::el::{El, Font, Paint, Response, Scope, col, picture, row, space, text, text_lh};
-use crate::style::{GAZE_MODES, MAT_PARAMS, Material, gaze};
-use crate::widgets::{SELECTED, Spec, Variant, button_as, card, number, segmented, switch};
+use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, text, text_lh};
+use amenui::style::{GAZE_MODES, MAT_PARAMS, Material, gaze};
+use amenui::widgets::{SELECTED, Spec, Variant, button_as, card, number, segmented, switch};
 use taffy::{AlignItems, JustifyContent};
 
 pub fn page(s: &Gallery) -> El<Msg> {

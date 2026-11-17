@@ -9,11 +9,11 @@
 //! taken from its own surface and forms again; `explode` separates the parts along their axes; the
 //! material switch runs the whole machine as ASCII, dots, halftone, or lino. Every one of these
 //! has a key (see `key`).
-use crate::el::{Drag, El, Key, Paint, Phase, Response, scene3d, space, stack, text};
-use crate::mesh::{self, Camera, Library, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
-use crate::morph::{Cmd, MorphSpec};
-use crate::style::Material;
-use crate::widgets::{Orbit, OrbitMsg};
+use amenui::el::{Drag, El, Key, Paint, Phase, Response, scene3d, space, stack, text};
+use amenui::mesh::{self, Camera, Library, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
+use amenui::morph::{Cmd, MorphSpec};
+use amenui::style::Material;
+use amenui::widgets::{Orbit, OrbitMsg};
 use std::sync::OnceLock;
 
 /// The parts, by the id their group carries in picks (index + 1).
@@ -276,7 +276,7 @@ pub fn anchor(m: &Mech, p: usize, aspect: f32) -> Option<(f32, f32)> {
 pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, msg: impl Fn(MMsg) -> M + Clone + 'static) -> El<M> {
     let mat = MATS[m.mat].1;
     let (a, b, c, d, e) = (msg.clone(), msg.clone(), msg.clone(), msg.clone(), msg.clone());
-    let mut v = scene3d(m.scene()).key(format!("{key}/view")).width(w).height(h).focusable(true).label(crate::i18n::tr("mech.label")).cursor(crate::el::Cursor::Grab)
+    let mut v = scene3d(m.scene()).key(format!("{key}/view")).width(w).height(h).focusable(true).label(amenui::i18n::tr("mech.label")).cursor(amenui::el::Cursor::Grab)
         .on_drag_with(move |dr| Some(a(MMsg::Drag(dr))))
         .on_wheel(move |_, dy| Some(b(MMsg::Wheel(dy))))
         .on_key(move |k, sh| matches!(k, Key::Left | Key::Right | Key::Up | Key::Down | Key::Enter | Key::Char('[' | ']' | '+' | '=' | '-' | 'e' | 'E' | 'm' | 'M' | ',' | '.' | ' ')).then(|| c(MMsg::Key(k, sh))))
@@ -299,12 +299,12 @@ pub fn view<M: Clone + 'static>(m: &Mech, key: &str, w: f32, h: f32, size: f32, 
         let (px, py) = (fx * w, fy * h);
         let ly = (h * 0.08).max(size);
         let part = &PARTS[p];
-        let name = crate::i18n::tr(part.name);
-        let label = if part.teeth > 0 { crate::t!(crate::i18n::current(), "mech.leader", i = format!("{:02}", p + 1), name = name, z = part.teeth) } else { format!("{:02} {name}", p + 1) };
+        let name = amenui::i18n::tr(part.name);
+        let label = if part.teeth > 0 { amenui::t!(amenui::i18n::current(), "mech.leader", i = format!("{:02}", p + 1), name = name, z = part.teeth) } else { format!("{:02} {name}", p + 1) };
         let lx = if px > w * 0.5 { (px - size * 16.0).max(0.0) } else { px };
         layers.push(space(1.0, (py - ly - size * 0.4).max(1.0)).fill(Paint::ACCENT).key(format!("{key}/leader-v")).absolute(Some(px), Some(ly + size * 0.4), None, None).respond(Response::Ignore).material(Material::Plain.id()));
         layers.push(space(size * 0.5, size * 0.5).radius(size * 0.25).fill(Paint::ACCENT).key(format!("{key}/leader-dot")).absolute(Some(px - size * 0.25), Some(py - size * 0.25), None, None).respond(Response::Ignore).material(Material::Plain.id()));
-        layers.push(text(label, size, Paint::INK).font(crate::el::Font::Mono).key(format!("{key}/leader-label")).nowrap().absolute(Some(lx), Some(ly - size), None, None).respond(Response::Ignore).material(Material::Plain.id()));
+        layers.push(text(label, size, Paint::INK).font(amenui::el::Font::Mono).key(format!("{key}/leader-label")).nowrap().absolute(Some(lx), Some(ly - size), None, None).respond(Response::Ignore).material(Material::Plain.id()));
     }
     let _ = e;
     stack(layers).key(key.to_owned()).width(w).height(h)

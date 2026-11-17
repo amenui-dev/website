@@ -2,11 +2,11 @@
 //! page and the body, the page at rest is exactly the plain layout, the two rest states ask for no
 //! frames but the body's idle turn, and the body turns, opens under the pointer and goes back.
 use amenui::experiment::Experiment;
-use amenui::recipes::scenes::body::{self, Body, Msg};
+use website::showcase::scenes::body::{self, Body, Msg};
 use amenui::scene::Instance;
 use amenui::ui::Ui;
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn run(ui: &mut Ui<Body, Msg>, secs: f32) -> usize {
     let (mut t, end, mut drawn) = (ui.now(), ui.now() + secs, 0);
     while t < end { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { drawn += 1; } ui.frame_drawn(); }

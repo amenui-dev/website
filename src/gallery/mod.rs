@@ -18,11 +18,11 @@ pub mod particles;
 pub mod presets;
 
 use crate::demo::{self, Demo};
-use crate::el::{El, Font, Paint, col, row, space, text};
-use crate::morph::{Cmd, Ease, FlowSpec, MorphSpec};
-use crate::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, PicFx, THEMES, Theme, gaze, set, styles};
-use crate::text::Face;
-use crate::widgets::{Edit, SELECTED, Spec, TextEdit, Variant, button_as, divider, menu, vdivider};
+use amenui::el::{El, Font, Paint, col, row, space, text};
+use amenui::morph::{Cmd, Ease, FlowSpec, MorphSpec};
+use amenui::style::{GAZE_MODES, Gaze, GazeMode, Look, MATERIAL_COUNT, MATERIALS, Material, MaterialParams, PicFx, THEMES, Theme, gaze, set, styles};
+use amenui::text::Face;
+use amenui::widgets::{Edit, SELECTED, Spec, TextEdit, Variant, button_as, divider, menu, vdivider};
 use std::rc::Rc;
 use taffy::AlignItems;
 
@@ -102,18 +102,18 @@ impl Page {
     }
     /// The page's name in the current language.
     pub fn name(self) -> String {
-        let l = crate::i18n::current();
-        let en = l == crate::i18n::Locale::En;
+        let l = amenui::i18n::current();
+        let en = l == amenui::i18n::Locale::En;
         let zh = self.name_zh();
         match self {
-            Page::Lab => crate::i18n::tr("nav.lab"),
-            Page::Body => crate::i18n::tr("nav.body"),
+            Page::Lab => amenui::i18n::tr("nav.lab"),
+            Page::Body => amenui::i18n::tr("nav.body"),
             Page::Experiment(i) => { let n = lab::NAMES[i as usize]; n[..1].to_uppercase() + &n[1..] }
-            Page::Decode => crate::i18n::tr("nav.decode"),
-            Page::Stirr => crate::i18n::tr("nav.stirr"),
+            Page::Decode => amenui::i18n::tr("nav.decode"),
+            Page::Stirr => amenui::i18n::tr("nav.stirr"),
             Page::Doc(i) => docs::title(i as usize, l),
-            Page::Ai(i) => crate::i18n::tr(docs::AI[i as usize].1),
-            Page::Registry => crate::i18n::tr("docs.ai.registry"),
+            Page::Ai(i) => amenui::i18n::tr(docs::AI[i as usize].1),
+            Page::Registry => amenui::i18n::tr("docs.ai.registry"),
             Page::Widget(i) => { let n = docs::widget_names()[i as usize].clone(); if en { n.replace('_', " ") } else { docs::items().into_iter().find(|it| it.name == n).map_or(n, |it| it.title) } }
             Page::Comp(i) if en => docs::COMP_NAMES[i].replace('-', " "),
             _ if en => match self {
@@ -194,7 +194,7 @@ pub enum Target {
 pub enum Msg {
     Go(Page),
     /// Switch the language (DESIGN.md §1.20): everything is laid out again; keyed text recomposes.
-    Locale(crate::i18n::Locale),
+    Locale(amenui::i18n::Locale),
     /// A component page's 预览 / 代码 tab; an outline entry (scroll to that key); the search over every
     /// page (open, its query, run row `i`); a copy button (its text for the clipboard).
     DocTab(usize),
@@ -268,7 +268,7 @@ pub enum Msg {
     Craft(craft::CMsg),
     /// Something in a Lab cell.
     Lab(lab::LMsg),
-    Body(crate::recipes::scenes::body::Msg),
+    Body(crate::showcase::scenes::body::Msg),
     /// Something on the decode transition's page.
     Decode(decode::DMsg),
     Stirr(stirr::SMsg),
@@ -310,7 +310,7 @@ pub struct Gallery {
     /// Commands for the runtime, taken after every update.
     pub cmds: Vec<Cmd>,
     /// The language everything is shown in.
-    pub locale: crate::i18n::Locale,
+    pub locale: amenui::i18n::Locale,
     /// The documentation: the component page's tab, the outline entry in view, the search, and text
     /// a copy button asked the host to put on the clipboard.
     pub doc_tab: usize,
@@ -356,14 +356,14 @@ pub struct Gallery {
     pub rip_scope: usize,
     pub legible_cap: f32,
     pub loose_max: f32,
-    pub recompose: crate::morph::Recompose,
+    pub recompose: amenui::morph::Recompose,
     /// How scrolling looks (the 滚动 section of the list page; a preset sets it).
-    pub scroll: crate::style::Scroll,
+    pub scroll: amenui::style::Scroll,
     /// The finishing pass and depth marks of the style in use (DESIGN.md §1.21).
-    pub post: crate::post::Post,
-    pub depth_marks: crate::style::Marks,
+    pub post: amenui::post::Post,
+    pub depth_marks: amenui::style::Marks,
     /// The field map's numbers (DESIGN.md §1.29): the applied preset's, edited on `#stirr`.
-    pub map: crate::fieldmap::MapFx,
+    pub map: amenui::fieldmap::MapFx,
     pub hold_ms: f32,
     pub rip_count: u32,
     /// Ten fast presses of the counter in progress: when they started (state clock) and how many are done.
@@ -371,16 +371,16 @@ pub struct Gallery {
     /// The 3D page.
     pub three: three::Three,
     /// When morphs go to the GPU and the forces on its particles (the 粒子 page sets them).
-    pub particles: crate::morph::Particles,
+    pub particles: amenui::morph::Particles,
     /// The particle page.
     pub parts: particles::Parts,
     /// The presets as data (DESIGN.md §4.1), and what the one applied last set beyond the look's choices:
     /// its faces, press burst, default responses and its transition.
-    pub presets: Vec<crate::preset::Preset>,
+    pub presets: Vec<amenui::preset::Preset>,
     pub faces: Option<[u8; 3]>,
     pub press_ms: f32,
-    pub roles: [crate::el::Response; 2],
-    pub transition: crate::preset::Transition,
+    pub roles: [amenui::el::Response; 2],
+    pub transition: amenui::preset::Transition,
     /// The 风格 page: from and to, the JSON field, and what reading it said.
     pub pre_from: usize,
     pub pre_to: usize,
@@ -390,7 +390,7 @@ pub struct Gallery {
     pub craft: craft::Craft,
     pub lab: lab::Lab,
     /// The Body scene (`#body`).
-    pub body: crate::recipes::scenes::body::Body,
+    pub body: crate::showcase::scenes::body::Body,
     pub decode: decode::DecodePage,
     pub stirr: stirr::StirrPage,
     /// Where the pointer is over the Loose Thread composition: a point there stirs the field map.
@@ -407,12 +407,12 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: crate::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, search: false, search_q: TextEdit::default(), search_active: 0, clipboard: None,
             menu: 0, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: PicFx::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: crate::style::LEGIBLE_CAP, loose_max: 1.0, recompose: crate::morph::Recompose::default(), scroll: crate::style::Scroll::default(), post: crate::post::Post::default(), depth_marks: crate::style::Marks::default(), map: crate::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: crate::morph::Particles::default(), parts: particles::Parts::default(), presets: crate::preset::presets(), faces: None, press_ms: 350.0, roles: [crate::el::Response::Nudge, crate::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
+            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), hold_ms: 0.0, rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("第一行\n第二行，长一些的一行会在框的宽度里折行。"),
         }
     }
 }
@@ -466,7 +466,7 @@ impl Gallery {
         let i = i.min(self.presets.len().saturating_sub(1));
         let Some(st) = self.presets.get(i).cloned() else { return };
         self.style = Some(i);
-        let th = crate::style::theme_index(&st.theme);
+        let th = amenui::style::theme_index(&st.theme);
         self.theme = th; self.demo.theme = th;
         self.faces = Some(st.faces);
         self.material = st.material; self.demo.material = st.material;
@@ -519,8 +519,8 @@ impl Gallery {
     /// The look as a recipe: the active preset (the first when none is chosen) as `Preset::recipe`.
     pub fn recipe(&self) -> String { self.presets[self.style.unwrap_or(0).min(self.presets.len().saturating_sub(1))].recipe() }
     /// Take a recipe (`look:v1:…`): its preset replaces the built-in one it names, and becomes the look.
-    pub fn take_recipe(&mut self, r: &str) -> Result<(), crate::error::PresetError> {
-        let p = crate::preset::Preset::from_recipe(r)?;
+    pub fn take_recipe(&mut self, r: &str) -> Result<(), amenui::error::PresetError> {
+        let p = amenui::preset::Preset::from_recipe(r)?;
         let i = self.presets.iter().position(|q| q.hash == p.hash).unwrap_or(0);
         self.presets[i] = p;
         self.apply_style(i);
@@ -528,7 +528,7 @@ impl Gallery {
     }
     pub fn route(&mut self, hash: &str) -> bool {
         // A recipe in the address: the look changes, the page stays.
-        if hash.trim_start_matches('#').starts_with(crate::preset::RECIPE_PREFIX) { return self.take_recipe(hash).is_ok(); }
+        if hash.trim_start_matches('#').starts_with(amenui::preset::RECIPE_PREFIX) { return self.take_recipe(hash).is_ok(); }
         match Page::from_hash(hash) {
             Some(p) => { self.page = p; self.edit = None; self.enter(p); true }
             None => false,
@@ -547,7 +547,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         }
         Msg::Menu(k) => s.menu = k,
         Msg::Perf(0) => { s.overlay = (s.overlay + 1) % 3; s.menu = 0; }
-        Msg::Perf(i) => { s.quality = if i == 1 { 0.0 } else { crate::perf::LEVELS[(i - 2).min(2)] }; s.menu = 0; }
+        Msg::Perf(i) => { s.quality = if i == 1 { 0.0 } else { amenui::perf::LEVELS[(i - 2).min(2)] }; s.menu = 0; }
         Msg::Style(i) => { s.apply_style(i); s.menu = 0; }
         Msg::GazeMode(i) => s.gaze_page.mode = GAZE_MODES[i.min(GAZE_MODES.len() - 1)].0,
         Msg::GazeKind(k) => s.gaze_page.kinds ^= k,
@@ -556,7 +556,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::ThreadAt(p) => s.thread_at = p,
         Msg::PostFlag(f) => {
             let (binary, invert) = (s.post.binary ^ (f == 0), s.post.invert ^ (f == 1));
-            s.post = crate::post::PostSpec { binary, invert, ..crate::post::PostSpec::default() }.look();
+            s.post = amenui::post::PostSpec { binary, invert, ..amenui::post::PostSpec::default() }.look();
         }
         Msg::Query(t) => s.query = t,
         Msg::Scene(m) => scenes::update(s, m),
@@ -567,7 +567,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Open(o) => { if o != s.opened { s.cmds.push(Cmd::Flow(s.flow)); } s.opened = o; }
         Msg::Locale(l) => {
             s.locale = l;
-            crate::i18n::set_current(l);
+            amenui::i18n::set_current(l);
             s.menu = 0;
         }
         Msg::DocTab(i) => s.doc_tab = i.min(1),
@@ -668,7 +668,7 @@ pub fn view(s: &Gallery) -> El<Msg> {
     // A scene has the whole window under the top bar.
     // The Body scene is the whole window, full-bleed, no chrome: its own markings lead elsewhere.
     if s.page == Page::Body {
-        return col().key("gallery").fonts(crate::style::LAB.roles()).fill_width().fill_height().child(body::page(s));
+        return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s));
     }
     if let Page::Scene(i) = s.page {
         // On a scene the top bar is chrome, like the strip: fronts the scene makes pass it by.
@@ -719,7 +719,7 @@ fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
 /// The performance menu: the readout (its label says what pressing it does), then the qualities.
 const PERF_ITEMS: [&str; 5] = ["", "shell.quality.auto", "shell.quality.1", "shell.quality.075", "shell.quality.05"];
 fn perf_item(s: &Gallery) -> usize {
-    if s.quality == 0.0 { 1 } else { 2 + crate::perf::LEVELS.iter().position(|&l| l == s.quality).unwrap_or(0) }
+    if s.quality == 0.0 { 1 } else { 2 + amenui::perf::LEVELS.iter().position(|&l| l == s.quality).unwrap_or(0) }
 }
 
 fn top_bar(s: &Gallery) -> El<Msg> {
@@ -727,14 +727,14 @@ fn top_bar(s: &Gallery) -> El<Msg> {
     let material_names: Vec<&str> = MATERIALS.iter().map(|m| m.1).collect();
     let style_names: Vec<&str> = styles().iter().map(|t| t.name).collect();
     let material_now = MATERIALS.iter().position(|m| m.0 == s.material);
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let name = if matches!(s.page, Page::Scene(_)) {
         button_as("top/back", &tr("shell.back-to-scenes"), Variant::Quiet, Msg::Go(Page::Scenes))
     } else { text("amenui", 17.0, Paint::INK).font(Font::Mono).key("top/name") };
     let perf: Vec<String> = PERF_ITEMS.iter().map(|i| if i.is_empty() { tr(if s.overlay == 2 { "shell.readout.hide" } else if s.overlay == 1 { "shell.readout.more" } else { "shell.readout.show" }) } else { tr(i) }).collect();
     let perf: Vec<&str> = perf.iter().map(String::as_str).collect();
-    let langs: Vec<&str> = crate::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
-    let lang_now = crate::i18n::Locale::ALL.iter().position(|l| *l == s.locale);
+    let langs: Vec<&str> = amenui::i18n::Locale::ALL.iter().map(|l| l.name()).collect();
+    let lang_now = amenui::i18n::Locale::ALL.iter().position(|l| *l == s.locale);
     row().key("top").fill_width().wrap().gap(12.0).pad(20.0, 10.0).align(AlignItems::CENTER)
         .child(name)
         .child(space(0.0, 0.0).grow(1.0))
@@ -744,7 +744,7 @@ fn top_bar(s: &Gallery) -> El<Msg> {
                 Some(perf_item(s)), s.menu == 4, false, Msg::Menu(if s.menu == 4 { 0 } else { 4 }), Msg::Menu(0), Msg::Perf))
             .child(button_as("top/body", &tr("nav.body"), Variant::Quiet, Msg::Go(Page::Body)))
             .child(button_as("top/scenes", &tr("shell.scenes"), Variant::Quiet, Msg::Go(Page::Scenes)))
-            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(crate::i18n::Locale::ALL[i.min(1)])))
+            .child(menu("lang", &tr("shell.language"), &langs, lang_now, s.menu == 5, false, Msg::Menu(if s.menu == 5 { 0 } else { 5 }), Msg::Menu(0), |i| Msg::Locale(amenui::i18n::Locale::ALL[i.min(1)])))
             .child(menu("theme", &tr("shell.theme"), &theme_names, Some(s.theme), s.menu == 1, true, Msg::Menu(if s.menu == 1 { 0 } else { 1 }), Msg::Menu(0), Msg::Theme))
             .child(menu("material", &tr("shell.material"), &material_names, material_now, s.menu == 2, true, Msg::Menu(if s.menu == 2 { 0 } else { 2 }), Msg::Menu(0), Msg::Material))
             .child(menu("style", &tr("shell.style"), &style_names, s.style, s.menu == 3, true, Msg::Menu(if s.menu == 3 { 0 } else { 3 }), Msg::Menu(0), Msg::Style))
@@ -760,7 +760,7 @@ fn comp_pages() -> Vec<Page> {
 
 /// The groups and their pages.
 fn groups() -> Vec<(String, Vec<Page>)> {
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     // The components in six groups (registry.json's `group`), shadcn's way; the long list with the list.
     let comps: Vec<Page> = comp_pages().into_iter().chain((0..docs::widget_names().len() as u8).map(Page::Widget)).collect();
     let name_of = |p: &Page| match *p { Page::Comp(c) => docs::COMP_NAMES[c].to_owned(), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => "list".into() };
@@ -786,7 +786,7 @@ fn groups() -> Vec<(String, Vec<Page>)> {
 
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
     let on = s.page == p;
-    let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripple(crate::el::Scope::Global)
+    let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripple(amenui::el::Scope::Global)
         .child(text(p.name(), 14.0, if on { Paint::ACCENT } else { Paint::TEXT }));
     // A style page changes the whole look: the change spreads from the item pressed.
     if matches!(p, Page::Style(_) | Page::Scene(_)) { item = item.commit(); }
@@ -815,7 +815,7 @@ fn rail_row(s: &Gallery) -> El<Msg> {
     r
 }
 
-pub type GalleryUi = crate::ui::Ui<Gallery, Msg>;
+pub type GalleryUi = amenui::ui::Ui<Gallery, Msg>;
 
 /// Ten presses of the ripple counter in 300 ms: the gap between two.
 pub const BURST_GAP: f32 = 0.3 / 9.0;
@@ -829,11 +829,12 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
 }
 
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
+    crate::install_catalogs();
     let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
     // Tools (reel, scroll, pages) can ask for a language: AMENUI_LOCALE=en.
     #[cfg(not(target_arch = "wasm32"))]
-    let state = { let mut s = state; if let Some(l) = std::env::var("AMENUI_LOCALE").ok().and_then(|t| crate::i18n::Locale::from_tag(&t)) { update(&mut s, Msg::Locale(l)); } s };
-    let mut ui = crate::ui::Ui::new(state, view, update, faces, w, h, scale);
+    let state = { let mut s = state; if let Some(l) = std::env::var("AMENUI_LOCALE").ok().and_then(|t| amenui::i18n::Locale::from_tag(&t)) { update(&mut s, Msg::Locale(l)); } s };
+    let mut ui = amenui::ui::Ui::new(state, view, update, faces, w, h, scale);
     // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
     // names them.
     for m in mechanism::meshes() { ui.add_mesh(m); }
@@ -877,9 +878,9 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
         })
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
-            if k == crate::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
+            if k == amenui::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
             if docs::search_key(s, k) { return true; }
-            if k == crate::el::Key::Char('/') && s.page != Page::Body { update(s, Msg::Search(true)); return true; }
+            if k == amenui::el::Key::Char('/') && s.page != Page::Body { update(s, Msg::Search(true)); return true; }
             body::key(s, k) || scenes::key(s, k, shift)
         })
         .on_input(scenes::heard)

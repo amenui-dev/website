@@ -42,8 +42,8 @@ fn main() {
 
 /// Play preset `to`'s transition from preset `from` on the 风格 page; `at` is called with the ui at each
 /// of `fractions` of the transition (and once more after it).
-pub fn play_transition(o: &mut Offscreen, from: usize, to: usize, fractions: &[f32], mut at: impl FnMut(&mut Offscreen, &mut amenui::gallery::GalleryUi, usize)) {
-    use amenui::gallery::{self, Msg, Page, presets::PreMsg};
+pub fn play_transition(o: &mut Offscreen, from: usize, to: usize, fractions: &[f32], mut at: impl FnMut(&mut Offscreen, &mut website::gallery::GalleryUi, usize)) {
+    use website::gallery::{self, Msg, Page, presets::PreMsg};
     let (w, h) = (o.w, o.h);
     let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
     gallery::update(&mut ui.state, Msg::Preset(PreMsg::From(from)));
@@ -101,7 +101,7 @@ fn half(f: &(u32, u32, Vec<u8>)) -> (u32, u32, Vec<u8>) {
 }
 
 fn particles(out: &str) {
-    use amenui::gallery::{self, Msg, Page, particles::PMsg};
+    use website::gallery::{self, Msg, Page, particles::PMsg};
     let (w, h) = (1280u32, 800u32);
     let mut o = Offscreen::new(w, h);
     let mut ui = gallery::new_ui(amenui::text::load_bundled("assets").expect("fonts"), w, h, 1.0);
@@ -173,7 +173,7 @@ fn mesh(out: &str) {
 /// The look features, each off and on, on the image page and the 3D page:
 /// `looks.png`, a row per feature (off | on).
 fn looks(out: &str) {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     use amenui::post::*;
     let (w, h) = (560u32, 360u32);
     let mut o = Offscreen::new(w, h);

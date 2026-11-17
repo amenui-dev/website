@@ -5,7 +5,7 @@
 //!
 //! usage: scroll <out_dir> [name]   (writes <name>-<page>.png and <name>.png, the article's sheet; name
 //! defaults to "scroll")
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::offscreen::{Offscreen, crop, save_png, sheet};
 use amenui::style::Material;
 

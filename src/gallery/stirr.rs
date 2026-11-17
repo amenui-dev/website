@@ -5,11 +5,11 @@
 use super::pages::ratio;
 use super::{Gallery, IMAGE_SLOT, Msg};
 use crate::demo::SKY;
-use crate::el::{El, Font, Paint, Response, Scope, col, layers, picture, row, space, text};
-use crate::fieldmap::MAP_PARAMS;
-use crate::morph::{Cmd, StirAt};
-use crate::strand::Trace;
-use crate::widgets::{CaptionParam, Edit, FloatMsg, Floating, Spec, Variant, button_as, floating};
+use amenui::el::{El, Font, Paint, Response, Scope, col, layers, picture, row, space, text};
+use amenui::fieldmap::MAP_PARAMS;
+use amenui::morph::{Cmd, StirAt};
+use amenui::strand::Trace;
+use amenui::widgets::{CaptionParam, Edit, FloatMsg, Floating, Spec, Variant, button_as, floating};
 
 /// The place under the window (logical px).
 pub const AREA: (f32, f32) = (760.0, 420.0);
@@ -82,7 +82,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     }).collect();
     let tau = fx.energy_life;
     let formula = format!("e ← max(0, e·exp(−dt/{tau:.2}) − 0.15·dt)  ·  trail (1 − (d/R)²)², R = {:.0} + ½·short side  ·  k = max(own, e)  ·  at rest after ≤ {:.2} s",
-        fx.stirr_radius, crate::fieldmap::settle_time(1.0, tau));
+        fx.stirr_radius, amenui::fieldmap::settle_time(1.0, tau));
     col().key("stirr").gap(18.0).fill_width().min_width(0.0)
         .child(text("Field map", 30.0, Paint::INK).font(Font::Display).heading(1).key("stirr/heading"))
         .child(stage.caption_params("stirr/cap", formula, &params, |i, e| Msg::Stirr(SMsg::Num(i, e))))

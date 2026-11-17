@@ -64,7 +64,7 @@
 //!     the outline at rest; with threads, drawn in part equals drawn whole.
 //!
 //! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap | scribblr]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
-use amenui::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
+use website::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
 use amenui::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use amenui::morph::MorphSpec;
 use amenui::marks::PALETTES;
@@ -470,9 +470,9 @@ fn main() {
     // ── 9. Scenes at rest are calm ─────────────────────────────────────────────────────────────────
     let before = failed;
     for (i, live) in [(0usize, None), (1, None), (2, Some("pr/wall")), (3, None), (4, None), (5, None), (6, None)] {
-        let mut ui = amenui::gallery::new_ui(fonts(), 1280, 800, 1.0);
+        let mut ui = website::gallery::new_ui(fonts(), 1280, 800, 1.0);
         ui.pointer_leave();
-        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Go(amenui::gallery::Page::Scene(i as u8)));
+        website::gallery::update(&mut ui.state, website::gallery::Msg::Go(website::gallery::Page::Scene(i as u8)));
         ui.relayout();
         let mut t = 0.0;
         while t < 6.0 { t += 1.0 / 30.0; ui.tick(t); }
@@ -485,9 +485,9 @@ fn main() {
     }
     // Control: the same count sees a held picture as loose.
     {
-        let mut ui = amenui::gallery::new_ui(fonts(), 1280, 800, 1.0);
-        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Go(amenui::gallery::Page::Scene(2)));
-        amenui::gallery::update(&mut ui.state, amenui::gallery::Msg::Num(amenui::gallery::Target::Scene(2, 3), amenui::widgets::Edit::Set(1.0)));
+        let mut ui = website::gallery::new_ui(fonts(), 1280, 800, 1.0);
+        website::gallery::update(&mut ui.state, website::gallery::Msg::Go(website::gallery::Page::Scene(2)));
+        website::gallery::update(&mut ui.state, website::gallery::Msg::Num(website::gallery::Target::Scene(2, 3), amenui::widgets::Edit::Set(1.0)));
         ui.relayout();
         ui.tick(6.0);
         if !ui.scene().instances.iter().any(|i| i.extra[2] > 0.0) { eprintln!("FAIL control: a held picture is not seen as loose"); failed += 1; }
@@ -666,9 +666,9 @@ fn wrapped(s: &Wr) -> El<()> {
     let (ob, sil) = if s.kind == 1 {
         (space(150.0, 150.0).radius(75.0).fill(Paint::ACCENT), Silhouette::circle(s.x + 75.0, s.y + 75.0, 75.0))
     } else {
-        let (iw, ih, a) = amenui::demo::cutout_alpha();
+        let (iw, ih, a) = website::demo::cutout_alpha();
         let w = 240.0;
-        (col().width(w).child(picture(amenui::demo::CUTOUT, ih as f32 / iw as f32)), Silhouette::from_alpha(iw, ih, |x, y| a[(y * iw + x) as usize], s.x, s.y, w))
+        (col().width(w).child(picture(website::demo::CUTOUT, ih as f32 / iw as f32)), Silhouette::from_alpha(iw, ih, |x, y| a[(y * iw + x) as usize], s.x, s.y, w))
     };
     let alpha = if s.show == 1 { 0.0 } else { 1.0 };
     col().pad(20.0, 20.0).child(col().width(640.0)
@@ -678,7 +678,7 @@ fn wrapped(s: &Wr) -> El<()> {
 
 /// Checks 10 and 11, on the gallery's component pages.
 fn components(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, COMPONENTS, GalleryUi, Msg, Page, comp};
+    use website::gallery::{self, COMPONENTS, GalleryUi, Msg, Page, comp};
     use amenui::style::MATERIALS;
     let (w, h) = (1280u32, 1100u32);
     let mut o = Offscreen::new(w, h);
@@ -904,7 +904,7 @@ fn meshes(o: &mut Offscreen, fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usi
 
 // ── 15. Dirty boxes ──────────────────────────────────────────────────────────────────────────────
 fn dirty(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     let (w, h) = (900u32, 640u32);
     // One renderer (it keeps the glyph atlas): each frame drawn in part from the previous one, then the
     // same frame drawn whole to compare (which the next frame then starts from).
@@ -1001,7 +1001,7 @@ fn dirty(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 
 // ── 16. Presets end exactly ──────────────────────────────────────────────────────────────────────
 fn presets(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, GalleryUi, Msg, Page, presets::PreMsg};
+    use website::gallery::{self, GalleryUi, Msg, Page, presets::PreMsg};
     let (w, h) = (900u32, 600u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
@@ -1067,7 +1067,7 @@ fn presets(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 
 // ── 17. Looks: the finishing pass, depth marks, shedding, the flow field ───────────────────────────
 fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     use amenui::post::*;
     let (w, h) = (640u32, 420u32);
     let mut o = Offscreen::new(w, h);
@@ -1165,7 +1165,7 @@ fn looks(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 /// material, a frame one device pixel of scroll later is the frame before moved up by one pixel,
 /// exactly, inside the scroller away from its edges. Control: unmoved, the two frames differ.
 fn scroll(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     let (w, h) = (960u32, 600u32);
     let mut o = Offscreen::new(w, h);
     let mut failed = 0;
@@ -1214,7 +1214,7 @@ fn scroll(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 struct Pic { cmds: Vec<amenui::morph::Cmd> }
 fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(BUST, 1.0).key("pic").loose(1.0).respond(amenui::el::Response::Loosen)) }
 fn fieldmap(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     use amenui::morph::{Cmd, StirAt};
     let (w, h) = (900u32, 640u32);
     let mut o = Offscreen::new(w, h);
@@ -1310,7 +1310,7 @@ fn fieldmap(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 /// The floating window on the field map's page dragged, thrown and settling, 90 frames under each
 /// material: each frame drawn in part against the same frame drawn whole. (Frames, materials failing.)
 fn trail_in_part(fonts: &dyn Fn() -> Vec<amenui::text::Face>, o: &mut Offscreen, mats: &[usize]) -> (usize, usize) {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     let (w, h) = (o.w, o.h);
     let (mut frames, mut bad_runs) = (0, 0);
     for &mi in mats {

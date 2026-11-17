@@ -98,7 +98,7 @@ impl Default for Body {
 pub enum Msg { Point(Option<Point>), Key(Key), Form, Seed(i32), Gather, Language, Go(&'static str), Num(usize, Edit) }
 
 /// The scene's words: English whatever the interface language (the page and its markings show no Chinese).
-fn tr(key: &str) -> String { amenui::i18n::Locale::En.tr(key) }
+fn tr(key: &str) -> String { crate::install_catalogs(); amenui::i18n::Locale::En.tr(key) }
 /// The passage, from the English catalog (an original description of a tidal flat through a day).
 pub fn passage() -> String { (1..=5).map(|i| tr(&format!("body.p{i}"))).collect::<Vec<_>>().join("\n\n") }
 

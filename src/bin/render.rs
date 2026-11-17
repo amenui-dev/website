@@ -50,7 +50,7 @@ fn main() {
         i += 2;
     }
     if spec.page.is_empty() { fail(format!("`--page` is required.\n{USAGE}")); }
-    let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).unwrap_or_else(|e| fail(e));
+    let faces = amenui::text::load_bundled(amenui::text::ASSETS).unwrap_or_else(|e| fail(e));
     let r = render(&spec, faces, None).unwrap_or_else(|e| fail(e));
     for p in &r.problems { eprintln!("render: problem: {p}"); }
     std::fs::write(&out, &r.png).unwrap_or_else(|e| fail(format!("`--out {out}` could not be written ({e}).")));

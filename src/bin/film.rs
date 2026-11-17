@@ -7,7 +7,7 @@
 //! and one press reaching three neighbours that each answer in their own way.
 //!
 //! usage: film <out_dir> [perf | ripple]
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::morph::MorphSpec;
 use amenui::offscreen::{Offscreen, save_png, sheet};
 use std::time::Instant;

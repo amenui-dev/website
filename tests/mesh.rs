@@ -1,8 +1,8 @@
 //! 3D elements (DESIGN.md §1.18) through the runtime, without a GPU: the gallery's 三维 page.
-use amenui::gallery::{self, Msg, Page};
+use website::gallery::{self, Msg, Page};
 
 fn ui() -> gallery::GalleryUi {
-    let faces = amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts");
+    let faces = amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts");
     let mut ui = gallery::new_ui(faces, 1280, 1400, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::Three));
     ui.relayout();
@@ -82,4 +82,3 @@ fn a_front_loosens_a_mesh() {
     ui.tick(t);
     assert!(ui.looseness("three/field", t) > 0.3, "{}", ui.looseness("three/field", t));
 }
-

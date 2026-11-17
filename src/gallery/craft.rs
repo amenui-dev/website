@@ -3,8 +3,8 @@
 //! and stepped on the gallery's tick only while something moves; each carries a formula caption printed
 //! from the same fields it reads.
 use super::{Gallery, Msg, Target};
-use crate::el::{El, Font, Paint, col, layers, row, space, text};
-use crate::widgets::{ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, segmented, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
+use amenui::el::{El, Font, Paint, col, layers, row, space, text};
+use amenui::widgets::{ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, segmented, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
 use taffy::AlignItems;
 
 /// The previews' state.
@@ -31,7 +31,7 @@ pub enum CMsg { Chart(ChartMsg), Stack(StackMsg), StackLook(usize), Reload, Shee
 
 /// The menu preview's rows (generic names; the labels are in the catalogs).
 fn menu_items() -> Vec<MenuItem> {
-    let t = |k: &str| crate::i18n::tr(k);
+    let t = |k: &str| amenui::i18n::tr(k);
     let sub = |k: &str, n: usize| MenuItem::sub(t(k), (1..=n).map(|i| MenuItem::leaf(format!("{} {i}", t("craft.menu.item")))).collect());
     vec![sub("craft.menu.new", 5), sub("craft.menu.recent", 6), sub("craft.menu.share", 4), sub("craft.menu.arrange", 5), MenuItem::leaf(t("craft.menu.close"))]
 }
@@ -44,7 +44,7 @@ pub fn update(s: &mut Gallery, m: CMsg) {
         CMsg::Stack(m) => c.stack.update(m, now),
         CMsg::StackLook(i) => c.stack_look = i,
         CMsg::Reload => c.load.start(now),
-        CMsg::SheetOpen => { c.sheet.present(now); s.cmds.push(crate::morph::Cmd::Focus { key: "craft/sheet/handle".into() }); }
+        CMsg::SheetOpen => { c.sheet.present(now); s.cmds.push(amenui::morph::Cmd::Focus { key: "craft/sheet/handle".into() }); }
         CMsg::Sheet(m) => c.sheet.update(m, now),
         CMsg::Pip(m) => c.pip.update(m, now),
         CMsg::Menu(m) => if let Some(p) = c.menu.update(m, now) { c.picked = p; },
@@ -142,7 +142,7 @@ pub fn live(s: &Gallery, name: &str) -> Option<El<Msg>> {
 
 fn sheet_page(s: &Gallery) -> El<Msg> {
     let c = &s.craft;
-    let zh = crate::i18n::current() == crate::i18n::Locale::ZhHans;
+    let zh = amenui::i18n::current() == amenui::i18n::Locale::ZhHans;
     let mut page = col().key("craft/sheet/page").fill_width().fill_height().pad(20.0, 20.0).gap(12.0)
         .child(text(if zh { "相册" } else { "Album" }, 22.0, Paint::INK).font(Font::Display));
     for i in 0..5 {
@@ -168,7 +168,7 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
 
 fn pip_page(s: &Gallery) -> El<Msg> {
     let f = &s.craft.pip;
-    let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).fill(Paint::hue(1).alpha(0.22)).respond(crate::el::Response::Nudge)
+    let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).fill(Paint::hue(1).alpha(0.22)).respond(amenui::el::Response::Nudge)
         .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::ACCENT)).child(text("00:42", 11.0, Paint::TEXT).font(Font::Mono)))
         .child(space(0.0, 0.0).grow(1.0))
         .child(row().fill_width().height(3.0).child(space(0.0, 3.0).width_frac(0.4).fill(Paint::ACCENT)));
@@ -186,7 +186,7 @@ fn pip_page(s: &Gallery) -> El<Msg> {
 
 fn menu_page(s: &Gallery) -> El<Msg> {
     let m = &s.craft.menu;
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let picked = if s.craft.picked.is_empty() { tr("craft.menu.none") } else {
         let mut it: &[MenuItem] = &m.items;
         let mut names = vec![];
@@ -205,7 +205,7 @@ fn menu_page(s: &Gallery) -> El<Msg> {
 
 /// One row of the loading comparison, as it is when loaded.
 fn load_row(k: &str, i: usize) -> El<Msg> {
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let titles = ["craft.load.r0", "craft.load.r1", "craft.load.r2", "craft.load.r3"];
     row().key(format!("{k}/row{i}")).gap(10.0).height(44.0).align(AlignItems::CENTER)
         .child(space(34.0, 34.0).radius(6.0).fill(Paint::hue((i % 3) as u8)).key(format!("{k}/row{i}/pic")))
@@ -213,7 +213,7 @@ fn load_row(k: &str, i: usize) -> El<Msg> {
 }
 fn load_page(s: &Gallery) -> El<Msg> {
     let c = &s.craft;
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let now = c.now;
     let (st, arrived) = (c.load.started(), c.load.arrived());
     let waiting = st.is_some() && arrived.is_none();
@@ -259,11 +259,11 @@ pub const STACK_LOOKS: [&str; 4] = ["craft.stack.auto", "craft.stack.plain", "cr
 /// The stack as the page shows it: its look from the material unless one is forced.
 pub fn stack_now(s: &Gallery) -> Stack {
     let mut st = s.craft.stack.clone();
-    st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == crate::style::Material::Ascii { s.material } else { crate::style::Material::Dot }), _ => StackLook::of(s.material) };
+    st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == amenui::style::Material::Ascii { s.material } else { amenui::style::Material::Dot }), _ => StackLook::of(s.material) };
     st
 }
 fn stack_page(s: &Gallery) -> El<Msg> {
-    let tr = crate::i18n::tr;
+    let tr = amenui::i18n::tr;
     let st = stack_now(s);
     let names: Vec<String> = STACK_LOOKS.iter().map(|k| tr(k)).collect();
     let refs: Vec<&str> = names.iter().map(String::as_str).collect();

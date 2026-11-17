@@ -4,11 +4,11 @@
 use super::pages::ratio;
 use super::{Gallery, Msg, Page, Target};
 use crate::demo::{BUST, CUTOUT, SKY, SPHERE, TERRAIN, cutout_alpha};
-use crate::el::{Cursor, Drag, El, Font, Key, Paint, Phase, col, picture, row, space, stack, text, text_lh};
-use crate::morph::{Cmd, FlowSpec, MorphSpec};
-use crate::style::{Gaze, GazeMode, Look, Material, PicFx, colour, gaze, set, styles};
-use crate::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, segmented, switch, tabs};
-use crate::wrap::{Around, Silhouette};
+use amenui::el::{Cursor, Drag, El, Font, Key, Paint, Phase, col, picture, row, space, stack, text, text_lh};
+use amenui::morph::{Cmd, FlowSpec, MorphSpec};
+use amenui::style::{Gaze, GazeMode, Look, Material, PicFx, colour, gaze, set, styles};
+use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, segmented, switch, tabs};
+use amenui::wrap::{Around, Silhouette};
 use std::sync::OnceLock;
 use taffy::{AlignItems, JustifyContent};
 use taffy::style_helpers::length;
@@ -172,7 +172,7 @@ pub fn update(g: &mut Gallery, m: SMsg) {
         SMsg::Strip => g.sc.strip = !g.sc.strip,
         SMsg::Reset(i) => {
             g.sc.reset(i);
-            if i == 6 { g.demo.fx = crate::scene::Fx { pitch: g.demo.fx.pitch, ..Default::default() }; }
+            if i == 6 { g.demo.fx = amenui::scene::Fx { pitch: g.demo.fx.pitch, ..Default::default() }; }
         }
         SMsg::Start => if g.sc.shown == 0 { begin(g, now) },
         SMsg::Restart => { let p = g.sc.p[0]; g.sc.reset(0); g.sc.p[0] = p; }
@@ -326,9 +326,9 @@ pub fn print_one(s: f32, pitch: f32, levels: f32, pal: f32) -> PicFx {
     let mut f = PicFx { pitch, levels, ..super::mark_defaults(s) };
     if s == set::CHARS { f.pitch = pitch.max(9.0); f.gamma = 0.7; }
     let pal = pal.round() as usize;
-    if pal > 0 && pal <= crate::marks::PALETTES.len() {
+    if pal > 0 && pal <= amenui::marks::PALETTES.len() {
         f.palette = (pal - 1) as f32;
-        f.colours = crate::marks::PALETTES[pal - 1].1 as f32;
+        f.colours = amenui::marks::PALETTES[pal - 1].1 as f32;
         f.spread = f.spread.max(0.5);
     } else { f.colours = 0.0; }
     f
@@ -600,7 +600,7 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
         let f = print_one(q(4), q(0), q(1), q(5));
         let set_name = set::NAMES[f.set as usize];
         let pal = q(5).round() as usize;
-        let pal_name = if pal == 0 { "原色".to_owned() } else { crate::marks::PALETTES[pal - 1].0.to_owned() };
+        let pal_name = if pal == 0 { "原色".to_owned() } else { amenui::marks::PALETTES[pal - 1].0.to_owned() };
         let x = (sc.cmp * w).round();
         wall = wall
             .child(label("原图".into(), 2.0))
@@ -856,7 +856,7 @@ fn sound(g: &Gallery, w: f32, h: f32) -> El<Msg> {
                 .child(space(pulse * 0.25, pulse * 0.25).radius(pulse * 0.125).fill(Paint::ACCENT).key("snd/pulse"))
                 .child(text(format!("{bpm:.0} BPM · {mm:02}:{ss:02}"), 14.0, Paint::DIM).font(Font::Mono).key("snd/time")))
             // The headline is decoration that the beat loosens; the lyrics are read, so they stay legible.
-            .child(text_lh("夜行", size, size * 1.2, Paint::INK).font(Font::Display).weight(2.0).key("snd/title").respond(crate::el::Response::Loosen).legible(false))
+            .child(text_lh("夜行", size, size * 1.2, Paint::INK).font(Font::Display).weight(2.0).key("snd/title").respond(amenui::el::Response::Loosen).legible(false))
             .child(LYRICS.iter().enumerate().fold(col().key("snd/lyrics").gap(6.0).align(AlignItems::CENTER).pad(0.0, 10.0), |c, (k, l)| {
                 let on = k == bars % LYRICS.len() && (sc.playing || st > 0.0);
                 c.child(text_lh(*l, if on { 22.0 } else { 16.0 }, if on { 32.0 } else { 26.0 }, if on { Paint::INK } else { Paint::DIM }).key(format!("snd/lyric{k}-{on}")))
@@ -968,8 +968,8 @@ pub fn list(g: &Gallery) -> El<Msg> {
         .child(col().key("scenes/tbody/box").width(cw - 36.0).height(110.0).center().child(text_lh("·  ·  ·  ◦  ·\n·  ◦  ○  ◦  ·\n·  ·  ◦  ·  ·", 12.0, 26.0, Paint::ACCENT)))
         .child(row().gap(10.0).align(AlignItems::BASELINE)
             .child(text("00", 12.0, Paint::DIM).font(Font::Mono))
-            .child(text(crate::i18n::tr("nav.body"), 22.0, Paint::INK).font(Font::Display).key("scenes/title-body")))
-        .child(text_lh(crate::i18n::tr("body.label"), 13.0, 21.0, Paint::DIM)));
+            .child(text(amenui::i18n::tr("nav.body"), 22.0, Paint::INK).font(Font::Display).key("scenes/title-body")))
+        .child(text_lh(amenui::i18n::tr("body.label"), 13.0, 21.0, Paint::DIM)));
     for (i, (_, title, desc, st)) in SCENES.iter().enumerate() {
         grid = grid.child(col().key(format!("scenes/card{i}")).width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
             .on_press(Msg::Go(Page::Scene(i as u8)))

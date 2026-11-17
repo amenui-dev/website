@@ -2,9 +2,9 @@
 //! page, 200 pointer moves that do not change what is hovered run no layout and shape no text, and the
 //! area to redraw stays bounded (never the whole window).
 use amenui::dirty::{self, Region};
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 
 const W: f32 = 1280.0;
 const H: f32 = 800.0;

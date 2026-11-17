@@ -2,17 +2,17 @@
 //! in `examples/body.rs` (`recipes::scenes::body`) filling the whole window, full-bleed, in its own
 //! look. Its markings ask the host for the language and for the Lab or the components.
 use super::{Gallery, Msg, Page};
-use crate::el::El;
-use crate::experiment::Experiment;
-use crate::recipes::scenes::body::{self as scene, Ask, Body};
-use crate::style::Look;
+use amenui::el::El;
+use amenui::experiment::Experiment;
+use crate::showcase::scenes::body::{self as scene, Ask, Body};
+use amenui::style::Look;
 use std::rc::Rc;
 
 pub fn update(s: &mut Gallery, m: scene::Msg) {
     let now = s.clock;
     s.body.update(m, now);
     match s.body.asked.take() {
-        Some(Ask::Language) => { let l = if s.locale == crate::i18n::Locale::En { crate::i18n::Locale::ZhHans } else { crate::i18n::Locale::En }; super::update(s, Msg::Locale(l)); }
+        Some(Ask::Language) => { let l = if s.locale == amenui::i18n::Locale::En { amenui::i18n::Locale::ZhHans } else { amenui::i18n::Locale::En }; super::update(s, Msg::Locale(l)); }
         Some(Ask::Go("lab")) => super::update(s, Msg::Go(Page::Lab)),
         Some(Ask::Go(_)) => super::update(s, Msg::Go(Page::Comp(0))),
         None => {}
@@ -39,9 +39,9 @@ pub fn fresh(s: &Gallery) -> Body {
     b
 }
 /// Keys on the Body page that no control used: Space and Enter gather or release, ← → turn it.
-pub fn key(s: &mut Gallery, k: crate::el::Key) -> bool {
+pub fn key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     if s.page != Page::Body { return false; }
-    use crate::el::Key;
+    use amenui::el::Key;
     if !matches!(k, Key::Char(' ') | Key::Enter | Key::Left | Key::Right) { return false; }
     let now = s.clock;
     s.body.update(scene::Msg::Key(k), now);

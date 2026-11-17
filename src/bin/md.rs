@@ -1,7 +1,7 @@
 //! Every page that has a Markdown form, written out: `md <out_dir>` writes `<out_dir>/<locale>/<hash>.md`
-//! for both languages, and `md --llms` rewrites the page list in `llms.txt` (between its `## Pages`
+//! for both languages, and `md --llms [<amenui>/llms.txt]` rewrites the page list in amenui's `llms.txt` (between its `## Pages`
 //! heading and the next heading) from the same pages, one line each with its first sentence.
-use amenui::gallery::{Page, docs};
+use website::gallery::{Page, docs};
 use amenui::i18n::Locale;
 
 fn first_line(md: &str) -> String {
@@ -21,8 +21,9 @@ fn main() {
             let md = docs::markdown(*p, Locale::En).unwrap_or_default();
             list.push_str(&format!("- [{}](md/en/{}.md): {}\n", p.name(), p.hash(), first_line(&md)));
         }
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/llms.txt");
-        let src = std::fs::read_to_string(path).expect("llms.txt");
+        // amenui's llms.txt, in a checkout of the framework (next to this one by default).
+        let path = a.get(2).map_or("../amenui/llms.txt", String::as_str);
+        let src = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let out = match src.find("## Pages") {
             Some(i) => { let rest = &src[i + 8..]; let j = rest.find("\n## ").map_or(src.len(), |j| i + 8 + j + 1); format!("{}{}\n{}", &src[..i], list, &src[j..]) }
             None => match src.find("## Optional") { Some(i) => format!("{}{}\n{}", &src[..i], list, &src[i..]), None => format!("{src}\n{list}") },

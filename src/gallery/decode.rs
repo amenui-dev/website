@@ -2,10 +2,10 @@
 //! plan exploded into its tiers in depth (one oblique plane per tier, each with a leader and a label), a timeline to drag,
 //! the numbers, and a dialog that opens and closes by decoding.
 use super::{Gallery, Msg};
-use crate::decode::{Decode, Plan};
-use crate::draw::Drawing;
-use crate::el::{El, Font, Paint, Point, canvas, col, row, space, text};
-use crate::widgets::{CaptionParam, Edit, Spec, Variant, button_as, dialog};
+use amenui::decode::{Decode, Plan};
+use amenui::draw::Drawing;
+use amenui::el::{El, Font, Paint, Point, canvas, col, row, space, text};
+use amenui::widgets::{CaptionParam, Edit, Spec, Variant, button_as, dialog};
 
 /// The card's size (logical px).
 const CARD: (f32, f32) = (260.0, 150.0);
@@ -109,7 +109,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     }
     let mut parts = vec![canvas(ex).key("decode/exploded").width(ew)];
     parts.extend(labels);
-    let exploded = crate::el::layers(parts).key("decode/exploded-view").width(ew).height(eh);
+    let exploded = amenui::el::layers(parts).key("decode/exploded-view").width(ew).height(eh);
     // The timeline: the tiers' windows, the content's, and where it is now; drag to scrub.
     let mut tl = Drawing::new(600.0, 40.0);
     for t in 0..n { let y = 6.0 + t as f32 * 6.0; tl.line((t as f32 * sw * 600.0, y), ((t as f32 * sw + ww) * 600.0, y), 2.0, Paint::DIM); }
@@ -119,7 +119,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let params: Vec<CaptionParam> = NAMES.iter().zip(d.values()).enumerate().map(|(i, ((n, sp), v))| CaptionParam::new(*n, v, *sp).draft(d.draft.as_ref().filter(|x| x.0 == i).map(|x| x.1.as_str()))).collect();
     let formula = format!("tier i on over [i·{:.0}, i·{:.0} + {:.0}] ms, content at {:.0} ms, finest off by {:.0} ms   u = {:.2}", d.spec.stagger_ms, d.spec.stagger_ms, ww * d.spec.duration_ms, c * d.spec.duration_ms, d.spec.duration_ms, d.u);
     let body = col().gap(10.0).child(text("This dialog appeared by decoding; closing it plays the same backwards.", 13.0, Paint::TEXT).key("decode/dialog/text"))
-        .child(button_as("decode/close", &crate::i18n::tr("widget.dialog.close"), Variant::Default, m(DMsg::Open(false))));
+        .child(button_as("decode/close", &amenui::i18n::tr("widget.dialog.close"), Variant::Default, m(DMsg::Open(false))));
     col().key("decode").gap(18.0).fill_width().min_width(0.0)
         .child(text("Decode", 30.0, Paint::INK).font(Font::Display).heading(1).key("decode/title"))
         .child(row().key("decode/row").wrap().gap(28.0).child(col().gap(12.0).child(card).child(space(0.0, 4.0))).child(exploded))

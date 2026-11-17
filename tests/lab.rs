@@ -2,9 +2,9 @@
 //! answers the pointer, and its drawing and glyph poses come from the foundation (fields, drawings,
 //! poses, outlines) without layout or shaping per frame.
 use amenui::experiment::{Experiment, ui};
-use amenui::recipes::lab as x;
+use website::showcase::lab as x;
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn run<E: Experiment>(ms: u32, mv: Option<(f32, f32)>) -> amenui::ui::Ui<amenui::experiment::Solo<E>, E::Msg> {
     let mut u = ui::<E>(fonts(), 480, 460, 1.0);
     let mut t = 0.0;

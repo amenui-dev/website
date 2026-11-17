@@ -3,11 +3,10 @@
 //! layout or shaping; a virtual list of 10,000 rows builds only what it shows, with the whole list's
 //! scroll extent, keyboard navigation and scrolling a row into view; lines a clip hides are not made
 //! into instances.
-use amenui::el::{Content, El, Key, Paint, col, space, text};
-use amenui::ui::Ui;
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use amenui::el::{Content, Key};
+use website::gallery::{self, GalleryUi, Msg, Page};
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn at(p: &str, h: u32) -> GalleryUi {
     let mut ui = gallery::new_ui(fonts(), 1280, h, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash(p).unwrap()));
@@ -110,27 +109,6 @@ fn a_press_shapes_only_the_text_that_changed() {
         // Taffy asks for the changed text at a few widths (min-content, max-content, the one it gets).
         assert!(!log.is_empty() && log.iter().all(|s| changed.contains(s)), "shaped {log:?}; changed {changed:?}");
     }
-}
-
-struct Paints { on: bool }
-fn paints(s: &Paints) -> El<()> {
-    col().key("root").pad(20.0, 20.0).gap(8.0)
-        .child(text("a label that stays", 14.0, Paint::TEXT).key("label"))
-        .child(space(120.0, 30.0).key("swatch").fill(if s.on { Paint::ACCENT } else { Paint::DIM }).on_press(()))
-}
-
-#[test]
-fn a_change_of_paint_only_skips_layout() {
-    let mut ui = Ui::new(Paints { on: false }, paints, |s: &mut Paints, _| s.on = !s.on, fonts(), 400, 300, 1.0);
-    let (x, y) = ui.node("swatch").unwrap().rect.center();
-    let c0 = ui.counters();
-    ui.press(x, y);
-    ui.release(x, y);
-    let c1 = ui.counters();
-    assert!(ui.state.on);
-    assert_eq!(c1.views, c0.views + 1, "a new view");
-    assert_eq!((c1.layouts, c1.shaped), (c0.layouts, c0.shaped), "nothing changed size: no layout, no shaping");
-    assert!(c1.layouts_skipped > c0.layouts_skipped);
 }
 
 #[test]

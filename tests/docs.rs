@@ -2,10 +2,10 @@
 //! its right-to-left example inside a right-to-left box, and a place in one of six groups of the rail,
 //! in both languages; every code sample on it is compiled (the examples are modules of the library,
 //! and each `ex_*` is the preview it sits under); every internal link resolves to a page.
-use amenui::gallery::{self, Msg, Page, docs};
+use website::gallery::{self, Msg, Page, docs};
 use amenui::i18n::Locale;
 
-fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")).expect("fonts") }
+fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
 fn texts(n: &amenui::tree::TreeNode, out: &mut Vec<String>) { if let Some(t) = &n.text { out.push(t.clone()); } for c in &n.children { texts(c, out); } }
 
 #[test]
@@ -72,9 +72,9 @@ fn every_internal_link_resolves() {
 
 #[test]
 fn llms_lists_every_page_that_has_markdown() {
-    let llms = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/llms.txt")).expect("llms.txt");
-    for p in amenui::gallery::Page::all() {
-        if amenui::gallery::docs::markdown(p, amenui::i18n::Locale::En).is_some() {
+    let llms = amenui::sources::LLMS;
+    for p in website::gallery::Page::all() {
+        if website::gallery::docs::markdown(p, amenui::i18n::Locale::En).is_some() {
             assert!(llms.contains(&format!("(md/en/{}.md): ", p.hash())), "llms.txt does not list {}", p.hash());
         }
     }

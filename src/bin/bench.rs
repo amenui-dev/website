@@ -21,7 +21,7 @@
 //!
 //! usage: bench [runs] [gpu | dirty | map | strand]     (`gpu` runs only the particle rows, `dirty` only 5, `map` only 6, `strand` only 7)
 use amenui::el::{El, Paint, col, row, space, text, text_lh};
-use amenui::gallery::{self, Msg, Page};
+use website::gallery::{self, Msg, Page};
 use amenui::ui::Ui;
 use amenui::wrap::{Around, Silhouette};
 use std::time::Instant;
@@ -185,13 +185,13 @@ fn gallery_long(runs: usize) {
 /// The Lab's pages with the pointer moving over a cell: the CPU cost of a frame (tick: update, view,
 /// layout, scene), no GPU (DESIGN.md §5.3).
 fn lab(runs: usize) {
-    use amenui::gallery::{self, Msg, Page};
+    use website::gallery::{self, Msg, Page};
     let faces = amenui::text::load_bundled("assets").expect("fonts");
     let mut ui = gallery::new_ui(faces, 1280, 900, 1.0);
-    for p in std::iter::once(Page::Lab).chain((0..amenui::gallery::lab::COUNT as u8).map(Page::Experiment)) {
+    for p in std::iter::once(Page::Lab).chain((0..website::gallery::lab::COUNT as u8).map(Page::Experiment)) {
         gallery::update(&mut ui.state, Msg::Go(p));
         ui.relayout();
-        let key = if let Page::Experiment(i) = p { format!("lab/{}", amenui::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
+        let key = if let Page::Experiment(i) = p { format!("lab/{}", website::gallery::lab::NAMES[i as usize]) } else { "lab/contours".into() };
         let r = ui.node(&key).map(|n| n.rect).unwrap_or(amenui::ui::Rect::new(300.0, 200.0, 300.0, 300.0));
         let mut t = ui.now();
         let mut total = 0.0;
@@ -206,7 +206,7 @@ fn lab(runs: usize) {
         for _ in 0..10 { ui.relayout(); }
         let rl = t0.elapsed().as_secs_f64() * 100.0;
         let t0 = std::time::Instant::now();
-        for _ in 0..10 { let _ = (amenui::gallery::view)(&ui.state); }
+        for _ in 0..10 { let _ = (website::gallery::view)(&ui.state); }
         let vw = t0.elapsed().as_secs_f64() * 100.0;
         println!("{:<16} {:6.2} ms/frame (CPU: input, update, view, layout, scene); one relayout {rl:.2} ms, of it the view {vw:.2} ms; {} nodes", p.hash(), total / runs as f64, ui.nodes().len());
     }

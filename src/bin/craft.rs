@@ -4,7 +4,7 @@
 //! corner), `stirr` (the field map's trail, four materials), `scribblr` (a title written out and back), and the later studies as they are added.
 //!
 //! usage: craft <out_dir> [<study> …]   (every study when none is named); plain unless AMENUI_MATERIAL names another (dot, ascii…)
-use amenui::gallery::{self, GalleryUi, Msg, Page};
+use website::gallery::{self, GalleryUi, Msg, Page};
 use amenui::offscreen::{Offscreen, crop, save_png, sheet};
 
 const W: u32 = 1280;

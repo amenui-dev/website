@@ -2,11 +2,11 @@
 //! has the same parts, top to bottom: title, one sentence, 预览, 变体, 参数, 源码.
 use super::{Gallery, IMAGE_SLOT, MARK_SLOT, Msg, Page, Target, WIPE_SPEC};
 use crate::demo::{self, BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
-use crate::el::{El, Font, Paint, Response, Scope, col, picture, row, space, stack, text, text_lh};
-use crate::morph::{Ease, FlowSpec, MorphSpec};
-use crate::style::set;
-use crate::text::{MONO, PIXEL, SANS};
-use crate::widgets::{
+use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, stack, text, text_lh};
+use amenui::morph::{Ease, FlowSpec, MorphSpec};
+use amenui::style::set;
+use amenui::text::{MONO, PIXEL, SANS};
+use amenui::widgets::{
     Edit, Spec, TextEdit, Variant, button_as, card, choice, dialog, divider, image, input, list, list_virtual, number, scroll_area, segmented,
     slider, switch, switch_sized, tabs, textarea, vdivider,
 };
@@ -45,43 +45,43 @@ pub const SCROLL: usize = 12;
 
 pub const COMPONENTS: [Comp; 13] = [
     Comp { hash: "button", title: "按钮", func: "button / button_as", desc: "执行一个操作。按下时立即触发，也可以用 Enter 或空格键触发。",
-        file: "src/widgets/button.rs", source: include_str!("../widgets/button.rs"),
+        file: "src/widgets/button.rs", source: amenui::sources::widget::BUTTON,
         params: &[p("高度", 20.0, 60.0, 1.0, 0, "px", 30.0), p("左右留白", 0.0, 40.0, 1.0, 0, "px", 14.0), p("圆角", 0.0, 20.0, 1.0, 0, "px", 4.0)] },
     Comp { hash: "number", title: "数字", func: "number", desc: "精确设置一个数值：获得焦点后直接键入，或用方向键和两侧的按钮按步长改；在数值上横向拖动可以连续调。",
-        file: "src/widgets/number.rs", source: include_str!("../widgets/number.rs"),
+        file: "src/widgets/number.rs", source: amenui::sources::widget::NUMBER,
         params: &[p("最小值", -1000.0, 1000.0, 1.0, 0, "", 0.0), p("最大值", -1000.0, 1000.0, 1.0, 0, "", 100.0), p("步长", 0.01, 100.0, 0.5, 2, "", 0.5), p("小数位", 0.0, 4.0, 1.0, 0, "", 1.0)] },
     Comp { hash: "input", title: "输入框", func: "input", desc: "输入一行或多行文字（textarea）。可以点、拖动、双击选择，Shift 加方向键扩展选区；Ctrl / ⌘ 加 A、C、X、V、Z 全选、复制、剪切、粘贴、撤销；支持输入法，正在组字的部分画在插入点上，带下划线。",
-        file: "src/widgets/input.rs", source: include_str!("../widgets/input.rs"),
+        file: "src/widgets/input.rs", source: amenui::sources::widget::INPUT,
         params: &[p("宽度", 120.0, 600.0, 10.0, 0, "px", 300.0), p("最多字数", 1.0, 200.0, 1.0, 0, "", 40.0)] },
     Comp { hash: "switch", title: "开关", func: "switch / switch_sized", desc: "在两种状态之间切换一项设置。",
-        file: "src/widgets/switch.rs", source: include_str!("../widgets/switch.rs"),
+        file: "src/widgets/switch.rs", source: amenui::sources::widget::SWITCH,
         params: &[p("轨道高度", 12.0, 40.0, 1.0, 0, "px", 18.0)] },
     Comp { hash: "slider", title: "滑块", func: "slider", desc: "在一个范围内大致地选一个值。需要精确的值时，用数字控件。",
-        file: "src/widgets/slider.rs", source: include_str!("../widgets/slider.rs"),
+        file: "src/widgets/slider.rs", source: amenui::sources::widget::SLIDER,
         params: &[p("最小值", -1000.0, 1000.0, 1.0, 0, "", 0.0), p("最大值", -1000.0, 1000.0, 1.0, 0, "", 100.0), p("步长", 0.1, 50.0, 0.1, 1, "", 1.0), p("宽度", 120.0, 640.0, 10.0, 0, "px", 320.0)] },
     Comp { hash: "tabs", title: "标签页", func: "tabs", desc: "在同一位置的几组内容之间切换。",
-        file: "src/widgets/tabs.rs", source: include_str!("../widgets/tabs.rs"),
+        file: "src/widgets/tabs.rs", source: amenui::sources::widget::TABS,
         params: &[p("标签间距", 0.0, 60.0, 1.0, 0, "px", 18.0), p("下划线粗细", 1.0, 6.0, 0.5, 1, "px", 2.0)] },
     Comp { hash: "choice", title: "选项", func: "choice / segmented", desc: "从几个互斥的选项中选一个。",
-        file: "src/widgets/choice.rs", source: include_str!("../widgets/choice.rs"),
+        file: "src/widgets/choice.rs", source: amenui::sources::widget::CHOICE,
         params: &[p("高度", 20.0, 48.0, 1.0, 0, "px", 30.0)] },
     Comp { hash: "list", title: "列表", func: "list", desc: "显示一组条目，可以选中其中一项；条目多时可以滚动。",
-        file: "src/widgets/list.rs", source: include_str!("../widgets/list.rs"),
+        file: "src/widgets/list.rs", source: amenui::sources::widget::LIST,
         params: &[p("行高", 24.0, 64.0, 1.0, 0, "px", 36.0), p("可见高度", 100.0, 480.0, 4.0, 0, "px", 232.0), p("行数", 1.0, 200.0, 1.0, 0, "", 40.0)] },
     Comp { hash: "card", title: "卡片", func: "card", desc: "把相关的内容放在一个带边框的区域里。",
-        file: "src/widgets/card.rs", source: include_str!("../widgets/card.rs"),
+        file: "src/widgets/card.rs", source: amenui::sources::widget::CARD,
         params: &[p("内边距", 0.0, 48.0, 1.0, 0, "px", 18.0), p("圆角", 0.0, 24.0, 1.0, 0, "px", 6.0), p("线宽", 0.0, 4.0, 0.5, 1, "px", 1.0)] },
     Comp { hash: "dialog", title: "对话框", func: "dialog", desc: "在页面之上显示需要处理的内容。关闭之前，页面的其余部分不响应操作；Esc 或关闭按钮关闭它。",
-        file: "src/widgets/dialog.rs", source: include_str!("../widgets/dialog.rs"),
+        file: "src/widgets/dialog.rs", source: amenui::sources::widget::DIALOG,
         params: &[p("宽度", 280.0, 720.0, 10.0, 0, "px", 420.0), p("下方松开度", 0.0, 1.0, 0.05, 2, "", 0.35)] },
     Comp { hash: "image", title: "图片", func: "image", desc: "按原比例显示一张图片。图片松开时变成记号；指针在图上移动时，图会在指针附近松开。",
-        file: "src/widgets/image.rs", source: include_str!("../widgets/image.rs"),
+        file: "src/widgets/image.rs", source: amenui::sources::widget::IMAGE,
         params: &[p("点距", 1.0, 64.0, 1.0, 0, "px", 8.0), p("亮度级数", 2.0, 16.0, 1.0, 0, "", 8.0)] },
     Comp { hash: "divider", title: "分隔线", func: "divider / vdivider", desc: "分开两组内容。",
-        file: "src/widgets/divider.rs", source: include_str!("../widgets/divider.rs"),
+        file: "src/widgets/divider.rs", source: amenui::sources::widget::DIVIDER,
         params: &[p("粗细", 0.5, 8.0, 0.5, 1, "px", 1.0), p("上下留白", 0.0, 48.0, 1.0, 0, "px", 12.0)] },
     Comp { hash: "scroll-area", title: "滚动区", func: "scroll_area", desc: "在固定的高度里显示更长的内容，用滚轮滚动；一侧的细条表示当前位置。",
-        file: "src/widgets/scroll.rs", source: include_str!("../widgets/scroll.rs"),
+        file: "src/widgets/scroll.rs", source: amenui::sources::widget::SCROLL,
         params: &[p("高度", 80.0, 480.0, 4.0, 0, "px", 180.0), p("行数", 1.0, 200.0, 1.0, 0, "", 24.0)] },
 ];
 
@@ -209,7 +209,7 @@ pub const SCROLL_PARAMS: [(&str, Spec); 8] = [
     ("错带高", Spec { min: 4.0, max: 400.0, step: 2.0, decimals: 0, unit: "px" }),
     ("错带间隔", Spec { min: 16.0, max: 2000.0, step: 10.0, decimals: 0, unit: "ms" }),
 ];
-pub fn scroll_slot(sc: &mut crate::style::Scroll, i: usize) -> &mut f32 {
+pub fn scroll_slot(sc: &mut amenui::style::Scroll, i: usize) -> &mut f32 {
     match i { 0 => &mut sc.calm_speed, 1 => &mut sc.full_speed, 2 => &mut sc.settle_ms, 3 => &mut sc.trail, 4 => &mut sc.misreg, 5 => &mut sc.slip, 6 => &mut sc.band, _ => &mut sc.slip_ms }
 }
 /// The scroll section of the list page: the numbers of how scrolling looks, over a long list to try them on.
@@ -466,7 +466,7 @@ const MARK_DESC: [&str; set::COUNT] = [
     "等高线：一格里一圈圈同心的线，越亮线越粗，连起来像地图上的等高线。",
 ];
 
-fn pic_value(f: &crate::style::PicFx, i: usize) -> f32 { let mut c = *f; let (v, k) = demo::pic_slot(&mut c, i); *v * k }
+fn pic_value(f: &amenui::style::PicFx, i: usize) -> f32 { let mut c = *f; let (v, k) = demo::pic_slot(&mut c, i); *v * k }
 
 fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     let h = Page::Marks(k).hash();
@@ -491,7 +491,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         chips = chips.child(text(fam.to_string(), 10.0, Paint::DIM).key(format!("{h}/fam{fi}")));
         for &j in sets.iter() {
             let on = j == k;
-            chips = chips.child(col().key(format!("{h}/chip{j}")).pad(7.0, 3.0).fill(if on { Paint::INK } else { Paint::GROUND }).on_press(Msg::Go(Page::Marks(j))).role(crate::el::Role::Link).focusable(true)
+            chips = chips.child(col().key(format!("{h}/chip{j}")).pad(7.0, 3.0).fill(if on { Paint::INK } else { Paint::GROUND }).on_press(Msg::Go(Page::Marks(j))).role(amenui::el::Role::Link).focusable(true)
                 .child(text(set::NAMES[j as usize], 11.0, if on { Paint::GROUND } else { Paint::TEXT }).key(format!("{h}/chip{j}/t"))));
         }
     }
@@ -542,8 +542,8 @@ fn type_page(s: &Gallery) -> El<Msg> {
     }
     // Geist Pixel: five shapes of the same pixel grid, Latin only.
     let mut geist = col().key("type/geist").gap(10.0).fill_width();
-    for (i, name) in crate::text::GEIST_NAMES.iter().enumerate() {
-        let face = crate::text::GEIST_PIXEL[i];
+    for (i, name) in amenui::text::GEIST_NAMES.iter().enumerate() {
+        let face = amenui::text::GEIST_PIXEL[i];
         geist = geist.child(row().key(format!("type/geist/{name}")).gap(20.0).align(AlignItems::BASELINE)
             .child(row().width(150.0).child(text(format!("Geist Pixel {name}"), 12.0, Paint::DIM).font(Font::Face(MONO))))
             .child(text("Interface as material 0123", 28.0, Paint::INK).font(Font::Face(face)).grow(1.0)));
@@ -620,7 +620,7 @@ fn morph_page(s: &Gallery) -> El<Msg> {
         .child(header(s, h, "变形", "Ui::morph / Cmd::Morph", "把一样东西按材质的点阵散成粒子，飞过去拼成另一样东西：先松开，粒子接手，飞行，再由目标接手、合拢。飞行途中按“反向”，粒子从当前位置原路返回。"))
         .child(section(h, "预览", col().fill_width().gap(14.0).child(stage).child(controls)))
         .child(section(h, "参数", col().fill_width().gap(14.0).child(nums).child(ease)))
-        .child(section(h, "源码", source(h, "src/morph.rs", include_str!("../morph.rs"))))
+        .child(section(h, "源码", source(h, "src/morph.rs", amenui::sources::MORPH)))
         .child(space(1.0, 24.0))
 }
 
