@@ -85,9 +85,11 @@ pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
 /// the material state 03 rests in, and how long after the card loosens (or closes) its material is
 /// committed when a state is chosen on the rail (s).
 pub const SPEC_LOOSE: f32 = 0.6;
-/// The button's fill in state 03: as loose as its label still reads against it (I.2 item 3: 0.6 down
-/// by 0.1 until the audit passes).
-pub const BUTTON_LOOSE: f32 = 0.3;
+/// The labels on the card's shapes in state 03 (the button's, the segmented control's): drawn tight,
+/// on a plate of the ground colour this much larger than the label's ink box (px: left and right, above
+/// and below), and the selected segment's dots stop this far short of its label's ink box.
+pub const PLATE: (f32, f32) = (6.0, 3.0);
+pub const SEGMENT_GAP: f32 = 4.0;
 pub const REST_MATERIAL: usize = 2;
 pub const SECOND_PRESS: f32 = 0.2;
 /// The morphs' cells: at most this many (desktop, phone; the framework widens the cells past it), each
@@ -228,8 +230,9 @@ pub struct Body {
     pub text_centre: Option<f32>,
     pub entered: f32,
     pub reduced: bool,
-    /// The short path is to play: waiting for the first frame (`intro_pending`), then at a time.
-    pub intro_pending: bool, pub intro_at: Option<f32>,
+    /// The short path or the walk is to play: waiting for the first frame to be presented
+    /// (`intro_pending`; `drawn` once the first frame has been asked for), then at a time.
+    pub intro_pending: bool, pub drawn: bool, pub intro_at: Option<f32>,
     /// The front across the listing on the short path: when it is to start, the place it starts from
     /// (window px, for the host to send as a front, `take_front`), and when it started.
     pub front_at: Option<f32>, pub front: Option<(f32, f32)>, pub fronted: Option<f32>,
@@ -256,6 +259,41 @@ pub struct Body {
     pub ready: f32, pub flight: (u32, f32),
     cache: Rc<RefCell<Cache>>,
 }
+/// The height of a label's ink box (px at the widgets' label size): its text's line set to it, so the
+/// element is the ink and what is built round it is measured from the ink.
+const INK: f32 = 11.0;
+/// A label's text with its line set to its ink box (`INK`), in `paint` when given, drawn in plain
+/// whatever the card's material: the same pixels as in state 02.
+fn inked<M>(mut e: El<M>, paint: Option<Paint>) -> El<M> {
+    if let amenui::el::Content::Text { line, paint: p, .. } = &mut e.content { *line = INK; if let Some(q) = paint { *p = q; } }
+    e.material(amenui::style::Material::Plain.id())
+}
+/// A control's fill held loose by `k` round its label, drawn tight (in `paint` when given): the fill
+/// becomes four bands that stop `gap` (px: left and right, above and below) short of the label's ink
+/// box, in the control's `pad` (px each side of the label). Whatever is drawn over a loose shape is as
+/// loose as it, so a label stays tight only where no loose shape is under it.
+fn ringed<M>(mut c: El<M>, pad: f32, gap: (f32, f32), k: f32, paint: Option<Paint>) -> El<M> {
+    use amenui::el::{col, row, space};
+    let Some(fill) = c.fill.take() else { return c };
+    let band = || col().fill(fill).loose(k).grow(1.0);
+    let side = || row().fill(fill).loose(k).width(pad - gap.0).fill_height();
+    let label = std::mem::take(&mut c.children).into_iter().map(|t| inked(t, paint));
+    let mid = row().height(INK + 2.0 * gap.1).align(taffy::AlignItems::CENTER).child(side()).child(space(gap.0, 0.0)).children(label).child(space(gap.0, 0.0)).child(side());
+    c.pad(0.0, 0.0).child(col().fill_height().child(band()).child(mid).child(band()))
+}
+/// A segmented control held loose by `k` with its labels drawn tight: its frame takes `k` as its own
+/// looseness, and the selected segment's fill becomes bands round its label (`ringed`) that stop
+/// `SEGMENT_GAP` short of its ink box.
+fn tight_labels<M>(mut c: El<M>, k: f32) -> El<M> {
+    if k <= 0.0 { return c; }
+    c.loose = k;
+    c.children = std::mem::take(&mut c.children).into_iter().map(|mut seg| {
+        if seg.fill.is_some() { return ringed(seg, 10.0, (SEGMENT_GAP, SEGMENT_GAP), k, None); }
+        seg.children = std::mem::take(&mut seg.children).into_iter().map(|t| inked(t, None)).collect();
+        seg
+    }).collect();
+    c
+}
 /// A press on the body: where (window px), the turn then, and the point under it (body space) with its
 /// distance from the centre (the arcball's radius), none when it was off the body.
 #[derive(Clone, Copy, Debug)]
@@ -272,7 +310,7 @@ impl Default for Body {
             ptr: None, under: None, over: false, touch_at: None, bulge: Animated::new(0.0, Spring { ..LAMP }), rings: vec![], lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, vel: Velocity::default(), dragged: false, motes: vec![], made: 0,
             at: 4, was: 4, lands: 0.0, spec: Specimen::default(), walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
-            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0, committed: None,
+            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0, committed: None,
             t: 0.0, ready: 1.0, flight: (0, 0.0), cache: Rc::default(),
         }
     }
@@ -303,6 +341,9 @@ impl Step {
 }
 /// A beat whose frame comes later than this after it (s) is dropped when it is only on the way.
 const LATE: f32 = 0.12;
+/// How the walk ends (`Body::land`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Ending { Played, GaveWay, Dropped, Skipped }
 
 /// The key the scene is drawn under (its morphs and the operator's presses name its parts by it).
 pub const KEY: &str = "body";
@@ -674,8 +715,8 @@ impl Body {
     }
     /// The state on the stage now: during a reduced-motion change, the one before it until half way.
     pub fn shown_state(&self) -> u8 { match self.fade { Some((t0, _, d)) if self.t - t0 < d * 0.5 => self.was, _ => self.at } }
-    /// The walk: 0 none, 1 playing, 2 stopped by a person (`continue ›`).
-    pub fn walking(&self) -> u8 { if self.walk.is_some() { 1 } else if self.taken { 2 } else { 0 } }
+    /// The walk: 0 none, 1 playing (or about to, on the first frame), 2 stopped by a person (`continue ›`).
+    pub fn walking(&self) -> u8 { if self.walk.is_some() || (self.intro_pending && self.full && !self.reduced) { 1 } else if self.taken { 2 } else { 0 } }
     /// The morph between the text and the specimen: the lattice is the specimen's pitch.
     fn morph(&mut self, from: &str, to: &str, m: (f32, f32, f32), now: f32) {
         let count_max = if self.width_class() == Width::Narrow { MORPH_CELLS.1 } else { MORPH_CELLS.0 };
@@ -714,6 +755,10 @@ impl Body {
                 if to == 3 { self.later.extend([(self.lands, press("loosen")), (self.lands + SECOND_PRESS, Step::Material(REST_MATERIAL))]); }
             }
             (true, false) => {
+                // What was still due for the card (the text's settling under it, the loosen and the
+                // material into 03) is dropped: it would undo the gather once the card has gone.
+                self.settle = None;
+                self.later.retain(|s| !matches!(s.1, Step::Press(_) | Step::Material(_)));
                 self.gather = Animated::new(if to == 4 { 1.0 } else { 0.0 }, Spring { ..GATHER });
                 // In the walk the body is held still while it lands, the lamp behind it (only the
                 // silhouette's dots show) until the walk turns it on.
@@ -741,7 +786,7 @@ impl Body {
     pub fn play(&mut self, now: f32) { self.walk_from(now, false) }
     /// The walk; `first`: from the first frame, on its own clock (0.7 s of the source first).
     fn walk_from(&mut self, now: f32, first: bool) {
-        if self.reduced { return self.go_to(4, now, MORPH_SHORT); }
+        if self.reduced { return self.land(now, Ending::Skipped); }
         let phone = self.width_class() == Width::Narrow;
         self.flight = (0, 0.0);
         // 02: the card; 03: it loosens, three materials, and it closes again in the last; 04: gather.
@@ -768,13 +813,31 @@ impl Body {
     }
     /// `skip ›`, Esc or a scroll: straight to the body by the short morph (or the gather from the
     /// source), and the walk counts as seen.
-    pub fn skip(&mut self, now: f32) {
-        (self.walk, self.taken) = (None, false);
-        self.later.clear();
-        self.go_to(4, now, MORPH_SHORT);
-        self.seen = true;
-        self.idle = 1.0;
-        self.last_input = f32::NEG_INFINITY;
+    pub fn skip(&mut self, now: f32) { self.land(now, Ending::Skipped) }
+    /// The landing state, however the walk ends (played through, given way, dropped because its
+    /// frames came too late, skipped; with reduced motion it is the only way): the walk is over and
+    /// seen, nothing it left due for the card is still to come, the state is the body with its gather
+    /// at 1 (by the short morph or the gather spring when it is not there yet), and the lamp and the
+    /// idle turn follow once it lands. The rail, the caption and the stage all read `at` and the
+    /// gather from here on, so they name the same state; the focus marks went with the card's button
+    /// (`gather-sent`), and the card leaves the tree when it lands.
+    fn land(&mut self, now: f32, how: Ending) {
+        (self.walk, self.taken, self.seen) = (None, false, true);
+        (self.intro_pending, self.intro_at) = (false, None);
+        self.later.retain(|s| matches!(s.1, Step::Reset));
+        let there = self.at == 4 && self.gather.target >= 0.5;
+        if !there {
+            let m = if how == Ending::Played && self.at != 1 { MORPH_INTRO } else { MORPH_SHORT };
+            self.go_to(4, now, m);
+        }
+        self.settle = None;
+        if how == Ending::Skipped {
+            self.point_lamp(self.ptr);
+            (self.idle, self.last_input) = (1.0, f32::NEG_INFINITY);
+        } else if !there || self.lamp[2].target < 0.0 {
+            let at = self.lands.max(now);
+            self.later.extend([(at, Step::Lamp), (at + 0.6, Step::Idle)]);
+        }
     }
     /// The host says how ready it is to draw what the walk shows next (`Ui::readiness`).
     pub fn set_ready(&mut self, r: f32) { self.ready = r.clamp(0.0, 1.0); }
@@ -785,7 +848,7 @@ impl Body {
         if self.walk.is_none() { return false; }
         let slow = self.flight.0 >= 10 && self.flight.1 / self.flight.0 as f32 > 0.020;
         match step {
-            Step::State(2) if self.ready < 1.0 => { self.end_walk(now); true }
+            Step::State(2) if self.ready < 1.0 => { self.land(now, Ending::GaveWay); true }
             // After a slow first flight the materials' presses (and the focus that goes to them) are
             // left out; the walk keeps its clock and lands at its own time.
             Step::Focus("material") if slow => true,
@@ -793,13 +856,7 @@ impl Body {
             _ => false,
         }
     }
-    /// The rest of the walk as one morph to the body, then the landing state.
-    fn end_walk(&mut self, now: f32) {
-        let m = if self.at == 1 { MORPH_SHORT } else { MORPH_INTRO };
-        self.go_to(4, now, m);
-        self.later.extend([(self.lands, Step::Lamp), (self.lands + 0.6, Step::Idle)]);
-        (self.walk, self.seen) = (None, true);
-    }
+
     fn do_step(&mut self, step: Step, now: f32) {
         if self.gives_way(&step, now) { return; }
         match step {
@@ -813,7 +870,7 @@ impl Body {
             // The lamp comes on from behind the form, to its rest place or the pointer.
             Step::Lamp => self.point_lamp(self.ptr),
             Step::Idle => { self.idle = 0.0; self.last_input = now - IDLE_AFTER; }
-            Step::End => { self.walk = None; self.seen = true; }
+            Step::End => self.land(now, Ending::Played),
         }
     }
     /// How opaque everything is during a reduced-motion change of state (1 otherwise).
@@ -1170,7 +1227,9 @@ impl Body {
         let cy = self.caption_y();
         parts.push(mono(num.into(), LINE, Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None));
         // A screen reader hears it as it changes.
-        parts.push(mono(sentence, LINE, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + GUTTER), Some(cy), None, None).live(amenui::el::Live::Polite));
+        // Under 360 px the sentence starts a cell nearer its number, so its longest one ends inside the stage.
+        let gutter = if w < 360.0 { GUTTER - ADVANCE } else { GUTTER };
+        parts.push(mono(sentence, LINE, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite));
         let grabbing = self.grab.is_some() && self.dragged;
         let mut stage = layers(parts).key(key.to_owned()).width(w).height(h).clip();
         // The idle turn moves on purpose.
@@ -1211,16 +1270,25 @@ impl Body {
                 .child(amenui::widgets::slider(&k("pitch"), sp.pitch, spec, w - 40.0 - 96.0 - 52.0, |v| Msg::Spec(SpecMsg::Pitch(v))))
                 .child(text_lh(format!("{} px", sp.pitch as u32), SIZE, LINE, Paint::TEXT).font(Font::Mono))));
         }
-        let rows = rows.child(line("Material", amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit()));
-        // Each part holds its own looseness (a subtree is never less loose than its parent): the frame
-        // and the rows at `SPEC_LOOSE`, the button's fill at `BUTTON_LOOSE`, where its label still reads.
         let hold = |k: f32| if sp.loosen { k } else { 0.0 };
+        let rows = rows.loosen(hold(SPEC_LOOSE));
+        // The Material row and the button are not under the rows' looseness: their shapes take it as
+        // their own, and the labels on them are drawn tight (a label is never loosened).
+        let choice = tight_labels(amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit(), hold(SPEC_LOOSE));
+        let material = row().key(k("row-Material")).fill_width().align(taffy::AlignItems::CENTER).child(label("Material").loosen(hold(SPEC_LOOSE))).child(choice);
+        let mut button = amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4));
+        // Held loose, the fill as loose as the card's other shapes, round the label drawn tight in the
+        // accent colour on the ground: the fill stops `PLATE` short of its ink box.
+        if sp.loosen { button = ringed(button, 14.0, PLATE, SPEC_LOOSE, Some(Paint::ACCENT)); }
+        // Each part holds its own looseness (a subtree is never less loose than its parent): the frame
+        // and the rows at `SPEC_LOOSE`; the segmented control's shapes and the button's fill take it as
+        // their own, under labels drawn tight.
         let frame = col().key(k("frame")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None).radius(6.0).border(1.0, Paint::FAINT).loosen(hold(SPEC_LOOSE));
         let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0)
             .material(SPEC_MATERIALS[sp.material].1.id())
             .child(frame)
-            .child(rows.loosen(hold(SPEC_LOOSE)))
-            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4)).loosen(hold(BUTTON_LOOSE))));
+            .child(col().fill_width().gap(14.0).child(rows).child(material))
+            .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(button));
         // Held loose, the card's shapes (its frame, the switch, the track and thumb, the segmented
         // control's frame and selected segment, the button's fill) take the whole looseness and its text
         // stays text to read, under the framework's legibility cap: the shapes are marked as decoration,
@@ -1443,7 +1511,11 @@ impl Experiment for Body {
         // The short path: the first frame shows the listing; half a second later it gathers (with
         // reduced motion it gives way to the body by an opacity change at once).
         let mut changed = false;
-        if self.intro_pending {
+        // The clock of the short path and of the walk starts at the first frame after one has been
+        // presented: a first frame that takes long to reach the screen (pipelines being made) does
+        // not make every beat late.
+        if self.intro_pending && !self.drawn { self.drawn = true; changed = true; }
+        else if self.intro_pending {
             self.intro_pending = false;
             if self.full && !self.reduced { self.walk_from(now, true); } else { self.intro_at = Some(now + if self.reduced { 0.0 } else { INTRO_DELAY }); }
             if !self.reduced { self.front_at = Some(now + FRONT_DELAY); }
@@ -1453,6 +1525,12 @@ impl Experiment for Body {
         // The beats keep the clock's time: a late frame takes every beat that is due, and a beat that
         // only shows something on the way (a focus, a material's press) is dropped when its frame comes
         // more than 120 ms after it.
+        // A frame that comes after the walk's end and before its earlier beats were taken (frames far
+        // slower than the beats) drops the rest: the walk lands from where it is.
+        if let Some((t0, steps)) = &self.walk && steps.len() > 1 && steps.last().is_some_and(|s| now - (t0 + s.0) > LATE) {
+            self.land(now, Ending::Dropped);
+            changed = true;
+        }
         if let Some((t0, steps)) = &mut self.walk {
             let t0 = *t0;
             let due: Vec<(f32, Step)> = { let n = steps.iter().take_while(|s| now >= t0 + s.0).count(); steps.drain(..n).collect() };

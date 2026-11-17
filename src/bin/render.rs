@@ -2,7 +2,7 @@
 //! clock from 0, fixed seeds: the same arguments give byte-identical PNGs.
 //!
 //! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans]
-//!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n>]
+//!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n> [--first <ms>]]
 //!        render --page <hash | recipe-name> --frames <from>..<to> [--fps 60] --out dir/%05d.png [...]
 //!
 //! `--events` is a JSON list such as `[{"at_ms": 200, "kind": "press", "target": "button/live"},
@@ -11,7 +11,9 @@
 //! the frame (`amenui::audit`: text cut off, contrast, glyphs over each other, text too small, frames
 //! asked for with nothing going on) and prints what it finds; `--strict` makes problems and P0 or P1
 //! findings an error. Without `--frames`, `--fps 10` steps the clock at 10 frames a second and draws
-//! only the frames the page asks for, as a slow machine's browser does (the frame is the last one drawn).
+//! only the frames the page asks for, as a slow machine's browser does (the frame is the last one drawn);
+//! `--first <ms>` with it presents the first frame that late (the next frame comes then), as a browser
+//! that takes that long to make the first frame's pipelines.
 //!
 //! `--frames` draws a run of frames on the same fixed clock (`amenui::drive::frames`): frame `n` at
 //! `n / fps` s, `--fps` then one of 60, 30, 20, 15 or 12 (60 when left out), each written where `--out`
@@ -20,7 +22,7 @@
 use amenui::drive::{RenderSpec, parse_events};
 use website::drive::{audit, render, render_paced};
 
-const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n>] [--frames <from>..<to>]";
+const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n> [--first <ms>]] [--frames <from>..<to>]";
 
 /// `--out` with the frame's number put in for `%d` or `%0Nd`.
 fn numbered(pattern: &str, n: u32) -> Option<String> {
@@ -41,7 +43,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut spec = RenderSpec { page: String::new(), w: 1280, h: 800, scale: 1.0, material: None, theme: None, at_ms: 1000.0, events: vec![], locale: None };
     let (mut out, mut tree, mut strict, mut audited, mut fps) = ("out.png".to_owned(), None, false, false, None);
-    let (mut frames, mut at_given) = (None, false);
+    let (mut frames, mut at_given, mut first) = (None, false, 0.0f32);
     let mut i = 0;
     while i < args.len() {
         let flag = args[i].as_str();
@@ -73,6 +75,7 @@ fn main() {
             "--out" => out = v,
             "--fps" => fps = Some(v.parse::<f32>().unwrap_or_else(|_| fail(format!("`--fps {v}`: write frames a second, e.g. 10.")))),
             "--tree" => tree = Some(v),
+            "--first" => first = v.parse::<f32>().unwrap_or_else(|_| fail(format!("`--first {v}`: write how late the first frame is presented in ms, e.g. 5000."))) / 1000.0,
             _ => fail(format!("unknown flag `{flag}`.\n{USAGE}")),
         }
         i += 2;
@@ -104,7 +107,7 @@ fn main() {
         if strict && (problems || fails) { std::process::exit(1); }
         return;
     }
-    let (r, findings) = if let Some(f) = fps { render_paced(&spec, faces, f).map(|r| (r, vec![])) } else if audited { audit(&spec, faces, None) } else { render(&spec, faces, None).map(|r| (r, vec![])) }.unwrap_or_else(|e| fail(e));
+    let (r, findings) = if let Some(f) = fps { render_paced(&spec, faces, f, first).map(|r| (r, vec![])) } else if audited { audit(&spec, faces, None) } else { render(&spec, faces, None).map(|r| (r, vec![])) }.unwrap_or_else(|e| fail(e));
     for p in &r.problems { eprintln!("render: problem: {p}"); }
     if audited {
         // The view's problems are printed above; the audit lists them too.

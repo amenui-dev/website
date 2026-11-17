@@ -173,7 +173,8 @@ fn the_walk_keeps_the_clock_at_ten_frames_a_second() {
             ui.frame_drawn();
             if ended.is_none() && ui.state.body.walking() == 0 { ended = Some(t); }
         }
-        let ended = ended.expect("the walk ends");
+        // Its clock starts at the second frame (the first one after a frame was presented).
+        let ended = ended.expect("the walk ends") - 1.0 / hz;
         assert!((ended - 6.5).abs() <= 0.15, "at {hz} Hz the walk ended at {ended:.2} s, not 6.5 ± 0.15");
         assert_eq!(ui.state.body.at, 4, "it lands on the body");
     }
@@ -188,8 +189,10 @@ fn the_focus_marks_leave_with_the_gather_button() {
         t += 1.0 / 60.0;
         ui.tick(t);
         ui.frame_drawn();
-        if (4.5..4.69).contains(&t) && ui.marks_frame().is_some() { seen_before = true; }
-        if t >= 4.8 { assert!(ui.marks_frame().is_none(), "focus marks still drawn at {t:.2} s: {:?}", ui.marks_frame()); }
+        // The walk's clock starts at the second frame (the first one after a frame was presented).
+        let w = t - 1.0 / 60.0;
+        if (4.5..4.69).contains(&w) && ui.marks_frame().is_some() { seen_before = true; }
+        if w >= 4.8 { assert!(ui.marks_frame().is_none(), "focus marks still drawn at {t:.2} s: {:?}", ui.marks_frame()); }
     }
     assert!(seen_before, "the marks frame the gather button before its press");
 }
@@ -201,4 +204,38 @@ fn with_reduced_motion_nothing_condenses_from_dots() {
     gallery::update(&mut ui.state, Msg::Go(Page::Components));
     ui.relayout();
     assert_eq!(ui.state.look().fx.enter, 0.0, "a page is at rest from its first frame");
+}
+
+#[test]
+fn however_late_its_frames_the_walk_lands_on_the_body() {
+    // The first frame presented 0 to 10 s late, then 10 fps; or 60 fps with one long stall anywhere in
+    // the walk: it ends at the body, gathered, with no focus marks, at 390 and 1440 wide.
+    for (w, h) in [(390, 844), (1440, 900)] {
+        let mut runs: Vec<(f32, f32, f32)> = [0.0, 2.0, 5.0, 10.0].iter().map(|&d| (0.0, d, 0.1)).collect();
+        for at in [0.75, 2.0, 3.0, 4.3, 4.75, 5.5] { for stall in [0.5, 2.0, 5.0] { runs.push((at, stall, 1.0 / 60.0)); } }
+        for (at, stall, step) in runs {
+            let mut ui = walk_at(w, h);
+            let (mut t, mut stalled) = (0.0f32, false);
+            while t < at + stall + 9.0 {
+                ui.tick(t);
+                if ui.needs_frame(t) { ui.frame_drawn(); }
+                t += if t < at || stalled { step } else { stalled = true; stall };
+            }
+            let b = &ui.state.body;
+            let what = format!("{w} px, a {stall} s gap at {at} s");
+            assert!(b.walking() == 0 && b.seen, "{what}: the walk is over");
+            assert_eq!((b.at, b.shown_state()), (4, 4), "{what}: the rail and the caption name the body");
+            assert!(b.gather.value > 0.99 && ui.now() >= b.lands, "{what}: the stage holds the body (gather {:.2})", b.gather.value);
+            assert!(ui.marks_frame().is_none(), "{what}: no focus marks");
+        }
+    }
+}
+
+/// The walk from its first frame at `w` × `h`.
+fn walk_at(w: u32, h: u32) -> GalleryUi {
+    let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Go(Page::Body));
+    ui.state.body.open("", 2);
+    ui.relayout();
+    ui
 }

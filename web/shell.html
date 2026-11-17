@@ -154,6 +154,8 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 @media (max-width: 719px) { .home .rail { position: relative; order: 2; left: auto; right: auto; bottom: auto; margin: 16px 16px 0; height: 88px; flex: none; flex-wrap: wrap; column-gap: 16px; row-gap: 0; align-content: flex-start; }
   .rail .ctl { margin-left: 0; } .rail .door { margin-left: auto; } .rail.body .door { margin-left: auto; } .rail .break { flex-basis: 100%; height: 0; } }
 .rail .break { display: none; } @media (max-width: 719px) { .rail .break { display: block; } }
+/* Under 360 px the door ends the states' row, and the form row drops the word Seed. */
+@media (max-width: 359px) { .rail .door, .rail.body .door { order: 1; } .rail .break, .rail .ctl { order: 2; } .rail .seedw { display: none; } }
 
 /* The boot line in the status line's place, which becomes the status line once the canvas draws. */
 .status { position: fixed; z-index: 3; right: calc(var(--fx) + var(--m)); bottom: 0; height: 28px; display: flex; align-items: center; font: 11px/11px var(--mono); color: var(--dim); white-space: nowrap; transition: opacity .6s; }
@@ -227,7 +229,7 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   <button type="button" class="st" data-state="material" aria-pressed="false"><i>03</i><span>Material</span></button>
   <button type="button" class="st" data-state="body" aria-pressed="false"><i>04</i><span>Body</span></button>
   <span class="break"></span>
-  <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span>&nbsp;Seed&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
+  <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span><span class="seedw">&nbsp;Seed</span>&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
   <a class="door" href="{{href_docs}}" data-route="docs/">docs →</a>
 </nav>
 <div class="status"><span class="quality" hidden>{{t_quality}} <button type="button" data-q="0">{{t_quality_auto}}</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="{{t_readout}}">F2</button></div>

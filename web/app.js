@@ -8,7 +8,7 @@
 // first page: a path such as `components/button/`, or a hash name such as `#button`), `keys` (where
 // key events come from; the window by default), `onRoute(path, hash)` (the page changed inside it),
 // `started(module)` (after the module started, before its first frame), `onFrame()` (the first frame
-// is drawn), `after()` (after every handled input).
+// is drawn), `frame()` (after every frame the loop runs), `after()` (after every handled input).
 //
 // The pictures (photographs drawn in marks) are made only for a page other than home (`pictures`).
 async function mount(stage, opts) {
@@ -48,6 +48,7 @@ async function mount(stage, opts) {
     moving = d === 0;
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
+    if (opts.frame) opts.frame();
     if (d === 0) raf = requestAnimationFrame(loop);
     else if (d > 0) timer = setTimeout(kick, d * 1000);
   };
@@ -223,7 +224,10 @@ function site() {
   const NAMES = { 1: 'source', 2: 'interface', 3: 'material', 4: 'body' };
   const INTRO = 'amenui.intro', VERSION = '1';
   const walk = () => api ? api.w.hero_walk() : [0, 0, 1];
-  let ticking = 0;
+  // The rail and the address read the scene's state after every frame, so they name what the stage
+  // draws however the walk ends (and whenever a late press lands).
+  let railWas = '';
+  const followRail = () => { if (!api || !isHome()) return; const k = walk().join() + (intro ? 'i' : ''); if (k === railWas) return; railWas = k; showRail(); keepHash(); };
   const showRail = () => {
     if (!api || !isHome()) return;
     const [playing, seen, at] = walk();
@@ -238,8 +242,6 @@ function site() {
     if (intro || playing === 1) { door.textContent = 'skip ›'; door.dataset.skip = '1'; door.removeAttribute('href'); }
     else if (playing === 2) { door.textContent = 'continue ›'; door.dataset.play = '1'; door.removeAttribute('href'); }
     else { const [r, t] = DOORS[st]; door.textContent = t; door.dataset.route = r; door.href = full(r); }
-    // While the walk plays the rail follows it.
-    if (playing === 1 && !ticking) ticking = setInterval(() => { showRail(); if (walk()[0] !== 1) { clearInterval(ticking); ticking = 0; showRail(); keepHash(); } }, 100);
   };
   // The state is in the address (`#source`, `#interface`, `#material`, `#body/cloud/08`; none for
   // the defaults), replaced, not added to the history.
@@ -322,6 +324,7 @@ function site() {
     onRoute: (p, h) => routed(p, h),
     onResize: () => { place(); A.draw(); },
     after: () => { showRail(); keepHash(); keepReadout(); },
+    frame: followRail,
     onFrame: () => {
       A.done(api.w.backend(), api.w.glyphs());
       if (intro) setTimeout(() => { intro = false; showRail(); keepHash(); }, 1400);

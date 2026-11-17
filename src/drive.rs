@@ -64,8 +64,9 @@ pub fn audit(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) -> 
 }
 /// `render` with the clock stepped at `fps` frames a second and every frame drawn, as a slow machine
 /// draws them (the `render` tool's `--fps`): what is on the screen at `at_ms` shows whether motion keeps
-/// the clock's time. The PNG is the last frame drawn.
-pub fn render_paced(spec: &RenderSpec, faces: Vec<Face>, fps: f32) -> Result<Rendered, DriveError> {
+/// the clock's time. The first frame is presented `first` s late (the next one comes then), as a
+/// browser that takes that long to make its pipelines. The PNG is the last frame drawn.
+pub fn render_paced(spec: &RenderSpec, faces: Vec<Face>, fps: f32, first: f32) -> Result<Rendered, DriveError> {
     let locale = spec.locale.as_deref().and_then(Locale::from_tag);
     let mut d = open_in(&spec.page, faces, (spec.w, spec.h, spec.scale.max(0.25)), (None, None, locale))?;
     let mut o = Offscreen::try_new(spec.w, spec.h)?;
@@ -82,8 +83,9 @@ pub fn render_paced(spec: &RenderSpec, faces: Vec<Face>, fps: f32) -> Result<Ren
     order.sort_by(|a, b| a.1.total_cmp(&b.1));
     let (end, step) = (spec.at_ms.max(0.0) / 1000.0, 1.0 / fps.max(0.1));
     let (mut next, mut k, mut px) = (0, 0u32, vec![]);
+    let first = first.max(step);
     loop {
-        let t = (k as f32 * step).min(end);
+        let t = if k == 0 { 0.0 } else { (first + (k - 1) as f32 * step).min(end) };
         while next < order.len() && order[next].1 <= t + 1e-6 {
             d.tick(t);
             let (i, _, e) = order[next];
