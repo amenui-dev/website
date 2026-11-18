@@ -47,8 +47,14 @@ and Python with fonttools.
 cargo build --release --lib --target wasm32-unknown-unknown
 wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg \
   target/wasm32-unknown-unknown/release/website.wasm
+cargo build --release --lib --target wasm32-unknown-unknown --no-default-features
+wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg-gpu \
+  target/wasm32-unknown-unknown/release/website.wasm
 python3 web/build.py
 ```
+
+The first build is the full module (WebGPU or WebGL2); the second carries only WebGPU and is what a
+browser with `navigator.gpu` loads, falling back to the full one if it cannot start.
 
 `BASE=/ python3 web/build.py` writes the site to `dist/site/` (BASE is where it is served; the
 default is `/website/`, for GitHub Pages). Serve it with `python3 -m http.server -d dist/site` and open
