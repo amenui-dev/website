@@ -31,11 +31,13 @@ wasm-bindgen = "0.2"
 # [patch."https://github.com/amenui-dev/amenui"]
 # amenui = { path = "../amenui" }
 
-# The web build: smallest code (opt-level "z" with one codegen unit is about 13 % smaller to transfer
-# than "s" with sixteen). Panics already abort on wasm32-unknown-unknown; symbols are left for
-# wasm-bindgen, which reads the target-features section, and removed by it (`--remove-name-section`).
+# The web build: small code that still runs fast. With one codegen unit and LTO, opt-level "s" sends
+# about 11 % more than "z" (3.0 MB against 2.7 MB compressed) and lays a frame out about a quarter
+# faster (the home page's 12 ms against 9 ms in headless Chrome); "3" is a little faster again and
+# sends 4.2 MB. Panics already abort on wasm32-unknown-unknown; symbols are left for wasm-bindgen,
+# which reads the target-features section, and removed by it (`--remove-name-section`).
 [profile.release]
-opt-level = "z"
+opt-level = "s"
 lto = true
 codegen-units = 1
 
