@@ -14,9 +14,9 @@ use amenui::morph::{Cmd, StirAt};
 pub const TOUCH_GRASS: usize = 0;
 /// The seed the field and the gusts' times are drawn from (the small line says it).
 const SEED: u32 = 412;
-/// The horizon, a share of the picture's height down (on a phone's page 70 %).
+/// The horizon, a share of the picture's height down (on a phone's page 62 %, S.2 item 2).
 pub const HORIZON: f32 = 0.64;
-pub const HORIZON_PHONE: f32 = 0.70;
+pub const HORIZON_PHONE: f32 = 0.62;
 /// Rows of stalks, and the most stalks the field has (on a phone).
 const ROWS: usize = 15;
 const CAP: usize = 3000;
@@ -44,6 +44,8 @@ pub const CLOSES: f32 = 6.0;
 const FIRST: f32 = 6.0;
 /// A pointer faster than this (px a second) pushes a small gust ahead of itself, at most once a second.
 const FAST: f32 = 1400.0;
+/// The farthest one pointer event walks (px); farther is a jump, and the path starts again there.
+const JUMP: f32 = 320.0;
 /// The piece's frame time, s: what the pointer stirs goes in at most this often.
 const PACE: f32 = 1.0 / 30.0;
 
@@ -100,8 +102,11 @@ fn unit(h: u32) -> f32 { (h >> 8) as f32 / (1u32 << 24) as f32 }
 
 /// The time between gust `n` and the next: 9 to 14 s, by hash of the seed.
 fn interval(n: u32) -> f32 { 9.0 + 5.0 * unit(hash(n, 7, 0x51)) }
+/// The band's width and slant in a field `w` wide: on a phone min(330, 0.40 w) and min(500, 0.45 w)
+/// (S.2 item 3), so a band is seen crossing; on a wide page 330 and 500.
+fn band(w: f32) -> (f32, f32) { if w < NARROW { (BAND.min(0.40 * w), SLANT.min(0.45 * w)) } else { (BAND, SLANT) } }
 /// How long a gust takes from the field's left edge until its band and wake have left the near row (s).
-fn crossing(w: f32) -> f32 { (40.0 + w + SLANT + BAND + 0.5 * SPEED) / SPEED }
+fn crossing(w: f32) -> f32 { let (band, slant) = band(w); (40.0 + w + slant + band + 0.5 * SPEED) / SPEED }
 /// Every fourth gust is strong.
 fn strong(n: u32) -> bool { n % 4 == 3 }
 
@@ -109,8 +114,11 @@ fn strong(n: u32) -> bool { n % 4 == 3 }
 pub fn horizon(fit: &Fit, w: f32) -> f32 { fit.at(0.0, 900.0 * if w < NARROW { HORIZON_PHONE } else { HORIZON }).1 }
 
 /// One stalk: its root, length, depth (0 far, 1 near), lean at rest and head.
+#[derive(Clone)]
 pub(crate) struct Stalk { x: f32, y: f32, len: f32, t: f32, lean: f32, head: Option<(char, f32)>, width: f32 }
 impl Stalk {
+    /// The same stalk without its head.
+    fn bare(&self) -> Stalk { Stalk { head: None, ..self.clone() } }
     /// Its upright extent, root to tip with its head's box (x0, y0, x1, y1), and the head's box alone;
     /// widened downwind by what its lean at rest moves the tip.
     pub(crate) fn extent(&self) -> ([f32; 4], Option<[f32; 4]>) {
@@ -156,27 +164,34 @@ fn stalks(w: f32, h: f32, hz: f32) -> Vec<Stalk> {
     out
 }
 /// The stalks planted at this size: the field less those that come too near the type (R.2 item 4),
-/// decided once per layout from the text boxes as laid out. The small line states the count, so its
-/// box is taken at the count it ends up with.
+/// decided once per layout from the text boxes as laid out. On a phone a stalk whose head comes too
+/// near the strip, the small line, the status line or the callout is planted without its head
+/// (S.2 item 2); on a wide page it is left out. The small line states the count, so its box is taken
+/// at the count it ends up with.
 pub(crate) fn planted(s: &Gallery, w: f32, h: f32, fit: &Fit) -> Vec<Stalk> {
     let hz = horizon(fit, w);
     let all = stalks(w, h, hz);
-    let keep = |n: usize| -> Vec<bool> {
+    let phone = w < NARROW;
+    // Each stalk as planted: with its head, without it, or not at all.
+    let keep = |n: usize| -> Vec<Option<bool>> {
         let (types, heads) = clear_boxes(s, w, h, fit, &micro_of(n));
         all.iter().map(|st| {
             let (e, head) = st.extent();
-            !types.iter().any(|b| meets(e, *b)) && !head.is_some_and(|hb| heads.iter().any(|b| meets(hb, *b)))
+            if types.iter().any(|b| meets(e, *b)) { return None; }
+            if !head.is_some_and(|hb| heads.iter().any(|b| meets(hb, *b))) { return Some(true); }
+            phone.then_some(false)
         }).collect()
     };
-    let count = |k: &[bool]| k.iter().filter(|k| **k).count();
+    let count = |k: &[Option<bool>]| k.iter().filter(|k| k.is_some()).count();
     let mut kept = keep(all.len());
     // Once more when the count as built is written with fewer characters.
     if thousands(count(&kept)).len() != thousands(all.len()).len() { kept = keep(count(&kept)); }
-    all.into_iter().zip(kept).filter_map(|(st, k)| k.then_some(st)).collect()
+    all.into_iter().zip(kept).filter_map(|(st, k)| k.map(|head| if head { st } else { st.bare() })).collect()
 }
 fn meets(a: [f32; 4], b: [f32; 4]) -> bool { a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3] }
-/// What no stalk may come near (the number, the title and the small line, grown by 24 px) and what no
-/// head may (the strip, the status line and the callout, grown by 8).
+/// What no stalk may come near (the number, the title and, on a wide page, the small line, grown by
+/// 24 px) and what no head may (the strip, the status line, the callout and, on a phone, the small
+/// line's lines, grown by 8).
 fn clear_boxes(s: &Gallery, w: f32, h: f32, fit: &Fit, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
     let grow = |b: [f32; 4], d: f32| [b[0] - d, b[1] - d, b[2] + d, b[3] + d];
     let (types, mut heads) = super::works::touch_text_boxes(s, w, h, small);
@@ -210,8 +225,9 @@ fn upright(alpha: f32, ground: [f32; 3]) -> Paint {
 /// Gust `n` across a field `w` wide under a horizon at `hz`. The first starts with its band a third of
 /// the way across the far row: the piece opens on its rest pose (M.4), which then moves on.
 fn gust(n: u32, w: f32, hz: f32) -> Gust {
-    let from = if n == 0 { w / 3.0 + BAND * 0.5 } else { -40.0 };
-    Gust { from: [from, hz], dir: [1.0, 0.0], speed: SPEED, width: BAND, slant: SLANT, curve: CURVE, strength: if strong(n) { STRONG } else { NORMAL }, ..Gust::default() }
+    let (band, slant) = band(w);
+    let from = if n == 0 { w / 3.0 + band * 0.5 } else { -40.0 };
+    Gust { from: [from, hz], dir: [1.0, 0.0], speed: SPEED, width: band, slant, curve: CURVE, strength: if strong(n) { STRONG } else { NORMAL }, ..Gust::default() }
 }
 /// The field's box in the piece, which the gusts cross.
 fn scope_box(w: f32, h: f32, hz: f32) -> [f32; 4] { [0.0, hz.floor(), w, h] }
@@ -382,7 +398,9 @@ pub fn point(s: &mut Gallery, p: Option<(f32, f32)>, w: f32, fit: &Fit) {
     // A mouse dragging is heard twice (its move and its drag): once is enough. After a pause the path
     // starts again where the pointer is.
     if g.pointer.is_some_and(|q| q.0 == x && q.1 == y) { return; }
-    let last = g.pointer.filter(|q| now - q.2 < 0.25);
+    // A jump is not a walk (S.2 item 6): one event that moves more than 320 px starts the path again
+    // at the new point, with nothing stirred between and no push.
+    let last = g.pointer.filter(|q| now - q.2 < 0.25 && (x - q.0).hypot(y - q.1) <= JUMP);
     let from = last.map_or((x, y), |(a, b, _)| (a, b));
     let dt = last.map_or(1.0, |q| (now - q.2).max(1e-3));
     g.pointer = Some((x, y, now));

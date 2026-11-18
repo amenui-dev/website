@@ -415,6 +415,14 @@ fn touch_grass_has_its_page_and_stays_an_unbuilt_window_on_the_index() {
     let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
     assert!(count <= 900, "{small}");
     assert_eq!(count, works::touch_extents(&ui.state).len(), "the small line states the count as built");
+    // S.2 item 2: about 395 of 466, about 45 of them in the five nearest rows (the roots below the
+    // tenth row's).
+    let roots: Vec<f32> = works::touch_extents(&ui.state).iter().map(|(e, _)| e[3]).collect();
+    let mut rows: Vec<f32> = roots.clone(); rows.sort_by(f32::total_cmp); rows.dedup();
+    let near = rows.len().saturating_sub(5);
+    let in_near = roots.iter().filter(|y| rows[near..].contains(y)).count();
+    eprintln!("touch grass on a phone: {count} stalks, {in_near} in the five nearest rows ({} rows)", rows.len());
+    assert!((350..=440).contains(&count) && (35..=60).contains(&in_near), "{count} stalks, {in_near} near");
 }
 
 /// R.2 item 4: no stalk's upright extent (with its head) within 24 px of the number, the title or the
@@ -427,11 +435,23 @@ fn no_stalk_of_touch_grass_comes_near_its_type() {
         let n = nodes(&ui);
         let rect = |k: &str| n.iter().find(|n| n.key == format!("work/touch-grass/{k}")).map(|n| n.rect);
         let mut types: Vec<[f32; 4]> = ["n", "title"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 24.0)).collect();
-        // The small line on a wide page, one line (on a phone each line's own length is the site's to
-        // work out; the renders check it).
+        // The small line: on a wide page one line, kept 24 px from every stalk; on a phone (S.2 item 2)
+        // under the 8 px head rule with the strip and the callout, each line wrapped at a space to the
+        // box's width, 18 px a line, in mono at 69 / 9 px a character.
         let m = rect("micro").expect("the small line");
         if w >= 720 { types.push(grow(m, 24.0)); }
-        let heads: Vec<[f32; 4]> = ["strip", "wind", "countdown"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 8.0)).collect();
+        let mut heads: Vec<[f32; 4]> = ["strip", "wind", "countdown"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 8.0)).collect();
+        if w < 720 {
+            let small = n.iter().find(|n| n.key == "work/touch-grass/micro").and_then(|n| n.text.clone()).expect("its text");
+            let (adv, per) = (69.0 / 9.0, (m[2] / (69.0 / 9.0)) as usize);
+            let (mut line, mut y) = (String::new(), m[1]);
+            for word in small.split(' ') {
+                if !line.is_empty() && line.chars().count() + 1 + word.chars().count() > per { heads.push(grow([m[0], y, line.chars().count() as f32 * adv, 18.0], 8.0)); line.clear(); y += 18.0; }
+                if !line.is_empty() { line.push(' '); }
+                line.push_str(word);
+            }
+            heads.push(grow([m[0], y, line.chars().count() as f32 * adv, 18.0], 8.0));
+        }
         assert!(!heads.is_empty() && types.len() >= 2);
         for (e, head) in works::touch_extents(&ui.state) {
             assert!(!types.iter().any(|b| meets(e, *b)), "{w}x{h}: a stalk at {e:?} near the type");

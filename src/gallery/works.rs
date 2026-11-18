@@ -86,8 +86,9 @@ const HORIZON_INK: Paint = Paint { tone: 1.0, accent: 90.0 / 255.0, alpha: 1.0, 
 /// A coordinate on the pixel grid for a 1 px line (at any whole scale), in a subtree drawn at `z` times
 /// its size (the index's windows); the subtree's origin is on the grid.
 fn px(v: f32, z: f32) -> f32 { ((v * z).floor() + 0.5) / z }
-/// The chrome over a piece: ink, and the small type at 150 / 255 of it.
-fn dim() -> Paint { Paint::INK.alpha(150.0 / 255.0) }
+/// The chrome over a piece: ink, and the small type (the small line and the strip) at 150 / 255 of it;
+/// on W-01 at 230 / 255 (S.2 item 1). The status line's dim words are the site's.
+fn dim(i: usize) -> Paint { Paint::INK.alpha(if i == TOUCH_GRASS { 230.0 } else { 150.0 } / 255.0) }
 /// An unbuilt piece's name, in the index and in a strip: 40 % of the ink (N.2 item 1).
 fn unbuilt() -> Paint { Paint::INK.alpha(0.4) }
 
@@ -882,19 +883,19 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
     let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
     // A link: what it reads, and what it is called (the full name, where a phone shows the number only).
-    let link = |key: String, shown: String, label: String, m: WMsg| row().key(key).height(28.0).align(AlignItems::CENTER).on_press(Msg::Works(m)).role(Role::Link).label(label).child(mono(shown, dim()));
+    let link = |key: String, shown: String, label: String, m: WMsg| row().key(key).height(28.0).align(AlignItems::CENTER).on_press(Msg::Works(m)).role(Role::Link).label(label).child(mono(shown, dim(i)));
     let step_link = |key: String, shown: String, label: String, j: usize| if PIECES[j].built { link(key, shown, label, WMsg::Open(j)) } else { row().key(key).height(28.0).align(AlignItems::CENTER).child(mono(shown, unbuilt())) };
     let made = format!("{} ↗", amenui::i18n::tr("works.made")).to_uppercase();
     let (prev_l, next_l) = (format!("← {}", name(prev)), format!("{} →", name(next)));
     let (prev_s, next_s) = if narrow { (format!("← {:02}", prev + 1), format!("{:02} →", next + 1)) } else { (prev_l.clone(), next_l.clone()) };
     let steps = row().key(k(p.slug, "steps")).gap(21.0).align(AlignItems::CENTER)
         .child(step_link(k(p.slug, "prev"), prev_s, prev_l, prev))
-        .child(mono("·", dim()))
+        .child(mono("·", dim(i)))
         .child(step_link(k(p.slug, "next"), next_s, next_l, next));
     let strip = if narrow { col().key(k(p.slug, "strip")) } else { row().key(k(p.slug, "strip")).gap(56.0).align(AlignItems::CENTER) }
         .opacity(op).child(link(k(p.slug, "made"), made.clone(), made, WMsg::Recipe(i))).child(steps);
     let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1);
-    let small = mono(micro(s, i), dim()).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
+    let small = mono(micro(s, i), dim(i)).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
     let b = block(s, i, w, h);
     // The number where it reads; where it does not, nothing in its place and nothing else moves.
     let root = match number_paint(s, i, w, h) { Some(paint) => root.child(at(mono(p.n, paint).key(k(p.slug, "n")), 32.0, b.n)), None => root };
@@ -910,8 +911,8 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         .child(at_right(strip, 32.0, h - 64.0))
 }
 /// W-01's text boxes as laid out at this size (R.2 item 4), with `small` as the small line: the number
-/// (where it is drawn), the title and each line of the small line; then the strip's links and the
-/// status line. Mono at 11 px advances `ADV` a character (a CJK one 11.66) in a box 18 px high; the
+/// (where it is drawn), the title and the small line (on a phone each of its lines, among the second
+/// set, S.2 item 2); then the strip's links and the status line. Mono at 11 px advances `ADV` a character (a CJK one 11.66) in a box 18 px high; the
 /// title's box is 272 × 48 (the serif at 30 px, measured on renders); the status line is the shell's,
 /// right-aligned in the bottom 28 px with the margin, taken at the width it has on renders (240 px).
 pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
@@ -920,7 +921,7 @@ pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec
     let adv = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2e80 { 11.66 } else { ADV }).sum::<f32>();
     let line = |t: &str, x: f32, y: f32| [x, y, x + adv(t), y + 18.0];
     let b = block_with(i, w, h, small);
-    let mut types = vec![];
+    let (mut types, mut heads) = (vec![], vec![]);
     if number_paint_at(s, i, w, h, &b).is_some() { types.push(line(PIECES[i].n, 32.0, b.n)); }
     types.push([32.0, b.title, 32.0 + 272.0, b.title + 48.0]);
     if narrow {
@@ -933,7 +934,7 @@ pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec
             let mut end = (at + per).min(chars.len());
             if end < chars.len() && let Some(sp) = chars[at..end].iter().rposition(|c| *c == ' ') { end = at + sp; }
             let t: String = chars[at..end].iter().collect();
-            types.push(line(t.trim_end(), 32.0, y));
+            heads.push(line(t.trim_end(), 32.0, y));
             at = end; while at < chars.len() && chars[at] == ' ' { at += 1; }
             y += 18.0;
         }
@@ -943,7 +944,6 @@ pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec
     let made = format!("{} ↗", s.locale.tr("works.made")).to_uppercase();
     let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
     let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
-    let mut heads = vec![];
     if narrow {
         // The strip's column: the recipe's line over the steps by number, 28 px each.
         let steps = adv(&format!("← {:02}", prev + 1)) + 21.0 + 8.0 + 21.0 + adv(&format!("{:02} →", next + 1));
