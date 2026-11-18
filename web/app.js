@@ -10,7 +10,7 @@
 // `started(module)` (after the module started, before its first frame), `onFrame()` (the first frame
 // is drawn), `frame()` (after every frame the loop runs), `after()` (after every handled input).
 //
-// The pictures (photographs drawn in marks) are made only for a page other than home (`pictures`).
+// The pictures (photographs drawn in marks) are made when the page first draws one (`pictures`).
 async function mount(stage, opts) {
   const root = stage.getRootNode();
   const active = () => (root.activeElement !== undefined ? root.activeElement : document.activeElement);
@@ -24,10 +24,9 @@ async function mount(stage, opts) {
   const compiled = performance.now() - t0;
   const w = wasm_bindgen;
   const [sans, pixel, mono] = (await got.fonts).map(b => new Uint8Array(b));
-  const home = r => r === '' || r === '/' || r.startsWith('/#');
   await w.start(canvas, sans, pixel, mono, dpr, opts.route || '/');
-  // After start: the pictures go to the renderer, which start makes.
-  if (!home(opts.route || '/')) w.pictures();
+  // After start: the pictures the first page draws go to the renderer, which start makes.
+  w.pictures();
   if (opts.started) opts.started(w);
   canvas.focus({ preventScroll: true });
   const now = () => performance.now() / 1000;
@@ -40,7 +39,12 @@ async function mount(stage, opts) {
   let raf = 0, timer = 0, first = true;
   const loop = () => {
     raf = 0; if (timer) { clearTimeout(timer); timer = 0; }
-    let d = w.frame(now());
+    // The tick that draws is named first: an input between frames then lays out only its own change.
+    const t = now();
+    w.framing(t);
+    let d = w.frame(t);
+    // A picture drawn for the first time is made, and the frame drawn again before it is shown.
+    if (w.pictures()) d = w.frame(t);
     // A stage route draws its specimen at the scale that fits its box: a new scale draws again.
     if (w.fit_stage && w.fit_stage()) d = 0;
     axUpdate();
@@ -190,7 +194,7 @@ async function mount(stage, opts) {
   // theme and material by name, the language by tag.
   return {
     w, compiled, kick,
-    route: h => { if (!home(h)) w.pictures(); const ok = w.route(h); after(); return ok; },
+    route: h => { const ok = w.route(h); w.pictures(); after(); return ok; },
     look: (theme, material) => { w.set_look(theme || '', material || ''); after(); },
     locale: tag => { w.set_locale(tag || ''); after(); },
     focus: () => canvas.focus({ preventScroll: true }),

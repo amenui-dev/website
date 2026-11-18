@@ -40,8 +40,18 @@ impl amenui::app::App for gallery::Gallery {
 
 /// The renderer's pictures (photographs drawn in marks), before the first frame.
 pub fn setup(r: &mut amenui::render::Renderer) { for (id, w, h, px) in demo::pictures() { r.set_picture(id, w, h, &px); } }
-/// On the web the pictures wait until a page needs them (`pictures`): home shows none, and making
-/// them is most of what starting would cost.
+/// One of the pictures, by id (`demo::pictures` makes them all): its width, height and RGBA8.
+pub fn picture(id: u32) -> Option<(u32, u32, Vec<u8>)> {
+    let f: fn(u32, u32) -> Vec<u8> = match id {
+        demo::SPHERE => demo::picture_pixels, demo::SKY => demo::sky_pixels, demo::TERRAIN => demo::terrain_pixels, demo::BUST => demo::bust_pixels,
+        demo::CUTOUT => demo::cutout_pixels, demo::DUSK => demo::dusk_pixels, demo::PLANET => demo::planet_pixels, demo::FLOWER => demo::flower_pixels,
+        _ => return None,
+    };
+    let (w, h) = *demo::PICTURE_SIZES.get(id as usize)?;
+    Some((w, h, f(w, h)))
+}
+/// On the web each picture waits until a page draws it (`pictures`): home shows none, most pages one
+/// or two, and making them all is most of what starting a page would cost.
 #[cfg(target_arch = "wasm32")]
 fn web_setup(_: &mut amenui::render::Renderer) {}
 
@@ -80,14 +90,37 @@ mod site_exports {
     use crate::showcase::scenes::body;
     use wasm_bindgen::prelude::wasm_bindgen;
 
-    /// Make the pictures, once: the page calls it before showing any page but home.
+    /// Make the pictures the page's scene draws that the renderer does not have yet, each once. The
+    /// page calls it after a route and after every frame; when it made one it returns true and the
+    /// page draws that frame again at once, whole, so no picture is ever seen blank.
     #[wasm_bindgen]
-    pub fn pictures() {
-        thread_local! { static MADE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
-        // Made once, and only once there is a renderer to take them.
-        if MADE.with(|m| m.get()) { return; }
-        if host(|s| super::setup(&mut s.r)).is_some() { MADE.with(|m| m.set(true)); }
+    pub fn pictures() -> bool {
+        thread_local! { static MADE: std::cell::RefCell<Vec<u32>> = const { std::cell::RefCell::new(Vec::new()) }; }
+        host(|s| {
+            // A frame drawn whole for a new picture has been drawn: frames draw only what changed again.
+            s.r.partial = true;
+            let mut want: Vec<u32> = s.ui.scene().instances.iter().filter(|i| i.paint[3] == amenui::scene::PICTURE).map(|i| i.extra[1] as u32).collect();
+            want.sort_unstable();
+            want.dedup();
+            MADE.with(|m| {
+                let mut m = m.borrow_mut();
+                want.retain(|id| !m.contains(id));
+                for &id in &want {
+                    if let Some((w, h, px)) = super::picture(id) { s.r.set_picture(id, w, h, &px); }
+                    m.push(id);
+                }
+            });
+            if want.is_empty() { return false; }
+            // The next frame is drawn whole: what changed in the scene is not where the new picture is.
+            s.r.partial = false;
+            s.ui.invalidate();
+            true
+        }).unwrap_or(false)
     }
+    /// The next tick is the frame's, at `t` (the page calls it just before `frame`): a tick an input
+    /// brings in between steps the clocks and leaves the laying out to that input and to the frame.
+    #[wasm_bindgen]
+    pub fn framing(t: f32) { host(|s| s.ui.state.frame_at = Some(t)); }
     /// On a stage route, draw the specimen at the scale that keeps it inside the box (the page calls
     /// it after every frame; it lays out again only when the scale changes).
     #[wasm_bindgen]

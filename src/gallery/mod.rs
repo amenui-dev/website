@@ -410,6 +410,12 @@ pub struct Gallery {
     pub thread_at: Option<(f32, f32)>,
     /// When the Loose Thread page was entered (state clock): its tangle draws on from then.
     pub thread_drawn: Option<f32>,
+    /// On the web, the time of the tick that draws the next frame (the page names it before each
+    /// frame, `framing`); a tick an input brings between frames steps the clocks without laying out,
+    /// and `owed` keeps what it changed for the frame. `None` (the native window, the tools): every
+    /// tick lays out what changed.
+    pub frame_at: Option<f32>,
+    pub owed: bool,
 }
 
 impl Default for Gallery {
@@ -425,7 +431,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
+            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, frame_at: None, owed: false, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
 }
@@ -1067,7 +1073,12 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let craft = craft::tick(s, t);
             let lab = lab::tick(s, t) | body::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
             let thread = matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t);
-            scenes::tick(s, t) || changed || burst || coast || craft || lab || thread
+            let changed = scenes::tick(s, t) || changed || burst || coast || craft || lab || thread;
+            // Every input ticks first (`app::web::Host`). Between frames that tick lays nothing out: the
+            // input's own change does, with the clocks as they are now, and the frame lays out the rest;
+            // the input finds what the last frame drew.
+            if s.frame_at.is_some_and(|f| f != t) { s.owed |= changed; return false; }
+            changed | std::mem::take(&mut s.owed)
         })
         .on_look(|s| s.look())
         .on_locale(|s| s.locale)
