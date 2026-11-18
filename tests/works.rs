@@ -203,13 +203,15 @@ fn the_phone_ruler_marks_each_band_at_its_centre() {
     assert!(!n.iter().any(|t| t.text.is_some() && t.rect[0] < 32.0 && t.key.starts_with("works/ruler")), "no hours beside the bands");
 }
 
-/// The cells of the scan window drawn on a piece's page (column, row, the cell's rect from its glyph's).
+/// The characters of the scan window drawn on a piece's page (column, row, the cell's rect), from its
+/// lines of type, one a row (a glyph stands 3 px in from its cell's left; a line's box starts 2 px above
+/// its cell).
 fn scan_cells(n: &[amenui::tree::TreeNode]) -> Vec<(usize, usize, [f32; 4])> {
     n.iter().filter_map(|t| {
-        let (a, b) = t.key.strip_prefix("work/ground-truth/scan/")?.split_once('/')?;
-        // A glyph stands 3 px in from its cell's left and 2 px above its top (its box starts above its ink).
-        Some((a.parse().ok()?, b.parse().ok()?, [t.rect[0] - 3.0, t.rect[1] + 2.0, t.rect[0] - 3.0 + 14.0, t.rect[1] + 2.0 + 14.0]))
-    }).collect()
+        let j: usize = t.key.strip_prefix("work/ground-truth/scan/row/")?.parse().ok()?;
+        let (x0, y0) = (t.rect[0] - 3.0, t.rect[1] + 2.0);
+        Some(t.text.as_deref()?.chars().enumerate().filter(|(_, c)| *c != ' ').map(move |(i, _)| (i, j, [x0 + 14.0 * i as f32, y0, x0 + 14.0 * (i + 1) as f32, y0 + 14.0])).collect::<Vec<_>>())
+    }).flatten().collect()
 }
 
 #[test]
@@ -224,8 +226,10 @@ fn the_scan_window_says_what_it_draws_and_is_a_full_grid() {
         let cells = scan_cells(&n);
         assert!(cells.iter().all(|&(i, j, _)| i < cols && j < rows), "{w}: a cell outside {cols} × {rows}");
         assert_eq!(cells.len(), cols * rows, "{w}: with no pointer every cell has its character");
-        // Every glyph is one character of the ramp.
-        assert!(n.iter().filter(|t| t.key.starts_with("work/ground-truth/scan/")).all(|t| t.text.as_deref().is_some_and(|c| c.chars().count() == 1 && ".:-=+*#".contains(c))));
+        // Every glyph is one character of the ramp, a line a row.
+        let lines: Vec<_> = n.iter().filter(|t| t.key.starts_with("work/ground-truth/scan/row/")).collect();
+        assert_eq!(lines.len(), rows, "{w}: a line a row");
+        assert!(lines.iter().all(|t| t.text.as_deref().is_some_and(|l| l.chars().count() == cols && l.chars().all(|c| ".:-=+*#".contains(c)))), "{w}");
         // To assistive technology the characters are one picture with the label's words.
         let a = ui.a11y();
         assert!(!a.iter().any(|t| t.key.starts_with("work/ground-truth/scan/")), "{w}: a cell in the accessibility mirror");
@@ -321,4 +325,19 @@ fn ground_truth_keeps_within_its_marks() {
         eprintln!("ground truth at {w}x{h}: {n} instances");
         assert!(n > 100 && n <= cap, "{w}: {n}");
     }
+}
+
+#[test]
+fn the_scan_window_at_rest_lays_nothing_out_again() {
+    // O.2 item 4: during a flight, with the window still, its characters are not laid out again (a line
+    // of type a row, its glyphs coloured by their poses).
+    let mut ui = at(Page::Work(works::GROUND_TRUTH as u8), 1440, 900);
+    let mut t = 0.0f32;
+    for _ in 0..10 { t += 1.0 / 30.0; ui.tick(t); ui.relayout(); ui.frame_drawn(); }
+    let before = ui.counters().shaped;
+    for _ in 0..60 { t += 1.0 / 30.0; ui.tick(t); ui.relayout(); ui.frame_drawn(); }
+    assert!(ui.state.works.ground.flight.is_some(), "the flight is under way");
+    assert_eq!(ui.counters().shaped, before, "paragraphs shaped during a flight");
+    let rows = nodes(&ui).iter().filter(|n| n.key.starts_with("work/ground-truth/scan/")).count();
+    assert_eq!(rows, 14, "a line a row");
 }

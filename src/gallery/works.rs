@@ -15,7 +15,7 @@
 //! ramp that follows the sky, so the mixes over the sky are the sky's.
 use super::{BAR, Gallery, Msg, NARROW, Page, Section};
 use amenui::draw::Drawing;
-use amenui::el::{El, Font, Paint, Point, Response, Role, canvas, col, picture, row, space, text};
+use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
 use amenui::style::{Look, Markr, Material, Theme};
 use std::sync::OnceLock;
@@ -196,6 +196,8 @@ const ADV: f32 = 69.0 / 9.0;
 const INK_X: f32 = 1.0;
 const INK_TOP: f32 = 5.0;
 const INK_H: f32 = 8.0;
+/// Departure Mono's advance at 11 px, without tracking.
+const MONO_ADV: f32 = 7.0;
 /// A note is drawn only when its ink box is this far inside the window, on screen (N.2 item 2).
 const INSIDE: f32 = 8.0;
 /// And never this near the title block (M.2, N.2 item 7).
@@ -1054,6 +1056,38 @@ fn scan_rect(s: &Gallery, w: f32, h: f32, z: f32, mode: Mode, view: R) -> Scan {
     (x0, y0) = (x0.round(), y0.round());
     Scan { r: (x0, y0, x0 + sw, y0 + sh), cell, n }
 }
+/// One character of the scan window: its cell, its level of the ramp, its paint.
+#[derive(Clone, Copy)]
+struct Glyph { i: usize, j: usize, n: usize, paint: Paint }
+/// The scan window's characters (O.2 item 4): worked out again only when what they depend on changes
+/// (the window's place and cells, the hole, how the picture lies, the ground the paints mix from), so a
+/// window at rest costs one comparison a frame. In each cell one character of the ramp by the cell's
+/// luminance, in the cell's colour mixed 0.62 toward the survey ink; the hole's cells are left out.
+fn scan_glyphs(sc: &Scan, hole: Option<(R, R)>, fit: &Fit, ink: &InkSpace, z: f32) -> std::rc::Rc<Vec<Glyph>> {
+    type Key = Vec<u32>;
+    thread_local! { static LAST: std::cell::RefCell<Option<(Key, std::rc::Rc<Vec<Glyph>>)>> = const { std::cell::RefCell::new(None) }; }
+    let (b, p) = hole.unwrap_or_default();
+    let key: Key = [sc.r.0, sc.r.1, sc.r.2, sc.r.3, sc.cell, sc.n.0 as f32, sc.n.1 as f32, hole.is_some() as u8 as f32, b.0, b.1, b.2, b.3, p.0, p.1, p.2, p.3, fit.s, fit.ox, fit.oy, z, ink.h]
+        .into_iter().chain(ink.top).chain(ink.bottom).chain(ink.ink).chain(ink.hues.into_iter().flatten()).map(f32::to_bits).collect();
+    if let Some(v) = LAST.with_borrow(|l| l.as_ref().filter(|l| l.0 == key).map(|l| l.1.clone())) { return v; }
+    let (x0, y0) = (sc.r.0, sc.r.1);
+    let mut v = Vec::with_capacity(sc.n.0 * sc.n.1);
+    for j in 0..sc.n.1 {
+        for i in 0..sc.n.0 {
+            let (cx, cy) = (x0 + i as f32 * sc.cell, y0 + j as f32 * sc.cell);
+            let cr = (cx, cy, cx + sc.cell, cy + sc.cell);
+            if hole.is_some_and(|(b, p)| meets(b, cr) || meets(p, cr)) { continue; }
+            let (qa, qb) = fit.to_picture(cx, cy);
+            let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
+            let c = mean_at(qa, qb, qc, qd);
+            let paint = ink.paint(mix3(c, SURVEY, 0.62), (cy + sc.cell * 0.5) * z);
+            v.push(Glyph { i, j, n: level(lum(c)), paint });
+        }
+    }
+    let v = std::rc::Rc::new(v);
+    LAST.with_borrow_mut(|l| *l = Some((key, v.clone())));
+    v
+}
 /// The pointer's box and its label's plate, the two parts of the scan window's hole (N.4 (2)).
 fn pointer_hole(s: &Gallery, z: f32) -> Option<(R, R, String)> {
     let g = &s.works.ground;
@@ -1240,20 +1274,27 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
         d.line((bx, by), (bx + 10.0 * ax / z, by), lw, INK_FULL);
         d.line((bx, by), (bx, by + 10.0 * ay / z), lw, INK_FULL);
     }
+    // A row of cells is one line of type, its characters set a cell apart by their tracking, each in its
+    // cell's paint by its pose: a few lines to lay out, and none again while their characters stay.
     let mut cells = col().key(k(slug, "scan")).width(w).height(h).pass(true);
+    let glyphs = scan_glyphs(&sc, hole.as_ref().map(|(b, p, _)| (*b, *p)), fit, &ink, z);
+    let (gx, gy) = (((CELL - ADV) * 0.5).round() / z, ((CELL - INK_H) * 0.5).round() / z - if z < 1.0 { 1.0 } else { INK_TOP } / z);
     for j in 0..sc.n.1 {
-        for i in 0..sc.n.0 {
-            let (cx, cy) = (x0 + i as f32 * sc.cell, y0 + j as f32 * sc.cell);
-            let cr = (cx, cy, cx + sc.cell, cy + sc.cell);
-            if hole.as_ref().is_some_and(|(b, p, _)| meets(*b, cr) || meets(*p, cr)) { continue; }
-            let (qa, qb) = fit.to_picture(cx, cy);
-            let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
-            let col_ = mean_at(qa, qb, qc, qd);
-            let n = level(lum(col_));
-            let paint = ink.paint(mix3(col_, SURVEY, 0.62), (cy + sc.cell * 0.5) * z);
-            let (tx, ty) = (cx + ((CELL - ADV) * 0.5).round() / z, cy + ((CELL - INK_H) * 0.5).round() / z - if z < 1.0 { 1.0 } else { INK_TOP } / z);
-            cells = cells.child(at(mono(RAMP[n].to_string(), paint).key(k(slug, &format!("scan/{i}/{j}"))).recompose(false).pass(true), tx, ty));
-        }
+        let row: Vec<&Glyph> = glyphs.iter().filter(|g| g.j == j).collect();
+        if row.is_empty() { continue; }
+        let mut line = vec![' '; sc.n.0];
+        let mut paints = vec![Paint::INK; sc.n.0];
+        for g in &row { line[g.i] = RAMP[g.n]; paints[g.i] = g.paint; }
+        let line: String = line.into_iter().collect();
+        let (pitch, left) = (sc.cell * z, x0 + gx);
+        let t = text(line, 11.0, Paint { tone: 1.0, accent: 0.0, alpha: 1.0, hue: 0 }).font(Font::Face(amenui::text::MONO)).tracking((pitch - MONO_ADV) / 11.0)
+            .pose(move |q| {
+                // Each glyph by its column: its cell's paint, and on its cell's pixel column.
+                let c = ((q.x - MONO_ADV * 0.5) / pitch).round().clamp(0.0, paints.len() as f32 - 1.0) as usize;
+                let p = paints[c];
+                Pose { tone: p.tone, accent: p.accent, alpha: p.alpha, hue: p.hue as f32, ..Pose::default() }
+            });
+        cells = cells.child(at(t.key(k(slug, &format!("scan/row/{j}"))).nowrap().recompose(false).pass(true), left, y0 + j as f32 * sc.cell + gy));
     }
     // The characters are one picture to assistive technology, named as the label names it, not a
     // few hundred lines of punctuation.
