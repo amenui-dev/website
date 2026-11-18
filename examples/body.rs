@@ -85,11 +85,6 @@ pub const SPEC_MATERIALS: [(&str, amenui::style::Material); 4] = {
 /// the material state 03 rests in, and how long after the card loosens (or closes) its material is
 /// committed when a state is chosen on the rail (s).
 pub const SPEC_LOOSE: f32 = 0.6;
-/// The labels on the card's shapes in state 03 (the button's, the segmented control's): drawn tight,
-/// on a plate of the ground colour this much larger than the label's ink box (px: left and right, above
-/// and below), and the selected segment's dots stop this far short of its label's ink box.
-pub const PLATE: (f32, f32) = (6.0, 3.0);
-pub const SEGMENT_GAP: f32 = 4.0;
 pub const REST_MATERIAL: usize = 2;
 pub const SECOND_PRESS: f32 = 0.2;
 /// The morphs' cells: at most this many (desktop, phone; the framework widens the cells past it), each
@@ -261,37 +256,31 @@ pub struct Body {
 /// The height of a label's ink box (px at the widgets' label size): its text's line set to it, so the
 /// element is the ink and what is built round it is measured from the ink.
 const INK: f32 = 11.0;
-/// A label's text with its line set to its ink box (`INK`), in `paint` when given, drawn in plain
-/// whatever the card's material: the same pixels as in state 02.
-fn inked<M>(mut e: El<M>, paint: Option<Paint>) -> El<M> {
-    if let amenui::el::Content::Text { line, paint: p, .. } = &mut e.content { *line = INK; if let Some(q) = paint { *p = q; } }
+/// A label's text with its line set to its ink box (`INK`), drawn in plain whatever the card's
+/// material: the same pixels as in state 02.
+fn inked<M>(mut e: El<M>) -> El<M> {
+    if let amenui::el::Content::Text { line, .. } = &mut e.content { *line = INK; }
     e.material(amenui::style::Material::Plain.id())
 }
-/// A control's fill held loose by `k` round its label, drawn tight (in `paint` when given): the fill
-/// becomes four bands that stop `gap` (px: left and right, above and below) short of the label's ink
-/// box, in the control's `pad` (px each side of the label). Whatever is drawn over a loose shape is as
-/// loose as it, so a label stays tight only where no loose shape is under it.
-fn ringed<M>(mut c: El<M>, pad: f32, gap: (f32, f32), k: f32, paint: Option<Paint>) -> El<M> {
-    use amenui::el::{col, row, space};
-    let Some(fill) = c.fill.take() else { return c };
-    let band = || col().fill(fill).loose(k).grow(1.0);
-    let side = || row().fill(fill).loose(k).width(pad - gap.0).fill_height();
-    let label = std::mem::take(&mut c.children).into_iter().map(|t| inked(t, paint));
-    let mid = row().height(INK + 2.0 * gap.1).align(taffy::AlignItems::CENTER).child(side()).child(space(gap.0, 0.0)).children(label).child(space(gap.0, 0.0)).child(side());
-    c.pad(0.0, 0.0).child(col().fill_height().child(band()).child(mid).child(band()))
-}
 /// A segmented control with `pad` px each side of every segment's label, held loose by `k` with its
-/// labels drawn tight: its frame takes `k` as its own looseness, and the selected segment's fill
-/// becomes bands round its label (`ringed`) that stop `SEGMENT_GAP` short of its ink box.
+/// labels drawn tight: its frame and the selected segment's fill take `k` as their own looseness; the
+/// framework holds the looseness under and round each label (text to read holds what is under it).
 fn tight_labels<M>(mut c: El<M>, pad: f32, k: f32) -> El<M> {
     c.children = std::mem::take(&mut c.children).into_iter().map(|seg| seg.pad(pad, 0.0)).collect();
     if k <= 0.0 { return c; }
     c.loose = k;
     c.children = std::mem::take(&mut c.children).into_iter().map(|mut seg| {
-        if seg.fill.is_some() { return ringed(seg, pad, (SEGMENT_GAP, SEGMENT_GAP), k, None); }
-        seg.children = std::mem::take(&mut seg.children).into_iter().map(|t| inked(t, None)).collect();
+        if seg.fill.is_some() { seg.loose = k; }
+        seg.children = std::mem::take(&mut seg.children).into_iter().map(inked).collect();
         seg
     }).collect();
+    c
+}
+/// A control's fill held loose by `k` round its label, drawn tight in its own colour: the framework
+/// holds the looseness under and round the label.
+fn tight_label<M>(mut c: El<M>, k: f32) -> El<M> {
+    c.loose = k;
+    c.children = std::mem::take(&mut c.children).into_iter().map(inked).collect();
     c
 }
 /// A press on the body: where (window px), the turn then, and the point under it (body space) with its
@@ -1283,8 +1272,8 @@ impl Body {
         let material = row().key(k("row-Material")).fill_width().align(taffy::AlignItems::CENTER).child(label("Material").loosen(hold(SPEC_LOOSE))).child(choice);
         let mut button = amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4));
         // Held loose, the fill as loose as the card's other shapes, round the label drawn tight in the
-        // accent colour on the ground: the fill stops `PLATE` short of its ink box.
-        if sp.loosen { button = ringed(button, 14.0, PLATE, SPEC_LOOSE, Some(Paint::ACCENT)); }
+        // button's own label colour.
+        if sp.loosen { button = tight_label(button, SPEC_LOOSE); }
         // Each part holds its own looseness (a subtree is never less loose than its parent): the frame
         // and the rows at `SPEC_LOOSE`; the segmented control's shapes and the button's fill take it as
         // their own, under labels drawn tight.
