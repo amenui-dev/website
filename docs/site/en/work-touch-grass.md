@@ -1,6 +1,6 @@
 # touch grass
 
-W-01 in Works, at noon (12:00). A straw field seen from standing height, side on, flat to a level horizon under a pale sky with one thin high cloud. On the horizon a mast carries an orange windsock and a note: the wind, and how long until the next gust. The field is about 2,640 stalks in 15 rows; the far rows are ticks, the near ones are taller than the title, and the stalks in the nearer half carry a head that is a glyph from `' " ; : ! i l ,`. Wind comes as gusts with stillness between them. A gust is a band that crosses the field from left to right, the near rows behind the far ones, so the band runs diagonally; inside it the stalks lean and show their pale side, and behind it they sway back through upright once. Every fourth gust is strong. The pointer walks through the field: the stalks near where it has been lie down away from it and take 6 seconds to stand up again, the far end of the path first.
+W-01 in Works, at noon (12:00). A straw field seen from standing height, side on, flat to a level horizon under a pale sky with one thin high cloud. On the horizon a mast carries an orange windsock and a note: the wind, and how long until the next gust. The field is 2,634 stalks in 15 rows at 1440 × 900 (734 on a phone); the far rows are ticks, the near ones are taller than the title, and the stalks in the nearer half carry a head that is a glyph from `' " ; : ! i l ,`. Wind comes as gusts with stillness between them. A gust is a band that crosses the field from left to right, the near rows behind the far ones, so the band runs diagonally; inside it the stalks lean and show their pale side, and behind it they sway back through upright once. Every fourth gust is strong. The pointer walks through the field: the stalks near where it has been lie down away from it and take 6 seconds to stand up again, the far end of the path first.
 
 ## How it is made
 
@@ -27,6 +27,6 @@ Measured at 1440 × 900 and 2× in headless Chrome on SwiftShader, a software re
 
 Natively a frame during a gust takes 0.7 ms of CPU, and a pointer event 2.9 ms (a layout every other event).
 
-In its first minute at rest the piece draws about 1,120 frames: 30 a second while a gust crosses, about 10 seconds each, and one a second between. A frame holds 23,741 instances at 1440 × 900 and 6,857 at 390 × 844; when frames are slow the drawing is thinned evenly.
+The piece opens with its first gust already a third of the way across, so its first minute at rest draws about 1,120 frames: 164 in the first 5.5 seconds as that gust finishes, then 30 a second during each crossing of about 10 seconds and one a second between. A frame holds 23,741 instances at 1440 × 900 and 6,857 at 390 × 844; when frames are slow the drawing is thinned evenly.
 
 The code is `src/gallery/touch.rs` in the website repository. The field map is described in [Ripples](#docs-ripples).
