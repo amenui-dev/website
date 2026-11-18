@@ -208,8 +208,10 @@ pub fn reader(s: &Gallery) -> El<Msg> {
     frame(s, "reader", body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
 }
 /// The first example of a component's recipe, as a preview.
-pub fn first_example(name: &str) -> Option<El<Msg>> {
-    amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| e.map(std::rc::Rc::new(|_| Msg::Nothing)))
+pub fn first_example(name: &str) -> Option<El<Msg>> { example(name, 0) }
+/// A component's example `i`, as a still of the page draws it.
+pub fn example(name: &str, i: usize) -> Option<El<Msg>> {
+    amenui::recipes::components::examples(example_name(name)).into_iter().nth(i).map(|e| e.map(std::rc::Rc::new(|_| Msg::Nothing)))
 }
 /// A link target as a message: `#hash` goes to that page.
 pub(super) fn link(t: &str) -> Msg {

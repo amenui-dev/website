@@ -35,7 +35,7 @@ pub use scenes::{SCENES, SMsg, Scenes};
 pub use routes::Section;
 /// The component indices in `COMPONENTS`.
 pub mod comp { pub use super::pages::{BUTTON, CARD, CHOICE, DIALOG, DIVIDER, IMAGE, INPUT, LIST, NUMBER, SCROLL, SLIDER, SWITCH, TABS}; }
-pub use pages::{COMPONENTS, Comp, FLOW_PARAMS, MORPH_NAMES, MORPH_PARAMS, ParamDef, flow_slot, morph_slot};
+pub use pages::{COMPONENTS, Comp, FLOW_PARAMS, MORPH_NAMES, MORPH_PARAMS, ParamDef, flow_slot, hold_still, morph_slot};
 
 /// Below this width (logical px) the rail becomes a row of tabs under the top bar.
 pub const NARROW: f32 = 720.0;
@@ -870,12 +870,14 @@ fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
 
 /// For a stage's still, the specimens that are closed at rest in the state that shows them: the context
 /// menu open at its anchor and the sheet at its resting detent, as the index draws them, and the skip
-/// link as itself (the still's script focuses it, web/build.py).
+/// link as itself (the still's script focuses it, web/build.py); and the checkbox checked, its example
+/// that shows most ink (S.2 item 8; the switch, the slider: `pages::hold_still`).
 fn still_specimen(s: &Gallery, n: &str) -> Option<El<Msg>> {
     if !s.still { return None; }
     let k = format!("stage/{}/w", s.page.hash());
     match n {
         "context_menu" | "sheet" => index::widget_preview(n, &k),
+        "checkbox" => docs::example(n, 1),
         "skip-link" | "skip_link" => Some(col().key(format!("{k}/box")).width(160.0).height(48.0)
             .child(amenui::widgets::skip_link(&k, &amenui::i18n::tr("shell.skip"), &format!("stage/{}", s.page.hash())))),
         _ => None,

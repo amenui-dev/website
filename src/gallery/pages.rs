@@ -468,6 +468,13 @@ fn number_spec(s: &Gallery) -> Spec {
     let (lo, hi) = (pr(0).min(pr(1)), pr(0).max(pr(1)));
     Spec { min: lo, max: hi, step: pr(2).max(0.01), decimals: pr(3) as usize, unit: "" }
 }
+/// A component's stage drawn for its still (`<path>#still`) in the state that shows most ink (S.2 item
+/// 8): the switch on, the slider at 60 % of its range.
+pub fn hold_still(s: &mut Gallery) {
+    let spec = slider_spec(s);
+    s.on = true;
+    s.level = spec.min + 0.6 * (spec.max - spec.min);
+}
 fn slider_spec(s: &Gallery) -> Spec {
     let pr = |i| s.param(SLIDER, i);
     let (lo, hi) = (pr(0).min(pr(1)), pr(0).max(pr(1)).max(pr(0).min(pr(1)) + pr(2)));
