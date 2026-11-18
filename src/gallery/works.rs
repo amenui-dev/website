@@ -897,8 +897,12 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1);
     let small = mono(micro(s, i), dim(i)).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
     let b = block(s, i, w, h);
+    // On W-01 the type refuses the field map and the gusts' fronts (S.2 item 7): the gust bends the
+    // stalks behind it and never moves a line of type. (The callout refuses them as a whole, `touch`.)
+    let (strip, title, small) = if i == TOUCH_GRASS { (strip.respond(Response::Ignore), title.respond(Response::Ignore), small.respond(Response::Ignore)) } else { (strip, title, small) };
+    let number = |paint: Paint| { let n = mono(p.n, paint).key(k(p.slug, "n")); if i == TOUCH_GRASS { n.respond(Response::Ignore) } else { n } };
     // The number where it reads; where it does not, nothing in its place and nothing else moves.
-    let root = match number_paint(s, i, w, h) { Some(paint) => root.child(at(mono(p.n, paint).key(k(p.slug, "n")), 32.0, b.n)), None => root };
+    let root = match number_paint(s, i, w, h) { Some(paint) => root.child(at(number(paint), 32.0, b.n)), None => root };
     if narrow {
         // On a phone, from the foot up: the strip's two lines (the recipe, then the steps by number),
         // the small line wrapped to the width, the title, the number. Every place is a whole pixel: type
