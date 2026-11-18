@@ -542,11 +542,13 @@ pub fn look(s: &Gallery, l: &mut Look) {
     }
 }
 
-/// The index → piece change and back: until the framework's Flow grows the window (N.3 item 1), a
-/// 120 ms opacity change, not a cut.
+/// The index → piece change and back (O.3 item 1): the window grows into the piece in 420 ms on the
+/// framework's cubic, held tight (`flow_loose` 0), the notes riding it whole; the index's other windows
+/// and the live window's frame and line leave by opacity in 180 ms, and what the new page adds comes
+/// in over 150 ms.
 pub fn flow(_s: &Gallery, from: Page, to: Page) -> Option<FlowSpec> {
     match (from, to) {
-        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 120.0, fade_ms: 120.0 }),
+        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 420.0, flow_loose: 0.0, out_ms: 180.0, fade_ms: 150.0 }),
         _ => None,
     }
 }

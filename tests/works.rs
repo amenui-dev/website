@@ -127,8 +127,8 @@ fn with_reduced_motion_ground_truth_holds_its_rest_pose() {
 }
 
 #[test]
-fn a_window_of_the_index_becomes_its_piece_by_a_change_of_opacity() {
-    // Until the framework's flow grows the window (N.3 item 1): 120 ms of opacity, not a cut.
+fn a_window_of_the_index_grows_into_its_piece() {
+    // O.3 item 1: a Flow of 420 ms, held tight, the leaving windows out in 180 ms.
     let mut ui = gallery::new_ui(fonts(), 1440, 824, 1.0);
     ui.pointer_leave();
     assert!(ui.state.route("works/"));
@@ -137,7 +137,7 @@ fn a_window_of_the_index_becomes_its_piece_by_a_change_of_opacity() {
     assert!(ui.state.route("works/ground-truth/"));
     let cmds = ui.state.cmds.clone();
     ui.relayout();
-    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 0.0 && f.out_ms == 120.0), "{cmds:?}");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 420.0 && f.flow_loose == 0.0 && f.out_ms == 180.0 && f.fade_ms == 150.0), "{cmds:?}");
 }
 
 fn walk<'a>(t: &'a amenui::tree::TreeNode, out: &mut Vec<&'a amenui::tree::TreeNode>) { out.push(t); for c in &t.children { walk(c, out); } }
