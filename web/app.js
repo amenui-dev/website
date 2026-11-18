@@ -236,7 +236,13 @@ async function mount(stage, opts) {
   // Reduced motion: the Lab's living pieces and the home page's idle turn rest.
   const rm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   if (rm) { w.set_reduced_motion(rm.matches); if (rm.addEventListener) rm.addEventListener('change', e => { w.set_reduced_motion(e.matches); kick(); }); }
-  new ResizeObserver(() => { fit(); w.resize(canvas.width, canvas.height, dpr); if (opts.onResize) opts.onResize(); kick(); }).observe(stage);
+  // A new size clears the canvas, and the observer runs after this refresh's animation frame and before
+  // its paint: the frame is drawn again here, at the new size, so no refresh shows an empty canvas.
+  new ResizeObserver(() => {
+    fit(); w.resize(canvas.width, canvas.height, dpr); if (opts.onResize) opts.onResize();
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    loop();
+  }).observe(stage);
   kick();
   // What a host can change from outside: the page (a path, a hash name or a look:v3: recipe), the
   // theme and material by name, the language by tag.
