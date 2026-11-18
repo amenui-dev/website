@@ -200,6 +200,8 @@ const INK_H: f32 = 8.0;
 const INSIDE: f32 = 8.0;
 /// And never this near the title block (M.2, N.2 item 7).
 const CLEAR: f32 = 24.0;
+/// How far outside the scan window a line it crosses is cut (O.2 item 6).
+const CUT: f32 = 8.0;
 /// How far the scan window's corner marks stand outside it.
 const BRACKET: f32 = 6.0;
 
@@ -757,6 +759,17 @@ fn at<M>(e: El<M>, x: f32, y: f32) -> El<M> { e.absolute(Some(x), Some(y), None,
 fn at_right<M>(e: El<M>, right: f32, y: f32) -> El<M> { e.absolute(None, Some(y), Some(right), None) }
 fn k(slug: &str, part: &str) -> String { format!("work/{slug}/{part}") }
 
+/// What of the section is English in every language (O.4 (10)): what is inside a picture, that is the
+/// picture's layer, the titles under the windows and in the title block, the heading `works` and the
+/// index's live line. The bar, the lead, the keys line, `how this is made ↗`, the status line and the
+/// console follow the locale.
+pub fn english(k: &str) -> bool {
+    let k = k.strip_prefix("works/window/").unwrap_or(k);
+    k == "works/title"
+        || k.starts_with("work/") && (k.ends_with("/layer") || k.ends_with("/title"))
+        || k.starts_with("works/w") && (k.ends_with("/title") || k.ends_with("/live"))
+}
+
 pub fn page(s: &Gallery) -> El<Msg> {
     match s.page { Page::Work(i) => piece_page(s, i as usize), _ if s.width < NARROW => index_phone(s), _ => index(s) }
 }
@@ -1070,9 +1083,14 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let m = INSIDE / z;
     let mut hidden = vec![];
     if mode == Mode::Page { hidden.push(grow(title_box(s, GROUND_TRUTH, w, h), CLEAR)); }
+    // The scan window hides the notes it meets with its corner marks, and cuts a line 8 px outside its
+    // rect (O.2 item 6).
+    let (mut cut, mut line_hidden) = (None, hidden.clone());
     if matches!(mode, Mode::Page | Mode::Live) {
-        hidden.push(grow(scan_rect(s, w, h, z, mode, view).r, BRACKET / z));
-        if let Some((_, plate, _)) = pointer_hole(s, z) { hidden.push(plate); }
+        let r = scan_rect(s, w, h, z, mode, view).r;
+        cut = Some(grow(r, CUT / z));
+        hidden.push(grow(r, BRACKET / z));
+        if let Some((_, plate, _)) = pointer_hole(s, z) { hidden.push(plate); line_hidden.push(plate); }
     }
     let mut notes = Notes { inside: (view.0 + m, view.1 + m, view.2 - m, view.3 - m), hidden, labels: vec![], inks: vec![] };
     let mut d = Drawing::new(w, h);
@@ -1144,23 +1162,42 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
             }
         }
     }
-    // The level line at the sun's height, as built, across the window inside its margins.
+    // The level line at the sun's height, as built, across the window inside its margins, and its label
+    // over its right end.
     let (_, yl) = fit.at(0.0, SUN.1 as f32);
     let yl = px(yl, z);
     let (xa, xb) = ((32.0f32).max(view.0 + m), (w - 32.0).min(view.2 - m));
-    let mut x = 32.0;
-    while x < w - 32.0 {
-        let (a, b) = (x.max(xa), (x + 6.0).min(xb));
-        // A dash is a note too: none under the scan window, its label's plate or by the title block.
-        if b > a && !notes.hidden.iter().any(|&r| meets(r, (a, yl - 0.5, b, yl + 0.5))) { d.line((a, yl), (b, yl), lw, HORIZON_INK); }
-        x += 14.0;
-    }
+    let mut horizon = None;
     if !band {
         let t = "HORIZON 0.0°";
         let lx = (w - 32.0).min(view.2 - m) - (t.chars().count() as f32 * ADV) / z;
         let ly = yl - 16.0 / z;
-        if notes.keep(label_ink(t, lx, ly, z), None) { notes.labels.push(label_ink(t, lx, ly, z)); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); }
+        let li = label_ink(t, lx, ly, z);
+        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); horizon = Some(li); }
     }
+    // The dashes: none by the title block or under the pointer's plate, and the scan window cuts the line
+    // 8 px outside its rect.
+    let cut = cut.filter(|c| c.1 < yl + 0.5 && yl - 0.5 < c.3);
+    let mut dashes: Vec<(f32, f32)> = vec![];
+    let mut x = 32.0;
+    while x < w - 32.0 {
+        let (a, b) = (x.max(xa), (x + 6.0).min(xb));
+        x += 14.0;
+        if b <= a || line_hidden.iter().any(|&r| meets(r, (a, yl - 0.5, b, yl + 0.5))) { continue; }
+        match cut {
+            Some(c) if a < c.2 && c.0 < b => {
+                if a < c.0 { dashes.push((a, c.0)); }
+                if c.2 < b { dashes.push((c.2, b)); }
+            }
+            _ => dashes.push((a, b)),
+        }
+    }
+    // A run of fewer than three dashes left between the window and a label is not drawn.
+    if let (Some(c), Some(l)) = (cut, horizon) {
+        let between = |&(a, b): &(f32, f32)| if l.0 >= c.2 { a >= c.2 && a < l.0 } else if l.2 <= c.0 { b <= c.0 && b > l.2 } else { false };
+        if dashes.iter().filter(|d| between(d)).count() < 3 { dashes.retain(|d| !between(d)); }
+    }
+    for (a, b) in dashes { d.line((a, yl), (b, yl), lw, HORIZON_INK); }
     // Spot heights on true summits of the drawn profiles (a phone's band: the first that fits).
     let mut heights = 0;
     for (n, (x0, r, t, up)) in [(700.0, 1, "▲ 1,204", 52.0), (206.0, 0, "▲ 1,731", 40.0), (1236.0, 2, "▲ 986", 64.0)].into_iter().enumerate() {
@@ -1269,7 +1306,7 @@ fn index(s: &Gallery) -> El<Msg> {
     let mut root = col().key("works/index").width(w).height(s.height).clip()
         .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, y(98.0)))
         .child(at(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead"), 32.0, y(150.0)))
-        .child(at_right(mono("← →  MOVE     ENTER  OPEN     F2  CONSOLE", Paint::DIM).key("works/keys"), 32.0, y(150.0)));
+        .child(at_right(mono(amenui::i18n::tr("works.keys"), Paint::DIM).key("works/keys"), 32.0, y(150.0)));
     let mut x: f32 = 32.0;
     for (i, p) in PIECES.iter().enumerate() {
         let ww = widths[i];

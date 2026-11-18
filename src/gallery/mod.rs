@@ -763,7 +763,8 @@ pub fn view(s: &Gallery) -> El<Msg> {
         // written except a component's previews and example boxes.
         _ => english::demos(e, Rc::new(|k| {
             // (A component's preview column holds the preview and its parameters; its tabs are chrome.)
-            if k.starts_with("page/") || k.ends_with("/preview-col") { english::Part::Page }
+            if works::english(k) { english::Part::Demo }
+            else if k.starts_with("page/") || k.ends_with("/preview-col") { english::Part::Page }
             // A page's title and its description (`button/title`) are the page's name, in its language.
             else if (k.ends_with("/title") || k.ends_with("/desc")) && k.matches('/').count() == 1 { english::Part::Chrome }
             else if k.starts_with("doc/") { if k.ends_with("/preview") || k.ends_with("/box") || k.ends_with("/source") { english::Part::Demo } else { english::Part::Chrome } }

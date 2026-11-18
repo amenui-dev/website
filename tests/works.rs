@@ -64,6 +64,42 @@ fn cjk(t: &amenui::tree::TreeNode, out: &mut Vec<String>) {
     for c in &t.children { cjk(c, out); }
 }
 
+fn han(t: &amenui::tree::TreeNode) -> bool { t.text.as_deref().is_some_and(|s| s.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c))) }
+
+#[test]
+fn the_chrome_of_works_follows_the_locale() {
+    // O.2 item 5: in zh-Hans the lead, the keys line and `制作方法 ↗` hold Han characters; the
+    // picture's layer, the titles and the live line hold none.
+    for (w, h) in [(1440, 824), (390, 768)] {
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        gallery::update(&mut ui.state, Msg::Locale(amenui::i18n::Locale::ZhHans));
+        gallery::update(&mut ui.state, Msg::Go(Page::Works));
+        if w > 720 { gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(works::GROUND_TRUTH, Some((900.0, 400.0))))); }
+        ui.relayout();
+        let n = nodes(&ui);
+        let find = |k: &str| n.iter().find(|t| t.key == k).unwrap_or_else(|| panic!("{w}: {k}"));
+        assert!(han(find("works/lead")), "{w}: the lead");
+        if w > 720 {
+            assert!(han(find("works/keys")), "{w}: the keys line");
+            let live = find(&format!("works/w{}/live", works::GROUND_TRUTH));
+            assert!(!han(live), "{w}: {:?}", live.text);
+        }
+        assert!(!han(find("works/title")));
+        for t in n.iter().filter(|t| t.key.contains("/title") && t.key.starts_with("works/w") || t.key.contains("work/ground-truth/")) { assert!(!han(t), "{w}: {} {:?}", t.key, t.text); }
+    }
+    for (w, h) in [(1440, 900), (390, 844)] {
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        gallery::update(&mut ui.state, Msg::Locale(amenui::i18n::Locale::ZhHans));
+        gallery::update(&mut ui.state, Msg::Go(Page::Work(works::GROUND_TRUTH as u8)));
+        ui.relayout();
+        let n = nodes(&ui);
+        let made = n.iter().find(|t| t.key.starts_with("work/ground-truth/made") && t.text.is_some()).expect("made");
+        assert!(han(made), "{w}: {:?}", made.text);
+        assert_eq!(made.text.as_deref(), Some("制作方法 ↗"));
+        for t in n.iter().filter(|t| t.key == "work/ground-truth/title" || t.key.starts_with("work/ground-truth/layer") || t.key.starts_with("work/ground-truth/bird")) { assert!(!han(t), "{w}: {}", t.key); }
+    }
+}
+
 #[test]
 fn what_is_inside_a_piece_is_english_in_chinese_too() {
     let mut ui = gallery::new_ui(fonts(), 1440, 900, 1.0);

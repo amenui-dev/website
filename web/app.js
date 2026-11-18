@@ -311,7 +311,7 @@ function site() {
   const keepStatus = () => {
     if (!api || !running) return;
     keepReadout();
-    if (resting) { A.line('resting · move to wake'); return; }
+    if (resting) { A.line(A.t.rest); return; }
     // The rate is there only while frames are being drawn; a field with nothing to report is left out.
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;

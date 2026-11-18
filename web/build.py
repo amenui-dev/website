@@ -281,7 +281,7 @@ def page(lang, path, title, section, tone='', foot=''):
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
     files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
-    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'copied': t('web.copied'), 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
+    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root can
     # receive them here.
     redirect = ''
