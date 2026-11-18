@@ -288,13 +288,17 @@ fn the_flight_flies_above_the_cloud_and_no_bird_is_left_out() {
 fn the_cloud_label_and_the_number_read() {
     // O.2 item 3: the cloud's label at 4.5 : 1 or more at both sizes; the title block's number in the
     // accent only where the accent measures 4.5 : 1 against the median under it.
-    for (w, h, accent) in [(1440, 900, true), (390, 844, false)] {
+    // P.2 item 1: else in the foot's ink where that reads, else not drawn. W-03: accent at 1440, absent
+    // at 390.
+    for (w, h, accent, shown) in [(1440, 900, true, true), (390, 844, false, false)] {
         let ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
         let d = works::drawn(&ui.state);
         assert!(d.cloud_contrast >= 4.5, "{w}: the cloud's label at {:.2}", d.cloud_contrast);
-        let c = works::number_contrast(&ui.state, works::GROUND_TRUTH, w as f32, h as f32);
+        let (c, ink) = works::number_contrast(&ui.state, works::GROUND_TRUTH, w as f32, h as f32);
         assert_eq!(c >= 4.5, accent, "{w}: the accent at {c:.2}");
-        eprintln!("{w}: cloud label {:.2}, number's accent {c:.2}", d.cloud_contrast);
+        assert_eq!(c >= 4.5 || ink >= 4.5, shown, "{w}: the foot's ink at {ink:.2}");
+        assert_eq!(nodes(&ui).iter().any(|t| t.key == "work/ground-truth/n"), shown, "{w}: the number drawn");
+        eprintln!("{w}: cloud label {:.2}, number's accent {c:.2}, ink {ink:.2}", d.cloud_contrast);
     }
 }
 
@@ -302,7 +306,7 @@ fn the_cloud_label_and_the_number_read() {
 fn on_a_phone_nothing_of_ground_truth_comes_near_its_title_block() {
     let ui = at(Page::Work(works::GROUND_TRUTH as u8), 390, 844);
     let n = nodes(&ui);
-    let block = ["n", "title", "micro"].iter().map(|p| n.iter().find(|t| t.key == format!("work/ground-truth/{p}")).expect("block").rect)
+    let block = ["n", "title", "micro"].iter().filter_map(|p| n.iter().find(|t| t.key == format!("work/ground-truth/{p}")).map(|t| t.rect))
         .fold([f32::MAX, f32::MAX, f32::MIN, f32::MIN], |a, r| [a[0].min(r[0]), a[1].min(r[1]), a[2].max(r[0] + r[2]), a[3].max(r[1] + r[3])]);
     let near = [block[0] - 24.0, block[1] + 5.0 - 24.0, block[2] + 24.0, block[3] + 24.0];
     for t in n.iter().filter(|t| t.text.is_some() && t.key.starts_with("work/ground-truth/") && !["n", "title", "micro", "made", "prev", "next", "steps", "strip"].iter().any(|p| t.key.starts_with(&format!("work/ground-truth/{p}")))) {

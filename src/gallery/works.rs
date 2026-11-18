@@ -662,6 +662,17 @@ fn mean_at(x0: f32, y0: f32, x1: f32, y1: f32) -> [f32; 3] {
     c
 }
 fn mean_lum(x0: f32, y0: f32, x1: f32, y1: f32) -> f32 { lum(mean_at(x0, y0, x1, y1)) }
+/// A cell of W-03's picture: its mean colour, from a 4 × 4 grid of samples, and its median luminance,
+/// from an 8 × 8 grid (about a sample a pixel of the picture: a cell across a ridge's edge has its
+/// median where its pixels have it).
+fn cell_at(x0: f32, y0: f32, x1: f32, y1: f32) -> ([f32; 3], f32) {
+    let mut ls = [0.0f32; 64];
+    for (n, l) in ls.iter_mut().enumerate() {
+        *l = lum(picture_at(x0 + (x1 - x0) * ((n % 8) as f32 + 0.5) / 8.0, y0 + (y1 - y0) * ((n / 8) as f32 + 0.5) / 8.0));
+    }
+    ls.sort_by(f32::total_cmp);
+    (mean_at(x0, y0, x1, y1), (ls[31] + ls[32]) * 0.5)
+}
 /// Piece picture `id`, RGBA8.
 pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = picture_size(id)?;
@@ -797,21 +808,24 @@ fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block {
         Block { n: h - 132.0, title: h - 104.0, small: h - 56.0, lines: 1.0 }
     }
 }
-/// The title block's box on a piece's page (x0, y0, x1, y1): from the number's ink to the small line's.
+/// Where the title's ink starts below its box's top (the serif at 30 px, measured on renders).
+const TITLE_INK_TOP: f32 = 12.0;
+/// The title block's box on a piece's page (x0, y0, x1, y1): from the number's ink to the small line's;
+/// from the title's ink where the number is not drawn (P.2 item 1).
 fn title_box(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32, f32, f32) {
     let b = block(s, i, w, h);
     let small_w = if w < NARROW { w - 64.0 } else { micro(s, i).chars().count() as f32 * ADV };
     let title_w = PIECES[i].title.chars().count() as f32 * 30.0 * 0.8;
-    (32.0, b.n + INK_TOP, 32.0 + small_w.max(title_w), b.small + 14.0 * b.lines)
+    let top = if number_paint(s, i, w, h).is_some() { b.n + INK_TOP } else { b.title + TITLE_INK_TOP };
+    (32.0, top, 32.0 + small_w.max(title_w), b.small + 14.0 * b.lines)
 }
 
 /// The title block and the piece strip (M.2): the strip and the small line fade after 3 s without
-/// input and return on the next; the title stays at 60 %. A neighbour that is not built is named at
-/// 40 % and is not a link (N.2 item 1).
+/// input and return on the next. The title and the number stay as they are, in one ink whatever else
+/// shows (P.2 item 4). A neighbour that is not built is named at 40 % and is not a link (N.2 item 1).
 fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let p = &PIECES[i];
     let op = fade_at(&s.works, s.clock);
-    let title_op = 0.6 + 0.4 * op;
     let narrow = w < NARROW;
     let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
     let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
@@ -827,30 +841,31 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         .child(step_link(k(p.slug, "next"), next_s, next_l, next));
     let strip = if narrow { col().key(k(p.slug, "strip")) } else { row().key(k(p.slug, "strip")).gap(56.0).align(AlignItems::CENTER) }
         .opacity(op).child(link(k(p.slug, "made"), made.clone(), made, WMsg::Recipe(i))).child(steps);
-    let n = mono(p.n, number_paint(s, i, w, h)).key(k(p.slug, "n")).opacity(title_op);
-    let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1).opacity(title_op);
+    let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1);
     let small = mono(micro(s, i), dim()).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
     let b = block(s, i, w, h);
+    // The number where it reads; where it does not, nothing in its place and nothing else moves.
+    let root = match number_paint(s, i, w, h) { Some(paint) => root.child(at(mono(p.n, paint).key(k(p.slug, "n")), 32.0, b.n)), None => root };
     if narrow {
         // On a phone, from the foot up: the strip's two lines (the recipe, then the steps by number),
         // the small line wrapped to the width, the title, the number. Every place is a whole pixel: type
         // over a picture at a fraction of one would be read as the picture's colours at its edges.
-        return root.child(at(n, 32.0, b.n)).child(at(title, 32.0, b.title)).child(at(small.width(w - 64.0), 32.0, b.small))
+        return root.child(at(title, 32.0, b.title)).child(at(small.width(w - 64.0), 32.0, b.small))
             .child(at(strip, 32.0, h - 100.0));
     }
-    root.child(at(n, 32.0, b.n))
-        .child(at(title, 32.0, b.title))
+    root.child(at(title, 32.0, b.title))
         .child(at(small, 32.0, b.small))
         .child(at_right(strip, 32.0, h - 64.0))
 }
-/// The title block's number: in the accent where the accent measures at least 4.5 : 1 against the
-/// median luminance of the picture under the number at this size, otherwise in the foot's ink, the
-/// title's colour (O.2 item 3).
-fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Paint {
-    if number_contrast(s, i, w, h) >= 4.5 { Paint::ACCENT } else { Paint::INK }
+/// The title block's number (P.2 item 1): in the accent where the accent measures at least 4.5 : 1
+/// against the median luminance of the picture under the number at this size, otherwise in the foot's
+/// ink where that does, otherwise not drawn.
+fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> {
+    let (a, ink) = number_contrast(s, i, w, h);
+    if a >= 4.5 { Some(Paint::ACCENT) } else if ink >= 4.5 { Some(Paint::INK) } else { None }
 }
-/// The accent's contrast against the median luminance under the title block's number.
-pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> f32 {
+/// The accent's and the foot ink's contrast against the median luminance under the title block's number.
+pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) {
     let b = block(s, i, w, h);
     let r = label_ink(PIECES[i].n, 32.0, b.n, 1.0);
     let fit = if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) };
@@ -864,8 +879,9 @@ pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> f32 {
     }
     ls.sort_by(f32::total_cmp);
     let m = ls.get(ls.len() / 2).copied().unwrap_or(0.0);
-    let a = lum(theme(i).accent);
-    (a.max(m) + 0.05) / (a.min(m) + 0.05)
+    let th = theme(i);
+    let c = |a: f32| (a.max(m) + 0.05) / (a.min(m) + 0.05);
+    (c(lum(th.accent)), c(lum(th.ink)))
 }
 /// A piece's picture's colour at (x, y) in px of 1440 × 900, without its grain.
 fn picture_colour(i: usize, x: f32, y: f32) -> [f32; 3] {
@@ -929,11 +945,12 @@ fn fit_for(s: &Gallery, w: f32, h: f32) -> Fit {
     f
 }
 /// Where the scan window rests with no pointer: over the second ridge, 30 % across; on a phone's
-/// page at the left margin, 24 px above the title block (N.2 item 7).
+/// page at the left margin, 24 px above the title block (N.2 item 7), as it is with its number: where
+/// the number is not drawn nothing else moves (P.2 item 1).
 fn rest_place(s: &Gallery, w: f32, h: f32) -> (f32, f32) {
     if matches!(s.page, Page::Work(_)) && w < NARROW {
         let (sw, sh) = scan_size(w);
-        let top = title_box(s, GROUND_TRUTH, w, h).1;
+        let top = block(s, GROUND_TRUTH, w, h).n + INK_TOP;
         return (32.0 + sw * 0.5, top - CLEAR - BRACKET - sh * 0.5);
     }
     fit_for(s, w, h).at(450.0, 565.0)
@@ -1059,31 +1076,56 @@ fn scan_rect(s: &Gallery, w: f32, h: f32, z: f32, mode: Mode, view: R) -> Scan {
 /// One character of the scan window: its cell, its level of the ramp, its paint.
 #[derive(Clone, Copy)]
 struct Glyph { i: usize, j: usize, n: usize, paint: Paint }
+/// A character reads at 3 : 1 against its cell (O.4 (1)); worked out at 3.15 against the cell's median
+/// as sampled, which a render's pixels and grain move by up to about 0.05. Where even the survey ink
+/// at full strength does not read, a cell's character goes to the pale side; it comes back once the
+/// luminance is `HOLD` above that (P.2 item 2).
+const READS: f32 = 3.15;
+fn reads(a: f32, b: f32) -> bool { (a.max(b) + 0.05) / (a.min(b) + 0.05) >= READS }
 /// The scan window's characters (O.2 item 4): worked out again only when what they depend on changes
 /// (the window's place and cells, the hole, how the picture lies, the ground the paints mix from), so a
 /// window at rest costs one comparison a frame. In each cell one character of the ramp by the cell's
-/// luminance, in the cell's colour mixed 0.62 toward the survey ink; the hole's cells are left out.
+/// luminance, in the cell's colour mixed toward the survey ink by 0.62, or by the least more that reads
+/// at 3 : 1 against the median of the cell; where the survey ink cannot, toward the foot's ink by the
+/// least that does (P.2 item 2). The hole's cells are left out.
 fn scan_glyphs(sc: &Scan, hole: Option<(R, R)>, fit: &Fit, ink: &InkSpace, z: f32) -> std::rc::Rc<Vec<Glyph>> {
     type Key = Vec<u32>;
     thread_local! { static LAST: std::cell::RefCell<Option<(Key, std::rc::Rc<Vec<Glyph>>)>> = const { std::cell::RefCell::new(None) }; }
     let (b, p) = hole.unwrap_or_default();
     let key: Key = [sc.r.0, sc.r.1, sc.r.2, sc.r.3, sc.cell, sc.n.0 as f32, sc.n.1 as f32, hole.is_some() as u8 as f32, b.0, b.1, b.2, b.3, p.0, p.1, p.2, p.3, fit.s, fit.ox, fit.oy, z, ink.h]
         .into_iter().chain(ink.top).chain(ink.bottom).chain(ink.ink).chain(ink.hues.into_iter().flatten()).map(f32::to_bits).collect();
+    // Each cell's side, kept from the last time so it holds until the luminance has crossed by `HOLD`.
+    thread_local! { static SIDES: std::cell::RefCell<Vec<bool>> = const { std::cell::RefCell::new(vec![]) }; }
     if let Some(v) = LAST.with_borrow(|l| l.as_ref().filter(|l| l.0 == key).map(|l| l.1.clone())) { return v; }
     let (x0, y0) = (sc.r.0, sc.r.1);
     let mut v = Vec::with_capacity(sc.n.0 * sc.n.1);
-    for j in 0..sc.n.1 {
-        for i in 0..sc.n.0 {
-            let (cx, cy) = (x0 + i as f32 * sc.cell, y0 + j as f32 * sc.cell);
-            let cr = (cx, cy, cx + sc.cell, cy + sc.cell);
-            if hole.is_some_and(|(b, p)| meets(b, cr) || meets(p, cr)) { continue; }
-            let (qa, qb) = fit.to_picture(cx, cy);
-            let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
-            let c = mean_at(qa, qb, qc, qd);
-            let paint = ink.paint(mix3(c, SURVEY, 0.62), (cy + sc.cell * 0.5) * z);
-            v.push(Glyph { i, j, n: level(lum(c)), paint });
+    let full = lum(SURVEY);
+    SIDES.with_borrow_mut(|sides| {
+        if sides.len() != sc.n.0 * sc.n.1 { *sides = vec![false; sc.n.0 * sc.n.1]; }
+        for j in 0..sc.n.1 {
+            for i in 0..sc.n.0 {
+                let (cx, cy) = (x0 + i as f32 * sc.cell, y0 + j as f32 * sc.cell);
+                let cr = (cx, cy, cx + sc.cell, cy + sc.cell);
+                if hole.is_some_and(|(b, p)| meets(b, cr) || meets(p, cr)) { continue; }
+                let (qa, qb) = fit.to_picture(cx, cy);
+                let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
+                let (c, median) = cell_at(qa, qb, qc, qd);
+                let y = (cy + sc.cell * 0.5) * z;
+                let side = &mut sides[j * sc.n.0 + i];
+                *side = !reads(full, median) || *side && !reads(full, median - HOLD);
+                let (to, from) = if *side { (ink.ink, 0.0) } else { (SURVEY, 0.62) };
+                let at = |t: f32| ink.paint(mix3(c, to, t), y);
+                let ok = |t: f32| reads(lum(ink.colour(at(t), y)), median);
+                // The least mix that reads: the fixed one where it does, else halving toward the full ink.
+                let paint = if ok(from) { at(from) } else {
+                    let (mut lo, mut hi) = (from, 1.0);
+                    for _ in 0..7 { let m = (lo + hi) * 0.5; if ok(m) { hi = m } else { lo = m } }
+                    if hi >= 1.0 { if *side { Paint::INK } else { INK_FULL } } else { at(hi) }
+                };
+                v.push(Glyph { i, j, n: level(lum(c)), paint });
+            }
         }
-    }
+    });
     let v = std::rc::Rc::new(v);
     LAST.with_borrow_mut(|l| *l = Some((key, v.clone())));
     v
@@ -1207,13 +1249,12 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let (_, yl) = fit.at(0.0, SUN.1 as f32);
     let yl = px(yl, z);
     let (xa, xb) = ((32.0f32).max(view.0 + m), (w - 32.0).min(view.2 - m));
-    let mut horizon = None;
     if !band {
         let t = "HORIZON 0.0°";
         let lx = (w - 32.0).min(view.2 - m) - (t.chars().count() as f32 * ADV) / z;
         let ly = yl - 16.0 / z;
         let li = label_ink(t, lx, ly, z);
-        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); horizon = Some(li); }
+        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); }
     }
     // The dashes: none by the title block or under the pointer's plate, and the scan window cuts the line
     // 8 px outside its rect.
@@ -1232,12 +1273,15 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
             _ => dashes.push((a, b)),
         }
     }
-    // A run of fewer than three dashes left between the window and a label is not drawn.
-    if let (Some(c), Some(l)) = (cut, horizon) {
-        let between = |&(a, b): &(f32, f32)| if l.0 >= c.2 { a >= c.2 && a < l.0 } else if l.2 <= c.0 { b <= c.0 && b > l.2 } else { false };
-        if dashes.iter().filter(|d| between(d)).count() < 3 { dashes.retain(|d| !between(d)); }
+    // After the cut, a run of fewer than three dashes is not drawn, whatever ends it (P.2 item 3): a run
+    // is dashes no further apart than the line's own gap.
+    let mut run: Vec<(f32, f32)> = vec![];
+    for dash in dashes.into_iter().map(Some).chain([None]) {
+        if let (Some(&(_, end)), Some(next)) = (run.last(), dash) && next.0 - end <= 8.5 { run.push(next); continue; }
+        if run.len() >= 3 { for &(a, b) in &run { d.line((a, yl), (b, yl), lw, HORIZON_INK); } }
+        run.clear();
+        run.extend(dash);
     }
-    for (a, b) in dashes { d.line((a, yl), (b, yl), lw, HORIZON_INK); }
     // Spot heights on true summits of the drawn profiles (a phone's band: the first that fits).
     let mut heights = 0;
     for (n, (x0, r, t, up)) in [(700.0, 1, "▲ 1,204", 52.0), (206.0, 0, "▲ 1,731", 40.0), (1236.0, 2, "▲ 986", 64.0)].into_iter().enumerate() {
