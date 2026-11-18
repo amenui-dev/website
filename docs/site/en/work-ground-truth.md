@@ -17,4 +17,13 @@ The scan window is cut into up to four rectangles around the pointer's box, so t
 
 Between flights the piece asks for no frame at all, and the flight itself is paced at 30 frames a second. The scan window follows the pointer on a 120 ms spring, and only while the pointer moves. After 60 seconds without input, the flight under way ends and the piece rests until the next input. With reduced motion it is still: the birds stay halfway across, boxed, without echoes.
 
+Measured at 1440 × 900 and 2× in headless Chrome on a software renderer (not a GPU), so a real machine does better:
+
+| | Mean | Max |
+|---|---|---|
+| A frame during a flight | 5.1 ms | 10.2 ms |
+| A frame while the pointer moves | 3.9 ms | 9.4 ms |
+
+At rest the piece draws 82 frames a minute, all of them during flights and none between. A frame holds 760 instances at 1440 × 900 and 412 at 390 × 844. To a screen reader the scan window's characters are one picture, named by its label.
+
 The code is `src/gallery/works.rs` in the website repository. The annotation layer that the site's other pages use for frames and callouts is described in [Annotation](#docs-annotation).
