@@ -26,7 +26,7 @@ Measured at 1440 × 900 and 2× in headless Chrome on SwiftShader, a software re
 | The field at rest and in gusts | 3.3 ms | 7.7 ms | 15.3 ms |
 | The pointer walking | 4.6 ms | 9.4 ms | 13.6 ms |
 
-The first frame, which lays out and paints the page, takes 89.5 ms. A pointer that jumps more than 320 px in one event stirs nothing between, so a jump costs no more than a step. Natively a frame during a gust takes 1.1 ms of CPU, a pointer event 2.4 ms (a layout every other event), and a jump of 800 px 2.1 ms.
+Counting only the frames a gust draws, the mean is 2.35 ms and the 95th percentile 5.1 ms. The first frame, which lays out and paints the page, takes 89.5 ms. A pointer that jumps more than 320 px in one event stirs nothing between, so a jump costs no more than a step. Natively a frame during a gust takes 1.1 ms of CPU, a pointer event 2.4 ms (a layout every other event), and a jump of 800 px 2.1 ms.
 
 The piece opens with its first gust already 72 % across, so its first minute at rest draws about 1,100 frames: about 160 in the first 5.5 seconds as that gust finishes, then 30 a second during each crossing of about 10 seconds and one a second between. A frame holds 6,348 instances at 1440 × 900 and 1,482 at 390 × 844, every blade and head counted; when frames are slow the drawing is thinned evenly.
 
