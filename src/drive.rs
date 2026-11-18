@@ -55,6 +55,8 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     if state == "stage" { ui.state.stage_only = true; }
     // `<path>#still`: the same, for its still: a specimen closed at rest is drawn open.
     if state == "still" { (ui.state.stage_only, ui.state.still) = (true, true); }
+    // `<path>#reduced`: the page as reduced motion draws it, as on the web with the preference set.
+    if state == "reduced" { amenui::app::App::set_reduced_motion(&mut ui.state, true); }
     // `body#walk` plays the full intro from the first frame, `body#short` the short path.
     if p == Page::Body && !state.is_empty() { match state { "walk" => ui.state.body.open("", 2), "short" => ui.state.body.open("", 1), _ => ui.state.body.open(state, 0) } }
     // The whole page's material (the look strip's material is a component stage's only).

@@ -478,14 +478,21 @@ fn touch_grass_costs() {
         ui.tick(t);
         if ui.needs_frame(t) { ui.settle(); let _ = ui.scene().instances.len(); ui.frame_drawn(); gust += a.elapsed().as_secs_f64(); n += 1; }
     }
-    let (mut walk, mut m) = (0.0f64, 0);
-    for k in 0..120 {
+    // The pointer walks the field at 60 events a second and every 1.5 s jumps back 800 px in one
+    // event, faster than a pointer that pushes a gust ahead of it.
+    let (mut walk, mut m, mut worst) = (0.0f64, 0, (0.0f64, 0usize));
+    let (mut jump, mut jumps) = (0.0f64, 0);
+    for k in 0..240usize {
         t += 1.0 / 60.0;
         let a = Instant::now();
-        ui.pointer_move(300.0 + 6.0 * k as f32, 720.0);
+        ui.pointer_move(300.0 + 800.0 * ((k % 90) as f32 / 90.0), 720.0);
         ui.tick(t);
         if ui.needs_frame(t) { ui.settle(); let _ = ui.scene().instances.len(); ui.frame_drawn(); m += 1; }
-        walk += a.elapsed().as_secs_f64();
+        let e = a.elapsed().as_secs_f64();
+        walk += e;
+        if k > 0 && k % 90 == 0 { jump += e; jumps += 1; }
+        if e > worst.0 { worst = (e, k); }
     }
-    eprintln!("touch grass, CPU: a frame during a gust {:.2} ms ({n} frames); the pointer walking {:.2} ms an event (120 events, {m} frames); {} instances", gust * 1e3 / n as f64, walk * 1e3 / 120.0, ui.scene().instances.len());
+    eprintln!("touch grass, CPU: a frame during a gust {:.2} ms ({n} frames); the pointer walking {:.2} ms an event (240 events, {m} frames), the worst {:.2} ms (event {}), a jump of 800 px {:.2} ms; {} instances",
+        gust * 1e3 / n as f64, walk * 1e3 / 240.0, worst.0 * 1e3, worst.1, jump * 1e3 / jumps.max(1) as f64, ui.scene().instances.len());
 }

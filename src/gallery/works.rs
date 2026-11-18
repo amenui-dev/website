@@ -108,10 +108,6 @@ pub fn theme(i: usize) -> Theme {
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
 pub fn tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].bar_light { 1 } else { 2 }, _ => 0 } }
-/// The field map's settings on a page: on W-01 energy does not creep along ink. Its field spreads
-/// nothing inside the area whose life it sets (`El::map_life`), so creep changes nothing there, and
-/// with none the map does not take the scene's ink again on every frame the pointer walks.
-pub fn map(p: Page, m: amenui::fieldmap::MapFx) -> amenui::fieldmap::MapFx { if touch::on(p) { amenui::fieldmap::MapFx { creep: 0.0, ..m } } else { m } }
 /// Frames a second for what moves by itself on a page (`Ui::ambient_fps`): 30 on a page of Works.
 pub fn ambient_fps(p: Page) -> f32 { if p.section() == Section::Works { 30.0 } else { 60.0 } }
 /// The status line's tone on a page (the ground at the foot of the picture), as `tone`.

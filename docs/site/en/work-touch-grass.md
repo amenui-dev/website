@@ -13,7 +13,7 @@ W-01 in Works, at noon (12:00). A straw field seen from standing height, side on
 | The windsock | its own small drawing, 22 px long, 8 px wide at the mast and 4 at its tip; 55° below the horizontal at rest, lifted to 55° · (1 − f) by the gust's value f at the mast's foot, on the frames the gust draws anyway |
 | The windsock's note | two labels and a leader; the countdown changes in place without a layout (`recompose(false)`) |
 
-The blades are bent on the GPU from the field map at their roots: while only the wind moves, nothing is laid out, painted or built on the CPU. A gust is never put into the map; it is worked out from the map's clock and laid over it, so once it has passed, the map is exactly as it was and no frame is asked for. What the pointer stirs goes into the map with a layout, at most 30 times a second, and on this page energy does not creep along ink (nothing spreads inside the field's own life anyway), so the map never reads the scene back.
+The blades are bent on the GPU from the field map at their roots: while only the wind moves, nothing is laid out, painted or built on the CPU. A gust is never put into the map; it is worked out from the map's clock and laid over it, so once it has passed, the map is exactly as it was and no frame is asked for. What the pointer stirs goes into the map with a layout, at most 30 times a second. The map reads the scene's ink for `creep` only where an instance changed, and never for the blades or anything inside the field's own life, where nothing creeps.
 
 ## What it costs
 
@@ -23,11 +23,11 @@ Measured at 1440 × 900 and 2× in headless Chrome on SwiftShader, a software re
 
 | A frame | Mean | 95th percentile | Worst |
 |---|---|---|---|
-| The field at rest and in gusts | 3.7 ms | 9.5 ms | 21.7 ms |
-| The pointer walking | 6.6 ms | 14.0 ms | 94.2 ms |
+| The field at rest and in gusts | 2.8 ms | 6.8 ms | 12.8 ms |
+| The pointer walking | 6.3 ms | 12.3 ms | 56.0 ms |
 
-Natively a frame during a gust takes 0.7 ms of CPU, and a pointer event 2.9 ms (a layout every other event).
+The first frame, which lays out and paints the page, takes 73.6 ms. The slowest pointer frames are a pointer that jumps 800 px in one event: the path is stirred every 8 px along the jump, 200 stirs in one layout. Natively a frame during a gust takes 1.0 ms of CPU, a pointer event 2.9 ms (a layout every other event), and that jump 23.7 ms.
 
-The piece opens with its first gust already a third of the way across, so its first minute at rest draws about 1,120 frames: 164 in the first 5.5 seconds as that gust finishes, then 30 a second during each crossing of about 10 seconds and one a second between. A frame holds 23,741 instances at 1440 × 900 and 6,857 at 390 × 844; when frames are slow the drawing is thinned evenly.
+The piece opens with its first gust already a third of the way across, so its first minute at rest draws about 1,120 frames: 164 in the first 5.5 seconds as that gust finishes, then 30 a second during each crossing of about 10 seconds and one a second between. A frame holds 6,348 instances at 1440 × 900 and 918 at 390 × 844, every blade and head counted; when frames are slow the drawing is thinned evenly.
 
 The code is `src/gallery/touch.rs` in the website repository. The field map is described in [Ripples](#docs-ripples).
