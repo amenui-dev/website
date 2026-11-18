@@ -51,8 +51,11 @@ jobs:
           RENDER: target/quick/render
         run: |
           cargo build --profile quick --bin render --bin site
+          # The module twice: the full one (WebGPU or WebGL2), then the WebGPU-only one.
           cargo build --release --lib --target wasm32-unknown-unknown
           wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+          cargo build --release --lib --target wasm32-unknown-unknown --no-default-features
+          wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg-gpu target/wasm32-unknown-unknown/release/website.wasm
           python3 web/build.py
       - name: The site's files
         run: cp -r dist/site out

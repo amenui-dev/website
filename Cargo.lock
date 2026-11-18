@@ -154,7 +154,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "amenui"
 version = "0.0.1"
-source = "git+https://github.com/amenui-dev/amenui?branch=main#45a72df4178748b6119216912be1935668cc68dd"
+source = "git+https://github.com/amenui-dev/amenui?branch=main#13ef2f26393b272376f97b881e93750beb2db07b"
 dependencies = [
  "accesskit",
  "accesskit_winit",

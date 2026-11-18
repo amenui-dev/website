@@ -4,8 +4,9 @@
 // mount once in #stage (`site()` at the end); `<amenui-view>` (embed.js) mounts in its shadow root.
 // One view per document: the module keeps one interface.
 //
-// opts: `load` (a function giving { module, fonts: [sans, pixel, mono], texts } as promises; `texts`,
-// [name, body] pairs, may be left out), `faces` (the faces the module does not carry, name → URL: each
+// opts: `load` (a function giving { module, fonts: [sans, pixel, mono], texts, glue } as promises;
+// `texts`, [name, body] pairs, may be left out; `glue` is the module's wasm-bindgen glue, the global
+// `wasm_bindgen` when left out), `faces` (the faces the module does not carry, name → URL: each
 // is fetched once, when a page first uses it), `texts` ({ texts: base URL, textsV: version }: where the
 // texts the module does not carry are, each fetched when the module first asks for it), `route` (the
 // first page: a path such as `components/button/`, or a hash name such as `#button`), `keys` (where
@@ -23,9 +24,11 @@ async function mount(stage, opts) {
   fit();
   const got = opts.load();
   const t0 = performance.now();
-  await wasm_bindgen({ module_or_path: got.module });
+  const w = got.glue ? await got.glue : wasm_bindgen;
+  // Tools that read the module (frame-time probes) find it by its usual name.
+  if (got.glue) self.wasm_bindgen = w;
+  await w({ module_or_path: got.module });
   const compiled = performance.now() - t0;
-  const w = wasm_bindgen;
   const [sans, pixel, mono] = (await got.fonts).map(b => new Uint8Array(b));
   // The texts the module does not carry: those given go in before it starts; one it asks for later is
   // fetched once and the page is drawn again when it comes. What the first page asks for comes before
@@ -364,9 +367,12 @@ function site() {
     A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`);
   };
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
-  mount(stage, {
+  // The module the shell chose (`A.kind`): the WebGPU-only one where the browser has WebGPU, else the
+  // full one, which also draws with WebGL2. If the WebGPU-only one cannot start (no adapter, no device,
+  // or anything else), the full one is tried on a fresh canvas before any failure is shown.
+  const start = () => mount(stage, {
     route: A.route === '' ? '/' : A.route,
-    load: () => ({ module: A.wasm, fonts: A.fonts, texts: A.texts }), faces: A.files.faces, texts: A.files,
+    load: () => ({ module: A.wasm, glue: A.glue, fonts: A.fonts, texts: A.texts }), faces: A.files.faces, texts: A.files,
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };
@@ -398,10 +404,23 @@ function site() {
       // The running line is read once, not every second.
       setTimeout(() => { running = true; f2.hidden = false; status.querySelector('.line').setAttribute('aria-live', 'off'); keepStatus(); setInterval(keepStatus, 1000); }, 1200);
     },
-  }).then(a => {
+  });
+  const retry = e => {
+    if (A.kind !== 'webgpu') throw e;
+    let why = '';
+    try { why = self.amenuiGlue.webgpu.start_failure(); } catch (_) { /* it did not get that far */ }
+    console.warn('the WebGPU-only module could not start (' + (why || 'error') + '); starting the full one', e);
+    api = null;
+    const c = stage.querySelector('.c');
+    // A canvas keeps the first kind of context it gave: the full module asks for its own.
+    c.replaceWith(c.cloneNode(false));
+    A.load('full');
+    return start();
+  };
+  start().catch(retry).then(a => {
     api = a;
     // The module is in this browser's cache now: a docs page's stage can start as it is scrolled to.
-    try { localStorage.setItem('amenui.module', A.files.wasm); } catch (e) {}
+    try { localStorage.setItem('amenui.module', A.files[A.kind === 'webgpu' ? 'wasmGpu' : 'wasm']); } catch (e) {}
     // The search takes a canvas route inside the running app.
     A.go = p => { a.route(p === '' ? '/' : p); };
     a.locale(A.locale);

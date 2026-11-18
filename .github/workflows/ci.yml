@@ -30,7 +30,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Clippy (native)
         run: cargo clippy --all-targets
-      - name: Clippy (web)
-        run: cargo clippy --lib --target wasm32-unknown-unknown
+      - name: Clippy (web, both modules)
+        run: |
+          cargo clippy --lib --target wasm32-unknown-unknown
+          cargo clippy --lib --target wasm32-unknown-unknown --no-default-features
+      - name: The web modules, full and WebGPU-only, build
+        run: |
+          cargo build --lib --target wasm32-unknown-unknown
+          cargo build --lib --target wasm32-unknown-unknown --no-default-features
       - name: Tests
         run: cargo test

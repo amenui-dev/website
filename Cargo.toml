@@ -15,11 +15,18 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # The framework, from its main branch. To work on both at once, put a checkout of amenui next to this
 # one and uncomment the [patch] below.
-amenui = { git = "https://github.com/amenui-dev/amenui", branch = "main" }
+# Its default features less `webgl`, which the site's own `webgl` feature (on by default) adds back:
+# `--no-default-features` builds the module a WebGPU browser downloads, without the WebGL2 backend.
+amenui = { git = "https://github.com/amenui-dev/amenui", branch = "main", default-features = false, features = ["gltf", "window", "system-fonts"] }
 wgpu = { version = "30", default-features = false }
 taffy = "0.15"
 pollster = "0.4"
 serde_json = "1"
+
+[features]
+default = ["webgl"]
+# WebGL2 where WebGPU is not there: the full module. Without it, the WebGPU-only one.
+webgl = ["amenui/webgl"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 png = "0.17"

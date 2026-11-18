@@ -61,21 +61,29 @@ def hashed(name, data):
 
 def gz(b): return len(gzip.compress(b, 9))
 
-# The module: wasm-opt's output when it is smaller to transfer (gzip), else wasm-bindgen's.
-wasm = (pkg / 'website_bg.wasm').read_bytes()
+# The module, in two builds of the same code (R.5): the full one (dist/pkg), which draws with WebGPU or
+# WebGL2, and the WebGPU-only one (dist/pkg-gpu, `--no-default-features`), which a browser with WebGPU
+# downloads. Each is wasm-opt's output when that is smaller to transfer (gzip), else wasm-bindgen's.
 opt = shutil.which('wasm-opt')
-if opt:
-    o = pkg / 'website_opt.wasm'
-    subprocess.run([opt, '-Oz', '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-sign-ext', '--enable-mutable-globals', '--enable-reference-types', '--enable-multivalue', str(pkg / 'website_bg.wasm'), '-o', str(o)], check=True)
-    ob = o.read_bytes()
-    print(f'wasm-opt -Oz: {len(wasm)} -> {len(ob)} bytes; gzip {gz(wasm)} -> {gz(ob)}')
-    if gz(ob) < gz(wasm): wasm = ob
-wasm_fn = hashed('amenui.wasm', wasm)
-# Its size as a server compressing it sends it: the boot line's total when there is no Content-Length.
-wasm_gz = gz(wasm)
-# The size gate (P.2 item 7, R.5 step 1), in bytes of gzip: the texts are out of the module.
-WASM_GATE = 2_840_000
-assert wasm_gz <= WASM_GATE, f'the module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
+def module(d, name):
+    w = (d / 'website_bg.wasm').read_bytes()
+    if opt:
+        o = d / 'website_opt.wasm'
+        subprocess.run([opt, '-Oz', '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-sign-ext', '--enable-mutable-globals', '--enable-reference-types', '--enable-multivalue', str(d / 'website_bg.wasm'), '-o', str(o)], check=True)
+        ob = o.read_bytes()
+        print(f'{name}: wasm-opt -Oz: {len(w)} -> {len(ob)} bytes; gzip {gz(w)} -> {gz(ob)}')
+        if gz(ob) < gz(w): w = ob
+    return w
+pkg_gpu = dist / 'pkg-gpu'
+wasm, wasm_gpu = module(pkg, 'full'), module(pkg_gpu, 'webgpu')
+wasm_fn, wasm_gpu_fn = hashed('amenui.wasm', wasm), hashed('amenui-webgpu.wasm', wasm_gpu)
+# Their sizes as a server compressing them sends them: the boot line's total when there is no
+# Content-Length.
+wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
+# The size gates (R.5), in bytes of gzip: the full module at 2,840,000, the WebGPU-only one at 2.5 MiB.
+WASM_GATE, WASM_GPU_GATE = 2_840_000, 2_621_440
+assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
+assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
 # The texts the module does not carry (R.5, `src/texts.rs`): the demos' English, the Lab's Markdown,
 # the Lab reader's page and the sources the components' pages show (the framework's examples, its
@@ -104,9 +112,20 @@ def boot_texts(path, lang):
     return [n for n in names if n in texts]
 print(f'texts: {len(texts)} files, {sum(len(b.encode()) for b in texts.values())} bytes, gzip {sum(gz(b.encode()) for b in texts.values())}')
 
-# The glue: wasm-bindgen's, then the site's.
+# The glue. A docs page's stage and the embedded element load the full module, with wasm-bindgen's glue
+# for it and the site's script in one file (`app_fn`). The canvas pages load the site's script alone
+# (`shell_fn`) and the glue of the module they choose, which sets `amenuiGlue[kind]`.
 glue = (pkg / 'website.js').read_text() + '\n' + (root / 'web/app.js').read_text()
 app_fn = hashed('app.js', glue.encode())
+def own_glue(d, kind):
+    g = (d / 'website.js').read_text()
+    head = 'let wasm_bindgen = (function(exports) {'
+    assert g.startswith(head), f'{d}/website.js does not start as wasm-bindgen --target no-modules writes it'
+    return f'(self.amenuiGlue = self.amenuiGlue || {{}}).{kind} = (function(exports) {{' + g[len(head):]
+glue_full, glue_gpu = own_glue(pkg, 'full'), own_glue(pkg_gpu, 'webgpu')
+glue_full_fn, glue_gpu_fn = hashed('glue.js', glue_full.encode()), hashed('glue-webgpu.js', glue_gpu.encode())
+shell_js = (root / 'web/app.js').read_text()
+shell_fn = hashed('site.js', shell_js.encode())
 embed_fn = hashed('embed.js', (root / 'web/embed.js').read_bytes())
 
 # The faces, cut to the characters the canvas can draw. Everything drawn comes from string literals in
@@ -325,7 +344,8 @@ def page(lang, path, title, section, tone='', foot=''):
     t = lambda k: tr(lang, k)
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
-    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang], 'faces': late, **texts_files, 'boot': boot_texts(path, lang)}
+    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'glue': BASE + glue_full_fn,
+             'wasmGpu': BASE + wasm_gpu_fn, 'wasmGpuSize': len(wasm_gpu), 'wasmGpuGz': wasm_gpu_gz, 'glueGpu': BASE + glue_gpu_fn, 'fonts': fonts[lang], 'faces': late, **texts_files, 'boot': boot_texts(path, lang)}
     config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), **{k: t('web.' + k) for k in ('fps', 'glyphs', 'compiling', 'starting', 'first-frame')}, 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root can
     # receive them here.
@@ -335,13 +355,13 @@ def page(lang, path, title, section, tone='', foot=''):
     classes = ' '.join(c for c in ['home' if path == '' else '', 'work' if path.startswith('works/') and path != 'works/' else ''] if c)
     v = chrome_vars(lang, path) | {
         'classes': classes, 'tone': tone, 'foot': foot, 'title': html.escape(title), 'description': html.escape(t('web.description')),
-        'redirect': redirect, 'wasm_url': BASE + wasm_fn,
+        'redirect': redirect, 'wasm_url': BASE + wasm_fn, 'wasm_gpu_url': BASE + wasm_gpu_fn,
         't_canvas': t('web.canvas'), 't_text_input': t('web.text-input'),
         't_eyebrow': t('web.eyebrow'), 't_lead': t('web.lead'), 't_start': t('web.start'), 't_copy': t('web.copy'), 't_readout': t('web.readout'), 't_quality': t('web.quality'), 't_quality_auto': t('web.quality.auto'),
         'listing': html.escape(listing, quote=False) if path == '' else '', 'mono_url': fonts[lang][2]['url'],
         'config': json.dumps(config, ensure_ascii=False, separators=(',', ':')),
         'search': search_boot(lang, index_urls[lang]),
-        'app': f'<script src="{BASE + app_fn}" defer></script>',
+        'app': f'<script src="{BASE + shell_fn}" defer></script>',
     }
     return current(fill(template, v), section)
 
@@ -401,7 +421,10 @@ assert not broken, f'{len(broken)} links do not resolve:\n' + '\n'.join(broken[:
 print(f'{len(canvas_pages)} canvas addresses and {len(doc_sizes) // len(langs)} docs pages × {len(langs)} languages; base {BASE}')
 print(f'shell (home, en): {len(home)} bytes, gzip {gz(home)}; largest shell gzip {max(sizes)[0]} ({max(sizes)[1]})')
 print(f'docs pages gzip: largest {max(doc_sizes)[0]} ({max(doc_sizes)[1]}), median {sorted(doc_sizes)[len(doc_sizes) // 2][0]}')
-print(f'wasm {len(wasm)} bytes, gzip {gz(wasm)}; glue {len(glue)} bytes, gzip {gz(glue.encode())}')
+print(f'wasm, full: {len(wasm)} bytes, gzip {wasm_gz}; glue {len(glue_full)} bytes, gzip {gz(glue_full.encode())}')
+print(f'wasm, WebGPU only: {len(wasm_gpu)} bytes, gzip {wasm_gpu_gz}; glue {len(glue_gpu)} bytes, gzip {gz(glue_gpu.encode())}')
+print(f'site script: {len(shell_js)} bytes, gzip {gz(shell_js.encode())}; with the full glue (docs stages, the element) {len(glue)} bytes, gzip {gz(glue.encode())}')
 for lang in fonts: print(f'fonts {lang}: ' + ', '.join(f'{f["name"]} {f["size"]} (gzip {gz((out / f["url"][len(BASE):]).read_bytes())})' for f in fonts[lang]))
-en_total = gz(home) + gz(wasm) + gz(glue.encode()) + sum(gz((out / f['url'][len(BASE):]).read_bytes()) for f in fonts['en'])
-print(f'home, English, everything (gzip): {en_total} bytes')
+en_fonts = sum(gz((out / f['url'][len(BASE):]).read_bytes()) for f in fonts['en'])
+for name, w, g in (('WebGPU', wasm_gpu_gz, glue_gpu), ('WebGL2', wasm_gz, glue_full)):
+    print(f'home, English, everything, {name} (gzip): {gz(home) + w + gz(shell_js.encode()) + gz(g.encode()) + en_fonts} bytes')

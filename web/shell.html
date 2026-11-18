@@ -7,7 +7,7 @@
 <meta name="description" content="{{description}}">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:,">
-{{redirect}}<link rel="preload" href="{{wasm_url}}" as="fetch" crossorigin>
+{{redirect}}<script>{const l=document.createElement('link');l.rel='preload';l.as='fetch';l.crossOrigin='';l.href=navigator.gpu?'{{wasm_gpu_url}}':'{{wasm_url}}';document.head.appendChild(l)}</script>
 <link rel="preload" href="{{mono_url}}" as="fetch" crossorigin>
 <style>
 /*chrome*/
@@ -319,17 +319,30 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   addEventListener('resize', A.draw);
   // The downloads: the module (its bytes counted as they come), and the faces, the listing's first.
   const mbs = n => (n / 1048576).toFixed(2);
-  A.wasm = fetch(A.files.wasm).then(r => {
-    if (!r.ok) throw new Error('amenui.wasm: HTTP ' + r.status);
-    // The stream gives the module's bytes as they decode; the line reports the transfer (the response's
-    // length, else the compressed size the build measured) in the same proportion.
-    const raw = A.files.wasmSize, total = +r.headers.get('Content-Length') || A.files.wasmGz; let got = 0;
-    const show = () => { share = Math.min(1, got / raw); A.line(share >= 1 ? A.t.compiling : 'amenui.wasm <b>' + mbs(total * share) + '</b> / ' + mbs(total) + ' MB'); A.draw(); };
-    show();
-    const reader = r.body.getReader();
-    const body = new ReadableStream({ async pull(c) { const { done, value } = await reader.read(); if (done) { got = raw; show(); c.close(); return; } got += value.byteLength; show(); c.enqueue(value); } });
-    return new Response(body, { headers: { 'Content-Type': 'application/wasm' } });
-  });
+  // Two builds of one module: the WebGPU-only one where the browser has WebGPU, and the full one, which
+  // also draws with WebGL2 (and is the one tried again when the other cannot start). Each comes with
+  // its own glue, a script that sets `amenuiGlue[kind]`.
+  A.load = kind => {
+    A.kind = kind;
+    const url = A.files[kind === 'webgpu' ? 'wasmGpu' : 'wasm'], raw = A.files[kind === 'webgpu' ? 'wasmGpuSize' : 'wasmSize'];
+    A.glue = new Promise((ok, no) => {
+      const s = D.createElement('script'); s.src = A.files[kind === 'webgpu' ? 'glueGpu' : 'glue'];
+      s.onload = () => ok(self.amenuiGlue[kind]); s.onerror = () => no(new Error(s.src + ': not loaded'));
+      D.head.appendChild(s);
+    });
+    A.wasm = fetch(url).then(r => {
+      if (!r.ok) throw new Error('amenui.wasm: HTTP ' + r.status);
+      // The stream gives the module's bytes as they decode; the line reports the transfer (the response's
+      // length, else the compressed size the build measured) in the same proportion.
+      const total = +r.headers.get('Content-Length') || A.files[kind === 'webgpu' ? 'wasmGpuGz' : 'wasmGz']; let got = 0;
+      const show = () => { share = Math.min(1, got / raw); A.line(share >= 1 ? A.t.compiling : 'amenui.wasm <b>' + mbs(total * share) + '</b> / ' + mbs(total) + ' MB'); A.draw(); };
+      show();
+      const reader = r.body.getReader();
+      const body = new ReadableStream({ async pull(c) { const { done, value } = await reader.read(); if (done) { got = raw; show(); c.close(); return; } got += value.byteLength; show(); c.enqueue(value); } });
+      return new Response(body, { headers: { 'Content-Type': 'application/wasm' } });
+    });
+  };
+  A.load(navigator.gpu ? 'webgpu' : 'full');
   const fonts = A.files.fonts.map(f => fetch(f.url).then(r => { if (!r.ok) throw new Error(f.url + ': HTTP ' + r.status); return r.arrayBuffer(); }));
   A.fonts = Promise.all(fonts);
   // The texts this route's first frame shows that the module does not carry, beside it (none fails the
