@@ -425,7 +425,8 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         }
         IMAGE => {
             let ratio = |id: u32| { let (w, h) = PICTURE_SIZES[id as usize]; h as f32 / w as f32 };
-            let live = col().width(560.0).child(image(&k("live"), TREE, ratio(TREE), IMAGE_SLOT, Some("在图上移动指针，图会在指针附近松开成记号。")));
+            // As wide as the stage holds, at most 560 px (N.2 item 11): on a phone the picture scales, not cut.
+            let live = col().fill_width().max_width(560.0).child(image(&k("live"), TREE, ratio(TREE), IMAGE_SLOT, Some("在图上移动指针，图会在指针附近松开成记号。")));
             (live, vec![
                 ("原图", col().width(220.0).child(image(&k("a"), SKY, ratio(SKY), IMAGE_SLOT, None))),
                 ("完全松开", col().width(220.0).child(picture(SKY, ratio(SKY)).key(k("b")).markr(IMAGE_SLOT).loose(1.0))),

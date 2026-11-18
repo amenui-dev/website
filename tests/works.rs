@@ -195,3 +195,19 @@ fn on_a_phone_nothing_of_ground_truth_comes_near_its_title_block() {
         assert!(r[0] >= 8.0 && r[2] <= 382.0, "{} {:?} crosses the edge", t.key, t.rect);
     }
 }
+
+#[test]
+fn ground_truth_keeps_within_its_marks() {
+    // M.2: at most 6,000 instances on a desktop and 2,500 on a phone, with the flight, the scan
+    // window and the pointer all on screen.
+    for (w, h, cap) in [(1440, 900, 6000), (390, 844, 2500)] {
+        let mut ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
+        ui.pointer_move(w as f32 * 0.4, h as f32 * 0.55);
+        let mut t = 0.0;
+        while t < 1.0 { t += 1.0 / 30.0; ui.tick(t); ui.relayout(); ui.frame_drawn(); }
+        let s = ui.scene();
+        let n = s.instances.len() + s.annot.len();
+        eprintln!("ground truth at {w}x{h}: {n} instances");
+        assert!(n > 100 && n <= cap, "{w}: {n}");
+    }
+}

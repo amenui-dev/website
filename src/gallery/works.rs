@@ -491,15 +491,17 @@ fn ink_space(s: &Gallery) -> InkSpace {
         }
     }
 }
-/// The straight ramp nearest W-03's sky down the window, from the top to the horizon (least squares):
-/// the ground a page's mixes over the sky start from.
+/// The straight ramp nearest W-03's sky down the window over the band the faint shades are drawn in
+/// (the flight and the cloud: 240 to 390 px of the picture; least squares, its two ends kept
+/// to colours): the ground a page's mixes
+/// over the sky start from.
 fn sky_ramp(fit: &Fit, h: f32) -> ([f32; 3], [f32; 3]) {
-    let horizon = fit.at(0.0, SUN.1 as f32).1.clamp(1.0, h);
+    let (a, b) = (fit.at(0.0, 240.0).1, fit.at(0.0, 390.0).1);
     let n = 48;
     let (mut sy, mut syy) = (0.0f32, 0.0f32);
     let (mut sc, mut syc) = ([0.0f32; 3], [0.0f32; 3]);
     for k in 0..n {
-        let y = horizon * (k as f32 + 0.5) / n as f32;
+        let y = a + (b - a) * (k as f32 + 0.5) / n as f32;
         let v = y / h;
         let c = sky_at(fit.to_picture(0.0, y).1);
         sy += v; syy += v * v;
@@ -511,8 +513,20 @@ fn sky_ramp(fit: &Fit, h: f32) -> ([f32; 3], [f32; 3]) {
     for j in 0..3 {
         let b = (nf * syc[j] - sy * sc[j]) / d;
         let a = (sc[j] - b * sy) / nf;
-        top[j] = a.clamp(0.0, 1.0);
-        bottom[j] = (a + b).clamp(0.0, 1.0);
+        // An end past a colour is held at it and the other end fitted again.
+        let (mut t, mut e) = (a, a + b);
+        if !(0.0..=1.0).contains(&e) {
+            e = e.clamp(0.0, 1.0);
+            // c ≈ t (1 − v) + e v: least squares for t alone.
+            let (num, den) = (sc[j] - e * sy - (syc[j] - e * syy), nf - 2.0 * sy + syy);
+            t = num / den;
+        }
+        if !(0.0..=1.0).contains(&t) {
+            t = t.clamp(0.0, 1.0);
+            e = ((syc[j] - t * (sy - syy)) / syy).clamp(0.0, 1.0);
+        }
+        top[j] = t.clamp(0.0, 1.0);
+        bottom[j] = e;
     }
     (top, bottom)
 }
@@ -1075,9 +1089,11 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
             d.line((cx - 9.0 / z, cy), (cx + 9.0 / z, cy), lw, paint);
             d.line((cx, cy - 9.0 / z), (cx, cy + 9.0 / z), lw, paint);
             rect(&mut d, b, z, paint);
-            c = c.child(at(col().key(k(slug, &format!("pointer/{name}"))).width(w).height(h).pass(true).opacity(op)
+            let group = col().key(k(slug, &format!("pointer/{name}"))).width(w).height(h).pass(true)
                 .child(at(canvas(d).key(k(slug, &format!("pointer/{name}/box"))).width(w).pass(true), 0.0, 0.0))
-                .child(at(mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true), qx.round() + 22.0 / z, qy.round() - 16.0 / z)), 0.0, 0.0));
+                .child(at(mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true), qx.round() + 22.0 / z, qy.round() - 16.0 / z));
+            // A see-through group only while the two cross: at rest the box is drawn as it is.
+            c = c.child(at(if op < 1.0 { group.opacity(op) } else { group }, 0.0, 0.0));
         }
     }
     at(c, 0.0, 0.0)
@@ -1092,7 +1108,9 @@ fn index(s: &Gallery) -> El<Msg> {
     let y = |wy: f32| wy - BAR;
     let hh = (ph - 400.0).max(320.0);
     let top = y(208.0);
-    let kz = hh / ph;
+    // The scale makes the piece a whole number of pixels wide, so its drawings' strokes land on the
+    // pixel grid where `px` puts them.
+    let kz = (pw * hh / ph).round() / pw;
     let widths = widths(s, s.clock);
     let mut root = col().key("works/index").width(w).height(s.height).clip()
         .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, y(98.0)))
