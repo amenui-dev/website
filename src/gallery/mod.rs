@@ -330,9 +330,6 @@ pub struct Gallery {
     pub sheet: bool,
     /// The page's stage alone, for a live stage on a docs page (`<path>#stage`).
     pub stage_only: bool,
-    /// On a stage route, the scale its specimen is drawn at so it keeps `STAGE_INSET` inside the box
-    /// (`fit_stage`; 1 when it fits as it is).
-    pub stage_fit: f32,
     /// The page before this one; where the pointer pressed the link of an in-app navigation (CSS px
     /// on the canvas); whether the app has been routed once (the first route is the page loading, not
     /// a navigation); until when a change of section's front runs at its own speed.
@@ -435,7 +432,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::TREE, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, stage_fit: 1.0, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -783,13 +780,17 @@ fn view_in(s: &Gallery) -> El<Msg> {
     let narrow = s.width < NARROW;
     let th = s.theme();
     // A stage on a docs page (`<path>#stage`): the page's stage alone, filling the box, on the raised
-    // ground (D.2) in plain, so no ambient dots cross it. The specimen keeps `STAGE_INSET` inside the
-    // box, drawn smaller when it would not fit (`fit_stage`).
+    // ground (D.2) in plain, so no ambient dots cross it, `STAGE_INSET` inside the box. A specimen is
+    // fitted by the framework (`El::fit`): a component or a widget reflows (`FitMode::Reflow`: laid
+    // out at the box's width, zoomed down only if it still does not fit); a lab experiment is a scene
+    // of fixed proportions, scaled whole and centred (`FitMode::Contain`). A scene fills the box.
     if s.stage_only {
-        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().center().pad(STAGE_INSET, STAGE_INSET).fill(RAISED).material(Material::Plain.id())
-            // The stage as wide as the room, the specimen centred in it: a row that wraps inside the
-            // specimen then lays out against a definite width, and is as tall as it is drawn.
-            .child(zoomed(stage_view(s, narrow), s.stage_fit).fill_width().align(AlignItems::CENTER));
+        let stage = col().key("gallery").fonts(th.roles()).fill_width().fill_height().center().pad(STAGE_INSET, STAGE_INSET).fill(RAISED).material(Material::Plain.id());
+        return match s.page {
+            Page::Scene(_) => stage.child(stage_view(s, narrow).fill_width().align(AlignItems::CENTER)),
+            Page::Experiment(_) => stage.fit(amenui::el::Fit { mode: amenui::el::FitMode::Contain, ..Default::default() }).child(stage_view(s, narrow)),
+            _ => stage.fit(amenui::el::Fit { mode: amenui::el::FitMode::Reflow, ..Default::default() }).child(stage_view(s, narrow).fill_width().align(AlignItems::CENTER)),
+        };
     }
     // The Body scene is the whole window, full-bleed, no chrome: its own markings lead elsewhere.
     if s.page == Page::Body {
@@ -839,45 +840,6 @@ pub const STAGE_INSET: f32 = 16.0;
 /// `El::zoom` (which scales the offsets a widget places its parts by, `El::shift`, too: a floating
 /// box's corner, a chart's dots).
 pub(crate) fn zoomed(e: El<Msg>, k: f32) -> El<Msg> { if (k - 1.0).abs() < 1e-4 { e } else { e.zoom(k) } }
-
-/// On a stage route, scale the specimen to what the box holds inside `STAGE_INSET`: its laid-out
-/// extent (its box and every part under it, not what scrolls inside a scroller) at scale 1, then a
-/// new layout at the scale that fits. Returns whether it changed.
-pub fn fit_stage(ui: &mut GalleryUi) -> bool {
-    let mut changed = false;
-    // A scale changes text a little less than in proportion, and a row that wraps wraps elsewhere:
-    // a few passes settle it.
-    for _ in 0..4 {
-        let (w, h, fit) = (ui.state.width, ui.state.height, ui.state.stage_fit);
-        if !ui.state.stage_only || matches!(ui.state.page, Page::Scene(_)) { return changed; }
-        let key = format!("stage/{}", ui.state.page.hash());
-        let nodes = ui.nodes();
-        let Some(root) = nodes.iter().position(|n| n.key == key) else { return changed };
-        // Under the stage, and not inside a scroller under it (rows past its end are not extent).
-        let inside = |mut i: usize| -> bool {
-            let mut scrolled = false;
-            while let Some(p) = nodes[i].parent { if p == root { return !scrolled; } scrolled |= nodes[p].scroll; i = p; }
-            false
-        };
-        let r = nodes[root].rect;
-        let (mut x0, mut y0, mut x1, mut y1) = (r.x, r.y, r.x + r.w, r.y + r.h);
-        for (i, n) in nodes.iter().enumerate() {
-            if n.rect.w > 0.0 && n.rect.h > 0.0 && inside(i) { (x0, y0, x1, y1) = (x0.min(n.rect.x), y0.min(n.rect.y), x1.max(n.rect.x + n.rect.w), y1.max(n.rect.y + n.rect.h)); }
-        }
-        if x1 <= x0 || y1 <= y0 { return changed; }
-        // From the box's centre, where the specimen is centred: a part laid out off centre (a row that
-        // wraps past its parent's box) counts on its own side.
-        let (hx, hy) = ((w * 0.5 - x0).max(x1 - w * 0.5), (h * 0.5 - y0).max(y1 - h * 0.5));
-        let to = (fit * (w * 0.5 - STAGE_INSET) / hx).min(fit * (h * 0.5 - STAGE_INSET) / hy).min(1.0);
-        // Only ever smaller once it does not fit, so the passes cannot swing.
-        let to = if changed { to.min(fit) } else { to };
-        if !to.is_finite() || (to - fit).abs() < 0.005 { return changed; }
-        ui.state.stage_fit = to;
-        ui.relayout();
-        changed = true;
-    }
-    changed
-}
 
 /// What a docs page's live stage shows of a route: a component's preview, an experiment's cell, a
 /// scene; any other page as it is, without the rail.

@@ -130,10 +130,6 @@ mod site_exports {
             true
         }).unwrap_or(false)
     }
-    /// On a stage route, draw the specimen at the scale that keeps it inside the box (the page calls
-    /// it after every frame; it lays out again only when the scale changes).
-    #[wasm_bindgen]
-    pub fn fit_stage() -> bool { host(|s| { let changed = gallery::fit_stage(&mut s.ui); if changed { s.ui.invalidate(); } changed }).unwrap_or(false) }
     /// The current page's path under the site's base (`components/button/`; empty for home).
     /// A piece of Works, for the page around the canvas: [the bar's tone (0 none, 1 light, 2 dark),
     /// the chrome faded (1), the piece resting (1), the status line's tone].

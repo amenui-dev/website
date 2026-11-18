@@ -44,8 +44,6 @@ async function mount(stage, opts) {
     let d = w.frame(t);
     // A picture drawn for the first time is made, and the frame drawn again before it is shown.
     if (w.pictures()) d = w.frame(t);
-    // A stage route draws its specimen at the scale that fits its box: a new scale draws again.
-    if (w.fit_stage && w.fit_stage()) d = 0;
     fetchFaces();
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
