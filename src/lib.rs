@@ -39,9 +39,13 @@ impl amenui::app::App for gallery::Gallery {
 }
 
 /// The renderer's pictures (photographs drawn in marks), before the first frame.
-pub fn setup(r: &mut amenui::render::Renderer) { for (id, w, h, px) in demo::pictures() { r.set_picture(id, w, h, &px); } }
+pub fn setup(r: &mut amenui::render::Renderer) {
+    for (id, w, h, px) in demo::pictures() { r.set_picture(id, w, h, &px); }
+    gallery::works::set_pictures(r);
+}
 /// One of the pictures, by id (`demo::pictures` makes them all): its width, height and RGBA8.
 pub fn picture(id: u32) -> Option<(u32, u32, Vec<u8>)> {
+    if let Some(p) = gallery::works::picture_pixels(id) { return Some(p); }
     let f: fn(u32, u32) -> Vec<u8> = match id {
         demo::SPHERE => demo::picture_pixels, demo::SKY => demo::sky_pixels, demo::TERRAIN => demo::terrain_pixels, demo::TREE => demo::tree_pixels,
         demo::CUTOUT => demo::cutout_pixels, demo::DUSK => demo::dusk_pixels, demo::PLANET => demo::planet_pixels, demo::FLOWER => demo::flower_pixels,
@@ -122,6 +126,15 @@ mod site_exports {
     #[wasm_bindgen]
     pub fn fit_stage() -> bool { host(|s| { let changed = gallery::fit_stage(&mut s.ui); if changed { s.ui.invalidate(); } changed }).unwrap_or(false) }
     /// The current page's path under the site's base (`components/button/`; empty for home).
+    /// A piece of Works, for the page around the canvas: [the bar's tone (0 none, 1 light, 2 dark),
+    /// the chrome faded (1), the piece resting (1), the status line's tone].
+    #[wasm_bindgen]
+    pub fn works_state() -> Vec<u8> {
+        host(|s| { let g = &s.ui.state; vec![gallery::works::tone(g.page), (g.works.fade.1 < 1.0) as u8, g.works.resting as u8, gallery::works::foot_tone(g.page)] }).unwrap_or_default()
+    }
+    /// An HTML page a press asked for (a piece's recipe), once.
+    #[wasm_bindgen]
+    pub fn take_navigate() -> String { host(|s| s.ui.state.navigate.take()).flatten().unwrap_or_default() }
     #[wasm_bindgen]
     pub fn path() -> String { host(|s| s.ui.state.page.path()).unwrap_or_default() }
     /// The current page's name, for the document's title.

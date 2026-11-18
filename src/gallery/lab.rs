@@ -149,12 +149,19 @@ pub fn page(s: &Gallery) -> El<Msg> {
     };
     let mut motion = index::grid("labx/motion", room, 240.0);
     for (k, p) in groups[2].1.iter().enumerate() { motion = motion.child(index::card(&format!("labx/motion/{}", p.hash()), k + 1, p.name(), String::new(), still(*p), *p)); }
+    // The scenes: demonstrations of mechanisms, the Lab's fourth grid (M.1).
+    let mut scenes = index::grid("labx/scenes", room, 240.0);
+    for (k, sc) in super::SCENES.iter().enumerate() {
+        let p = Page::Scene(k as u8);
+        scenes = scenes.child(index::card(&format!("labx/scenes/{}", p.hash()), k + 1, p.name(), sc.2.to_owned(), Some(super::scenes::thumb(k, 200.0)), p));
+    }
     let sec = |k: &str, n: usize, name: &str, body: El<Msg>| col().key(format!("labx/{k}")).fill_width().min_width(0.0).gap(16.0).child(index::header(&format!("labx/{k}/head"), n, name)).child(body);
     col().key("lab").fill_width().min_width(0.0).gap(28.0)
         .child(text(tr("nav.lab"), 34.0, Paint::INK).font(Font::Display).heading(1).key("labx/title").flow("page-title"))
         .child(sec("s1", 1, &groups[0].0, cells))
         .child(sec("s2", 2, &groups[1].0, looks))
         .child(sec("s3", 3, &groups[2].0, motion))
+        .child(sec("s4", 4, &tr("nav.scenes"), scenes))
 }
 
 /// A page with no live cell, in an Experiments cell's frame: `[ NAME ]` and the hint over its still,

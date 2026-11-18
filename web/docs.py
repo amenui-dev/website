@@ -151,7 +151,7 @@ def build(ctx):
     # The Lab's and the body scene's recipes: not in the sidebar; each is the text under its stage.
     for f in sorted((root / 'docs/site/en').glob('*.md')):
         name = f.stem
-        if not (name.startswith('lab-') or name.startswith('scene-')): continue
+        if not name.startswith(('lab-', 'scene-', 'work-')): continue
         if any(name in v for v in SITE.values()): continue
         short = name.split('-', 1)[1]
         md, title, cl = {}, {}, {}
@@ -161,7 +161,7 @@ def build(ctx):
             if not ff.exists(): ff = f
             t, body = split_title(front(ff.read_text())[1])
             md[lang], title[lang], cl[lang] = body, t or short, c
-        canvas = f'lab/{short}/' if name.startswith('lab-') else f'scenes/{short}/'
+        canvas = f'lab/{short}/' if name.startswith('lab-') else f'works/{short}/' if name.startswith('work-') else f'lab/scenes/{short}/'
         if canvas not in canvas_paths: canvas = None
         pages.append(Page(f'recipe-{short}', 'recipes', f'docs/recipes/{short}/', md=md, title=title, content_lang=cl, src=('site', f'docs/site/{{lang}}/{name}.md'), hidden=True, canvas=canvas))
     # Concepts pages under MIN_WORDS: one page, each a section with the page's name as its anchor, at
@@ -643,7 +643,7 @@ def write_page(ctx, p, lang, nav, tr):
     gname = t(group) if group else t('docs.recipes')
     # A recipe of the Lab or of a scene is under that section; every other page under its group.
     if p.hidden:
-        sec = 'web.scenes' if p.key == 'recipe-body' else 'web.lab'
+        sec = 'web.works' if (p.canvas or '').startswith('works/') else 'web.lab'
         gname = t(sec)
         crumbs = [f'<a href="{href("docs/")}">{esc(t("web.docs"))}</a>', f'<a href="{href(sec[4:] + "/")}">{esc(gname)}</a>']
     else:

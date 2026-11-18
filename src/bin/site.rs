@@ -21,7 +21,9 @@ fn main() {
     let mut pages = vec![];
     for p in Page::all() {
         if !seen.insert(p.path()) { continue; }
-        pages.push(json!({ "path": p.path(), "hash": p.hash(), "section": p.section().name(), "title": titles(p) }));
+        let tone = |t: u8| ["", "light", "dark"][t as usize];
+        let (bar, foot) = (tone(website::gallery::works::tone(p)), tone(website::gallery::works::foot_tone(p)));
+        pages.push(json!({ "path": p.path(), "hash": p.hash(), "section": p.section().name(), "title": titles(p), "tone": bar, "foot": foot }));
     }
     for (path, p) in routes::aliases() {
         pages.push(json!({ "path": path, "hash": p.hash(), "section": p.section().name(), "title": titles(p), "alias": true }));
@@ -35,6 +37,7 @@ fn main() {
     let locales: Vec<Value> = website::LOCALES.iter().map(|l| json!({ "tag": l.tag(), "name": l.name() })).collect();
     // A phone's listing by the body's radius: [lines, least radius px], most lines first.
     let phone: Vec<Value> = body::phone_table().iter().map(|&(_, lines, r)| json!([lines, (r * 10.0).ceil() / 10.0])).collect();
-    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "listing": listing, "glyphs": b.glyphs(), "phone": phone });
+    let moved: Vec<Value> = routes::moved().into_iter().map(|(old, p)| json!([old, p.path()])).collect();
+    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "moved": moved, "listing": listing, "glyphs": b.glyphs(), "phone": phone });
     println!("{}", serde_json::to_string(&out).expect("json"));
 }

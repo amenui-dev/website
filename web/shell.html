@@ -176,6 +176,15 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 html:not(.home) #stage { bottom: 28px; }
 /* Off home the bar and the status line are bands of the ground, each with a hairline on the stage's side. */
 html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m)); justify-content: flex-end; background: var(--ground); border-top: 1px solid var(--hairline); box-sizing: border-box; }
+/* A piece of Works (M.2): the picture is the whole window, and the bar and the status line lie over it
+   with no ground, in the piece's tone (dark type over a pale sky, pale over a dark one). */
+html.work #stage { top: 0; bottom: 0; }
+html.work .bar, html.work .status { background: transparent; border-color: transparent; }
+.work .status { transition: opacity .15s, color .12s; }
+.work.idle .status { opacity: 0; }
+[data-tone="light"] { --ink: #17181a; --text: rgba(23, 24, 26, .59); --dim: rgba(23, 24, 26, .59); --accent: #db4d14; }
+[data-tone="dark"] { --ink: #e2e3e0; --text: rgba(226, 227, 224, .59); --dim: rgba(226, 227, 224, .59); }
+.work .bar a, .work .bar button, .work .bar a::before, .work .bar a::after { transition: color .12s linear; }
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
 .fail a { color: var(--second); text-decoration: underline dotted; }
@@ -183,13 +192,13 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
 </head>
 <body>
 <!--bar--><a class="skip" href="#main">{{t_skip}}</a>
-<header class="bar">
+<header class="bar" data-tone="{{tone}}">
   <a class="word" href="{{home_href}}" data-route="" aria-label="amenui">amenui<i></i></a>
   <nav class="nav" aria-label="{{t_sections}}">
     <a href="{{href_docs}}" data-route="docs/" data-section="docs">{{t_docs}}</a>
     <a href="{{href_components}}" data-route="components/" data-section="components">{{t_components}}</a>
     <a href="{{href_lab}}" data-route="lab/" data-section="lab">{{t_lab}}</a>
-    <a href="{{href_scenes}}" data-route="scenes/" data-section="scenes">{{t_scenes}}</a>
+    <a href="{{href_works}}" data-route="works/" data-section="works">{{t_works}}</a>
   </nav>
   <div class="end">
     <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / {{t_search}} ]</button>
@@ -203,7 +212,7 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   <a href="{{href_docs}}" data-route="docs/" data-section="docs"><small>01</small>{{t_docs}}</a>
   <a href="{{href_components}}" data-route="components/" data-section="components"><small>02</small>{{t_components}}</a>
   <a href="{{href_lab}}" data-route="lab/" data-section="lab"><small>03</small>{{t_lab}}</a>
-  <a href="{{href_scenes}}" data-route="scenes/" data-section="scenes"><small>04</small>{{t_scenes}}</a>
+  <a href="{{href_works}}" data-route="works/" data-section="works"><small>04</small>{{t_works}}</a>
   <div class="row"><button type="button" class="search">/ {{t_search}}</button><span class="lang">{{lang_switch}}</span><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
   <a class="close" href="#" aria-label="{{t_close}}">×</a>
 </div><!--/bar-->
@@ -232,7 +241,7 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span><span class="seedw">&nbsp;Seed</span>&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
   <a class="door" href="{{href_docs}}" data-route="docs/">docs →</a>
 </nav>
-<div class="status"><span class="quality" hidden>{{t_quality}} <button type="button" data-q="0">{{t_quality_auto}}</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="{{t_readout}}">F2</button></div>
+<div class="status" data-tone="{{foot}}"><span class="quality" hidden>{{t_quality}} <button type="button" data-q="0">{{t_quality_auto}}</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="{{t_readout}}">F2</button></div>
 <script>
 // The page before the module: the bar, the home page's stage with the source listing (lines shown as
 // the module's bytes arrive), the boot line, and the downloads started at once (the module compiles
@@ -256,7 +265,7 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
   A.mark = path => {
     const sec = path.split('/')[0];
     root.classList.toggle('home', path === '');
-    root.classList.toggle('scenes', sec === 'scenes' && path !== 'scenes/');
+    root.classList.toggle('work', sec === 'works' && path !== 'works/');
     for (const a of D.querySelectorAll('[data-section]')) { if (a.dataset.section === sec) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
   };
   A.mark(A.route);

@@ -14,6 +14,7 @@ mod pages;
 mod scenes;
 mod styles;
 pub mod three;
+pub mod works;
 pub mod particles;
 pub mod presets;
 pub mod routes;
@@ -44,7 +45,7 @@ pub const BAR: f32 = 48.0;
 pub const SECTION_FRONT: f32 = 2_800.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page { Components, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Reader, Decode, Stirr }
+pub enum Page { Components, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Reader, Decode, Stirr, Works, Work(u8) }
 
 pub const MARK_HASH: [&str; set::COUNT] = ["chars", "dither", "pixel", "mosaic", "brick", "dots", "cross", "diagonal", "diamond", "lines", "glow", "stroke", "led", "braille", "cubes", "hex", "stipple", "hatch", "truchet", "topo"];
 
@@ -66,6 +67,8 @@ impl Page {
         v.push(Page::Demo);
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
+        v.push(Page::Works);
+        v.extend((0..works::COUNT as u8).map(Page::Work));
         v
     }
     /// The page's address on the web: plain ASCII words, so a page can be linked.
@@ -94,6 +97,8 @@ impl Page {
             Page::Reader => "lab-reader".into(),
             Page::Decode => "decode".into(),
             Page::Stirr => "stirr".into(),
+            Page::Works => "works".into(),
+            Page::Work(i) => format!("work-{}", works::PIECES[i as usize].slug),
         }
     }
     /// From `#name` or `name`; an empty hash is the first page.
@@ -114,6 +119,9 @@ impl Page {
             Page::Decode => amenui::i18n::tr("nav.decode"),
             Page::Stirr => amenui::i18n::tr("nav.stirr"),
             Page::Components => amenui::i18n::tr("nav.components"),
+            Page::Works => amenui::i18n::tr("nav.works"),
+            // A piece's title is English in both languages (M.1).
+            Page::Work(i) => works::PIECES[i as usize].title.to_owned(),
             Page::Reader => amenui::i18n::tr("nav.reader"),
             Page::Widget(i) => { let n = docs::widget_names()[i as usize].clone(); if en { n.replace('_', " ") } else { docs::items().into_iter().find(|it| it.name == n).map_or(n, |it| it.title) } }
             Page::Comp(i) if en => docs::COMP_NAMES[i].replace('-', " "),
@@ -127,7 +135,7 @@ impl Page {
     }
     fn name_zh(self) -> &'static str {
         match self {
-            Page::Components | Page::Reader | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode | Page::Stirr | Page::Body => "",
+            Page::Components | Page::Reader | Page::Widget(_) | Page::Lab | Page::Experiment(_) | Page::Decode | Page::Stirr | Page::Body | Page::Works | Page::Work(_) => "",
             Page::Comp(i) => COMPONENTS[i].title,
             Page::LongList => "一万行",
             Page::Marks(s) => set::NAMES[s as usize],
@@ -270,6 +278,8 @@ pub enum Msg {
     /// Something on the decode transition's page.
     Decode(decode::DMsg),
     Stirr(stirr::SMsg),
+    /// Something on the Works index or in a piece.
+    Works(works::WMsg),
 }
 
 pub struct Gallery {
@@ -406,6 +416,10 @@ pub struct Gallery {
     pub body: crate::showcase::scenes::body::Body,
     pub decode: decode::DecodePage,
     pub stirr: stirr::StirrPage,
+    /// The Works index and its pieces (M).
+    pub works: works::Works,
+    /// A docs page the canvas asked the host to open (its path under the site's base).
+    pub navigate: Option<String>,
     /// Where the pointer is over the Loose Thread composition: a point there stirs the field map.
     pub thread_at: Option<(f32, f32)>,
     /// When the Loose Thread page was entered (state clock): its tangle draws on from then.
@@ -425,7 +439,7 @@ impl Default for Gallery {
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
             slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
-            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
+            rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), works: works::Works::default(), navigate: None, thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
 }
@@ -472,6 +486,7 @@ impl Gallery {
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
         body::look(self, &mut l);
+        works::look(self, &mut l);
         // With reduced motion nothing condenses from dots: a page is at rest from its first frame.
         if self.body.reduced { l.fx.enter = 0.0; }
         // A change of section's front, at its own speed until it has crossed the window.
@@ -481,6 +496,7 @@ impl Gallery {
     /// The flow to page `to`: from the Lab's index to an experiment the other cells do not leave as
     /// ghosts (the live cell is the lead; the rest closes).
     fn flow_to(&self, to: Page) -> FlowSpec {
+        if let Some(f) = works::flow(self, self.page, to) { return f; }
         if self.page == Page::Lab && matches!(to, Page::Experiment(_)) { FlowSpec { out_ms: 0.0, ..self.flow } } else { self.flow }
     }
     /// The title's flow id on a page: from the Components index, the pressed card's name (so it flies
@@ -497,8 +513,10 @@ impl Gallery {
         if from == to { return; }
         if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, ..self.flow })); return; }
         let (x, y) = at.unwrap_or((self.width * 0.5, BAR * 0.5));
-        let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, _ => 0 };
+        let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, Page::Works => 4, Page::Work(i) => 200 + i as u32, _ => 0 };
         match (from, to) {
+            // The index and its pieces: the window grows to the whole window, and back (M.5).
+            (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => self.cmds.push(Cmd::Flow(self.flow_to(to))),
             _ if look(from) != look(to) => {
                 if from.section() != to.section() { self.section_front = self.clock + (self.width.hypot(self.height) / SECTION_FRONT); }
                 self.cmds.push(Cmd::Commit { x, y, scope: None });
@@ -548,6 +566,7 @@ impl Gallery {
             Page::Presets => self.apply_style(self.pre_from),
             Page::Lab | Page::Experiment(_) => lab::enter(self),
             Page::Body => self.body = body::fresh(self),
+            Page::Works | Page::Work(_) => works::enter(self, p),
             // Every other page is in the site's own look, whatever a preset or scene set before.
             _ if self.style.is_some() => self.site_look(),
             _ => {}
@@ -704,6 +723,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
         Msg::Body(m) => body::update(s, m),
         Msg::Decode(m) => decode::update(s, m),
         Msg::Stirr(m) => stirr::update(s, m),
+        Msg::Works(m) => works::update(s, m),
         Msg::RipBurst => { s.rip_burst = Some((s.clock, 0)); burst_step(s, s.clock); }
         Msg::Text(t) => s.text = t,
         Msg::Notes(t) => s.notes = t,
@@ -773,6 +793,11 @@ fn view_in(s: &Gallery) -> El<Msg> {
     if s.page == Page::Body {
         return col().key("gallery").fonts(amenui::style::LAB.roles()).fill_width().fill_height().child(body::page(s));
     }
+    // Works: the index under the bar, a piece the whole window behind it (M.2, M.3).
+    if s.page.section() == Section::Works {
+        return col().key("gallery").fonts(th.roles()).fill_width().fill_height().material(Material::Plain.id())
+            .child(col().key(format!("main/{}", s.page.hash())).grow(1.0).fill_width().min_height(0.0).child(works::page(s)));
+    }
     if let Page::Scene(i) = s.page {
         // The canvas lies under the page's navigation bar here, so the scene starts below it.
         return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(space(0.0, BAR).key("bar-room"))
@@ -811,7 +836,7 @@ pub const STAGE_INSET: f32 = 16.0;
 
 /// `El::zoom`, and the offsets a widget places its parts by (`El::shift`: a floating box's corner,
 /// a chart's dots) times the same scale.
-fn zoomed(e: El<Msg>, k: f32) -> El<Msg> {
+pub(crate) fn zoomed(e: El<Msg>, k: f32) -> El<Msg> {
     fn shifts(mut e: El<Msg>, k: f32) -> El<Msg> {
         e.shift = (e.shift.0 * k, e.shift.1 * k);
         e.children = std::mem::take(&mut e.children).into_iter().map(|c| shifts(c, k)).collect();
@@ -1065,7 +1090,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             // The 3D page's camera coasts after a fast drag.
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let craft = craft::tick(s, t);
-            let lab = lab::tick(s, t) | body::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
+            let lab = lab::tick(s, t) | body::tick(s, t) | works::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
             let thread = matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t);
             // The hosts coalesce input (`Ui::coalesce`): what a tick changes is laid out once, before the frame.
             scenes::tick(s, t) || changed || burst || coast || craft || lab || thread
@@ -1084,14 +1109,16 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             let board = match (board, (matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t)).then_some(t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, lab::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             let board = match (board, body::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
+            let board = match (board, works::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
             match (board, scenes::wake(s, t)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
         })
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
             if k == amenui::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
-            body::key(s, k) || scenes::key(s, k, shift)
+            body::key(s, k) || scenes::key(s, k, shift) || works::key(s, k)
         })
-        .on_input(|g| scenes::heard(g) | body::heard(g))
+        .on_input(|g| scenes::heard(g) | body::heard(g) | works::heard(g))
+        .on_pointer(works::pointer)
         .on_key_up(scenes::key_up)
         .on_scrolled(docs::scrolled)
 }

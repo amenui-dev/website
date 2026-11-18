@@ -988,7 +988,7 @@ pub fn list(g: &Gallery) -> El<Msg> {
 }
 
 /// A small still for each card, made of the same parts as its scene.
-fn thumb(i: usize, w: f32) -> El<Msg> {
+pub fn thumb(i: usize, w: f32) -> El<Msg> {
     let h = 110.0;
     let k = |s: &str| format!("scenes/t{i}/{s}");
     let base = col().key(k("box")).width(w).height(h);

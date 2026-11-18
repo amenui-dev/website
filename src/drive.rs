@@ -10,7 +10,7 @@ use amenui::text::Face;
 use amenui::tree::TreeNode;
 
 /// A site page: driven as any page, and its preset is its recipe.
-struct Gallery(crate::gallery::GalleryUi);
+struct Gallery(crate::gallery::GalleryUi, bool);
 impl Driven for Gallery {
     fn now(&self) -> f32 { self.0.now() }
     // The home page's walk hears how ready the page is to draw what comes next (it gives way).
@@ -20,7 +20,11 @@ impl Driven for Gallery {
     fn tree(&self) -> TreeNode { self.0.export_tree() }
     fn problems(&self) -> Vec<ViewProblem> { self.0.problems() }
     fn needs_frame(&self, t: f32) -> bool { self.0.needs_frame(t) }
-    fn draw(&mut self, o: &mut Offscreen, look: &Look) -> Vec<u8> { o.render(&mut self.0, look) }
+    fn draw(&mut self, o: &mut Offscreen, look: &Look) -> Vec<u8> {
+        // The offscreen renderer has the framework's sample pictures; the works' pictures are the site's.
+        if !self.1 { crate::gallery::works::set_pictures(&mut o.r); self.1 = true; }
+        o.render(&mut self.0, look)
+    }
     fn recipe(&self) -> Option<String> { Some(self.0.state.recipe()) }
     fn ongoing(&self) -> bool { amenui::drive::Driven::ongoing(&self.0) }
     fn frame_drawn(&mut self) { amenui::drive::Driven::frame_drawn(&mut self.0) }
@@ -53,7 +57,7 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     if let Some(t) = theme { gallery::update(&mut ui.state, Msg::Theme(t)); }
     ui.relayout();
     gallery::fit_stage(&mut ui);
-    Ok(Box::new(Gallery(ui)))
+    Ok(Box::new(Gallery(ui, false)))
 }
 /// Open, play, draw: the whole `render` tool as a function, for site pages and recipes.
 pub fn render(spec: &RenderSpec, faces: Vec<Face>, o: Option<&mut Offscreen>) -> Result<Rendered, DriveError> {

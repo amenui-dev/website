@@ -219,7 +219,7 @@ function site() {
   // The rail row: ▸, the four states, the body's form and seed, and the door to the current state's
   // section (`skip ›` while the walk plays, `continue ›` once a person has taken it over).
   const rail = D.querySelector('.rail'), door = rail.querySelector('.door');
-  const DOORS = { 1: ['docs/', 'docs →'], 2: ['components/', 'components →'], 3: ['lab/', 'lab →'], 4: ['scenes/', 'scenes →'] };
+  const DOORS = { 1: ['docs/', 'docs →'], 2: ['components/', 'components →'], 3: ['lab/', 'lab →'], 4: ['works/', 'works →'] };
   const NAMES = { 1: 'source', 2: 'interface', 3: 'material', 4: 'body' };
   const INTRO = 'amenui.intro', VERSION = '1';
   const walk = () => api ? api.w.hero_walk() : [0, 0, 1];
@@ -292,9 +292,26 @@ function site() {
   };
   f2.addEventListener('click', () => { if (!api) return; api.w.set_readout(api.w.readout() === 2 ? 0 : 2); keepReadout(); api.kick(); });
   quality.addEventListener('click', e => { const b = e.target.closest('button'); if (!b || !api) return; api.w.set_quality(+b.dataset.q); keepReadout(); api.kick(); });
+  // A piece of Works (M.2): the bar and the status line take the piece's tone, and fade with the
+  // piece's chrome after 3 s without input. Reached from another page, the tone changes at 210 ms (M.5).
+  const bar = D.querySelector('.bar');
+  const tones = [bar.dataset.tone || '', status.dataset.tone || ''];
+  let toneTimer = 0, resting = false;
+  const keepWork = () => {
+    if (!api || !api.w.works_state) return;
+    const [t, idle, rest, f] = api.w.works_state();
+    root.classList.toggle('idle', !!idle);
+    if (!!rest !== resting) { resting = !!rest; keepStatus(); }
+    const name = v => v === 1 ? 'light' : v === 2 ? 'dark' : '';
+    const want = [name(t), name(f)];
+    if (want[0] === tones[0] && want[1] === tones[1]) return;
+    tones[0] = want[0]; tones[1] = want[1]; clearTimeout(toneTimer);
+    toneTimer = setTimeout(() => { [bar, status].forEach((e, k) => { if (tones[k]) e.dataset.tone = tones[k]; else delete e.dataset.tone; }); }, want[0] ? 210 : 0);
+  };
   const keepStatus = () => {
     if (!api || !running) return;
     keepReadout();
+    if (resting) { A.line('resting · move to wake'); return; }
     // The rate is there only while frames are being drawn; a field with nothing to report is left out.
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
@@ -322,8 +339,13 @@ function site() {
     },
     onRoute: (p, h) => routed(p, h),
     onResize: () => { place(); A.draw(); },
-    after: () => { showRail(); keepHash(); keepReadout(); },
-    frame: followRail,
+    after: () => {
+      showRail(); keepHash(); keepReadout(); keepWork();
+      // A press that asked for an HTML page (a piece's recipe) goes there.
+      const to = api && api.w.take_navigate ? api.w.take_navigate() : '';
+      if (to) location.assign(full(to));
+    },
+    frame: () => { followRail(); keepWork(); },
     onFrame: () => {
       A.done(api.w.backend(), api.w.glyphs());
       if (intro) setTimeout(() => { intro = false; showRail(); keepHash(); }, 1400);

@@ -1,15 +1,16 @@
 //! Addresses: every page has a path under the site's base (`components/button/`, `lab/lumen/`,
-//! `docs/concepts/layout/`; the home page is the empty path) and belongs to one of the four sections.
-//! The older hash names (`#button`) still name the same pages; the web shell redirects them.
-use super::{MARK_HASH, Page, docs, lab, scenes};
+//! `docs/concepts/layout/`, `works/ground-truth/`; the home page is the empty path) and belongs to one
+//! of the four sections. The older hash names (`#button`) still name the same pages, and the scenes'
+//! older paths (`scenes/reading/`, now `lab/scenes/reading/`) theirs; the web shell redirects both.
+use super::{MARK_HASH, Page, docs, lab, scenes, works};
 use amenui::style::{Material, styles};
 
 /// The four sections of the site, in the navigation bar's order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Section { Home, Docs, Components, Lab, Scenes }
+pub enum Section { Home, Docs, Components, Lab, Works }
 impl Section {
     pub fn name(self) -> &'static str {
-        match self { Section::Home => "home", Section::Docs => "docs", Section::Components => "components", Section::Lab => "lab", Section::Scenes => "scenes" }
+        match self { Section::Home => "home", Section::Docs => "docs", Section::Components => "components", Section::Lab => "lab", Section::Works => "works" }
     }
 }
 
@@ -49,8 +50,10 @@ impl Page {
             Page::Flow => "lab/motion/flow/".into(),
             Page::Three => "lab/motion/three/".into(),
             Page::Demo => "lab/skeleton/".into(),
-            Page::Scenes => "scenes/".into(),
-            Page::Scene(i) => format!("scenes/{}/", scenes::SCENES[i as usize].0),
+            Page::Scenes => "lab/scenes/".into(),
+            Page::Scene(i) => format!("lab/scenes/{}/", scenes::SCENES[i as usize].0),
+            Page::Works => "works/".into(),
+            Page::Work(i) => format!("works/{}/", works::PIECES[i as usize].slug),
         }
     }
     /// The page a path names (with or without its slashes). `None` for a path that names none (the
@@ -58,14 +61,15 @@ impl Page {
     pub fn from_path(p: &str) -> Option<Page> {
         let p = p.trim_matches('/');
         if p.is_empty() { return Some(Page::Body); }
-        let want = format!("{p}/");
+        // The scenes were a section of their own before they joined the Lab.
+        let want = if p == "scenes" || p.starts_with("scenes/") { format!("lab/{p}/") } else { format!("{p}/") };
         Page::all().into_iter().find(|q| q.path() == want)
     }
     pub fn section(self) -> Section {
         match self {
             Page::Body => Section::Home,
             Page::Components | Page::Comp(_) | Page::Widget(_) | Page::LongList => Section::Components,
-            Page::Scenes | Page::Scene(_) => Section::Scenes,
+            Page::Works | Page::Work(_) => Section::Works,
             _ => Section::Lab,
         }
     }
@@ -73,6 +77,11 @@ impl Page {
 
 /// The aliases the build writes a page for besides every page's own path: (path, page it shows).
 pub fn aliases() -> Vec<(&'static str, Page)> { vec![] }
+/// The paths pages had before they moved, and the page each leads to: the scenes, which were a
+/// section of their own (`scenes/`, `scenes/<name>/`) and are now in the Lab.
+pub fn moved() -> Vec<(String, Page)> {
+    std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).map(|p| (p.path()["lab/".len()..].to_owned(), p)).collect()
+}
 /// The older hash names of the docs pages, which are HTML now, and the path each has: the prose pages
 /// (`#docs-layout`), the For-AI pages, the registry and the changelog.
 pub fn doc_redirects() -> Vec<(String, String)> {

@@ -134,9 +134,9 @@ def chrome_vars(lang, path):
     lang_switch = '<span>·</span>'.join('<b>%s</b>' % SHORT.get(l, l) if l == lang else '<a href="%s" lang="%s" hreflang="%s">%s</a>' % (BASE + ('' if l == 'en' else l + '/') + path, l, l, SHORT.get(l, l)) for l in langs)
     t = lambda k: tr(lang, k)
     return {
-        'lang': lang, 'home_href': href(''), 'href_docs': href('docs/'), 'href_components': href('components/'), 'href_lab': href('lab/'), 'href_scenes': href('scenes/'),
+        'lang': lang, 'home_href': href(''), 'href_docs': href('docs/'), 'href_components': href('components/'), 'href_lab': href('lab/'), 'href_works': href('works/'),
         'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
-        't_sections': t('web.sections'), 't_docs': t('web.docs'), 't_components': t('web.components'), 't_lab': t('web.lab'), 't_scenes': t('web.scenes'),
+        't_sections': t('web.sections'), 't_docs': t('web.docs'), 't_components': t('web.components'), 't_lab': t('web.lab'), 't_works': t('web.works'), 'tone': '', 'foot': '',
         't_search': t('web.search'), 't_menu': t('web.menu'), 't_skip': t('web.skip'), 't_close': t('web.close'),
     }
 
@@ -144,7 +144,7 @@ def fill(s, v): return re.sub(r'\{\{(\w+)\}\}', lambda m: str(v[m.group(1)]), s)
 
 def current(s, section):
     """The current section marked in the bar and the sheet without the script (it keeps it after)."""
-    return re.sub(r'(<a [^>]*data-section="%s")' % re.escape(section), r'\1 aria-current="page"', s) if section in ('docs', 'components', 'lab', 'scenes') else s
+    return re.sub(r'(<a [^>]*data-section="%s")' % re.escape(section), r'\1 aria-current="page"', s) if section in ('docs', 'components', 'lab', 'works') else s
 
 # The search (A.7): one script, loaded on first use, and one index per language (written after the
 # docs, from them and from the canvas routes); every page carries the few lines that open it.
@@ -243,7 +243,7 @@ for lang in langs:
             if w['url'].startswith('docs/components/') and secs and not secs[0][0]: secs[0][2] = docs_html.first_sentence(secs[0][2])[0]
             docs_of[w['canvas']] = (w, secs); continue
         entries.append([w['url'], w['title'], w['crumb'], w['keywords'], 0, secs])
-    names = {'components': tr(lang, 'nav.components'), 'lab': tr(lang, 'nav.lab'), 'scenes': tr(lang, 'nav.scenes'), 'home': 'amenui'}
+    names = {'components': tr(lang, 'nav.components'), 'lab': tr(lang, 'nav.lab'), 'works': tr(lang, 'nav.works'), 'home': 'amenui'}
     for p in data['pages']:
         if p['section'] == 'docs' or p.get('alias') and p['path'].startswith('docs'): continue
         sec = p['section']
@@ -276,7 +276,7 @@ for w in built['pages']:
     f.write_bytes(b)
     doc_sizes.append((gz(b), w['lang'] + '/' + w['url']))
 
-def page(lang, path, title, section):
+def page(lang, path, title, section, tone='', foot=''):
     t = lambda k: tr(lang, k)
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
@@ -287,9 +287,9 @@ def page(lang, path, title, section):
     redirect = ''
     if path == '':
         redirect = '<script>(()=>{const m=%s,h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace(%s+m[h]);})()</script>\n' % (json.dumps(redirects, separators=(',', ':')), json.dumps(BASE))
-    classes = ' '.join(c for c in ['home' if path == '' else '', 'scenes' if path.startswith('scenes/') and path != 'scenes/' else ''] if c)
+    classes = ' '.join(c for c in ['home' if path == '' else '', 'work' if path.startswith('works/') and path != 'works/' else ''] if c)
     v = chrome_vars(lang, path) | {
-        'classes': classes, 'title': html.escape(title), 'description': html.escape(t('web.description')),
+        'classes': classes, 'tone': tone, 'foot': foot, 'title': html.escape(title), 'description': html.escape(t('web.description')),
         'redirect': redirect, 'wasm_url': BASE + wasm_fn,
         't_canvas': t('web.canvas'), 't_text_input': t('web.text-input'),
         't_eyebrow': t('web.eyebrow'), 't_lead': t('web.lead'), 't_start': t('web.start'), 't_copy': t('web.copy'), 't_readout': t('web.readout'), 't_quality': t('web.quality'), 't_quality_auto': t('web.quality.auto'),
@@ -309,9 +309,18 @@ for p in canvas_pages:
         title = 'amenui' if p['path'] == '' else f'{t} · amenui'
         d = out / ('' if lang == 'en' else lang) / p['path']
         d.mkdir(parents=True, exist_ok=True)
-        b = page(lang, p['path'], title, p['section']).encode()
+        b = page(lang, p['path'], title, p['section'], p.get('tone', ''), p.get('foot', '')).encode()
         (d / 'index.html').write_bytes(b)
         sizes.append((gz(b), lang + '/' + p['path']))
+# The addresses pages had before they moved (the scenes, now in the Lab): a page that goes on to the
+# new one, keeping the state after `#`.
+for old, new in data['moved']:
+    for lang in langs:
+        prefix = '' if lang == 'en' else lang + '/'
+        to = BASE + prefix + new
+        d = out / prefix / old
+        d.mkdir(parents=True, exist_ok=True)
+        (d / 'index.html').write_text('<!doctype html>\n<html lang="%s">\n<meta charset="utf-8">\n<title>amenui</title>\n<link rel="canonical" href="%s">\n<meta http-equiv="refresh" content="0; url=%s">\n<script>location.replace(%s + location.hash)</script>\n</html>\n' % (lang, html.escape(to), html.escape(to), json.dumps(to)))
 (out / '404.html').write_text(docs_html.not_found({'base': BASE, 'langs': langs, 'cats': cats, 'redirects': redirects}, doc_frame, lambda l: search_boot(l, index_urls[l])))
 (out / '.nojekyll').write_text('')
 # The embedding example: the glue, the element, and where the files are.
