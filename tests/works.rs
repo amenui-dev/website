@@ -606,6 +606,17 @@ fn touch_grass_s_window_crops_its_still_about_the_mast() {
         // Centred on x 950, unless that would show past the picture's right edge: then up to it.
         let right = pic[0] + pic[2] - (win[0] + win[2]);
         if wide { assert!((0.60..=0.75).contains(&mast) && ((centre - 0.5).abs() < 0.01 || right.abs() < 1.0), "{mast} {centre} {right}"); }
+        // U.3 item 1: the band's lowest pale stalk (in the still, its pale side's pixels on the lowest row
+        // that has any) at least 16 px inside the wide window's left edge.
+        if wide {
+            let (w, h, px) = works::picture_pixels(works::PIC_STILL).expect("the still");
+            let pale = |o: usize| { let (r, g, b) = (px[o] as i32, px[o + 1] as i32, px[o + 2] as i32); r > 235 && g > 225 && (171..215).contains(&b) && r - b > 30 };
+            let low = (0..h as usize).rev().find(|&y| (0..w as usize).any(|x| pale((y * w as usize + x) * 4))).expect("a pale stalk");
+            let x = (0..w as usize).find(|&x| pale((low * w as usize + x) * 4)).unwrap() as f32 * 1440.0 / w as f32;
+            let inside = pic[0] + x / 1440.0 * pic[2] - win[0];
+            eprintln!("touch grass's wide window: the lowest pale stalk {inside:.1} px inside its left edge");
+            assert!(inside >= 16.0, "{inside}");
+        }
         else { assert!(((mast - 0.5) * win[2]).abs() <= 8.0, "{mast}"); }
         assert!(!n.iter().any(|t| t.key.starts_with("works/still/touch-grass/")), "no callout over the still");
     }
@@ -665,4 +676,33 @@ fn ground_truth_s_window_shows_the_page_s_layout_through_one_scale() {
         eprintln!("ground truth's window, {} px at {s:.4}: its crop's centre at {:.1} px, the picture's right edge {right:.1} px past the window's", win[2], c);
         assert!((c - want).abs() <= 1.0 || (wide && right.abs() < 1.0), "{c} {want} {right}");
     }
+}
+
+/// U.3 item 2: W-03's narrow window at 1440 × 900 frames what does not move: the sun's centre at least
+/// 24 px inside it, and the cloud's box with `BIRD 0.03`, `HORIZON 0.0°` and `▲ 986` each whole and
+/// 8 px inside.
+#[test]
+fn ground_truth_s_narrow_window_frames_the_sun_the_cloud_and_the_far_height() {
+    let ui = at(Page::Works, 1440, 900);
+    let n = nodes(&ui);
+    let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
+    let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("works/window/work/ground-truth/picture"));
+    assert!(win[2] < 300.0, "03 is narrow: {win:?}");
+    let (wx0, wy0, wx1, wy1) = (win[0], win[1], win[0] + win[2], win[1] + win[3]);
+    let to = |x: f32, y: f32| (pic[0] + x / 1440.0 * pic[2], pic[1] + y / 900.0 * pic[3]);
+    let sun = to(980.0, 0.575 * 900.0);
+    let sun_in = (sun.0 - wx0).min(wx1 - sun.0).min(sun.1 - wy0).min(wy1 - sun.1);
+    let inside = |r: [f32; 4]| (r[0] - wx0).min(wx1 - r[2]).min(r[1] - wy0).min(wy1 - r[3]);
+    let (c0, c1) = (to(works::CLOUD.0 as f32 - 48.0, works::CLOUD.1 as f32 - 15.0), to(works::CLOUD.0 as f32 + 52.0, works::CLOUD.1 as f32 + 11.0));
+    let cloud_box = [c0.0, c0.1, c1.0, c1.1];
+    let mut figures = vec![("sun".to_owned(), sun_in)];
+    figures.push(("cloud's box".to_owned(), inside(cloud_box)));
+    for (k, t) in [("cloud", "BIRD 0.03"), ("horizon", "HORIZON 0.0°"), ("height2", "▲ 986")] {
+        let node = n.iter().find(|x| x.key == format!("works/window/work/ground-truth/{k}")).unwrap_or_else(|| panic!("{t} is drawn"));
+        assert_eq!(node.text.as_deref(), Some(t));
+        figures.push((t.to_owned(), inside(ink(node.rect))));
+    }
+    eprintln!("ground truth's narrow window: {}", figures.iter().map(|(k, v)| format!("{k} {v:.1} px in")).collect::<Vec<_>>().join(", "));
+    assert!(sun_in >= 24.0, "the sun {sun_in} px in");
+    for (k, v) in &figures[1..] { assert!(*v >= 8.0, "{k} {v} px in"); }
 }
