@@ -143,9 +143,11 @@ pub struct Ground {
     pub trail: Vec<(f32, f32, f32)>,
     pub moved_at: f32,
     pub dark: (f32, f32, f32),
+    /// The `HUMAN?` label's ink (1 the foot's ink, 0 the survey ink: from, to, since).
+    pub label: (f32, f32, f32),
 }
 impl Default for Ground {
-    fn default() -> Self { Self { flight: Some(FLIGHT * 0.5), stepped: -1.0, next: f32::INFINITY, scan: None, pointer: None, down: false, pinned: false, human: 0.62, trail: vec![], moved_at: -10.0, dark: (0.0, 0.0, -1.0) } }
+    fn default() -> Self { Self { flight: Some(FLIGHT * 0.5), stepped: -1.0, next: f32::INFINITY, scan: None, pointer: None, down: false, pinned: false, human: 0.62, trail: vec![], moved_at: -10.0, dark: UNSET, label: UNSET } }
 }
 /// A flight takes 16 s; one starts every 40 s.
 const FLIGHT: f32 = 16.0;
@@ -164,10 +166,19 @@ const ECHOES: [(f32, f32); 3] = [(30.0, 0.45), (60.0, 0.25), (90.0, 0.12)];
 const CELL: f32 = 14.0;
 fn scan_cells(w: f32) -> (usize, usize) { if w < NARROW { (15, 10) } else { (21, 14) } }
 fn scan_size(w: f32) -> (f32, f32) { let (c, r) = scan_cells(w); (c as f32 * CELL, r as f32 * CELL) }
-/// The characters of the scan window, lightest first (N.2 item 4).
-const RAMP: [char; 8] = [' ', '.', ':', '-', '=', '+', '*', '#'];
+/// The characters of the scan window, lightest first: seven levels and no blank, so the window is a
+/// full grid wherever it is (O.2 item 2). A cell's level is by eighths of its luminance, as built, the
+/// two lightest eighths both `.`.
+const RAMP: [char; 7] = ['.', ':', '-', '=', '+', '*', '#'];
+fn level(l: f32) -> usize { (((1.0 - l) * 8.0).floor() as usize).clamp(1, 7) - 1 }
 /// Below this luminance under the pointer its box takes the dark ground's accent (N.2 item 6).
 const DARK_BELOW: f32 = 0.25;
+/// Below this mean luminance under `HUMAN?` the label is in the foot's ink, at or above it in the survey
+/// ink (O.2 item 3).
+const LABEL_BELOW: f32 = 0.18;
+/// Each side of those two thresholds holds until the luminance has crossed it by this much, so neither
+/// flickers along a ridge.
+const HOLD: f32 = 0.03;
 /// The chrome fades after this long without input; the piece rests after this.
 const IDLE: f32 = 3.0;
 const REST: f32 = 60.0;
@@ -294,16 +305,20 @@ fn widths(s: &Gallery, t: f32) -> [f32; COUNT] {
 /// The pointer over W-03 (its own space): the scan window follows it, and it is judged.
 fn point(s: &mut Gallery, p: Option<(f32, f32)>) {
     let now = s.clock;
+    let z = zoom_of(s);
     let (w, h) = piece_size(s);
     let fit = fit_for(s, w, h);
     let g = &mut s.works.ground;
     g.pointer = p;
     let Some((x, y)) = p else { g.trail.clear(); return };
-    // The box's accent follows the picture under it, changing by opacity (N.2 item 6).
+    // The box's accent and the label's ink follow the picture under each, changing by opacity (N.2
+    // item 6, O.2 item 3).
     let (px0, py0) = fit.to_picture(x, y);
     let l = mean_lum(px0 - 16.0 / fit.s, py0 - 16.0 / fit.s, px0 + 16.0 / fit.s, py0 + 16.0 / fit.s);
-    let to = if l < DARK_BELOW { 1.0 } else { 0.0 };
-    if to != g.dark.1 { g.dark = (dark_at(g, now), to, if g.dark.2 < 0.0 { now - RETONE } else { now }); }
+    g.dark = retone(g.dark, l, DARK_BELOW, now);
+    let li = human_ink(x, y, z);
+    let (a, b) = (fit.to_picture(li.0, li.1), fit.to_picture(li.2, li.3));
+    g.label = retone(g.label, mean_lum(a.0, a.1, b.0, b.1), LABEL_BELOW, now);
     g.trail.push((x, y, now));
     if g.trail.len() > 3 { g.trail.remove(0); }
     if g.trail.len() == 3 {
@@ -322,10 +337,30 @@ fn point(s: &mut Gallery, p: Option<(f32, f32)>) {
         }
     }
 }
+/// How far a change of tone `(from, to, since)` is at `t` (toward 1, the dark ground's side).
+fn tone_at((a, b, at): (f32, f32, f32), t: f32) -> f32 { a + (b - a) * ((t - at) / RETONE).clamp(0.0, 1.0) }
 /// How far the pointer box is toward the dark ground's accent at `t`.
-fn dark_at(g: &Ground, t: f32) -> f32 {
-    let (a, b, at) = g.dark;
-    a + (b - a) * ((t - at) / RETONE).clamp(0.0, 1.0)
+fn dark_at(g: &Ground, t: f32) -> f32 { tone_at(g.dark, t) }
+/// A tone not set yet (no pointer so far).
+const UNSET: (f32, f32, f32) = (0.0, 0.0, f32::NEG_INFINITY);
+/// A tone that follows luminance `l` across `below`: the dark side (1) under it, the light side (0) at
+/// or over it, each side held until `l` has crossed by `HOLD`; the first is set at once.
+fn retone(c: (f32, f32, f32), l: f32, below: f32, now: f32) -> (f32, f32, f32) {
+    if c.2 == f32::NEG_INFINITY { let to = (l < below) as u8 as f32; return (to, to, f32::MIN); }
+    let to = if c.1 >= 0.5 { (l < below + HOLD) as u8 as f32 } else { (l < below - HOLD) as u8 as f32 };
+    if to == c.1 { return c; }
+    (tone_at(c, now), to, now)
+}
+/// The ink box of `HUMAN?` beside a pointer at (x, y), in a piece drawn at `z`.
+fn human_ink(x: f32, y: f32, z: f32) -> R { label_ink("HUMAN? 0.00", x.round() + 22.0 / z, y.round() - 16.0 / z, z) }
+/// The scale a piece is drawn at in the view on screen: 1 on its page, its window's on the index.
+fn zoom_of(s: &Gallery) -> f32 {
+    let (pw, ph) = piece_size(s);
+    match s.page {
+        Page::Work(_) => 1.0,
+        _ if s.width < NARROW => (s.width - 48.0) / pw,
+        _ => (pw * (ph - 400.0).max(320.0) / ph).round() / pw,
+    }
 }
 
 /// The input that moves the pointer anywhere: the chrome comes back, a resting piece wakes.
@@ -410,7 +445,7 @@ fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
         if (n.0 - target.0).hypot(n.1 - target.1) < 0.3 { target } else { n }
     };
     if g.scan != Some(next) { g.scan = Some(next); changed = true; }
-    if t - g.dark.2 <= RETONE + 0.02 { changed = true; }
+    if t - g.dark.2.max(g.label.2) <= RETONE + 0.02 { changed = true; }
     // Held still, the pointer looks less human.
     if g.pointer.is_some() && t - g.moved_at > 0.25 && (g.human - 0.5).abs() > 0.004 {
         let before = (g.human * 100.0).round();
@@ -439,7 +474,7 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
         let (pw, ph) = piece_size(s);
         let target = if g.pinned { g.scan } else { Some(g.pointer.unwrap_or(rest_place(s, pw, ph))) };
         if g.scan.is_none() || target.is_some_and(|p| Some(p) != g.scan) { want(t); }
-        if t - g.dark.2 < RETONE { want(t); }
+        if t - g.dark.2.max(g.label.2) < RETONE { want(t); }
         if g.pointer.is_some() && (g.human - 0.5).abs() > 0.004 { want(paced.max(g.moved_at + 0.25)); }
     }
     at
@@ -492,11 +527,11 @@ fn ink_space(s: &Gallery) -> InkSpace {
     }
 }
 /// The straight ramp nearest W-03's sky down the window over the band the faint shades are drawn in
-/// (the flight and the cloud: 240 to 390 px of the picture; least squares, its two ends kept
+/// (the flight and the cloud: 190 to 390 px of the picture; least squares, its two ends kept
 /// to colours): the ground a page's mixes
 /// over the sky start from.
 fn sky_ramp(fit: &Fit, h: f32) -> ([f32; 3], [f32; 3]) {
-    let (a, b) = (fit.at(0.0, 240.0).1, fit.at(0.0, 390.0).1);
+    let (a, b) = (fit.at(0.0, 190.0).1, fit.at(0.0, 390.0).1);
     let n = 48;
     let (mut sy, mut syy) = (0.0f32, 0.0f32);
     let (mut sc, mut syc) = ([0.0f32; 3], [0.0f32; 3]);
@@ -531,6 +566,8 @@ fn sky_ramp(fit: &Fit, h: f32) -> ([f32; 3], [f32; 3]) {
     (top, bottom)
 }
 impl InkSpace {
+    /// The colour paint `p` is at screen height `y`.
+    fn colour(&self, p: Paint, y: f32) -> [f32; 3] { mix3(mix3(self.ground(y), self.ink, p.tone), self.hues[p.hue.min(2) as usize], p.accent) }
     fn ground(&self, y: f32) -> [f32; 3] { let k = (y / self.h.max(1.0)).clamp(0.0, 1.0); std::array::from_fn(|j| self.top[j] + (self.bottom[j] - self.top[j]) * k) }
     /// The paint nearest colour `c` at screen height `y`: of the three mixes ground → ink → hue, the
     /// one whose triangle comes closest.
@@ -570,6 +607,8 @@ fn nearest_in_triangle(g: [f32; 3], i: [f32; 3], h: [f32; 3], c: [f32; 3]) -> (f
     [seg((0.0, 0.0), (1.0, 0.0)), seg((0.0, 0.0), (0.0, 1.0)), seg((1.0, 0.0), (0.0, 1.0))].into_iter().min_by(|x, y| x.2.total_cmp(&y.2)).unwrap_or((0.0, 0.0, 0.0))
 }
 fn mix3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] { std::array::from_fn(|k| a[k] + (b[k] - a[k]) * t) }
+/// The WCAG contrast of two colours.
+fn contrast(a: [f32; 3], b: [f32; 3]) -> f32 { let (a, b) = (lum(a), lum(b)); (a.max(b) + 0.05) / (a.min(b) + 0.05) }
 /// WCAG relative luminance of an sRGB colour (0–1).
 fn lum(c: [f32; 3]) -> f32 {
     let l = |v: f32| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
@@ -624,11 +663,7 @@ pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = picture_size(id)?;
     let i = (id - PIC) as usize;
     if i == GROUND_TRUTH { return Some((w, h, ground_pixels().to_vec())); }
-    let stops: &[(f64, u32)] = match i {
-        0 => &[(0.0, 0xbcd3e4), (0.64, 0xeeeee2), (0.64, 0xd9cc92), (1.0, 0xc2a95a)],
-        1 => &[(0.0, 0x2b66c4), (0.55, 0x5f9ae0), (1.0, 0xa9cdee)],
-        _ => &[(0.0, 0x070b16), (0.60, 0x0c1626), (0.80, 0x12233a), (0.80, 0x0a1320), (1.0, 0x070b14)],
-    };
+    let stops = stops(i);
     // An unbuilt piece: its colours and the piece's grain (0.04, as the finishing pass's), nothing else.
     let mut px = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h {
@@ -639,6 +674,14 @@ pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
         }
     }
     Some((w, h, px))
+}
+/// An unbuilt piece's colours, top to bottom.
+fn stops(i: usize) -> &'static [(f64, u32)] {
+    match i {
+        0 => &[(0.0, 0xbcd3e4), (0.64, 0xeeeee2), (0.64, 0xd9cc92), (1.0, 0xc2a95a)],
+        1 => &[(0.0, 0x2b66c4), (0.55, 0x5f9ae0), (1.0, 0xa9cdee)],
+        _ => &[(0.0, 0x070b16), (0.60, 0x0c1626), (0.80, 0x12233a), (0.80, 0x0a1320), (1.0, 0x070b14)],
+    }
 }
 fn hex(c: u32) -> [f64; 3] { [((c >> 16) & 255) as f64, ((c >> 8) & 255) as f64, (c & 255) as f64] }
 fn mix(a: [f64; 3], b: [f64; 3], t: f64) -> [f64; 3] { std::array::from_fn(|k| a[k] + (b[k] - a[k]) * t) }
@@ -769,7 +812,7 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         .child(step_link(k(p.slug, "next"), next_s, next_l, next));
     let strip = if narrow { col().key(k(p.slug, "strip")) } else { row().key(k(p.slug, "strip")).gap(56.0).align(AlignItems::CENTER) }
         .opacity(op).child(link(k(p.slug, "made"), made.clone(), made, WMsg::Recipe(i))).child(steps);
-    let n = mono(p.n, Paint::ACCENT).key(k(p.slug, "n")).opacity(title_op);
+    let n = mono(p.n, number_paint(s, i, w, h)).key(k(p.slug, "n")).opacity(title_op);
     let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1).opacity(title_op);
     let small = mono(micro(s, i), dim()).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
     let b = block(s, i, w, h);
@@ -785,6 +828,37 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         .child(at(small, 32.0, b.small))
         .child(at_right(strip, 32.0, h - 64.0))
 }
+/// The title block's number: in the accent where the accent measures at least 4.5 : 1 against the
+/// median luminance of the picture under the number at this size, otherwise in the foot's ink, the
+/// title's colour (O.2 item 3).
+fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Paint {
+    if number_contrast(s, i, w, h) >= 4.5 { Paint::ACCENT } else { Paint::INK }
+}
+/// The accent's contrast against the median luminance under the title block's number.
+pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> f32 {
+    let b = block(s, i, w, h);
+    let r = label_ink(PIECES[i].n, 32.0, b.n, 1.0);
+    let fit = if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) };
+    let mut ls: Vec<f32> = vec![];
+    let (mut y, mut x);
+    y = r.1 + 0.5;
+    while y < r.3 {
+        x = r.0 + 0.5;
+        while x < r.2 { let (qx, qy) = fit.to_picture(x, y); ls.push(lum(picture_colour(i, qx, qy))); x += 1.0; }
+        y += 1.0;
+    }
+    ls.sort_by(f32::total_cmp);
+    let m = ls.get(ls.len() / 2).copied().unwrap_or(0.0);
+    let a = lum(theme(i).accent);
+    (a.max(m) + 0.05) / (a.min(m) + 0.05)
+}
+/// A piece's picture's colour at (x, y) in px of 1440 × 900, without its grain.
+fn picture_colour(i: usize, x: f32, y: f32) -> [f32; 3] {
+    if i == GROUND_TRUTH { return picture_at(x, y); }
+    let c = ramp(stops(i), (y / 900.0) as f64);
+    [c[0] as f32 / 255.0, c[1] as f32 / 255.0, c[2] as f32 / 255.0]
+}
+
 /// The small line: the piece's real state. A piece not drawn yet has only its number and hour.
 fn micro(_s: &Gallery, i: usize) -> String {
     let p = &PIECES[i];
@@ -815,7 +889,7 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
         let over = amenui::el::Stirr { energy: 0.0, radius: Some(0.0), scope: amenui::el::Scope::Off };
         layer = layer.child(at(space(0.0, 0.0).key(k(p.slug, "over")).fill(Paint::GROUND.alpha(0.0)).stirr(over).pass(true), 0.0, 0.0));
     }
-    if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view) } else { layer }
+    if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
 
 /// How the 1440 × 900 picture lies in a `w × h` piece: cover, about its centre of interest.
@@ -886,11 +960,65 @@ impl Notes {
         if b.0 < a.0 || b.1 < a.1 || b.2 > a.2 || b.3 > a.3 { return false; }
         if self.hidden.iter().any(|&r| meets(r, all)) { return false; }
         if self.labels.iter().any(|&r| meets(r, ink)) { return false; }
+        if self.inks.iter().any(|&r| meets(r, ink)) { return false; }
         if let Some(l) = label { if self.labels.iter().chain(&self.inks).any(|&r| meets(r, l)) { return false; } self.labels.push(l); }
         self.inks.push(ink);
         true
     }
+    /// A bird's box: kept when it is inside, whatever it meets (O.2 item 1).
+    fn subject(&mut self, ink: R) -> bool {
+        let a = self.inside;
+        if ink.0 < a.0 || ink.1 < a.1 || ink.2 > a.2 || ink.3 > a.3 { return false; }
+        self.inks.push(ink);
+        true
+    }
+    /// A label on its own (a bird's): inside, clear of what hides notes and of every label and box kept.
+    fn keep_label(&mut self, l: R) -> bool {
+        let a = self.inside;
+        if l.0 < a.0 || l.1 < a.1 || l.2 > a.2 || l.3 > a.3 { return false; }
+        if self.hidden.iter().chain(&self.labels).chain(&self.inks).any(|&r| meets(r, l)) { return false; }
+        self.labels.push(l);
+        true
+    }
 }
+
+/// What W-03's survey drew in a view (for the checks): the birds' boxes, the echoes', the cloud's box
+/// and label, the birds' labels.
+#[derive(Clone, Debug, Default)]
+pub struct Drawn {
+    /// Every bird's box, drawn or not, and each label's place under its bird, drawn or not.
+    pub flock: Vec<R>,
+    pub tags: Vec<R>,
+    /// What was drawn.
+    pub birds: Vec<R>,
+    pub echoes: Vec<R>,
+    pub cloud: Option<(R, R)>,
+    pub labels: Vec<R>,
+    /// The cloud label's contrast against the mean of the picture under it.
+    pub cloud_contrast: f32,
+}
+/// What W-03's survey draws on its page as the state is now.
+pub fn drawn(s: &Gallery) -> Drawn {
+    let (w, h) = (s.width, s.height);
+    ground_truth(s, col(), w, h, &fit_for(s, w, h), 1.0, Mode::Page, (0.0, 0.0, w, h)).1
+}
+/// The flight's row (the leader's centre) on screen: as built, raised 40 px (60 on a phone's page), and
+/// higher still where that is needed for the bottom of its lowest label to be 24 px above the top of
+/// the cloud's box (O.2 item 1). A phone's band shows no cloud and keeps the row as built.
+fn flight_row(fit: &Fit, w: f32, z: f32, mode: Mode, cloud_top: Option<f32>) -> f32 {
+    let built = fit.at(0.0, 290.0).1;
+    let Some(top) = cloud_top else { return built };
+    let lift = if mode == Mode::Page && w < NARROW { 60.0 } else { 40.0 };
+    // The lowest label's bottom below the row: its bird's offset, its box, the gap and the type
+    // (one pixel more for the rounding of the bird's place).
+    let lowest = (0..BIRDS).filter(|&b| BIRD_LABELS[b].is_some()).map(|b| {
+        let (lx, ly) = under(0.0, FLOCK[b].1 + BOX.3, z);
+        label_ink("BIRD", lx, ly, z).3
+    }).fold(f32::MIN, f32::max) + 1.0 / z;
+    (built - lift).min(top - CLEAR / z - lowest).round()
+}
+/// The three birds that carry a label.
+const BIRD_LABELS: [Option<&str>; BIRDS] = [Some("BIRD 0.97"), None, None, Some("BIRD 0.94"), None, None, Some("BIRD 0.91")];
 
 /// W-03's scan window in a view: its rect (x0, y0, x1, y1), its cells' size and how many.
 struct Scan { r: R, cell: f32, n: (usize, usize) }
@@ -927,7 +1055,7 @@ fn pointer_hole(s: &Gallery, z: f32) -> Option<(R, R, String)> {
 /// W-03 `ground truth`: the survey over the ridges, the flight of birds and what tracks them. The scan
 /// window and the pointer come after (`scan_and_pointer`), on a page over the frame too.
 #[allow(clippy::too_many_arguments)]
-fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> El<Msg> {
+fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> (El<Msg>, Drawn) {
     let lw = 1.0 / z;
     let g = &s.works.ground;
     let slug = PIECES[GROUND_TRUTH].slug;
@@ -951,22 +1079,47 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let mut labels: Vec<El<Msg>> = vec![];
     let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)), x, y));
     let band = mode == Mode::Band;
+    let mut drawn = Drawn::default();
+    // The one wrong call: the small pale cloud, its box at 45 % and its label at 70 % (O.2 item 3), the
+    // label under the box (N.4 (5)). It is placed first: the flight keeps clear of it, not it of the
+    // flight (O.2 item 1).
+    let cloud = (!band).then(|| {
+        let (cx, cy) = fit.at(CLOUD.0 as f32, CLOUD.1 as f32);
+        let r = ((cx - 48.0).round(), (cy - 15.0).round(), (cx + 52.0).round(), (cy + 11.0).round());
+        let (lx, ly) = under(r.0, r.3, z);
+        (r, (lx, ly), label_ink("BIRD 0.03", lx, ly, z))
+    });
+    if let Some((r, (lx, ly), li)) = cloud && notes.keep(r, Some(li)) {
+        rect(&mut d, r, z, faint(r.0, r.1, 0.45));
+        let paint = faint(r.0, r.3 + 8.0, 0.70);
+        label(&mut labels, "cloud", "BIRD 0.03", paint, (lx, ly));
+        let (a, b) = (fit.to_picture(li.0, li.1), fit.to_picture(li.2, li.3));
+        drawn.cloud_contrast = contrast(ink.colour(paint, (r.3 + 8.0) * z), mean_at(a.0, a.1, b.0, b.1));
+        drawn.cloud = Some((r, li));
+    }
     // The flight: seven birds in a loose line, right to left, each in its box with three echoes; under
     // 720 px the spacing is scaled so the seven span at most 70 % of the width (N.2 item 7).
     if let Some(f) = g.flight {
         let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
         let sx = if mode == Mode::Page && w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
-        let span = FLOCK[BIRDS - 1].0 * sx + 160.0;
-        let speed = (w + span + 40.0) / FLIGHT;
-        let lead = w + 40.0 - f * speed;
-        let (_, y0) = fit.at(0.0, 290.0);
+        // The flock's centre crosses at an even speed and is at the window's centre halfway (the rest
+        // pose: all seven on screen at any width), from 40 px past the right edge to where its last
+        // echo is 40 px past the left.
+        let fw = FLOCK[BIRDS - 1].0 * sx;
+        let reach = w * 0.5 + fw * 0.5 + BOX.2 + ECHOES[ECHOES.len() - 1].0 + 40.0;
+        let speed = 2.0 * reach / FLIGHT;
+        let lead = w * 0.5 + reach - f * speed - fw * 0.5;
+        let y0 = flight_row(fit, w, z, mode, cloud.map(|c| c.0.1));
         let echoes = !reduced(s);
         for (b, &(dx, dy)) in FLOCK.iter().enumerate() {
             let (bx, by) = ((lead + dx * sx).round(), (y0 + dy).round());
             let r = (bx + BOX.0, by + BOX.1, bx + BOX.2, by + BOX.3);
-            let name = [Some("BIRD 0.97"), None, None, Some("BIRD 0.94"), None, None, Some("BIRD 0.91")][b].filter(|_| !band);
-            let tag = name.map(|t| { let (lx, ly) = under(r.0, r.3, z); (t, (lx, ly), label_ink(t, lx, ly, z)) });
-            if !notes.keep(r, tag.map(|t| t.2)) { continue; }
+            drawn.flock.push(r);
+            if BIRD_LABELS[b].is_some() { let (lx, ly) = under(r.0, r.3, z); drawn.tags.push(label_ink("BIRD 0.00", lx, ly, z)); }
+            // A bird and its box are the subject: absent only when the box is not 8 px inside the
+            // window, never for meeting a note (O.2 item 1). Its label and its echoes are notes.
+            if !notes.subject(r) { continue; }
+            drawn.birds.push(r);
             // Two strokes on the pixel grid, one pixel a column (a stroke antialiased over the picture
             // would mix its colour code with the sky's).
             let span = 5.0 + (b % 3) as f32;
@@ -977,25 +1130,18 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
                 d.line((x, y), (x, y), lw, INK_FULL);
             }
             rect(&mut d, r, z, INK_FULL);
-            if let Some((t, at, _)) = tag { label(&mut labels, &format!("bird{b}"), t, INK_FULL, at); }
+            if let Some(t) = BIRD_LABELS[b].filter(|_| !band) {
+                let (lx, ly) = under(r.0, r.3, z);
+                let li = label_ink(t, lx, ly, z);
+                if notes.keep_label(li) { label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly)); drawn.labels.push(li); }
+            }
             if echoes && !band {
                 for &(back, a) in &ECHOES {
                     if f * speed < back { break; }
                     let er = (r.0 + back, r.1, r.2 + back, r.3);
-                    if notes.keep(er, None) { rect(&mut d, er, z, faint(bx + back, by + BOX.1, a)); }
+                    if notes.keep(er, None) { rect(&mut d, er, z, faint(bx + back, by + BOX.1, a)); drawn.echoes.push(er); }
                 }
             }
-        }
-    }
-    // The one wrong call: the small pale cloud, its box and its label at 45 % (N.2 item 5), the label
-    // under the box (N.4 (5)).
-    if !band {
-        let (cx, cy) = fit.at(CLOUD.0 as f32, CLOUD.1 as f32);
-        let r = ((cx - 48.0).round(), (cy - 15.0).round(), (cx + 52.0).round(), (cy + 11.0).round());
-        let (lx, ly) = under(r.0, r.3, z);
-        if notes.keep(r, Some(label_ink("BIRD 0.03", lx, ly, z))) {
-            rect(&mut d, r, z, faint(r.0, r.1, 0.45));
-            label(&mut labels, "cloud", "BIRD 0.03", faint(r.0, r.3 + 8.0, 0.45), (lx, ly));
         }
     }
     // The level line at the sun's height, as built, across the window inside its margins.
@@ -1032,7 +1178,7 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let mut layer = layer.child(at(canvas(d).key(k(slug, "survey")).width(w).pass(true), 0.0, 0.0));
     for l in labels { layer = layer.child(l.pass(true)); }
     // On the index the scan window goes over the survey here; on the piece's page, over the frame too.
-    if mode == Mode::Live { layer.child(scan_and_pointer_in(s, w, h, fit, z, mode, view)) } else { layer }
+    (if mode == Mode::Live { layer.child(scan_and_pointer_in(s, w, h, fit, z, mode, view)) } else { layer }, drawn)
 }
 
 /// W-03's scan window over what is drawn before it, then the pointer, surveyed too (on its page).
@@ -1066,8 +1212,7 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
             let (qa, qb) = fit.to_picture(cx, cy);
             let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
             let col_ = mean_at(qa, qb, qc, qd);
-            let n = ((1.0 - lum(col_)) * RAMP.len() as f32).floor().clamp(0.0, RAMP.len() as f32 - 1.0) as usize;
-            if RAMP[n] == ' ' { continue; }
+            let n = level(lum(col_));
             let paint = ink.paint(mix3(col_, SURVEY, 0.62), (cy + sc.cell * 0.5) * z);
             let (tx, ty) = (cx + ((CELL - ADV) * 0.5).round() / z, cy + ((CELL - INK_H) * 0.5).round() / z - if z < 1.0 { 1.0 } else { INK_TOP } / z);
             cells = cells.child(at(mono(RAMP[n].to_string(), paint).key(k(slug, &format!("scan/{i}/{j}"))).recompose(false).pass(true), tx, ty));
@@ -1092,10 +1237,17 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
             d.line((cx, cy - 9.0 / z), (cx, cy + 9.0 / z), lw, paint);
             rect(&mut d, b, z, paint);
             let group = col().key(k(slug, &format!("pointer/{name}"))).width(w).height(h).pass(true)
-                .child(at(canvas(d).key(k(slug, &format!("pointer/{name}/box"))).width(w).pass(true), 0.0, 0.0))
-                .child(at(mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true), qx.round() + 22.0 / z, qy.round() - 16.0 / z));
+                .child(at(canvas(d).key(k(slug, &format!("pointer/{name}/box"))).width(w).pass(true), 0.0, 0.0));
             // A see-through group only while the two cross: at rest the box is drawn as it is.
             c = c.child(at(if op < 1.0 { group.opacity(op) } else { group }, 0.0, 0.0));
+        }
+        // The label is not in the accent: the survey ink over a pale ground, the foot's ink over a dark
+        // one, the two crossing by opacity (O.2 item 3).
+        let k_ink = tone_at(g.label, s.clock);
+        for (name, paint, op) in [("survey", INK_FULL, 1.0 - k_ink), ("ink", Paint::INK, k_ink)] {
+            if op <= 0.0 { continue; }
+            let t = mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true);
+            c = c.child(at(if op < 1.0 { t.opacity(op) } else { t }, qx.round() + 22.0 / z, qy.round() - 16.0 / z));
         }
     }
     at(c, 0.0, 0.0)
@@ -1112,7 +1264,7 @@ fn index(s: &Gallery) -> El<Msg> {
     let top = y(208.0);
     // The scale makes the piece a whole number of pixels wide, so its drawings' strokes land on the
     // pixel grid where `px` puts them.
-    let kz = (pw * hh / ph).round() / pw;
+    let kz = zoom_of(s);
     let widths = widths(s, s.clock);
     let mut root = col().key("works/index").width(w).height(s.height).clip()
         .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, y(98.0)))
@@ -1196,7 +1348,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
     let w = s.width;
     let bw = w - 48.0;
     let (pw, ph) = (1440.0, 900.0);
-    let kz = bw / pw;
+    let kz = zoom_of(s);
     let heights: [f32; COUNT] = std::array::from_fn(|i| if !PIECES[i].built { 48.0 } else if s.works.tapped == Some(i) { (bw * 10.0 / 16.0).round() } else { 132.0 });
     // A band, the gap under it, its line of number, hour and title; and the gap to the next.
     const META: f32 = 8.0 + 18.0;
@@ -1266,6 +1418,56 @@ mod tests {
                 assert!(ECHOES.windows(2).all(|e| e[1].0 - e[0].0 > BOX.2 - BOX.0));
             }
         }
+    }
+    #[test]
+    fn human_reads_over_the_sky_and_every_ridge() {
+        // O.2 item 3: the survey ink over a pale ground, the foot's ink over a dark one; 4.5 : 1 over the
+        // sky and the two near and two far ridges, 3.4 accepted over the middle ridge alone.
+        let foot = theme(GROUND_TRUTH).ink;
+        let fit = Fit::new(1440.0, 900.0, PIECES[GROUND_TRUTH].focus);
+        let measure = |x: f32, y: f32| {
+            let li = human_ink(x, y, 1.0);
+            let (a, b) = (fit.to_picture(li.0, li.1), fit.to_picture(li.2, li.3));
+            let under = mean_at(a.0, a.1, b.0, b.1);
+            let ink = if lum(under) < LABEL_BELOW { foot } else { SURVEY };
+            contrast(ink, under)
+        };
+        for x in [120.0, 400.0, 700.0, 1100.0] { for y in [150.0, 300.0, 420.0] { let c = measure(x, y); assert!(c >= 4.5, "sky at {x}, {y}: {c:.2}"); } }
+        let mut seen = [0; 5];
+        for (r, seen) in seen.iter_mut().enumerate() {
+            for x in [150.0f32, 450.0, 800.0, 1200.0] {
+                // The label wholly over ridge `r`: between its top and the next one's, at its band's middle.
+                let (lx0, lx1) = (x + 22.0, x + 22.0 + 90.0);
+                let top = (0..=9).map(|k| ridge_y((lx0 + (lx1 - lx0) * k as f32 / 9.0) as f64, r)).fold(f64::MIN, f64::max) as f32;
+                let bottom = if r < 4 { (0..=9).map(|k| ridge_y((lx0 + (lx1 - lx0) * k as f32 / 9.0) as f64, r + 1)).fold(f64::MAX, f64::min) as f32 } else { 900.0 };
+                if bottom - top < 14.0 { continue; }
+                let ly = (top + bottom) * 0.5;
+                let c = measure(x, ly + 16.0 - INK_TOP - INK_H * 0.5);
+                let need = if r == 2 { 3.4 } else { 4.5 };
+                assert!(c >= need, "ridge {r} at {x}: {c:.2}");
+                *seen += 1;
+            }
+        }
+        assert!(seen.iter().all(|&n| n >= 2), "{seen:?}");
+    }
+    #[test]
+    fn a_tone_holds_its_side_until_crossed_by_the_margin() {
+        let mut c = retone(UNSET, 0.30, DARK_BELOW, 0.0);
+        assert_eq!(c.1, 0.0);
+        for l in [0.24, 0.23, 0.226] { c = retone(c, l, DARK_BELOW, 1.0); assert_eq!(c.1, 0.0, "{l}"); }
+        c = retone(c, 0.21, DARK_BELOW, 1.0);
+        assert_eq!(c.1, 1.0);
+        for l in [0.26, 0.275] { c = retone(c, l, DARK_BELOW, 2.0); assert_eq!(c.1, 1.0, "{l}"); }
+        c = retone(c, 0.29, DARK_BELOW, 2.0);
+        assert_eq!(c.1, 0.0);
+    }
+    #[test]
+    fn the_ramp_has_no_blank() {
+        assert!(!RAMP.contains(&' '));
+        assert_eq!(RAMP[level(1.0)], '.');
+        assert_eq!(RAMP[level(0.8)], '.');
+        assert_eq!(RAMP[level(0.7)], ':');
+        assert_eq!(RAMP[level(0.0)], '#');
     }
     #[test]
     fn a_paint_comes_near_a_colour_of_its_triangle() {

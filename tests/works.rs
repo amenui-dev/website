@@ -167,16 +167,27 @@ fn the_phone_ruler_marks_each_band_at_its_centre() {
     assert!(!n.iter().any(|t| t.text.is_some() && t.rect[0] < 32.0 && t.key.starts_with("works/ruler")), "no hours beside the bands");
 }
 
+/// The cells of the scan window drawn on a piece's page (column, row, the cell's rect from its glyph's).
+fn scan_cells(n: &[amenui::tree::TreeNode]) -> Vec<(usize, usize, [f32; 4])> {
+    n.iter().filter_map(|t| {
+        let (a, b) = t.key.strip_prefix("work/ground-truth/scan/")?.split_once('/')?;
+        // A glyph stands 3 px in from its cell's left and 2 px above its top (its box starts above its ink).
+        Some((a.parse().ok()?, b.parse().ok()?, [t.rect[0] - 3.0, t.rect[1] + 2.0, t.rect[0] - 3.0 + 14.0, t.rect[1] + 2.0 + 14.0]))
+    }).collect()
+}
+
 #[test]
-fn the_scan_window_says_what_it_draws() {
+fn the_scan_window_says_what_it_draws_and_is_a_full_grid() {
+    // O.2 item 2: the characters inside the window are the label's product, less the cells under the
+    // pointer's box and its label's plate.
     for (w, h, cols, rows) in [(1440, 900, 21, 14), (390, 844, 15, 10)] {
         let ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
         let n = nodes(&ui);
         let label = n.iter().find(|t| t.key == "work/ground-truth/scan-label").and_then(|t| t.text.clone()).expect("label");
         assert_eq!(label, format!("SCAN {}×{}   {cols} × {rows} CELLS", cols * 14, rows * 14));
-        let cells: Vec<(usize, usize)> = n.iter().filter_map(|t| t.key.strip_prefix("work/ground-truth/scan/")?.split_once('/').and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)))).collect();
-        assert!(cells.iter().all(|&(i, j)| i < cols && j < rows), "{w}: a cell outside {cols} × {rows}");
-        assert!(cells.len() > cols * rows / 2, "{w}: {} cells drawn", cells.len());
+        let cells = scan_cells(&n);
+        assert!(cells.iter().all(|&(i, j, _)| i < cols && j < rows), "{w}: a cell outside {cols} × {rows}");
+        assert_eq!(cells.len(), cols * rows, "{w}: with no pointer every cell has its character");
         // Every glyph is one character of the ramp.
         assert!(n.iter().filter(|t| t.key.starts_with("work/ground-truth/scan/")).all(|t| t.text.as_deref().is_some_and(|c| c.chars().count() == 1 && ".:-=+*#".contains(c))));
         // To assistive technology the characters are one picture with the label's words.
@@ -184,6 +195,65 @@ fn the_scan_window_says_what_it_draws() {
         assert!(!a.iter().any(|t| t.key.starts_with("work/ground-truth/scan/")), "{w}: a cell in the accessibility mirror");
         let pic = a.iter().find(|t| t.key == "work/ground-truth/scan").expect("the scan window in the mirror");
         assert_eq!(pic.name, label);
+        // With the pointer over the window: the hole is the box and the plate, and nothing else.
+        let (x0, y0) = cells.iter().find(|c| c.0 == 0 && c.1 == 0).map(|c| (c.2[0], c.2[1])).expect("the first cell");
+        let mut ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
+        let (qx, qy) = (x0 + 14.0 * 5.0 + 3.0, y0 + 14.0 * 6.0 + 5.0);
+        // The window rests where the pointer is once its spring has caught up: hold it there.
+        ui.pointer_move(qx, qy);
+        ui.state.works.ground.pinned = true;
+        ui.state.works.ground.scan = Some((x0 + cols as f32 * 7.0, y0 + rows as f32 * 7.0));
+        ui.relayout();
+        let n = nodes(&ui);
+        let cells = scan_cells(&n);
+        let meets = |a: [f32; 4], b: [f32; 4]| a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+        let bx = [qx - 16.0, qy - 16.0, qx + 16.0, qy + 16.0];
+        let human = n.iter().find(|t| t.key.starts_with("work/ground-truth/human/")).expect("HUMAN?").rect;
+        let plate = [human[0] + 1.0 - 6.0, human[1] + 5.0 - 3.0, human[0] + human[2] - 2.0 + 6.0, human[1] + 13.0 + 3.0];
+        let hole = (0..cols).flat_map(|i| (0..rows).map(move |j| (i, j))).filter(|&(i, j)| {
+            let c = [x0 + 14.0 * i as f32, y0 + 14.0 * j as f32, x0 + 14.0 * (i + 1) as f32, y0 + 14.0 * (j + 1) as f32];
+            meets(c, bx) || meets(c, plate)
+        }).count();
+        assert!(hole > 0, "{w}: the pointer is over the window");
+        assert_eq!(cells.len(), cols * rows - hole, "{w}: {} cells drawn, {hole} under the pointer", cells.len());
+    }
+}
+
+#[test]
+fn the_flight_flies_above_the_cloud_and_no_bird_is_left_out() {
+    // O.2 item 1, over a whole flight sampled every 500 ms.
+    let meets = |a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)| a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3;
+    for (w, h) in [(1440, 900), (390, 844), (1280, 800), (1920, 1080), (360, 740), (768, 1024), (1440, 700)] {
+        let mut ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
+        let (wf, hf) = (w as f32, h as f32);
+        for k in 0..32 {
+            ui.state.works.ground.flight = Some(k as f32 * 0.5);
+            let d = works::drawn(&ui.state);
+            let (cloud, cloud_label) = d.cloud.expect("the cloud");
+            let inside = d.flock.iter().filter(|r| r.0 >= 8.0 && r.1 >= 8.0 && r.2 <= wf - 8.0 && r.3 <= hf - 8.0).count();
+            assert_eq!(d.birds.len(), inside, "{w}×{h} at {k}: {} drawn, {inside} inside", d.birds.len());
+            let lowest = d.tags.iter().map(|t| t.3).fold(f32::MIN, f32::max);
+            assert!(cloud.1 - lowest >= 24.0, "{w}×{h}: the lowest label ends at {lowest}, the cloud's box starts at {}", cloud.1);
+            assert!(!d.echoes.iter().any(|&e| meets(e, cloud) || meets(e, cloud_label)), "{w}×{h} at {k}: an echo on the cloud");
+        }
+        // The rest pose: halfway.
+        ui.state.works.ground.flight = Some(8.0);
+        let d = works::drawn(&ui.state);
+        assert_eq!(d.birds.len(), 7, "{w}×{h}: the rest pose");
+    }
+}
+
+#[test]
+fn the_cloud_label_and_the_number_read() {
+    // O.2 item 3: the cloud's label at 4.5 : 1 or more at both sizes; the title block's number in the
+    // accent only where the accent measures 4.5 : 1 against the median under it.
+    for (w, h, accent) in [(1440, 900, true), (390, 844, false)] {
+        let ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
+        let d = works::drawn(&ui.state);
+        assert!(d.cloud_contrast >= 4.5, "{w}: the cloud's label at {:.2}", d.cloud_contrast);
+        let c = works::number_contrast(&ui.state, works::GROUND_TRUTH, w as f32, h as f32);
+        assert_eq!(c >= 4.5, accent, "{w}: the accent at {c:.2}");
+        eprintln!("{w}: cloud label {:.2}, number's accent {c:.2}", d.cloud_contrast);
     }
 }
 
