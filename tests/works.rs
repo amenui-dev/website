@@ -589,8 +589,8 @@ fn the_windsock_lifts_in_a_strong_gust_and_holds_at_the_bands_peak_with_reduced_
 }
 
 /// T.5: W-01's window crops its still about the mast: wide, centred on x 950 of the 1,440 (the mast
-/// between 60 % and 75 % across); narrow, on the mast; the callout only where it is whole and 8 px
-/// inside (at these sizes its type, which keeps its size, runs past the edge: left out).
+/// between 60 % and 75 % across); narrow, on the mast; and
+/// (T.6) the callout is never drawn over it.
 #[test]
 fn touch_grass_s_window_crops_its_still_about_the_mast() {
     for (hover, wide) in [(None, true), (Some(works::GROUND_TRUTH), false)] {
@@ -605,6 +605,39 @@ fn touch_grass_s_window_crops_its_still_about_the_mast() {
         eprintln!("touch grass's window, {} px: the mast {:.1} % across, x 950 at {:.1} %", win[2], mast * 100.0, centre * 100.0);
         if wide { assert!((0.60..=0.75).contains(&mast) && (centre - 0.5).abs() < 0.01, "{mast} {centre}"); }
         else { assert!(((mast - 0.5) * win[2]).abs() <= 8.0, "{mast}"); }
-        assert!(!n.iter().any(|t| t.key.starts_with("works/still/touch-grass/")), "the callout is not whole in the window");
+        assert!(!n.iter().any(|t| t.key.starts_with("works/still/touch-grass/")), "no callout over the still");
     }
+}
+
+/// T.6 (a): on a phone the 01 band shows the still's whole width, so the sock (from the mast at x 1,123.5
+/// of 1,440, 22 px long at 11.5° below the horizontal) lies 76 % to 80 % across.
+#[test]
+fn on_a_phone_touch_grass_s_band_shows_the_whole_still() {
+    let ui = at(Page::Works, 390, 844);
+    let n = nodes(&ui);
+    let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
+    let (band, pic) = (rect("works/w0"), rect("works/window/work/touch-grass/picture"));
+    assert!((pic[0] - band[0]).abs() < 0.5 && (pic[2] - band[2]).abs() < 0.5, "{pic:?} in {band:?}");
+    let across = |x: f32| (pic[0] + x / 1440.0 * pic[2] - band[0]) / band[2];
+    let (a, b) = (across(1123.5), across(1124.0 + 22.0 * 11.5f32.to_radians().cos()));
+    eprintln!("touch grass's band on a phone: the sock {:.1} % to {:.1} % across", a * 100.0, b * 100.0);
+    assert!(a >= 0.76 && b <= 0.80, "{a} {b}");
+}
+
+/// T.6 (b): above the horizon the still has no pixel of the ink (#2a2b2d) but the mast's: no callout,
+/// no leader.
+#[test]
+fn touch_grass_s_still_has_no_ink_in_its_sky_but_the_mast() {
+    let (w, h, px) = works::picture_pixels(works::PIC_STILL).expect("the still");
+    let hz = (0.64 * h as f32) as usize;
+    let mast = (1123.5 * w as f32 / 1440.0) as usize;
+    let near_mast = |x: usize| (mast.saturating_sub(1)..=mast + 1).contains(&x);
+    // Ink at any coverage: a pixel well darker than the sky (whose channels sum to 610 or more) that is
+    // not the sock's orange.
+    let ink = |x: usize, y: usize| { let o = (y * w as usize + x) * 4; let (r, g, b) = (px[o] as i32, px[o + 1] as i32, px[o + 2] as i32); r + g + b < 580 && r - b < 60 };
+    let off: Vec<_> = (0..hz).flat_map(|y| (0..w as usize).map(move |x| (x, y))).filter(|&(x, y)| !near_mast(x) && ink(x, y)).collect();
+    let rows = (0..hz).filter(|&y| (0..w as usize).any(|x| near_mast(x) && ink(x, y))).count();
+    eprintln!("touch grass's still: {} ink pixels in the sky off the mast, the mast {rows} px tall", off.len());
+    assert!(off.is_empty(), "{:?}", &off[..off.len().min(8)]);
+    assert!(rows >= 25, "the mast");
 }

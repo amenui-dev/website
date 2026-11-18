@@ -1040,8 +1040,7 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
         _ => PIC + i as u32,
     };
     let pic = picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
-    let mut layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
-    if i == TOUCH_GRASS && mode != Mode::Page && let Some(c) = touch::still_callout(&fit, z, view, Paint::hue(2)) { layer = layer.child(c); }
+    let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
 
