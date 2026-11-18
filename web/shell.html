@@ -185,6 +185,9 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
 [data-tone="light"] { --ink: #17181a; --text: rgba(23, 24, 26, .59); --dim: rgba(23, 24, 26, .59); --accent: #db4d14; }
 [data-tone="dark"] { --ink: #e2e3e0; --text: rgba(226, 227, 224, .59); --dim: rgba(226, 227, 224, .59); }
 .work .bar a, .work .bar button, .work .bar a::before, .work .bar a::after { transition: color .12s linear; }
+/* Over a piece every item of the bar is in the tone's ink at full strength, the current one bracketed
+   in ink: the only accent in the bar is the wordmark's block; the accent is the piece's (N.2 item 6). */
+.work .bar, .work .bar a, .work .bar button, .work .nav a[aria-current], .work .nav a[aria-current]::before, .work .nav a[aria-current]::after { color: var(--ink); }
 /* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
 .fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
 .fail a { color: var(--second); text-decoration: underline dotted; }

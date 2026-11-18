@@ -336,6 +336,22 @@ assert m and html.unescape(m.group(1)) == listing, "the home page's listing diff
 for h, path in redirects.items():
     if path.startswith('docs/'): assert (out / path / 'index.html').exists(), f'#{h} redirects to {path}, which has no page'
 assert max(doc_sizes)[0] <= 60 * 1024, f'docs page over 60 KB gzip: {max(doc_sizes)}'
+# Every link the site prints resolves (N.2 item 10): each href under the base in every page written,
+# and each link the canvas prints (a piece's recipe), in every language.
+def resolves(path):
+    f = out / path
+    return path == '' or (f.is_file() if not path.endswith('/') else (f / 'index.html').is_file()) or (f / 'index.html').is_file()
+broken = []
+for f in sorted(out.rglob('*.html')):
+    for m in re.finditer(r'\shref="([^"]*)"', f.read_text(errors='replace')):
+        u = html.unescape(m.group(1)).split('#')[0].split('?')[0]
+        if not u.startswith(BASE): continue
+        if not resolves(u[len(BASE):]): broken.append(f'{f.relative_to(out)} -> {u}')
+for link in data['links']:
+    for lang in langs:
+        path = ('' if lang == 'en' else lang + '/') + link
+        if not resolves(path): broken.append(f'canvas ({lang}) -> {BASE + path}')
+assert not broken, f'{len(broken)} links do not resolve:\n' + '\n'.join(broken[:40])
 
 print(f'{len(canvas_pages)} canvas addresses and {len(doc_sizes) // len(langs)} docs pages × {len(langs)} languages; base {BASE}')
 print(f'shell (home, en): {len(home)} bytes, gzip {gz(home)}; largest shell gzip {max(sizes)[0]} ({max(sizes)[1]})')

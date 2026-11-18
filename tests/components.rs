@@ -291,7 +291,7 @@ fn every_page_has_a_plain_hash() {
     // flow and 3D, type and demo, the scene list and the scenes, Body, the Components index; the
     // components without a gallery page of their own; the lab and its experiments, the reader, decode,
     // the field map.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::widget_names().len() + 1 + website::gallery::lab::COUNT + 3 + 1 + website::gallery::works::COUNT);
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::widget_names().len() + 1 + website::gallery::lab::COUNT + 3 + 1 + website::gallery::works::PIECES.iter().filter(|p| p.built).count());
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");

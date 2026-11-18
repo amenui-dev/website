@@ -38,6 +38,7 @@ fn main() {
     // A phone's listing by the body's radius: [lines, least radius px], most lines first.
     let phone: Vec<Value> = body::phone_table().iter().map(|&(_, lines, r)| json!([lines, (r * 10.0).ceil() / 10.0])).collect();
     let moved: Vec<Value> = routes::moved().into_iter().map(|(old, p)| json!([old, p.path()])).collect();
-    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "moved": moved, "listing": listing, "glyphs": b.glyphs(), "phone": phone });
+    let links = website::gallery::works::links();
+    let out = json!({ "locales": locales, "pages": pages, "redirects": redirects, "moved": moved, "links": links, "listing": listing, "glyphs": b.glyphs(), "phone": phone });
     println!("{}", serde_json::to_string(&out).expect("json"));
 }

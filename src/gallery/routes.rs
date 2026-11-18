@@ -63,7 +63,7 @@ impl Page {
         if p.is_empty() { return Some(Page::Body); }
         // The scenes were a section of their own before they joined the Lab.
         let want = if p == "scenes" || p.starts_with("scenes/") { format!("lab/{p}/") } else { format!("{p}/") };
-        Page::all().into_iter().find(|q| q.path() == want)
+        Page::all().into_iter().find(|q| q.path() == want).or_else(|| moved().into_iter().find(|(old, _)| *old == want).map(|(_, q)| q))
     }
     pub fn section(self) -> Section {
         match self {
@@ -79,8 +79,11 @@ impl Page {
 pub fn aliases() -> Vec<(&'static str, Page)> { vec![] }
 /// The paths pages had before they moved, and the page each leads to: the scenes, which were a
 /// section of their own (`scenes/`, `scenes/<name>/`) and are now in the Lab.
+/// A piece of Works that is not built yet has no page: its address goes on to the index.
 pub fn moved() -> Vec<(String, Page)> {
-    std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).map(|p| (p.path()["lab/".len()..].to_owned(), p)).collect()
+    let scenes = std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).map(|p| (p.path()["lab/".len()..].to_owned(), p));
+    let unbuilt = works::PIECES.iter().filter(|p| !p.built).map(|p| (format!("works/{}/", p.slug), Page::Works));
+    scenes.chain(unbuilt).collect()
 }
 /// The older hash names of the docs pages, which are HTML now, and the path each has: the prose pages
 /// (`#docs-layout`), the For-AI pages, the registry and the changelog.

@@ -176,7 +176,7 @@ def build(ctx):
         pages = [p for p in pages if p not in short]
     placed = {s for v in SITE.values() for s in v}
     for f in (root / 'docs/site/en').glob('*.md'):
-        assert f.stem in placed or f.stem.startswith(('lab-', 'scene-')), f'docs/site/en/{f.name} has no place in the docs tree (web/docs.py SITE)'
+        assert f.stem in placed or f.stem.startswith(('lab-', 'scene-', 'work-')), f'docs/site/en/{f.name} has no place in the docs tree (web/docs.py SITE)'
 
     # amenui's docs, by kind.
     def fw_page(rel, group, path, key, sub=None, title=None):

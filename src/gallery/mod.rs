@@ -68,7 +68,8 @@ impl Page {
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
         v.push(Page::Works);
-        v.extend((0..works::COUNT as u8).map(Page::Work));
+        // A piece that is not built has no page (N.2 item 1): its address goes on to the index.
+        v.extend((0..works::COUNT as u8).filter(|&i| works::PIECES[i as usize].built).map(Page::Work));
         v
     }
     /// The page's address on the web: plain ASCII words, so a page can be linked.

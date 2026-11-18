@@ -1,23 +1,32 @@
-//! Works (site-design M): `/works/`, four windows onto one day outside, and each piece at
+//! Works (site-design M, N): `/works/`, four windows onto one day outside, and each built piece at
 //! `/works/<slug>/`: the picture full bleed under the bar, the title block at the bottom left and the
-//! piece strip at the bottom right (M.2). `ground truth` (W-03) is drawn; the other three have their
-//! frame over a still of their colours until the framework has what they are drawn with (M.7).
+//! piece strip at the bottom right (M.2). `ground truth` (W-03) is built; the other three are a window
+//! of their colours on the index until they are (N.2 item 1): they take no focus, do not widen, have no
+//! page of their own (their addresses go on to the index) and are not links from a piece's strip.
 //!
 //! Calm when idle (M.2): one piece runs at a time (the piece on its page, or the live window of the
 //! index); between events a piece wants no frame; what moves by itself is paced at 30 frames a
 //! second, what the hand moves is not; 60 s without input the piece rests after its current event.
+//!
+//! What is drawn over a picture is drawn in a layer of its own, opaque and on the pixel grid (N.4 (1)).
+//! A colour there is a mix of the page's ground, its ink and one of its three hues; a faint shade is
+//! the survey ink mixed toward the picture's own colour at that place (N.2 item 5), found as the nearest
+//! such mix (`InkSpace::paint`). On a piece's page the ground, which the picture covers, is set to a
+//! ramp that follows the sky, so the mixes over the sky are the sky's.
 use super::{BAR, Gallery, Msg, NARROW, Page, Section};
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
 use amenui::style::{Look, Markr, Material, Theme};
+use std::sync::OnceLock;
 use taffy::AlignItems;
 
 pub const COUNT: usize = 4;
 
-/// A piece: its address, its title (English in both languages), its number and hour, whether its
-/// ground is light (the bar's tone), where its centre of interest is (a fraction of its width: the
-/// index's crop and a narrow window's), the phrase its live window shows, and whether it is drawn.
+/// A piece: its address, its title (English in both languages), its number and hour, its tones (N.4
+/// (3): a tone names the ground it sits on, `light` a pale ground and ink type), where its centre of
+/// interest is (a fraction of its width), the phrase its live window shows (N.4 (8)), whether it is
+/// built, and its recipe in the docs.
 pub struct Piece {
     pub slug: &'static str,
     pub title: &'static str,
@@ -25,48 +34,63 @@ pub struct Piece {
     pub hour: &'static str,
     /// The hour as a number, for the day's ruler.
     pub at: f32,
+    /// The status line's tone: whether the ground at the foot of the picture is light.
     pub light: bool,
-    /// Whether the sky under the bar is light (the bar's type dark): W-03's dusk sky is, over its dark
-    /// foreground.
+    /// The bar's tone: whether the sky under the bar is light.
     pub bar_light: bool,
     pub focus: f32,
-    pub live: Option<&'static str>,
+    pub live: &'static str,
     pub built: bool,
+    /// The docs page `how this is made ↗` opens, under `docs/`.
+    pub recipe: &'static str,
 }
 pub const PIECES: [Piece; COUNT] = [
-    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: Some("WIND OVER A FIELD OF 2,640 STALKS"), built: false },
-    Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: None, built: false },
-    Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: None, built: true },
-    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: None, built: false },
+    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 2,640 STALKS", built: false, recipe: "concepts/annotation/" },
+    Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", built: false, recipe: "concepts/annotation/" },
+    Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", built: true, recipe: "recipes/ground-truth/" },
+    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", built: false, recipe: "concepts/annotation/" },
 ];
 pub const GROUND_TRUTH: usize = 2;
+/// The first built piece in the day's order: the wide window with no pointer (N.2 item 1).
+pub fn first_built() -> usize { PIECES.iter().position(|p| p.built).unwrap_or(0) }
+/// The nearest built piece from `i` in direction `dir` (±1), round the day; none when `i` is the only one.
+pub fn step(i: usize, dir: isize) -> Option<usize> {
+    (1..COUNT as isize).map(|k| (i as isize + dir * k).rem_euclid(COUNT as isize) as usize).find(|&j| PIECES[j].built)
+}
+/// The links a piece prints (its recipe), under the site's base: the build checks each resolves.
+pub fn links() -> Vec<String> { PIECES.iter().filter(|p| p.built).map(|p| format!("docs/{}", p.recipe)).collect() }
 
-/// The pieces' pictures: `PIC + i` (`picture`). W-03's ridges are 960 × 600, shown scaled; the stills
-/// of the others are their colours alone.
+/// The pieces' pictures: `PIC + i` (`picture`). W-03's ridges are 960 × 600, shown scaled; an unbuilt
+/// piece's is its colours alone, with the piece's grain.
 pub const PIC: u32 = 100;
-/// `Markr` slots: a piece's picture as it is, and the scan window's characters.
+/// The `Markr` slot a piece's picture is drawn through: the picture as it is.
 pub const PIC_SLOT: u8 = 5;
-pub const SCAN_SLOT: u8 = 6;
 
 const fn rgb(h: u32) -> [f32; 3] { [((h >> 16) & 255) as f32 / 255.0, ((h >> 8) & 255) as f32 / 255.0, (h & 255) as f32 / 255.0] }
-/// W-03's survey ink (`Paint::hue(2)` on its page and on the index).
+/// W-03's survey ink (`Paint::hue(2)`).
 const SURVEY: [f32; 3] = rgb(0x231f33);
-/// Fainter survey ink is the survey ink mixed toward the chrome's pale ink, never see-through: over a
-/// picture, ink that is partly transparent would mix its colour code with the picture's colours.
-fn survey(a: f32) -> Paint { Paint { tone: 1.0, accent: a, alpha: 1.0, hue: 2 } }
+/// The accent on a dark ground and on a light one (M.2, N.2 item 6).
+const ACCENT_DARK: [f32; 3] = rgb(0xff6b2b);
+const ACCENT_LIGHT: [f32; 3] = rgb(0xdb4d14);
+/// Survey ink at full strength.
+const INK_FULL: Paint = Paint { tone: 1.0, accent: 1.0, alpha: 1.0, hue: 2 };
+/// The horizon's dashes, as built (N.2 item 5: it stays): survey ink mixed toward the pale ink.
+const HORIZON_INK: Paint = Paint { tone: 1.0, accent: 90.0 / 255.0, alpha: 1.0, hue: 2 };
 /// A coordinate on the pixel grid for a 1 px line (at any whole scale), in a subtree drawn at `z` times
 /// its size (the index's windows); the subtree's origin is on the grid.
 fn px(v: f32, z: f32) -> f32 { ((v * z).floor() + 0.5) / z }
 /// The chrome over a piece: ink, and the small type at 150 / 255 of it.
 fn dim() -> Paint { Paint::INK.alpha(150.0 / 255.0) }
+/// An unbuilt piece's name, in the index and in a strip: 40 % of the ink (N.2 item 1).
+fn unbuilt() -> Paint { Paint::INK.alpha(0.4) }
 
-/// A piece's colours: the chrome's ink by its tone, its one accent, and its picture's ink as the third.
+/// A piece's colours: the chrome's ink by its foot's tone, the accent for that ground (the title
+/// block's number, the pointer's box over a dark part of the picture), the accent for a light ground as
+/// the second hue (the pointer's box over a light part), and the survey ink as the third.
 pub fn theme(i: usize) -> Theme {
     let p = &PIECES[i];
-    let (ink, accent) = if p.light { (rgb(0x17181a), rgb(0xdb4d14)) } else { (rgb(0xe2e3e0), rgb(0xff6b2b)) };
-    // W-03's accent is on its light sky: the pointer's box.
-    let accent = if i == GROUND_TRUTH { rgb(0xdb4d14) } else { accent };
-    Theme { ink, accent, third: SURVEY, ..amenui::style::DARK }
+    let (ink, accent) = if p.light { (rgb(0x17181a), ACCENT_LIGHT) } else { (rgb(0xe2e3e0), ACCENT_DARK) };
+    Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
 pub fn tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].bar_light { 1 } else { 2 }, _ => 0 } }
@@ -97,12 +121,13 @@ pub struct Works {
 }
 impl Default for Works {
     fn default() -> Self {
-        Self { wide: 0, from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default() }
+        Self { wide: first_built(), from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default() }
     }
 }
 
 /// W-03: the flight of birds (seconds into it; its first frame is the rest pose, halfway), when the
-/// next one starts, the scan window (its centre, the pointer, pinned), and how human the pointer looks.
+/// next one starts, the scan window (its centre, the pointer, pinned), how human the pointer looks,
+/// and the pointer box's accent (1 the dark ground's, 0 the light one's: from, to, since).
 #[derive(Clone, Debug)]
 pub struct Ground {
     pub flight: Option<f32>,
@@ -117,26 +142,55 @@ pub struct Ground {
     /// The pointer's last three places (x, y, clock), and when it last moved.
     pub trail: Vec<(f32, f32, f32)>,
     pub moved_at: f32,
+    pub dark: (f32, f32, f32),
 }
 impl Default for Ground {
-    fn default() -> Self { Self { flight: Some(FLIGHT * 0.5), stepped: -1.0, next: f32::INFINITY, scan: None, pointer: None, down: false, pinned: false, human: 0.62, trail: vec![], moved_at: -10.0 } }
+    fn default() -> Self { Self { flight: Some(FLIGHT * 0.5), stepped: -1.0, next: f32::INFINITY, scan: None, pointer: None, down: false, pinned: false, human: 0.62, trail: vec![], moved_at: -10.0, dark: (0.0, 0.0, -1.0) } }
 }
 /// A flight takes 16 s; one starts every 40 s.
 const FLIGHT: f32 = 16.0;
 const EVERY: f32 = 40.0;
 const BIRDS: usize = 7;
-/// The scan window, and its cells (`charr`'s 7 × 14).
-const SCAN: (f32, f32) = (300.0, 190.0);
-const CELL: (f32, f32) = (7.0, 14.0);
+/// The flight: each bird's place from the leader (px), a loose line. No two boxes are nearer than
+/// 12 px (N.2 item 9), no echo touches another bird's box, and the three labels under their boxes
+/// touch no box, echo or other label, at full spacing and at a phone's (`tests/works.rs`).
+const FLOCK: [(f32, f32); BIRDS] = [(0.0, 0.0), (55.0, -18.0), (93.0, 21.0), (136.0, 41.0), (185.0, 3.0), (235.0, 23.0), (278.0, 44.0)];
+/// A bird's box, about its centre (22 × 16).
+const BOX: (f32, f32, f32, f32) = (-11.0, -10.0, 11.0, 6.0);
+/// The echoes: how far behind the bird and at what share of the ink (N.2 item 5).
+const ECHOES: [(f32, f32); 3] = [(30.0, 0.45), (60.0, 0.25), (90.0, 0.12)];
+/// The scan window's cells (N.2 item 4: 14 px square until the framework has a 7 × 14 pitch), and
+/// how many: 21 × 14 on a desktop, 15 × 10 on a phone.
+const CELL: f32 = 14.0;
+fn scan_cells(w: f32) -> (usize, usize) { if w < NARROW { (15, 10) } else { (21, 14) } }
+fn scan_size(w: f32) -> (f32, f32) { let (c, r) = scan_cells(w); (c as f32 * CELL, r as f32 * CELL) }
+/// The characters of the scan window, lightest first (N.2 item 4).
+const RAMP: [char; 8] = [' ', '.', ':', '-', '=', '+', '*', '#'];
+/// Below this luminance under the pointer its box takes the dark ground's accent (N.2 item 6).
+const DARK_BELOW: f32 = 0.25;
 /// The chrome fades after this long without input; the piece rests after this.
 const IDLE: f32 = 3.0;
 const REST: f32 = 60.0;
 const FADE: f32 = 0.15;
+/// The pointer box's change of accent, by opacity.
+const RETONE: f32 = 0.12;
 /// The index's windows widen over this, cubic in and out.
 const WIDEN: f32 = 0.32;
 const WIDE: f32 = 560.0;
 /// Frames for what moves by itself, a second.
 const PACE: f32 = 30.0;
+/// Departure Mono at 11 px with 0.06 em tracking: the advance of a character, and where a line's ink
+/// lies in its box (from its left, from its top, its height), measured on renders.
+const ADV: f32 = 69.0 / 9.0;
+const INK_X: f32 = 1.0;
+const INK_TOP: f32 = 5.0;
+const INK_H: f32 = 8.0;
+/// A note is drawn only when its ink box is this far inside the window, on screen (N.2 item 2).
+const INSIDE: f32 = 8.0;
+/// And never this near the title block (M.2, N.2 item 7).
+const CLEAR: f32 = 24.0;
+/// How far the scan window's corner marks stand outside it.
+const BRACKET: f32 = 6.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum WMsg {
@@ -152,8 +206,10 @@ pub enum WMsg {
     Recipe(usize),
 }
 
-/// Entering the index or a piece: from outside the section, everything is built new.
+/// Entering the index or a piece: from outside the section, everything is built new. An unbuilt
+/// piece has no page: its address is the index's.
 pub fn enter(s: &mut Gallery, p: Page) {
+    let p = match p { Page::Work(i) if !PIECES[i as usize].built => { s.page = Page::Works; Page::Works } _ => p };
     if s.style.is_some() { s.site_look(); }
     let inside = s.from.section() == Section::Works && s.from != p;
     if !inside {
@@ -188,10 +244,12 @@ pub fn update(s: &mut Gallery, m: WMsg) {
     let now = s.clock;
     s.works.last_input = now;
     match m {
+        WMsg::Hover(i, _) if !PIECES[i].built => {}
         WMsg::Hover(i, p) => {
             if p.is_some() { widen(s, i); s.works.live = Some(i); } else if s.works.live == Some(i) { s.works.live = None; }
-            if i == GROUND_TRUTH { point(s, p, false); }
+            if i == GROUND_TRUTH { point(s, p); }
         }
+        WMsg::Tap(i) | WMsg::Open(i) if !PIECES[i].built => {}
         WMsg::Tap(i) => {
             if s.width < NARROW && s.works.tapped != Some(i) { s.works.tapped = Some(i); widen(s, i); s.works.live = Some(i); } else { go(s, Page::Work(i as u8)); }
         }
@@ -205,9 +263,9 @@ pub fn update(s: &mut Gallery, m: WMsg) {
                 g.pinned = !g.pinned;
             }
             s.works.ground.down = down;
-            if running(s, GROUND_TRUTH) { point(s, p.map(|p| (p.x, p.y)), true); }
+            if running(s, GROUND_TRUTH) { point(s, p.map(|p| (p.x, p.y))); }
         }
-        WMsg::Recipe(i) => s.navigate = Some(format!("docs/recipes/{}/", PIECES[i].slug)),
+        WMsg::Recipe(i) => s.navigate = Some(format!("docs/{}", PIECES[i].recipe)),
     }
 }
 /// Go to a page of the section as a navigation does (its transition, the address).
@@ -234,11 +292,18 @@ fn widths(s: &Gallery, t: f32) -> [f32; COUNT] {
 }
 
 /// The pointer over W-03 (its own space): the scan window follows it, and it is judged.
-fn point(s: &mut Gallery, p: Option<(f32, f32)>, _page: bool) {
+fn point(s: &mut Gallery, p: Option<(f32, f32)>) {
     let now = s.clock;
+    let (w, h) = piece_size(s);
+    let fit = fit_for(s, w, h);
     let g = &mut s.works.ground;
     g.pointer = p;
     let Some((x, y)) = p else { g.trail.clear(); return };
+    // The box's accent follows the picture under it, changing by opacity (N.2 item 6).
+    let (px0, py0) = fit.to_picture(x, y);
+    let l = mean_lum(px0 - 16.0 / fit.s, py0 - 16.0 / fit.s, px0 + 16.0 / fit.s, py0 + 16.0 / fit.s);
+    let to = if l < DARK_BELOW { 1.0 } else { 0.0 };
+    if to != g.dark.1 { g.dark = (dark_at(g, now), to, if g.dark.2 < 0.0 { now - RETONE } else { now }); }
     g.trail.push((x, y, now));
     if g.trail.len() > 3 { g.trail.remove(0); }
     if g.trail.len() == 3 {
@@ -257,6 +322,11 @@ fn point(s: &mut Gallery, p: Option<(f32, f32)>, _page: bool) {
         }
     }
 }
+/// How far the pointer box is toward the dark ground's accent at `t`.
+fn dark_at(g: &Ground, t: f32) -> f32 {
+    let (a, b, at) = g.dark;
+    a + (b - a) * ((t - at) / RETONE).clamp(0.0, 1.0)
+}
 
 /// The input that moves the pointer anywhere: the chrome comes back, a resting piece wakes.
 pub fn pointer(s: &mut Gallery, _x: f32, _y: f32) -> bool { heard(s) }
@@ -268,18 +338,17 @@ pub fn heard(s: &mut Gallery) -> bool {
     was
 }
 
-/// Keys no control used. The index: ← → move the wide window, Enter opens it. A piece: ← → the
-/// previous and next piece, Esc the index, Space holds and releases the picture.
+/// Keys no control used. The index: ← → move the wide window to the next built piece, Enter opens it.
+/// A piece: ← → the nearest built piece that way (or nothing), Esc the index, Space holds and
+/// releases the picture.
 pub fn key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     use amenui::el::Key;
-    let n = COUNT;
     s.works.last_input = s.clock;
+    let dir = match k { Key::Left => -1, Key::Right => 1, _ => 0 };
     match (s.page, k) {
-        (Page::Works, Key::Left) => { let i = (s.works.wide + n - 1) % n; widen(s, i); s.works.live = Some(i); true }
-        (Page::Works, Key::Right) => { let i = (s.works.wide + 1) % n; widen(s, i); s.works.live = Some(i); true }
-        (Page::Works, Key::Enter) => { go(s, Page::Work(s.works.wide as u8)); true }
-        (Page::Work(i), Key::Left) => { go(s, Page::Work(((i as usize + n - 1) % n) as u8)); true }
-        (Page::Work(i), Key::Right) => { go(s, Page::Work(((i as usize + 1) % n) as u8)); true }
+        (Page::Works, Key::Left | Key::Right) => { if let Some(i) = step(s.works.wide, dir) { widen(s, i); s.works.live = Some(i); } true }
+        (Page::Works, Key::Enter) => { if PIECES[s.works.wide].built { go(s, Page::Work(s.works.wide as u8)); } true }
+        (Page::Work(i), Key::Left | Key::Right) => { if let Some(j) = step(i as usize, dir) { go(s, Page::Work(j as u8)); } true }
         (Page::Work(_), Key::Escape) => { go(s, Page::Works); true }
         (Page::Work(_), Key::Char(' ')) => { s.works.held = !s.works.held; true }
         _ => false,
@@ -311,7 +380,7 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
 }
 fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
     let (w, h) = piece_size(s);
-    let rest = rest_place(w, h);
+    let rest = rest_place(s, w, h);
     let (held, resting, still) = (s.works.held, s.works.resting, reduced(s));
     let g = &mut s.works.ground;
     let mut changed = false;
@@ -331,8 +400,8 @@ fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
         g.stepped = t;
         changed = true;
     }
-    // The scan window: on a spring 120 ms behind the pointer, pinned where a press left it, over the
-    // second ridge with no pointer.
+    // The scan window: on a spring 120 ms behind the pointer, pinned where a press left it, at its
+    // rest place with no pointer.
     let target = if g.pinned { g.scan.unwrap_or(rest) } else { g.pointer.unwrap_or(rest) };
     let at = g.scan.unwrap_or(rest);
     let next = if still { target } else {
@@ -341,6 +410,7 @@ fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
         if (n.0 - target.0).hypot(n.1 - target.1) < 0.3 { target } else { n }
     };
     if g.scan != Some(next) { g.scan = Some(next); changed = true; }
+    if t - g.dark.2 <= RETONE + 0.02 { changed = true; }
     // Held still, the pointer looks less human.
     if g.pointer.is_some() && t - g.moved_at > 0.25 && (g.human - 0.5).abs() > 0.004 {
         let before = (g.human * 100.0).round();
@@ -367,8 +437,9 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
         let g = &w.ground;
         if g.flight.is_some() { if !w.held { want(paced); } } else if !w.held && !w.resting { want(g.next); }
         let (pw, ph) = piece_size(s);
-        let target = if g.pinned { g.scan } else { Some(g.pointer.unwrap_or(rest_place(pw, ph))) };
+        let target = if g.pinned { g.scan } else { Some(g.pointer.unwrap_or(rest_place(s, pw, ph))) };
         if g.scan.is_none() || target.is_some_and(|p| Some(p) != g.scan) { want(t); }
+        if t - g.dark.2 < RETONE { want(t); }
         if g.pointer.is_some() && (g.human - 0.5).abs() > 0.004 { want(paced.max(g.moved_at + 0.25)); }
     }
     at
@@ -379,30 +450,116 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
 pub fn look(s: &Gallery, l: &mut Look) {
     if s.page.section() != Section::Works { return; }
     l.pics[PIC_SLOT as usize] = Markr { pitch: 1.0, ..Markr::default() };
-    // The scan window: the picture as characters, each in its own colour, on a ground of that colour.
-    l.pics[SCAN_SLOT as usize] = Markr { pitch: CELL.0, levels: 10.0, ground: 0.78, gamma: 1.0, ..Markr::with_set(amenui::style::set::CHARS) };
     l.material = Material::Plain;
     // A piece's first frame is its rest pose, whole: nothing condenses.
     l.fx.enter = 0.0;
+    let ink = ink_space(s);
     match s.page {
         Page::Work(i) => {
             l.theme = theme(i as usize);
+            (l.theme.ground, l.theme.ground2) = (ink.top, ink.bottom);
             // The finishing pass's fixed grain, and nothing else (M.2).
             l.post = amenui::post::PostSpec { grain: amenui::post::Grain { amount: 0.04, size: 1.0 }, ..amenui::post::PostSpec::default() }.look();
         }
-        _ => { l.theme.third = SURVEY; }
+        _ => { l.theme.second = ACCENT_LIGHT; l.theme.third = SURVEY; }
     }
 }
 
-/// The flow between the index and a piece (M.5): the window grows to the whole window in 420 ms and
-/// is not loosened on the way; the rest of the page leaves in 180 ms. With reduced motion, a 120 ms
-/// opacity change.
-pub fn flow(s: &Gallery, from: Page, to: Page) -> Option<FlowSpec> {
+/// The index → piece change and back: until the framework's Flow grows the window (N.3 item 1), a
+/// 120 ms opacity change, not a cut.
+pub fn flow(_s: &Gallery, from: Page, to: Page) -> Option<FlowSpec> {
     match (from, to) {
-        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) if reduced(s) => Some(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 120.0 }),
-        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 420.0, flow_loose: 0.0, out_ms: 180.0 }),
+        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 120.0 }),
         _ => None,
     }
+}
+
+/// The colours a page can draw over a picture: its ground (a ramp from `top` at y = 0 to `bottom` at
+/// y = `h`), its ink, and its three hues.
+#[derive(Clone, Copy, Debug)]
+pub struct InkSpace { pub top: [f32; 3], pub bottom: [f32; 3], pub h: f32, pub ink: [f32; 3], pub hues: [[f32; 3]; 3] }
+fn ink_space(s: &Gallery) -> InkSpace {
+    match s.page {
+        Page::Work(i) => {
+            let th = theme(i as usize);
+            let (top, bottom) = if i as usize == GROUND_TRUTH { sky_ramp(&fit_for(s, s.width, s.height), s.height) } else { (th.ground, th.ground2) };
+            InkSpace { top, bottom, h: s.height, ink: th.ink, hues: [th.accent, th.second, th.third] }
+        }
+        _ => {
+            let th = s.theme();
+            InkSpace { top: th.ground, bottom: th.ground2, h: s.height, ink: th.ink, hues: [th.accent, ACCENT_LIGHT, SURVEY] }
+        }
+    }
+}
+/// The straight ramp nearest W-03's sky down the window, from the top to the horizon (least squares):
+/// the ground a page's mixes over the sky start from.
+fn sky_ramp(fit: &Fit, h: f32) -> ([f32; 3], [f32; 3]) {
+    let horizon = fit.at(0.0, SUN.1 as f32).1.clamp(1.0, h);
+    let n = 48;
+    let (mut sy, mut syy) = (0.0f32, 0.0f32);
+    let (mut sc, mut syc) = ([0.0f32; 3], [0.0f32; 3]);
+    for k in 0..n {
+        let y = horizon * (k as f32 + 0.5) / n as f32;
+        let v = y / h;
+        let c = sky_at(fit.to_picture(0.0, y).1);
+        sy += v; syy += v * v;
+        for j in 0..3 { sc[j] += c[j]; syc[j] += v * c[j]; }
+    }
+    let nf = n as f32;
+    let d = nf * syy - sy * sy;
+    let (mut top, mut bottom) = ([0.0; 3], [0.0; 3]);
+    for j in 0..3 {
+        let b = (nf * syc[j] - sy * sc[j]) / d;
+        let a = (sc[j] - b * sy) / nf;
+        top[j] = a.clamp(0.0, 1.0);
+        bottom[j] = (a + b).clamp(0.0, 1.0);
+    }
+    (top, bottom)
+}
+impl InkSpace {
+    fn ground(&self, y: f32) -> [f32; 3] { let k = (y / self.h.max(1.0)).clamp(0.0, 1.0); std::array::from_fn(|j| self.top[j] + (self.bottom[j] - self.top[j]) * k) }
+    /// The paint nearest colour `c` at screen height `y`: of the three mixes ground → ink → hue, the
+    /// one whose triangle comes closest.
+    pub fn paint(&self, c: [f32; 3], y: f32) -> Paint {
+        let g = self.ground(y);
+        let mut best = (f32::INFINITY, Paint::INK);
+        for (hue, h) in self.hues.iter().enumerate() {
+            let (u, v, e) = nearest_in_triangle(g, self.ink, *h, c);
+            if e < best.0 {
+                let tone = if v < 1.0 { (u / (1.0 - v)).clamp(0.0, 1.0) } else { 0.0 };
+                best = (e, Paint { tone, accent: v.clamp(0.0, 1.0), alpha: 1.0, hue: hue as u8 });
+            }
+        }
+        best.1
+    }
+}
+/// The point of triangle g, i, h nearest `c`, as (share of i, share of h, squared distance).
+fn nearest_in_triangle(g: [f32; 3], i: [f32; 3], h: [f32; 3], c: [f32; 3]) -> (f32, f32, f32) {
+    let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let (e1, e2, d) = (sub(i, g), sub(h, g), sub(c, g));
+    let at = |u: f32, v: f32| { let p = [g[0] + u * e1[0] + v * e2[0], g[1] + u * e1[1] + v * e2[1], g[2] + u * e1[2] + v * e2[2]]; let q = sub(p, c); dot(q, q) };
+    let (a, b, cc) = (dot(e1, e1), dot(e1, e2), dot(e2, e2));
+    let (p, q) = (dot(e1, d), dot(e2, d));
+    let det = a * cc - b * b;
+    if det.abs() > 1e-9 {
+        let u = (cc * p - b * q) / det;
+        let v = (a * q - b * p) / det;
+        if u >= 0.0 && v >= 0.0 && u + v <= 1.0 { return (u, v, at(u, v)); }
+    }
+    // On an edge: the best of the three.
+    let seg = |p0: (f32, f32), p1: (f32, f32)| {
+        let mut best = (p0.0, p0.1, at(p0.0, p0.1));
+        for k in 1..=32 { let t = k as f32 / 32.0; let (u, v) = (p0.0 + (p1.0 - p0.0) * t, p0.1 + (p1.1 - p0.1) * t); let e = at(u, v); if e < best.2 { best = (u, v, e); } }
+        best
+    };
+    [seg((0.0, 0.0), (1.0, 0.0)), seg((0.0, 0.0), (0.0, 1.0)), seg((1.0, 0.0), (0.0, 1.0))].into_iter().min_by(|x, y| x.2.total_cmp(&y.2)).unwrap_or((0.0, 0.0, 0.0))
+}
+fn mix3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] { std::array::from_fn(|k| a[k] + (b[k] - a[k]) * t) }
+/// WCAG relative luminance of an sRGB colour (0–1).
+fn lum(c: [f32; 3]) -> f32 {
+    let l = |v: f32| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
+    0.2126 * l(c[0]) + 0.7152 * l(c[1]) + 0.0722 * l(c[2])
 }
 
 // ── Pictures ───────────────────────────────────────────────────────────────────────────────────────
@@ -414,29 +571,57 @@ pub fn set_pictures(r: &mut amenui::render::Renderer) {
 }
 /// The size of piece picture `id` (`PIC + i`).
 pub fn picture_size(id: u32) -> Option<(u32, u32)> {
-    match id.checked_sub(PIC)? as usize { GROUND_TRUTH => Some((960, 600)), i if i < COUNT => Some((240, 150)), _ => None }
+    match id.checked_sub(PIC)? as usize { i if i < COUNT => Some((960, 600)), _ => None }
 }
-/// Piece picture `id`, RGBA8.
-pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
-    let (w, h) = picture_size(id)?;
-    let i = (id - PIC) as usize;
-    let mut px = Vec::with_capacity((w * h * 4) as usize);
-    let put = |px: &mut Vec<u8>, c: [f64; 3]| { for v in c { px.push((v.clamp(0.0, 255.0)).round() as u8); } px.push(255); };
-    if i == GROUND_TRUTH {
+/// W-03's picture, made once (the scan window and the faint shades read its colours).
+fn ground_pixels() -> &'static [u8] {
+    static PX: OnceLock<Vec<u8>> = OnceLock::new();
+    PX.get_or_init(|| {
+        let (w, h) = (960u32, 600u32);
+        let mut px = Vec::with_capacity((w * h * 4) as usize);
         // The ridges' profiles, once per column of each.
         let cols: Vec<[f64; 5]> = (0..w).map(|x| { let dx = (x as f64 + 0.5) * 1.5; std::array::from_fn(|r| ridge_y(dx, r)) }).collect();
         for y in 0..h {
             for x in 0..w { put(&mut px, ground_at((x as f64 + 0.5) * 1.5, (y as f64 + 0.5) * 1.5, &cols[x as usize])); }
         }
-    } else {
-        let stops: &[(f64, u32)] = match i {
-            0 => &[(0.0, 0xbcd3e4), (0.64, 0xeeeee2), (0.64, 0xd9cc92), (1.0, 0xc2a95a)],
-            1 => &[(0.0, 0x2b66c4), (0.55, 0x5f9ae0), (1.0, 0xa9cdee)],
-            _ => &[(0.0, 0x070b16), (0.60, 0x0c1626), (0.80, 0x12233a), (0.80, 0x0a1320), (1.0, 0x070b14)],
-        };
-        for y in 0..h {
-            let c = ramp(stops, (y as f64 + 0.5) / h as f64);
-            for _ in 0..w { put(&mut px, c); }
+        px
+    })
+}
+fn put(px: &mut Vec<u8>, c: [f64; 3]) { for v in c { px.push((v.clamp(0.0, 255.0)).round() as u8); } px.push(255); }
+/// W-03's colour at (x, y) in px of its 1440 × 900 picture (0–1).
+fn picture_at(x: f32, y: f32) -> [f32; 3] {
+    let px = ground_pixels();
+    let (i, j) = (((x / 1.5) as i32).clamp(0, 959) as usize, ((y / 1.5) as i32).clamp(0, 599) as usize);
+    let o = (j * 960 + i) * 4;
+    [px[o] as f32 / 255.0, px[o + 1] as f32 / 255.0, px[o + 2] as f32 / 255.0]
+}
+/// The mean colour of a rectangle of W-03's picture (px of 1440 × 900), from a 4 × 4 grid of samples.
+fn mean_at(x0: f32, y0: f32, x1: f32, y1: f32) -> [f32; 3] {
+    let mut c = [0.0; 3];
+    for j in 0..4 { for i in 0..4 {
+        let p = picture_at(x0 + (x1 - x0) * (i as f32 + 0.5) / 4.0, y0 + (y1 - y0) * (j as f32 + 0.5) / 4.0);
+        for k in 0..3 { c[k] += p[k] / 16.0; }
+    } }
+    c
+}
+fn mean_lum(x0: f32, y0: f32, x1: f32, y1: f32) -> f32 { lum(mean_at(x0, y0, x1, y1)) }
+/// Piece picture `id`, RGBA8.
+pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
+    let (w, h) = picture_size(id)?;
+    let i = (id - PIC) as usize;
+    if i == GROUND_TRUTH { return Some((w, h, ground_pixels().to_vec())); }
+    let stops: &[(f64, u32)] = match i {
+        0 => &[(0.0, 0xbcd3e4), (0.64, 0xeeeee2), (0.64, 0xd9cc92), (1.0, 0xc2a95a)],
+        1 => &[(0.0, 0x2b66c4), (0.55, 0x5f9ae0), (1.0, 0xa9cdee)],
+        _ => &[(0.0, 0x070b16), (0.60, 0x0c1626), (0.80, 0x12233a), (0.80, 0x0a1320), (1.0, 0x070b14)],
+    };
+    // An unbuilt piece: its colours and the piece's grain (0.04, as the finishing pass's), nothing else.
+    let mut px = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h {
+        let c = ramp(stops, (y as f64 + 0.5) / h as f64);
+        for x in 0..w {
+            let n = (h01(((y as i64) << 16) ^ x as i64 ^ (i as i64) << 40) - 0.5) * 0.04 * 255.0;
+            put(&mut px, [c[0] + n, c[1] + n, c[2] + n]);
         }
     }
     Some((w, h, px))
@@ -451,6 +636,9 @@ fn ramp(stops: &[(f64, u32)], v: f64) -> [f64; 3] {
     }
     hex(stops.last().map_or(0, |s| s.1))
 }
+/// W-03's sky alone at height `y` (px of 1440 × 900), 0–1.
+const SKY: [(f64, u32); 5] = [(0.0, 0x7d8fb4), (0.30, 0xc9b3b4), (0.52, 0xf2c99b), (0.66, 0xf6dcae), (1.0, 0xf6dcae)];
+fn sky_at(y: f32) -> [f32; 3] { let c = ramp(&SKY, (y / 900.0) as f64); [c[0] as f32 / 255.0, c[1] as f32 / 255.0, c[2] as f32 / 255.0] }
 
 // The value noise of the mock-ups (`works/src/lib.py`), so the profiles are the drawn ones.
 fn h01(n: i64) -> f64 {
@@ -479,10 +667,10 @@ pub fn ridge_y(x: f64, i: usize) -> f64 {
 }
 /// W-03's sky, sun and cloud and the five ridges at (x, y) in px of the 1440 × 900 picture.
 const SUN: (f64, f64, f64) = (980.0, 0.575 * 900.0, 17.0);
-const CLOUD: (f64, f64) = (1058.0, 356.0);
+pub const CLOUD: (f64, f64) = (1058.0, 356.0);
 fn ground_at(x: f64, y: f64, ridges: &[f64; 5]) -> [f64; 3] {
     let v = y / 900.0;
-    let mut c = ramp(&[(0.0, 0x7d8fb4), (0.30, 0xc9b3b4), (0.52, 0xf2c99b), (0.66, 0xf6dcae), (1.0, 0xf6dcae)], v);
+    let mut c = ramp(&SKY, v);
     let d = (x - SUN.0).hypot(y - SUN.1);
     let glow = (-d / 230.0).exp();
     c = [c[0] + glow * 70.0, c[1] + glow * 52.0, c[2] + glow * 22.0];
@@ -520,13 +708,34 @@ pub fn page(s: &Gallery) -> El<Msg> {
 fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
     let (w, h) = (s.width, s.height);
     let p = &PIECES[i];
-    let pic = picture_layer(s, i, w, h, 1.0).flow(format!("work/{}", p.slug)).on_point(|p| Some(Msg::Works(WMsg::Point(p))));
+    let pic = picture_layer(s, i, w, h, 1.0, Mode::Page, (0.0, 0.0, w, h)).flow(format!("work/{}", p.slug)).on_point(|p| Some(Msg::Works(WMsg::Point(p))));
     let page = frame(s, i, w, h, col().key("work/page").width(w).height(h).clip().calm().child(pic));
-    if i == GROUND_TRUTH { page.child(scan_and_pointer(s, w, h, &Fit::new(w, h, p.focus), 1.0)) } else { page }
+    if i == GROUND_TRUTH { page.child(scan_and_pointer(s, w, h, &fit_for(s, w, h), 1.0, Mode::Page)) } else { page }
+}
+
+/// Where the title block's parts are on a piece's page: the number's, the title's and the small line's
+/// tops, and the small line's wrapping width on a phone.
+struct Block { n: f32, title: f32, small: f32, lines: f32 }
+fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block {
+    if w < NARROW {
+        let lines = (micro(s, i).chars().count() as f32 * ADV / (w - 64.0)).ceil().max(1.0);
+        let y_m = h - 120.0 - 14.0 * lines;
+        Block { n: y_m - 76.0, title: y_m - 48.0, small: y_m, lines }
+    } else {
+        Block { n: h - 132.0, title: h - 104.0, small: h - 56.0, lines: 1.0 }
+    }
+}
+/// The title block's box on a piece's page (x0, y0, x1, y1): from the number's ink to the small line's.
+fn title_box(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32, f32, f32) {
+    let b = block(s, i, w, h);
+    let small_w = if w < NARROW { w - 64.0 } else { micro(s, i).chars().count() as f32 * ADV };
+    let title_w = PIECES[i].title.chars().count() as f32 * 30.0 * 0.8;
+    (32.0, b.n + INK_TOP, 32.0 + small_w.max(title_w), b.small + 14.0 * b.lines)
 }
 
 /// The title block and the piece strip (M.2): the strip and the small line fade after 3 s without
-/// input and return on the next; the title stays at 60 %.
+/// input and return on the next; the title stays at 60 %. A neighbour that is not built is named at
+/// 40 % and is not a link (N.2 item 1).
 fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let p = &PIECES[i];
     let op = fade_at(&s.works, s.clock);
@@ -536,30 +745,30 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
     // A link: what it reads, and what it is called (the full name, where a phone shows the number only).
     let link = |key: String, shown: String, label: String, m: WMsg| row().key(key).height(28.0).align(AlignItems::CENTER).on_press(Msg::Works(m)).role(Role::Link).label(label).child(mono(shown, dim()));
+    let step_link = |key: String, shown: String, label: String, j: usize| if PIECES[j].built { link(key, shown, label, WMsg::Open(j)) } else { row().key(key).height(28.0).align(AlignItems::CENTER).child(mono(shown, unbuilt())) };
     let made = format!("{} ↗", amenui::i18n::tr("works.made")).to_uppercase();
     let (prev_l, next_l) = (format!("← {}", name(prev)), format!("{} →", name(next)));
     let (prev_s, next_s) = if narrow { (format!("← {:02}", prev + 1), format!("{:02} →", next + 1)) } else { (prev_l.clone(), next_l.clone()) };
     let steps = row().key(k(p.slug, "steps")).gap(21.0).align(AlignItems::CENTER)
-        .child(link(k(p.slug, "prev"), prev_s, prev_l, WMsg::Open(prev)))
+        .child(step_link(k(p.slug, "prev"), prev_s, prev_l, prev))
         .child(mono("·", dim()))
-        .child(link(k(p.slug, "next"), next_s, next_l, WMsg::Open(next)));
+        .child(step_link(k(p.slug, "next"), next_s, next_l, next));
     let strip = if narrow { col().key(k(p.slug, "strip")) } else { row().key(k(p.slug, "strip")).gap(56.0).align(AlignItems::CENTER) }
         .opacity(op).child(link(k(p.slug, "made"), made.clone(), made, WMsg::Recipe(i))).child(steps);
     let n = mono(p.n, Paint::ACCENT).key(k(p.slug, "n")).opacity(title_op);
     let title = serif(p.title, 30.0, 0.3, Paint::INK).key(k(p.slug, "title")).flow(format!("work/{}/title", p.slug)).heading(1).opacity(title_op);
     let small = mono(micro(s, i), dim()).key(k(p.slug, "micro")).flow(format!("work/{}/meta", p.slug)).opacity(op);
+    let b = block(s, i, w, h);
     if narrow {
         // On a phone, from the foot up: the strip's two lines (the recipe, then the steps by number),
         // the small line wrapped to the width, the title, the number. Every place is a whole pixel: type
         // over a picture at a fraction of one would be read as the picture's colours at its edges.
-        let lines = (micro(s, i).chars().count() as f32 * 7.3 / (w - 64.0)).ceil().max(1.0);
-        let y_m = h - 120.0 - 14.0 * lines;
-        return root.child(at(n, 32.0, y_m - 76.0)).child(at(title, 32.0, y_m - 48.0)).child(at(small.width(w - 64.0), 32.0, y_m))
+        return root.child(at(n, 32.0, b.n)).child(at(title, 32.0, b.title)).child(at(small.width(w - 64.0), 32.0, b.small))
             .child(at(strip, 32.0, h - 100.0));
     }
-    root.child(at(n, 32.0, h - 132.0))
-        .child(at(title, 32.0, h - 104.0))
-        .child(at(small, 32.0, h - 56.0))
+    root.child(at(n, 32.0, b.n))
+        .child(at(title, 32.0, b.title))
+        .child(at(small, 32.0, b.small))
         .child(at_right(strip, 32.0, h - 64.0))
 }
 /// The small line: the piece's real state. A piece not drawn yet has only its number and hour.
@@ -571,10 +780,17 @@ fn micro(_s: &Gallery, i: usize) -> String {
     }
 }
 
-/// A piece's picture with what is drawn over it, `w × h`, its own space from its top left.
-fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32) -> El<Msg> {
+/// How much of W-03 a view draws (N.2 item 2): its page; the index's live window (no scan label); a
+/// window that is not live (no scan window, no pointer); a phone's band (bird boxes, the horizon
+/// line and one spot height).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Mode { Page, Live, Still, Band }
+
+/// A piece's picture with what is drawn over it, `w × h`, its own space from its top left; `view` is
+/// the part of it the window shows (in that space).
+fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view: (f32, f32, f32, f32)) -> El<Msg> {
     let p = &PIECES[i];
-    let fit = Fit::new(w, h, p.focus);
+    let fit = fit_for(s, w, h);
     let pic = picture(PIC + i as u32, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
     let mut layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
     // What is drawn over the picture (the survey, the title block and the strip) is drawn after this
@@ -585,11 +801,11 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32) -> El<Msg> {
         let over = amenui::el::Stirr { energy: 0.0, radius: Some(0.0), scope: amenui::el::Scope::Off };
         layer = layer.child(at(space(0.0, 0.0).key(k(p.slug, "over")).fill(Paint::GROUND.alpha(0.0)).stirr(over).pass(true), 0.0, 0.0));
     }
-    if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z) } else { layer }
+    if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view) } else { layer }
 }
 
 /// How the 1440 × 900 picture lies in a `w × h` piece: cover, about its centre of interest.
-struct Fit { s: f32, pw: f32, ox: f32, oy: f32 }
+pub struct Fit { s: f32, pw: f32, ox: f32, oy: f32 }
 impl Fit {
     fn new(w: f32, h: f32, focus: f32) -> Self {
         let s = (w / 1440.0).max(h / 900.0);
@@ -599,145 +815,276 @@ impl Fit {
     }
     /// A point of the picture (px of 1440 × 900) in the piece.
     fn at(&self, x: f32, y: f32) -> (f32, f32) { (self.ox + x * self.s, self.oy + y * self.s) }
+    /// A point of the piece in the picture.
+    fn to_picture(&self, x: f32, y: f32) -> (f32, f32) { ((x - self.ox) / self.s, (y - self.oy) / self.s) }
 }
-/// Where the scan window rests with no pointer: over the second ridge, 30 % across.
-fn rest_place(w: f32, h: f32) -> (f32, f32) { Fit::new(w, h, PIECES[GROUND_TRUTH].focus).at(450.0, 565.0) }
+/// W-03's fit: about its centre of interest; on a phone's page about its cloud, 56 % across, so the
+/// cloud's box is whole (N.2 item 7).
+fn fit_for(s: &Gallery, w: f32, h: f32) -> Fit {
+    let mut f = Fit::new(w, h, PIECES[GROUND_TRUTH].focus);
+    if matches!(s.page, Page::Work(_)) && w < NARROW { f.ox = (0.56 * w - CLOUD.0 as f32 * f.s).clamp(w - f.pw, 0.0); }
+    f
+}
+/// Where the scan window rests with no pointer: over the second ridge, 30 % across; on a phone's
+/// page at the left margin, 24 px above the title block (N.2 item 7).
+fn rest_place(s: &Gallery, w: f32, h: f32) -> (f32, f32) {
+    if matches!(s.page, Page::Work(_)) && w < NARROW {
+        let (sw, sh) = scan_size(w);
+        let top = title_box(s, GROUND_TRUTH, w, h).1;
+        return (32.0 + sw * 0.5, top - CLEAR - BRACKET - sh * 0.5);
+    }
+    fit_for(s, w, h).at(450.0, 565.0)
+}
 
 /// A rectangle of four strokes.
-fn rect(d: &mut Drawing, x0: f32, y0: f32, x1: f32, y1: f32, z: f32, paint: Paint) {
+fn rect(d: &mut Drawing, (x0, y0, x1, y1): (f32, f32, f32, f32), z: f32, paint: Paint) {
     let (x0, y0, x1, y1, w) = (px(x0, z), px(y0, z), px(x1, z), px(y1, z), 1.0 / z);
     d.line((x0, y0), (x1, y0), w, paint); d.line((x1, y0), (x1, y1), w, paint);
     d.line((x1, y1), (x0, y1), w, paint); d.line((x0, y1), (x0, y0), w, paint);
 }
+type R = (f32, f32, f32, f32);
+fn meets(a: R, b: R) -> bool { a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3 }
+fn grow(r: R, d: f32) -> R { (r.0 - d, r.1 - d, r.2 + d, r.3 + d) }
+fn union(a: R, b: R) -> R { (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)) }
 
-/// W-03's scan window: the same hills as the system sees them, in characters; `hole` (x0, y0, x1,
-/// y1) is left out of it.
-fn scan_window(s: &Gallery, w: f32, h: f32, fit: &Fit, hole: Option<(f32, f32, f32, f32)>) -> El<Msg> {
-    let slug = PIECES[GROUND_TRUTH].slug;
-    let (sx, sy) = s.works.ground.scan.unwrap_or_else(|| rest_place(w, h));
-    let (sx, sy) = (sx - SCAN.0 * 0.5, sy - SCAN.1 * 0.5);
-    let (x1, y1) = (sx + SCAN.0, sy + SCAN.1);
-    // The window as up to four rectangles round the hole.
-    let mut parts = vec![];
-    match hole.map(|(a, b, c, d)| (a.clamp(sx, x1), b.clamp(sy, y1), c.clamp(sx, x1), d.clamp(sy, y1))) {
-        Some((a, b, c, d)) if c > a && d > b => {
-            parts.push((sx, sy, x1, b));
-            parts.push((sx, d, x1, y1));
-            parts.push((sx, b, a, d));
-            parts.push((c, b, x1, d));
-        }
-        _ => parts.push((sx, sy, x1, y1)),
-    }
-    let mut c = col().key(k(slug, "scan")).width(w).height(h).pass(true);
-    for (n, (a, b, cx, d)) in parts.into_iter().enumerate().filter(|(_, r)| r.2 - r.0 >= 1.0 && r.3 - r.1 >= 1.0) {
-        let chars = picture(PIC + GROUND_TRUTH as u32, 600.0 / 960.0).key(k(slug, &format!("scan/{n}/picture"))).markr(SCAN_SLOT).loose(1.0).respond(Response::Ignore).width(fit.pw);
-        c = c.child(at(col().key(k(slug, &format!("scan/{n}"))).width(cx - a).height(d - b).clip().pass(true).child(at(chars, fit.ox - a, fit.oy - b)), a, b));
-    }
-    at(c, 0.0, 0.0)
+/// A label's ink box when its box's top left is at (x, y), in a subtree drawn at `z` (type keeps its
+/// size there, so it is wider in the subtree's own units).
+fn label_ink(t: &str, x: f32, y: f32, z: f32) -> R {
+    let n = t.chars().count() as f32;
+    let top = if z < 1.0 { 1.0 } else { INK_TOP };
+    (x + INK_X / z, y + top / z, x + (n * ADV - 2.0) / z, y + (top + INK_H) / z)
+}
+/// Where a label goes so its ink starts at the left edge of a box whose bottom line is at `y1`, 4 px
+/// below it (N.4 (5)).
+fn under(x0: f32, y1: f32, z: f32) -> (f32, f32) {
+    let top = if z < 1.0 { 1.0 } else { INK_TOP };
+    (px(x0, z) - 0.5 / z - INK_X / z, px(y1, z) + 0.5 / z + 4.0 / z - top / z)
 }
 
-/// W-03 `ground truth`: the survey over the ridges, the flight of birds and what tracks them, the
-/// scan window and the pointer's box.
-fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32) -> El<Msg> {
+/// The notes a view keeps: each is drawn whole or not at all (N.2 item 2): its ink box at least 8 px
+/// inside the window, clear of what hides notes (the scan window, its label's plate, the title block
+/// and 24 px round it), and its label clear of every label already kept.
+struct Notes { inside: R, hidden: Vec<R>, labels: Vec<R>, inks: Vec<R> }
+impl Notes {
+    fn keep(&mut self, ink: R, label: Option<R>) -> bool {
+        let all = label.map_or(ink, |l| union(ink, l));
+        let (a, b) = (self.inside, all);
+        if b.0 < a.0 || b.1 < a.1 || b.2 > a.2 || b.3 > a.3 { return false; }
+        if self.hidden.iter().any(|&r| meets(r, all)) { return false; }
+        if self.labels.iter().any(|&r| meets(r, ink)) { return false; }
+        if let Some(l) = label { if self.labels.iter().chain(&self.inks).any(|&r| meets(r, l)) { return false; } self.labels.push(l); }
+        self.inks.push(ink);
+        true
+    }
+}
+
+/// W-03's scan window in a view: its rect (x0, y0, x1, y1), its cells' size and how many.
+struct Scan { r: R, cell: f32, n: (usize, usize) }
+fn scan_rect(s: &Gallery, w: f32, h: f32, z: f32, mode: Mode, view: R) -> Scan {
+    let (cw, ch) = scan_size(if mode == Mode::Page { w } else { 1440.0 });
+    // Inside a window drawn smaller, the cells keep their size on screen (as the type does), and the
+    // window keeps its size in the piece: fewer cells.
+    let cell = CELL / z;
+    let n = (((cw / cell).floor() as usize).max(1), ((ch / cell).floor() as usize).max(1));
+    let (sw, sh) = (n.0 as f32 * cell, n.1 as f32 * cell);
+    let (cx, cy) = s.works.ground.scan.unwrap_or_else(|| rest_place(s, w, h));
+    // Whole inside the window, and on a page clear of the title block, with its corner marks.
+    let m = (INSIDE + BRACKET) / z;
+    let mut x0 = (cx - sw * 0.5).clamp(view.0 + m, (view.2 - m - sw).max(view.0 + m));
+    let mut y0 = (cy - sh * 0.5).clamp(view.1 + m, (view.3 - m - sh).max(view.1 + m));
+    if mode == Mode::Page {
+        let t = grow(title_box(s, GROUND_TRUTH, w, h), CLEAR + BRACKET);
+        if meets(t, (x0, y0, x0 + sw, y0 + sh)) { y0 = (t.1 - sh).max(view.1 + m); }
+    }
+    (x0, y0) = (x0.round(), y0.round());
+    Scan { r: (x0, y0, x0 + sw, y0 + sh), cell, n }
+}
+/// The pointer's box and its label's plate, the two parts of the scan window's hole (N.4 (2)).
+fn pointer_hole(s: &Gallery, z: f32) -> Option<(R, R, String)> {
+    let g = &s.works.ground;
+    let (qx, qy) = g.pointer?;
+    let human = format!("HUMAN? {:.2}", g.human);
+    let (lx, ly) = (qx.round() + 22.0 / z, qy.round() - 16.0 / z);
+    let ink = label_ink(&human, lx, ly, z);
+    let plate = (ink.0 - 6.0 / z, ink.1 - 3.0 / z, ink.2 + 6.0 / z, ink.3 + 3.0 / z);
+    Some(((qx - 16.0 / z, qy - 16.0 / z, qx + 16.0 / z, qy + 16.0 / z), plate, human))
+}
+
+/// W-03 `ground truth`: the survey over the ridges, the flight of birds and what tracks them. The scan
+/// window and the pointer come after (`scan_and_pointer`), on a page over the frame too.
+#[allow(clippy::too_many_arguments)]
+fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> El<Msg> {
     let lw = 1.0 / z;
     let g = &s.works.ground;
     let slug = PIECES[GROUND_TRUTH].slug;
+    let ink = ink_space(s);
+    // A faint shade at a place of the piece: the survey ink mixed toward the picture there. `oy` is
+    // where the piece's top is on screen (0 on its page; the index's ground is flat).
+    let faint = |x: f32, y: f32, a: f32| -> Paint {
+        if a >= 1.0 { return INK_FULL; }
+        let (qx, qy) = fit.to_picture(x, y);
+        ink.paint(mix3(picture_at(qx, qy), SURVEY, a), y * z)
+    };
+    let m = INSIDE / z;
+    let mut hidden = vec![];
+    if mode == Mode::Page { hidden.push(grow(title_box(s, GROUND_TRUTH, w, h), CLEAR)); }
+    if matches!(mode, Mode::Page | Mode::Live) {
+        hidden.push(grow(scan_rect(s, w, h, z, mode, view).r, BRACKET / z));
+        if let Some((_, plate, _)) = pointer_hole(s, z) { hidden.push(plate); }
+    }
+    let mut notes = Notes { inside: (view.0 + m, view.1 + m, view.2 - m, view.3 - m), hidden, labels: vec![], inks: vec![] };
     let mut d = Drawing::new(w, h);
     let mut labels: Vec<El<Msg>> = vec![];
-    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: String, paint: Paint, x: f32, y: f32| labels.push(at(mono(t, paint).key(k(slug, key)), x, y));
-    // The level line at the sun's height.
-    let (_, yl) = fit.at(0.0, SUN.1 as f32);
-    let yl = px(yl, z);
-    let mut x = 32.0;
-    while x < w - 32.0 { d.line((x, yl), ((x + 6.0).min(w - 32.0), yl), lw, survey(90.0 / 255.0)); x += 14.0; }
-    labels.push(at_right(mono("HORIZON 0.0°", survey(170.0 / 255.0)).key(k(slug, "horizon")), 32.0, yl - 16.0));
-    // Spot heights on true summits of the drawn profiles.
-    for (n, (x0, r, t, up)) in [(206.0, 0, "▲ 1,731", 40.0), (700.0, 1, "▲ 1,204", 52.0), (1236.0, 2, "▲ 986", 64.0)].into_iter().enumerate() {
-        let best = (-60..60).map(|o| x0 + o as f64).min_by(|a, b| ridge_y(*a, r).total_cmp(&ridge_y(*b, r))).unwrap_or(x0);
-        let (bx, by) = fit.at(best as f32, ridge_y(best, r) as f32);
-        if bx < -40.0 || bx > w + 40.0 { continue; }
-        d.line((px(bx, z), by - 3.0), (px(bx, z), by - up), lw, survey(170.0 / 255.0));
-        label(&mut labels, &format!("height{n}"), t.into(), survey(235.0 / 255.0), bx + 6.0, by - up - 4.0);
-    }
-    // The one wrong call: the small pale cloud.
-    let (cx, cy) = fit.at(CLOUD.0 as f32, CLOUD.1 as f32);
-    rect(&mut d, cx - 48.0, cy - 15.0, cx + 52.0, cy + 11.0, z, survey(140.0 / 255.0));
-    label(&mut labels, "cloud", "BIRD 0.03".into(), survey(150.0 / 255.0), cx + 58.0, cy - 14.0);
-    // The flight: seven birds in a loose line, right to left, each in its box with three echoes.
+    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)), x, y));
+    let band = mode == Mode::Band;
+    // The flight: seven birds in a loose line, right to left, each in its box with three echoes; under
+    // 720 px the spacing is scaled so the seven span at most 70 % of the width (N.2 item 7).
     if let Some(f) = g.flight {
-        let span = 46.0 * (BIRDS as f32 - 1.0) + 120.0;
+        let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
+        let sx = if mode == Mode::Page && w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
+        let span = FLOCK[BIRDS - 1].0 * sx + 160.0;
         let speed = (w + span + 40.0) / FLIGHT;
         let lead = w + 40.0 - f * speed;
-        let (_, y0) = fit.at(0.0, 250.0);
+        let (_, y0) = fit.at(0.0, 290.0);
         let echoes = !reduced(s);
-        let jit = |n: i64| h01(n) as f32 - 0.5;
-        for b in 0..BIRDS {
-            let bx = lead + 46.0 * b as f32 + 20.0 * jit(2 * b as i64 + 1);
-            let by = y0 - 17.0 * b as f32 + 24.0 * jit(2 * b as i64 + 2) + (b % 3) as f32 * 9.0;
-            if bx < -60.0 || bx > w + 60.0 { continue; }
-            let span = 5.0 + (b % 3) as f32;
+        for (b, &(dx, dy)) in FLOCK.iter().enumerate() {
+            let (bx, by) = ((lead + dx * sx).round(), (y0 + dy).round());
+            let r = (bx + BOX.0, by + BOX.1, bx + BOX.2, by + BOX.3);
+            let name = [Some("BIRD 0.97"), None, None, Some("BIRD 0.94"), None, None, Some("BIRD 0.91")][b].filter(|_| !band);
+            let tag = name.map(|t| { let (lx, ly) = under(r.0, r.3, z); (t, (lx, ly), label_ink(t, lx, ly, z)) });
+            if !notes.keep(r, tag.map(|t| t.2)) { continue; }
             // Two strokes on the pixel grid, one pixel a column (a stroke antialiased over the picture
             // would mix its colour code with the sky's).
+            let span = 5.0 + (b % 3) as f32;
             let n = (span * z).round().max(1.0) as i32;
             for c in -n..=n {
                 let rise = if c < 0 { 3.0 } else { 3.5 } * (c as f32 / n as f32).abs();
                 let (x, y) = (px(bx + c as f32 / z, z), px(by - rise, z));
-                d.line((x, y), (x, y), lw, survey(1.0));
+                d.line((x, y), (x, y), lw, INK_FULL);
             }
-            if echoes {
-                for e in 1..=3 {
-                    if f - e as f32 * 15.0 / speed < 0.0 { break; }
-                    let ex = bx + 15.0 * e as f32;
-                    rect(&mut d, ex - 11.0, by - 10.0, ex + 11.0, by + 6.0, z, survey(0.36 * (1.0 - (e - 1) as f32 / 3.0)));
+            rect(&mut d, r, z, INK_FULL);
+            if let Some((t, at, _)) = tag { label(&mut labels, &format!("bird{b}"), t, INK_FULL, at); }
+            if echoes && !band {
+                for &(back, a) in &ECHOES {
+                    if f * speed < back { break; }
+                    let er = (r.0 + back, r.1, r.2 + back, r.3);
+                    if notes.keep(er, None) { rect(&mut d, er, z, faint(bx + back, by + BOX.1, a)); }
                 }
-            }
-            rect(&mut d, bx - 11.0, by - 10.0, bx + 11.0, by + 6.0, z, survey(235.0 / 255.0));
-            if let Some(c) = [Some("0.97"), None, None, Some("0.94"), None, None, Some("0.91")][b] {
-                label(&mut labels, &format!("bird{b}"), format!("BIRD {c}"), survey(235.0 / 255.0), bx - 11.0, by + 9.0);
             }
         }
     }
-    // The scan window: the same hills as the system sees them, in characters.
-    let (sx, sy) = g.scan.unwrap_or_else(|| rest_place(w, h));
-    let (sx, sy) = (sx - SCAN.0 * 0.5, sy - SCAN.1 * 0.5);
-    for (cx, cy, ax, ay) in [(sx, sy, 1.0, 1.0), (sx + SCAN.0, sy, -1.0, 1.0), (sx, sy + SCAN.1, 1.0, -1.0), (sx + SCAN.0, sy + SCAN.1, -1.0, -1.0)] {
-        let (x0, y0) = (px(cx - 6.0 * ax, z), px(cy - 6.0 * ay, z));
-        d.line((x0, y0), (x0 + 10.0 * ax, y0), lw, survey(1.0));
-        d.line((x0, y0), (x0, y0 + 10.0 * ay), lw, survey(1.0));
+    // The one wrong call: the small pale cloud, its box and its label at 45 % (N.2 item 5), the label
+    // under the box (N.4 (5)).
+    if !band {
+        let (cx, cy) = fit.at(CLOUD.0 as f32, CLOUD.1 as f32);
+        let r = ((cx - 48.0).round(), (cy - 15.0).round(), (cx + 52.0).round(), (cy + 11.0).round());
+        let (lx, ly) = under(r.0, r.3, z);
+        if notes.keep(r, Some(label_ink("BIRD 0.03", lx, ly, z))) {
+            rect(&mut d, r, z, faint(r.0, r.1, 0.45));
+            label(&mut labels, "cloud", "BIRD 0.03", faint(r.0, r.3 + 8.0, 0.45), (lx, ly));
+        }
     }
-    let cells = ((SCAN.0 / CELL.0).ceil(), (SCAN.1 / CELL.1).ceil());
-    label(&mut labels, "scan-label", format!("SCAN {}×{}   {} × {} CELLS", SCAN.0, SCAN.1, cells.0, cells.1), survey(230.0 / 255.0), sx - 6.0, sy - 24.0);
+    // The level line at the sun's height, as built, across the window inside its margins.
+    let (_, yl) = fit.at(0.0, SUN.1 as f32);
+    let yl = px(yl, z);
+    let (xa, xb) = ((32.0f32).max(view.0 + m), (w - 32.0).min(view.2 - m));
+    let mut x = 32.0;
+    while x < w - 32.0 {
+        let (a, b) = (x.max(xa), (x + 6.0).min(xb));
+        // A dash is a note too: none under the scan window, its label's plate or by the title block.
+        if b > a && !notes.hidden.iter().any(|&r| meets(r, (a, yl - 0.5, b, yl + 0.5))) { d.line((a, yl), (b, yl), lw, HORIZON_INK); }
+        x += 14.0;
+    }
+    if !band {
+        let t = "HORIZON 0.0°";
+        let lx = (w - 32.0).min(view.2 - m) - (t.chars().count() as f32 * ADV) / z;
+        let ly = yl - 16.0 / z;
+        if notes.keep(label_ink(t, lx, ly, z), None) { notes.labels.push(label_ink(t, lx, ly, z)); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); }
+    }
+    // Spot heights on true summits of the drawn profiles (a phone's band: the first that fits).
+    let mut heights = 0;
+    for (n, (x0, r, t, up)) in [(700.0, 1, "▲ 1,204", 52.0), (206.0, 0, "▲ 1,731", 40.0), (1236.0, 2, "▲ 986", 64.0)].into_iter().enumerate() {
+        if band && heights > 0 { break; }
+        let best = (-60..60).map(|o| x0 + o as f64).min_by(|a, b| ridge_y(*a, r).total_cmp(&ridge_y(*b, r))).unwrap_or(x0);
+        let (bx, by) = fit.at(best as f32, ridge_y(best, r) as f32);
+        let (lx, ly) = (bx + 6.0, by - up - 4.0);
+        let lead = (px(bx, z) - 0.5, by - up, px(bx, z) + 0.5, by - 3.0);
+        let li = label_ink(t, lx, ly, z);
+        if !notes.keep(union(lead, li), Some(li)) { continue; }
+        heights += 1;
+        d.line((px(bx, z), by - 3.0), (px(bx, z), by - up), lw, faint(bx + 3.0, by - up * 0.5, 170.0 / 255.0));
+        label(&mut labels, &format!("height{n}"), t, faint(lx, ly + 8.0, 235.0 / 255.0), (lx, ly));
+    }
     let mut layer = layer.child(at(canvas(d).key(k(slug, "survey")).width(w).pass(true), 0.0, 0.0));
     for l in labels { layer = layer.child(l.pass(true)); }
     // On the index the scan window goes over the survey here; on the piece's page, over the frame too.
-    if matches!(s.page, Page::Work(_)) { layer } else { layer.child(scan_and_pointer(s, w, h, fit, z)) }
+    if mode == Mode::Live { layer.child(scan_and_pointer_in(s, w, h, fit, z, mode, view)) } else { layer }
 }
 
-/// W-03's scan window over what is drawn before it (inside it the system's view is all there is), then
-/// the pointer, surveyed too. Ink over the window's characters would be read as characters, so the
-/// window leaves the pointer's box and its label out. Type set after the characters has its edges read
-/// as characters too, so they come last.
-fn scan_and_pointer(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32) -> El<Msg> {
+/// W-03's scan window over what is drawn before it, then the pointer, surveyed too (on its page).
+fn scan_and_pointer(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode) -> El<Msg> { scan_and_pointer_in(s, w, h, fit, z, mode, (0.0, 0.0, w, h)) }
+/// The scan window (N.2 item 4): corner marks, and in each cell one character from the ramp by the
+/// cell's luminance, in the cell's colour mixed 0.62 toward the survey ink, over the picture as it
+/// is; its label says what is drawn. The pointer's box and its label's plate are left clear. Then the
+/// pointer's box and `HUMAN?` in the accent for the ground under it.
+#[allow(clippy::too_many_arguments)]
+fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> El<Msg> {
     let g = &s.works.ground;
     let slug = PIECES[GROUND_TRUTH].slug;
     let lw = 1.0 / z;
-    let human = format!("HUMAN? {:.2}", g.human);
-    let hole = g.pointer.map(|(qx, qy)| (qx - 18.0, qy - 18.0, qx + 22.0 + 7.4 * human.chars().count() as f32 + 2.0, qy + 18.0));
-    let mut c = col().key(k(slug, "scan-over")).width(w).height(h).pass(true).child(scan_window(s, w, h, fit, hole));
-    if let Some((qx, qy)) = g.pointer {
-        let a = Paint::ACCENT;
-        let mut d = Drawing::new(w, h);
-        let (cx, cy) = (px(qx, z), px(qy, z));
-        d.line((cx - 9.0, cy), (cx + 9.0, cy), lw, a);
-        d.line((cx, cy - 9.0), (cx, cy + 9.0), lw, a);
-        rect(&mut d, qx - 16.0, qy - 16.0, qx + 16.0, qy + 16.0, z, a);
-        c = c.child(at(canvas(d).key(k(slug, "pointer")).width(w).pass(true), 0.0, 0.0))
-            .child(at(mono(human, a).key(k(slug, "human")).recompose(false).pass(true), qx.round() + 22.0, qy.round() - 16.0));
+    let ink = ink_space(s);
+    let sc = scan_rect(s, w, h, z, mode, view);
+    let (x0, y0, x1, y1) = sc.r;
+    let hole = pointer_hole(s, z);
+    let mut c = col().key(k(slug, "scan-over")).width(w).height(h).pass(true);
+    let mut d = Drawing::new(w, h);
+    for (cx, cy, ax, ay) in [(x0, y0, 1.0, 1.0), (x1, y0, -1.0, 1.0), (x0, y1, 1.0, -1.0), (x1, y1, -1.0, -1.0)] {
+        let (bx, by) = (px(cx - 6.0 * ax / z, z), px(cy - 6.0 * ay / z, z));
+        d.line((bx, by), (bx + 10.0 * ax / z, by), lw, INK_FULL);
+        d.line((bx, by), (bx, by + 10.0 * ay / z), lw, INK_FULL);
+    }
+    let mut cells = col().key(k(slug, "scan")).width(w).height(h).pass(true);
+    for j in 0..sc.n.1 {
+        for i in 0..sc.n.0 {
+            let (cx, cy) = (x0 + i as f32 * sc.cell, y0 + j as f32 * sc.cell);
+            let cr = (cx, cy, cx + sc.cell, cy + sc.cell);
+            if hole.as_ref().is_some_and(|(b, p, _)| meets(*b, cr) || meets(*p, cr)) { continue; }
+            let (qa, qb) = fit.to_picture(cx, cy);
+            let (qc, qd) = fit.to_picture(cx + sc.cell, cy + sc.cell);
+            let col_ = mean_at(qa, qb, qc, qd);
+            let n = ((1.0 - lum(col_)) * RAMP.len() as f32).floor().clamp(0.0, RAMP.len() as f32 - 1.0) as usize;
+            if RAMP[n] == ' ' { continue; }
+            let paint = ink.paint(mix3(col_, SURVEY, 0.62), (cy + sc.cell * 0.5) * z);
+            let (tx, ty) = (cx + ((CELL - ADV) * 0.5).round() / z, cy + ((CELL - INK_H) * 0.5).round() / z - if z < 1.0 { 1.0 } else { INK_TOP } / z);
+            cells = cells.child(at(mono(RAMP[n].to_string(), paint).key(k(slug, &format!("scan/{i}/{j}"))).recompose(false).pass(true), tx, ty));
+        }
+    }
+    c = c.child(at(cells, 0.0, 0.0));
+    if mode == Mode::Page {
+        let t = format!("SCAN {}×{}   {} × {} CELLS", (x1 - x0).round(), (y1 - y0).round(), sc.n.0, sc.n.1);
+        c = c.child(at(mono(t, INK_FULL).key(k(slug, "scan-label")).pass(true), x0 - 6.0, y0 - 24.0));
+    }
+    c = c.child(at(canvas(d).key(k(slug, "scan-marks")).width(w).pass(true), 0.0, 0.0));
+    if let (Some((qx, qy)), Some((b, _, human))) = (g.pointer, hole) {
+        // The box in the accent for the ground under it, the two crossing by opacity (N.2 item 6).
+        let k_dark = dark_at(g, s.clock);
+        for (name, paint, op) in [("light", Paint::hue(1), 1.0 - k_dark), ("dark", Paint::ACCENT, k_dark)] {
+            if op <= 0.0 { continue; }
+            let mut d = Drawing::new(w, h);
+            let (cx, cy) = (px(qx, z), px(qy, z));
+            d.line((cx - 9.0 / z, cy), (cx + 9.0 / z, cy), lw, paint);
+            d.line((cx, cy - 9.0 / z), (cx, cy + 9.0 / z), lw, paint);
+            rect(&mut d, b, z, paint);
+            c = c.child(at(col().key(k(slug, &format!("pointer/{name}"))).width(w).height(h).pass(true).opacity(op)
+                .child(at(canvas(d).key(k(slug, &format!("pointer/{name}/box"))).width(w).pass(true), 0.0, 0.0))
+                .child(at(mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true), qx.round() + 22.0 / z, qy.round() - 16.0 / z)), 0.0, 0.0));
+        }
     }
     at(c, 0.0, 0.0)
 }
 
-/// `/works/` (M.3): the heading and its line, four windows in the day's order, the day's ruler.
+/// `/works/` (M.3): the heading and its line, four windows in the day's order, the day's ruler. A
+/// window that is not built is its colours, narrow, out of the Tab order and the keys (N.2 item 1).
 fn index(s: &Gallery) -> El<Msg> {
     let w = s.width;
     let (pw, ph) = piece_size(s);
@@ -754,34 +1101,53 @@ fn index(s: &Gallery) -> El<Msg> {
     let mut x: f32 = 32.0;
     for (i, p) in PIECES.iter().enumerate() {
         let ww = widths[i];
-        let (wide, live) = (s.works.wide == i, s.works.live == Some(i));
+        let (wide, live) = (s.works.wide == i, s.works.live == Some(i) && p.built);
         // The piece as it is laid out in the window, scaled to the window's height, cropped about its
         // centre of interest.
         let x0 = (p.focus * pw - ww / kz * 0.5).clamp(0.0, (pw - ww / kz).max(0.0));
-        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz).rekey("works/window"), kz);
-        let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug))
-            .on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
-            .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title)
-            .child(at(inner, (-x0 * kz).round(), 0.0));
-        if live { win = win.child(at(space(ww, hh).key(format!("works/w{i}/frame")).border(1.0, Paint::ACCENT).pass(true), 0.0, 0.0)); }
+        let view = (x0, 0.0, x0 + ww / kz, ph);
+        let mode = if live { Mode::Live } else { Mode::Still };
+        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
+        let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
+        if p.built {
+            win = win.on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
+                .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed();
+        }
+        if live { win = win.child(at(live_frame(&format!("works/w{i}/frame"), ww, hh), 0.0, 0.0)); }
         root = root.child(at(win, x.round(), top.round()));
         let yb = top + hh + 18.0;
+        let title = if !p.built { unbuilt() } else if wide { Paint::INK } else { Paint::TEXT };
         root = root.child(at(row().key(format!("works/w{i}/meta")).gap(16.0).flow(format!("work/{}/meta", p.slug))
-                .child(mono(format!("{:02}", i + 1), if wide { Paint::ACCENT } else { Paint::DIM }))
-                .child(mono(p.hour, if wide { Paint::INK } else { Paint::DIM })), x, yb))
-            .child(at(serif(p.title, if wide { 22.0 } else { 16.0 }, if wide { 0.3 } else { 0.22 }, if wide { Paint::INK } else { Paint::TEXT })
+                .child(mono(format!("{:02}", i + 1), if wide && p.built { Paint::ACCENT } else { Paint::DIM }))
+                .child(mono(p.hour, if wide && p.built { Paint::INK } else { Paint::DIM })), x, yb))
+            .child(at(serif(p.title, if wide { 22.0 } else { 16.0 }, if wide { 0.3 } else { 0.22 }, title)
                 .key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)), x, yb + 24.0));
         if live && wide {
-            let t = match (p.built, p.live) { (true, Some(l)) => format!("LIVE · {l} · OPEN →"), (true, None) => "LIVE · OPEN →".into(), _ => "OPEN →".into() };
-            root = root.child(at_right(mono(t, Paint::ACCENT).key(format!("works/w{i}/live")), w - x - ww, yb));
+            root = root.child(at_right(mono(format!("LIVE · {} · OPEN →", p.live), Paint::ACCENT).key(format!("works/w{i}/live")), w - x - ww, yb));
         }
         x += ww + 16.0;
     }
     root.child(ruler(s, w, y(ph - 84.0)))
 }
+/// The live window's frame: 1 px in the accent on all four sides, on the pixel grid (N.2 item 8).
+fn live_frame(key: &str, ww: f32, hh: f32) -> El<Msg> {
+    let mut d = Drawing::new(ww, hh);
+    rect(&mut d, (0.0, 0.0, ww.round() - 1.0, hh.round() - 1.0), 1.0, Paint::ACCENT);
+    canvas(d).key(key).width(ww).pass(true)
+}
+/// A ruler's square: filled (the current one in the accent), or a 1 px outline for an unbuilt piece.
+fn square(key: String, i: usize, on: bool) -> El<Msg> {
+    let p = &PIECES[i];
+    if !p.built {
+        let mut d = Drawing::new(6.0, 6.0);
+        rect(&mut d, (0.0, 0.0, 5.0, 5.0), 1.0, Paint::INK);
+        return canvas(d).key(key).width(6.0).pass(true);
+    }
+    space(6.0, 6.0).key(key).fill(if on { Paint::ACCENT } else { Paint::INK }).on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed()
+}
 
 /// The day's ruler: a hairline from margin to margin, a tick every hour, a square at each piece's hour
-/// (the wide one's in the accent); pressing a square is pressing its window.
+/// (the wide one's in the accent); pressing a built piece's square is pressing its window.
 fn ruler(s: &Gallery, w: f32, yr: f32) -> El<Msg> {
     let len = w - 64.0;
     let mut d = Drawing::new(len, 12.0);
@@ -797,68 +1163,95 @@ fn ruler(s: &Gallery, w: f32, yr: f32) -> El<Msg> {
         r = r.child(match hr { 0 => at(t, x, 14.0), 24 => at_right(t, 32.0, 14.0), _ => at(t, x - 7.0, 14.0) });
     }
     for (i, p) in PIECES.iter().enumerate() {
-        let x = 32.0 + len * p.at / 24.0;
-        r = r.child(at(space(6.0, 6.0).key(format!("works/ruler/p{i}")).fill(if s.works.wide == i { Paint::ACCENT } else { Paint::INK })
-            .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title), x - 3.0, -2.5));
+        let x = (32.0 + len * p.at / 24.0).round();
+        r = r.child(at(square(format!("works/ruler/p{i}"), i, s.works.wide == i), x - 3.0, -2.5));
     }
     at(r, 0.0, yr)
 }
 
-/// The index on a phone: the windows are four bands down the page, full width; a tap widens a band to
-/// 16 : 10 and runs it, a second opens it. The day's ruler runs down the left margin beside them.
+/// The index on a phone: the windows are bands down the page, from x = 32 to the right gutter, 132 px
+/// high (48 for an unbuilt piece); a tap widens a built band to 16 : 10 and runs it, a second opens it.
+/// Beside them a hairline at x = 16 with a square at each band's centre (N.2 item 3).
 fn index_phone(s: &Gallery) -> El<Msg> {
     let w = s.width;
-    // The ruler's column: the hours' labels, the hairline, its ticks.
-    const RULE: f32 = 36.0;
-    let bw = w - 32.0 - RULE;
+    let bw = w - 48.0;
     let (pw, ph) = (1440.0, 900.0);
     let kz = bw / pw;
-    let heights: [f32; COUNT] = std::array::from_fn(|i| if s.works.tapped == Some(i) { bw * 10.0 / 16.0 } else { 132.0 });
+    let heights: [f32; COUNT] = std::array::from_fn(|i| if !PIECES[i].built { 48.0 } else if s.works.tapped == Some(i) { (bw * 10.0 / 16.0).round() } else { 132.0 });
     // A band, the gap under it, its line of number, hour and title; and the gap to the next.
     const META: f32 = 8.0 + 18.0;
-    let len = heights.iter().map(|h| h + META).sum::<f32>() + 16.0 * (COUNT as f32 - 1.0);
-    let mut bands = col().key("works/bands").width(bw).gap(16.0);
+    const GAP: f32 = 16.0;
+    let mut bands = col().key("works/bands").width(bw).gap(GAP);
+    let mut centres = [0.0; COUNT];
+    let mut yb = 0.0;
     for (i, p) in PIECES.iter().enumerate() {
-        let open = s.works.tapped == Some(i);
+        let open = s.works.tapped == Some(i) && p.built;
         let bh = heights[i];
-        let y0 = ((ph * kz - bh) * 0.5).max(0.0);
-        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz).rekey("works/window"), kz);
-        let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().flow(format!("work/{}", p.slug))
-            .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).child(at(inner, 0.0, (-y0).round()));
-        if open { band = band.child(at(space(bw, bh).key(format!("works/w{i}/frame")).border(1.0, Paint::ACCENT).pass(true), 0.0, 0.0)); }
+        centres[i] = yb + bh * 0.5;
+        yb += bh + META + GAP;
+        // The band covers its width with the picture, cropped about the horizon.
+        let horizon = if i == GROUND_TRUTH { SUN.1 as f32 * kz } else { ph * kz * 0.5 };
+        let y0 = (horizon - bh * 0.5).clamp(0.0, (ph * kz - bh).max(0.0)).round();
+        let mode = if open { Mode::Live } else { Mode::Band };
+        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, (0.0, y0 / kz, pw, (y0 + bh) / kz)).rekey("works/window"), kz);
+        let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().flow(format!("work/{}", p.slug)).child(at(inner, 0.0, -y0));
+        if p.built { band = band.on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed(); }
+        if open { band = band.child(at(live_frame(&format!("works/w{i}/frame"), bw, bh), 0.0, 0.0)); }
         bands = bands.child(col().key(format!("works/b{i}")).gap(8.0).child(band)
             .child(row().key(format!("works/w{i}/meta")).height(18.0).gap(16.0).align(AlignItems::BASELINE).flow(format!("work/{}/meta", p.slug))
                 .child(mono(format!("{:02}", i + 1), if open { Paint::ACCENT } else { Paint::DIM }))
                 .child(mono(p.hour, if open { Paint::INK } else { Paint::DIM }))
-                .child(serif(p.title, 16.0, 0.22, if open { Paint::INK } else { Paint::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
+                .child(serif(p.title, 16.0, 0.22, if !p.built { unbuilt() } else if open { Paint::INK } else { Paint::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
     }
+    let len = centres[COUNT - 1] + heights[COUNT - 1] * 0.5;
     let c = col().key("works/index").fill_width().pad(16.0, 24.0).gap(16.0)
         .child(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1))
         .child(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead").width(w - 32.0))
-        .child(row().key("works/rows").child(ruler_down(s, RULE, len)).child(bands));
+        .child(row().key("works/rows").child(ruler_down(s, len, &centres)).child(bands));
     col().key("works/scroll").fill_width().fill_height().scroll().child(c)
 }
 
-/// The day's ruler down the left margin (a phone): the hairline from the first band's top to the last
-/// one's foot, a tick every hour, `00 06 12 18 24`, and a square at each piece's hour.
-fn ruler_down(s: &Gallery, width: f32, len: f32) -> El<Msg> {
-    let x = width - 12.0;
+/// The ruler on a phone (N.2 item 3): not a time scale. A hairline at x = 16 from the first band's top
+/// to the last band's foot, and on it a 6 px square at each band's centre (the current in the accent,
+/// an unbuilt piece's an outline). No ticks, no hours. Its column is 16 px, so the bands start at 32.
+fn ruler_down(s: &Gallery, len: f32, centres: &[f32; COUNT]) -> El<Msg> {
+    let width = 16.0;
     let mut d = Drawing::new(width, len);
-    d.line((x, 0.0), (x, len), 1.0, Paint::FAINT);
-    for hr in 0..=24 {
-        let y = (len * hr as f32 / 24.0).clamp(0.25, len - 0.25);
-        d.line((x, y), (x + if hr % 6 == 0 { 8.0 } else { 4.0 }, y), 0.5, Paint::DIM);
-    }
+    d.line((0.5, 0.0), (0.5, len), 1.0, Paint::FAINT);
     let mut r = col().key("works/ruler").width(width).height(len).child(at(canvas(d).key("works/ruler/line").width(width).pass(true), 0.0, 0.0));
-    for hr in [0, 6, 12, 18, 24] {
-        let y = (len * hr as f32 / 24.0 - 7.0).clamp(0.0, len - 14.0);
-        r = r.child(at(mono(format!("{hr:02}"), Paint::DIM).key(format!("works/ruler/{hr}")), 0.0, y));
-    }
-    for (i, p) in PIECES.iter().enumerate() {
-        let y = len * p.at / 24.0;
+    for (i, &cy) in centres.iter().enumerate() {
         let on = s.works.tapped.unwrap_or(s.works.wide) == i;
-        r = r.child(at(space(6.0, 6.0).key(format!("works/ruler/p{i}")).fill(if on { Paint::ACCENT } else { Paint::INK })
-            .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title), x - 3.0, y - 3.0));
+        r = r.child(at(square(format!("works/ruler/p{i}"), i, on), -3.0, (cy - 3.0).round()));
     }
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn dist(a: R, b: R) -> f32 { (a.0.max(b.0) - a.2.min(b.2)).max(0.0).hypot((a.1.max(b.1) - a.3.min(b.3)).max(0.0)) }
+    #[test]
+    fn the_flight_keeps_its_boxes_apart() {
+        // At full spacing and at a phone's (390 px: the seven within 70 % of the width).
+        let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
+        for sx in [1.0, (0.7 * 390.0 / raw).min(1.0)] {
+            let boxes: Vec<R> = FLOCK.iter().map(|&(x, y)| (x * sx + BOX.0, y + BOX.1, x * sx + BOX.2, y + BOX.3)).collect();
+            for i in 0..BIRDS {
+                for j in 0..BIRDS {
+                    if i == j { continue; }
+                    if j > i { assert!(dist(boxes[i], boxes[j]) >= 12.0, "{sx}: birds {i} and {j}"); }
+                    for (back, _) in ECHOES { let e = (boxes[i].0 + back, boxes[i].1, boxes[i].2 + back, boxes[i].3); assert!(!meets(grow(e, 1.0), boxes[j]), "{sx}: an echo of {i} on {j}"); }
+                }
+                // A bird's echoes do not touch each other.
+                assert!(ECHOES.windows(2).all(|e| e[1].0 - e[0].0 > BOX.2 - BOX.0));
+            }
+        }
+    }
+    #[test]
+    fn a_paint_comes_near_a_colour_of_its_triangle() {
+        let ink = InkSpace { top: [0.5, 0.55, 0.7], bottom: [0.9, 0.8, 0.6], h: 900.0, ink: [0.9, 0.9, 0.9], hues: [ACCENT_DARK, ACCENT_LIGHT, SURVEY] };
+        let p = ink.paint(mix3(ink.ground(300.0), SURVEY, 0.45), 300.0);
+        assert_eq!(p.hue, 2);
+        assert!((p.accent - 0.45).abs() < 0.02 && p.tone < 0.02, "{p:?}");
+    }
 }
