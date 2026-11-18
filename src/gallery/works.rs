@@ -1073,9 +1073,11 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
             cells = cells.child(at(mono(RAMP[n].to_string(), paint).key(k(slug, &format!("scan/{i}/{j}"))).recompose(false).pass(true), tx, ty));
         }
     }
-    c = c.child(at(cells, 0.0, 0.0));
+    // The characters are one picture to assistive technology, named as the label names it, not a
+    // few hundred lines of punctuation.
+    let t = format!("SCAN {}×{}   {} × {} CELLS", (x1 - x0).round(), (y1 - y0).round(), sc.n.0, sc.n.1);
+    c = c.child(at(cells.role(Role::Img).label(t.clone()), 0.0, 0.0));
     if mode == Mode::Page {
-        let t = format!("SCAN {}×{}   {} × {} CELLS", (x1 - x0).round(), (y1 - y0).round(), sc.n.0, sc.n.1);
         c = c.child(at(mono(t, INK_FULL).key(k(slug, "scan-label")).pass(true), x0 - 6.0, y0 - 24.0));
     }
     c = c.child(at(canvas(d).key(k(slug, "scan-marks")).width(w).pass(true), 0.0, 0.0));

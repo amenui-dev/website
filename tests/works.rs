@@ -179,6 +179,11 @@ fn the_scan_window_says_what_it_draws() {
         assert!(cells.len() > cols * rows / 2, "{w}: {} cells drawn", cells.len());
         // Every glyph is one character of the ramp.
         assert!(n.iter().filter(|t| t.key.starts_with("work/ground-truth/scan/")).all(|t| t.text.as_deref().is_some_and(|c| c.chars().count() == 1 && ".:-=+*#".contains(c))));
+        // To assistive technology the characters are one picture with the label's words.
+        let a = ui.a11y();
+        assert!(!a.iter().any(|t| t.key.starts_with("work/ground-truth/scan/")), "{w}: a cell in the accessibility mirror");
+        let pic = a.iter().find(|t| t.key == "work/ground-truth/scan").expect("the scan window in the mirror");
+        assert_eq!(pic.name, label);
     }
 }
 
