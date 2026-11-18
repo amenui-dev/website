@@ -324,7 +324,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
     // The stream gives the module's bytes as they decode; the line reports the transfer (the response's
     // length, else the compressed size the build measured) in the same proportion.
     const raw = A.files.wasmSize, total = +r.headers.get('Content-Length') || A.files.wasmGz; let got = 0;
-    const show = () => { share = Math.min(1, got / raw); A.line(share >= 1 ? 'compiling' : 'amenui.wasm <b>' + mbs(total * share) + '</b> / ' + mbs(total) + ' MB'); A.draw(); };
+    const show = () => { share = Math.min(1, got / raw); A.line(share >= 1 ? A.t.compiling : 'amenui.wasm <b>' + mbs(total * share) + '</b> / ' + mbs(total) + ' MB'); A.draw(); };
     show();
     const reader = r.body.getReader();
     const body = new ReadableStream({ async pull(c) { const { done, value } = await reader.read(); if (done) { got = raw; show(); c.close(); return; } got += value.byteLength; show(); c.enqueue(value); } });
@@ -338,7 +338,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   A.done = (backend, glyphs) => {
     root.classList.add('ready');
     const ms = Math.round(performance.now()).toLocaleString('en');
-    A.line('<b>' + backend + '</b> · first frame <b>' + ms + '</b> ms' + (A.route === '' ? ' · <b>' + glyphs.toLocaleString('en') + '</b> glyphs' : ''));
+    A.line('<b>' + backend + '</b> · ' + A.t['first-frame'].replace('{ms}', '<b>' + ms + '</b>') + (A.route === '' ? ' · <b>' + glyphs.toLocaleString('en') + '</b> ' + A.t.glyphs : ''));
     caret = false;
     pre.classList.add('gone');
     setTimeout(() => pre.remove(), 140);

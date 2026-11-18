@@ -1,0 +1,7 @@
+# The page's own lines outside the canvas (the boot line and the status line), which the module never
+# draws: read by web/build.py only, not compiled into the module.
+web.fps = fps
+web.glyphs = glyphs
+web.compiling = compiling
+web.starting = starting {gpu}
+web.first-frame = first frame {ms} ms

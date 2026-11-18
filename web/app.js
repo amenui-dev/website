@@ -316,7 +316,7 @@ function site() {
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
     lastDrawn = drawn;
-    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> fps · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> glyphs`);
+    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`);
   };
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   mount(stage, {
@@ -325,7 +325,7 @@ function site() {
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };
-      A.line('starting ' + (navigator.gpu ? 'webgpu' : 'webgl2'));
+      A.line(A.t.starting.replace('{gpu}', navigator.gpu ? 'webgpu' : 'webgl2'));
       // No state in the address: the full walk on a first visit, the short path after (and with reduced
       // motion, which plays no walk).
       if (A.route === '') {

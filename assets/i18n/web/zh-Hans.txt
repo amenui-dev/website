@@ -1,0 +1,7 @@
+# The page's own lines outside the canvas (the boot line and the status line), which the module never
+# draws: read by web/build.py only, not compiled into the module.
+web.fps = 帧/秒
+web.glyphs = 字形
+web.compiling = 编译中
+web.starting = 正在启动 {gpu}
+web.first-frame = 首帧 {ms} 毫秒

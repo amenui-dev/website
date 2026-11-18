@@ -285,6 +285,40 @@ fn the_flight_flies_above_the_cloud_and_no_bird_is_left_out() {
 }
 
 #[test]
+fn a_bird_under_the_scan_window_is_read_as_a_character() {
+    // P.2 item 5: with the window pinned in the flight's lane, the boxes drawn are the birds whose box is
+    // 8 px inside the window and clear of the scan window grown by 8 px; the characters are still the
+    // label's product; a bird whose centre is inside is a `#`.
+    let meets = |a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)| a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3;
+    for (w, h, cols, rows) in [(1440, 900, 21, 14), (390, 844, 15, 10)] {
+        let mut ui = at(Page::Work(works::GROUND_TRUTH as u8), w, h);
+        let (wf, hf) = (w as f32, h as f32);
+        let lane = works::drawn(&ui.state).flock[3];
+        ui.state.works.ground.pinned = true;
+        ui.state.works.ground.scan = Some((wf * 0.5, (lane.1 + lane.3) * 0.5));
+        let mut under = 0;
+        for k in 0..32 {
+            ui.state.works.ground.flight = Some(k as f32 * 0.5);
+            ui.relayout();
+            let d = works::drawn(&ui.state);
+            let r = d.scan.expect("the scan window");
+            let g = (r.0 - 8.0, r.1 - 8.0, r.2 + 8.0, r.3 + 8.0);
+            let shown = d.flock.iter().filter(|b| b.0 >= 8.0 && b.1 >= 8.0 && b.2 <= wf - 8.0 && b.3 <= hf - 8.0 && !meets(**b, g)).count();
+            assert_eq!(d.birds.len(), shown, "{w}×{h} at {k}");
+            let inside = d.flock.iter().filter(|b| { let (x, y) = (b.0 + 11.0, b.1 + 10.0); x >= r.0 && x < r.2 && y >= r.1 && y < r.3 }).count();
+            under += inside;
+            let n = nodes(&ui);
+            let cells = scan_cells(&n);
+            assert_eq!(cells.len(), cols * rows, "{w}×{h} at {k}: every cell has its character");
+            assert!(!d.echoes.iter().chain(&d.birds).any(|&e| meets(e, (r.0 - 6.0, r.1 - 6.0, r.2 + 6.0, r.3 + 6.0))), "{w}×{h} at {k}: a box inside the brackets");
+            let hashes: usize = n.iter().filter(|t| t.key.starts_with("work/ground-truth/scan/row/")).map(|t| t.text.as_deref().unwrap_or("").matches('#').count()).sum();
+            assert!(hashes >= inside.min(1), "{w}×{h} at {k}: {inside} birds inside, {hashes} #");
+        }
+        assert!(under > 0, "{w}×{h}: the flight passes through the window");
+    }
+}
+
+#[test]
 fn the_cloud_label_and_the_number_read() {
     // O.2 item 3: the cloud's label at 4.5 : 1 or more at both sizes; the title block's number in the
     // accent only where the accent measures 4.5 : 1 against the median under it.

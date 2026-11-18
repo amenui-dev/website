@@ -666,9 +666,15 @@ fn mean_lum(x0: f32, y0: f32, x1: f32, y1: f32) -> f32 { lum(mean_at(x0, y0, x1,
 /// from an 8 × 8 grid (about a sample a pixel of the picture: a cell across a ridge's edge has its
 /// median where its pixels have it).
 fn cell_at(x0: f32, y0: f32, x1: f32, y1: f32) -> ([f32; 3], f32) {
+    // Each channel's share of the luminance by its byte, worked out once.
+    static LIN: OnceLock<[[f32; 256]; 3]> = OnceLock::new();
+    let lin = LIN.get_or_init(|| std::array::from_fn(|k| std::array::from_fn(|v| { let mut c = [0.0; 3]; c[k] = v as f32 / 255.0; lum(c) })));
+    let px = ground_pixels();
     let mut ls = [0.0f32; 64];
     for (n, l) in ls.iter_mut().enumerate() {
-        *l = lum(picture_at(x0 + (x1 - x0) * ((n % 8) as f32 + 0.5) / 8.0, y0 + (y1 - y0) * ((n / 8) as f32 + 0.5) / 8.0));
+        let (x, y) = (x0 + (x1 - x0) * ((n % 8) as f32 + 0.5) / 8.0, y0 + (y1 - y0) * ((n / 8) as f32 + 0.5) / 8.0);
+        let o = (((y / 1.5) as i32).clamp(0, 599) as usize * 960 + ((x / 1.5) as i32).clamp(0, 959) as usize) * 4;
+        *l = lin[0][px[o] as usize] + lin[1][px[o + 1] as usize] + lin[2][px[o + 2] as usize];
     }
     ls.sort_by(f32::total_cmp);
     (mean_at(x0, y0, x1, y1), (ls[31] + ls[32]) * 0.5)
@@ -1028,6 +1034,8 @@ pub struct Drawn {
     pub labels: Vec<R>,
     /// The cloud label's contrast against the mean of the picture under it.
     pub cloud_contrast: f32,
+    /// The scan window's rect, where the view has one.
+    pub scan: Option<R>,
 }
 /// What W-03's survey draws on its page as the state is now.
 pub fn drawn(s: &Gallery) -> Drawn {
@@ -1048,6 +1056,25 @@ fn flight_row(fit: &Fit, w: f32, z: f32, mode: Mode, cloud_top: Option<f32>) -> 
         label_ink("BIRD", lx, ly, z).3
     }).fold(f32::MIN, f32::max) + 1.0 / z;
     (built - lift).min(top - CLEAR / z - lowest).round()
+}
+/// The flight in a view as it is now: how far into it, the speed (px a second) and each bird's centre.
+/// Under 720 px the spacing is scaled so the seven span at most 70 % of the width (N.2 item 7).
+type Flight = (f32, f32, Vec<(f32, f32)>);
+fn flock_at(s: &Gallery, w: f32, fit: &Fit, z: f32, mode: Mode) -> Option<Flight> {
+    let f = s.works.ground.flight?;
+    let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
+    let sx = if mode == Mode::Page && w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
+    // The flock's centre crosses at an even speed and is at the window's centre halfway (the rest
+    // pose: all seven on screen at any width), from 40 px past the right edge to where its last
+    // echo is 40 px past the left.
+    let fw = FLOCK[BIRDS - 1].0 * sx;
+    let reach = w * 0.5 + fw * 0.5 + BOX.2 + ECHOES[ECHOES.len() - 1].0 + 40.0;
+    let speed = 2.0 * reach / FLIGHT;
+    let lead = w * 0.5 + reach - f * speed - fw * 0.5;
+    // The cloud's box's top, which the flight keeps above (a phone's band shows no cloud).
+    let cloud_top = (mode != Mode::Band).then(|| (fit.at(CLOUD.0 as f32, CLOUD.1 as f32).1 - 15.0).round());
+    let y0 = flight_row(fit, w, z, mode, cloud_top);
+    Some((f, speed, FLOCK.iter().map(|&(dx, dy)| ((lead + dx * sx).round(), (y0 + dy).round())).collect()))
 }
 /// The three birds that carry a label.
 const BIRD_LABELS: [Option<&str>; BIRDS] = [Some("BIRD 0.97"), None, None, Some("BIRD 0.94"), None, None, Some("BIRD 0.91")];
@@ -1073,9 +1100,10 @@ fn scan_rect(s: &Gallery, w: f32, h: f32, z: f32, mode: Mode, view: R) -> Scan {
     (x0, y0) = (x0.round(), y0.round());
     Scan { r: (x0, y0, x0 + sw, y0 + sh), cell, n }
 }
-/// One character of the scan window: its cell, its level of the ramp, its paint.
+/// One character of the scan window: its cell, its level of the ramp, its paint, and whether it is on
+/// the pale side (mixed toward the foot's ink).
 #[derive(Clone, Copy)]
-struct Glyph { i: usize, j: usize, n: usize, paint: Paint }
+struct Glyph { i: usize, j: usize, n: usize, paint: Paint, pale: bool }
 /// A character reads at 3 : 1 against its cell (O.4 (1)); worked out at 3.15 against the cell's median
 /// as sampled, which a render's pixels and grain move by up to about 0.05. Where even the survey ink
 /// at full strength does not read, a cell's character goes to the pale side; it comes back once the
@@ -1114,15 +1142,22 @@ fn scan_glyphs(sc: &Scan, hole: Option<(R, R)>, fit: &Fit, ink: &InkSpace, z: f3
                 let side = &mut sides[j * sc.n.0 + i];
                 *side = !reads(full, median) || *side && !reads(full, median - HOLD);
                 let (to, from) = if *side { (ink.ink, 0.0) } else { (SURVEY, 0.62) };
-                let at = |t: f32| ink.paint(mix3(c, to, t), y);
-                let ok = |t: f32| reads(lum(ink.colour(at(t), y)), median);
-                // The least mix that reads: the fixed one where it does, else halving toward the full ink.
-                let paint = if ok(from) { at(from) } else {
+                // The least mix that reads: the fixed one where it does, else found by halving toward
+                // the full ink on the colours themselves.
+                let ok = |t: f32| reads(lum(mix3(c, to, t)), median);
+                let mut t = from;
+                if !ok(t) {
                     let (mut lo, mut hi) = (from, 1.0);
-                    for _ in 0..7 { let m = (lo + hi) * 0.5; if ok(m) { hi = m } else { lo = m } }
-                    if hi >= 1.0 { if *side { Paint::INK } else { INK_FULL } } else { at(hi) }
+                    for _ in 0..8 { let m = (lo + hi) * 0.5; if ok(m) { hi = m } else { lo = m } }
+                    t = hi;
+                }
+                // Made a paint, which lies near that colour: a little more where the paint does not read.
+                let paint = loop {
+                    let p = if t < 1.0 { ink.paint(mix3(c, to, t), y) } else if *side { Paint::INK } else { INK_FULL };
+                    if t >= 1.0 || reads(lum(ink.colour(p, y)), median) { break p; }
+                    t = (t + 0.04).min(1.0);
                 };
-                v.push(Glyph { i, j, n: level(lum(c)), paint });
+                v.push(Glyph { i, j, n: level(lum(c)), paint, pale: *side });
             }
         }
     });
@@ -1146,7 +1181,6 @@ fn pointer_hole(s: &Gallery, z: f32) -> Option<(R, R, String)> {
 #[allow(clippy::too_many_arguments)]
 fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> (El<Msg>, Drawn) {
     let lw = 1.0 / z;
-    let g = &s.works.ground;
     let slug = PIECES[GROUND_TRUTH].slug;
     let ink = ink_space(s);
     // A faint shade at a place of the piece: the survey ink mixed toward the picture there. `oy` is
@@ -1161,9 +1195,12 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     if mode == Mode::Page { hidden.push(grow(title_box(s, GROUND_TRUTH, w, h), CLEAR)); }
     // The scan window hides the notes it meets with its corner marks, and cuts a line 8 px outside its
     // rect (O.2 item 6).
-    let (mut cut, mut line_hidden) = (None, hidden.clone());
+    let mut drawn = Drawn::default();
+    let (mut cut, mut line_hidden, mut scan) = (None, hidden.clone(), None);
     if matches!(mode, Mode::Page | Mode::Live) {
         let r = scan_rect(s, w, h, z, mode, view).r;
+        scan = Some(r);
+        drawn.scan = scan;
         cut = Some(grow(r, CUT / z));
         hidden.push(grow(r, BRACKET / z));
         if let Some((_, plate, _)) = pointer_hole(s, z) { hidden.push(plate); line_hidden.push(plate); }
@@ -1173,7 +1210,6 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let mut labels: Vec<El<Msg>> = vec![];
     let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)), x, y));
     let band = mode == Mode::Band;
-    let mut drawn = Drawn::default();
     // The one wrong call: the small pale cloud, its box at 45 % and its label at 70 % (O.2 item 3), the
     // label under the box (N.4 (5)). It is placed first: the flight keeps clear of it, not it of the
     // flight (O.2 item 1).
@@ -1191,32 +1227,30 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         drawn.cloud_contrast = contrast(ink.colour(paint, (r.3 + 8.0) * z), mean_at(a.0, a.1, b.0, b.1));
         drawn.cloud = Some((r, li));
     }
-    // The flight: seven birds in a loose line, right to left, each in its box with three echoes; under
-    // 720 px the spacing is scaled so the seven span at most 70 % of the width (N.2 item 7).
-    if let Some(f) = g.flight {
-        let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
-        let sx = if mode == Mode::Page && w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
-        // The flock's centre crosses at an even speed and is at the window's centre halfway (the rest
-        // pose: all seven on screen at any width), from 40 px past the right edge to where its last
-        // echo is 40 px past the left.
-        let fw = FLOCK[BIRDS - 1].0 * sx;
-        let reach = w * 0.5 + fw * 0.5 + BOX.2 + ECHOES[ECHOES.len() - 1].0 + 40.0;
-        let speed = 2.0 * reach / FLIGHT;
-        let lead = w * 0.5 + reach - f * speed - fw * 0.5;
-        let y0 = flight_row(fit, w, z, mode, cloud.map(|c| c.0.1));
+    // The flight: seven birds in a loose line, right to left, each in its box with three echoes.
+    if let Some((f, speed, birds)) = flock_at(s, w, fit, z, mode) {
         let echoes = !reduced(s);
         // The boxes first, then the labels (clear of every box), then the echoes (clear of both).
         let mut kept = vec![];
-        for (b, &(dx, dy)) in FLOCK.iter().enumerate() {
-            let (bx, by) = ((lead + dx * sx).round(), (y0 + dy).round());
+        for (b, &(bx, by)) in birds.iter().enumerate() {
             let r = (bx + BOX.0, by + BOX.1, bx + BOX.2, by + BOX.3);
             drawn.flock.push(r);
             if BIRD_LABELS[b].is_some() { let (lx, ly) = under(r.0, r.3, z); drawn.tags.push(label_ink("BIRD 0.00", lx, ly, z)); }
-            // A bird and its box are the subject: absent only when the box is not 8 px inside the
-            // window, never for meeting a note (O.2 item 1). Its label and its echoes are notes.
-            if !notes.subject(r) { continue; }
-            drawn.birds.push(r);
-            kept.push((b, bx, by, r));
+            let i = notes.inside;
+            if r.0 < i.0 || r.1 < i.1 || r.2 > i.2 || r.3 > i.3 { continue; }
+            // A bird the scan window reaches is read as characters (P.2 item 5): its box, label and
+            // echoes are notes, hidden while its box meets the window grown by 8 px; its mark stays
+            // while its centre is outside the window, and inside it the bird is a cell's `#`.
+            let near = scan.map(|sr| (meets(grow(sr, CUT / z), r), bx >= sr.0 && bx < sr.2 && by >= sr.1 && by < sr.3));
+            if near.is_none_or(|n| !n.0) {
+                // A bird and its box are the subject: absent only when the box is not 8 px inside the
+                // window, never for meeting a note (O.2 item 1).
+                notes.subject(r);
+                drawn.birds.push(r);
+                kept.push((b, bx, by, r));
+                rect(&mut d, r, z, INK_FULL);
+            }
+            if near.is_some_and(|n| n.1) { continue; }
             // Two strokes on the pixel grid, one pixel a column (a stroke antialiased over the picture
             // would mix its colour code with the sky's).
             let span = 5.0 + (b % 3) as f32;
@@ -1226,7 +1260,6 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
                 let (x, y) = (px(bx + c as f32 / z, z), px(by - rise, z));
                 d.line((x, y), (x, y), lw, INK_FULL);
             }
-            rect(&mut d, r, z, INK_FULL);
         }
         for &(b, _, _, r) in &kept {
             let Some(t) = BIRD_LABELS[b].filter(|_| !band) else { continue };
@@ -1329,12 +1362,21 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
     let mut cells = col().key(k(slug, "scan")).width(w).height(h).pass(true);
     let glyphs = scan_glyphs(&sc, hole.as_ref().map(|(b, p, _)| (*b, *p)), fit, &ink, z);
     let (gx, gy) = (((CELL - ADV) * 0.5).round() / z, ((CELL - INK_H) * 0.5).round() / z - if z < 1.0 { 1.0 } else { INK_TOP } / z);
+    // A bird whose centre is inside the window is the `#` of the cell that holds it, at full strength
+    // (P.2 item 5).
+    let birds: Vec<(usize, usize)> = flock_at(s, w, fit, z, mode).map_or(vec![], |(_, _, b)| b.into_iter()
+        .filter(|&(bx, by)| bx >= x0 && bx < x1 && by >= y0 && by < y1)
+        .map(|(bx, by)| (((bx - x0) / sc.cell) as usize, ((by - y0) / sc.cell) as usize)).collect());
     for j in 0..sc.n.1 {
         let row: Vec<&Glyph> = glyphs.iter().filter(|g| g.j == j).collect();
         if row.is_empty() { continue; }
         let mut line = vec![' '; sc.n.0];
         let mut paints = vec![Paint::INK; sc.n.0];
-        for g in &row { line[g.i] = RAMP[g.n]; paints[g.i] = g.paint; }
+        for g in &row {
+            let bird = birds.contains(&(g.i, j));
+            line[g.i] = if bird { '#' } else { RAMP[g.n] };
+            paints[g.i] = if !bird { g.paint } else if g.pale { Paint::INK } else { INK_FULL };
+        }
         let line: String = line.into_iter().collect();
         let (pitch, left) = (sc.cell * z, x0 + gx);
         let t = text(line, 11.0, Paint { tone: 1.0, accent: 0.0, alpha: 1.0, hue: 0 }).font(Font::Face(amenui::text::MONO)).tracking((pitch - MONO_ADV) / 11.0)

@@ -91,7 +91,7 @@ shown = set()
 for p in [fw / 'src/morph.rs', fw / 'AGENTS.md', fw / 'llms.txt', fw / 'CHANGELOG.md', fw / 'registry.json', *sorted((fw / 'src/widgets').glob('*.rs')), root / 'examples/body.rs']: shown |= set(p.read_text())
 def cjk(c): return '⺀' <= c <= '鿿' or '豈' <= c <= '﫿' or '＀' <= c <= '￯' or '　' <= c <= '〿'
 chars = {t: set() for t in langs}
-for p in sorted((root / 'assets/i18n').glob('*.txt')) + sorted((fw / 'assets/i18n').glob('*.txt')):
+for p in sorted((root / 'assets/i18n').glob('*.txt')) + sorted((root / 'assets/i18n/web').glob('*.txt')) + sorted((fw / 'assets/i18n').glob('*.txt')):
     for k in chars: chars[k] |= set(p.read_text())
 # Of the docs, the canvas draws only the Lab's and the body scene's text (the rest are HTML pages).
 for p in sorted((root / 'docs/site').rglob('*.md')):
@@ -117,7 +117,7 @@ for lang, cs in chars.items():
 # The bar's face is the same file in every language.
 for lang in langs: fonts[lang][2] = fonts['en'][2]
 
-cats = {t: catalog(root / f'assets/i18n/{t}.txt') for t in langs}
+cats = {t: {**catalog(root / f'assets/i18n/{t}.txt'), **catalog(root / f'assets/i18n/web/{t}.txt')} for t in langs}
 def tr(lang, k): return cats[lang].get(k) or cats['en'][k]
 template = (root / 'web/shell.html').read_text()
 # The chrome the docs pages share with the canvas pages: the rules between /*chrome*/ and /*/chrome*/,
@@ -284,7 +284,7 @@ def page(lang, path, title, section, tone='', foot=''):
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
     files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
-    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
+    config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), **{k: t('web.' + k) for k in ('fps', 'glyphs', 'compiling', 'starting', 'first-frame')}, 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root can
     # receive them here.
     redirect = ''
