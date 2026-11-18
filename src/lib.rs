@@ -117,10 +117,6 @@ mod site_exports {
             true
         }).unwrap_or(false)
     }
-    /// The next tick is the frame's, at `t` (the page calls it just before `frame`): a tick an input
-    /// brings in between steps the clocks and leaves the laying out to that input and to the frame.
-    #[wasm_bindgen]
-    pub fn framing(t: f32) { host(|s| s.ui.state.frame_at = Some(t)); }
     /// On a stage route, draw the specimen at the scale that keeps it inside the box (the page calls
     /// it after every frame; it lays out again only when the scale changes).
     #[wasm_bindgen]

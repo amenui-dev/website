@@ -39,9 +39,7 @@ async function mount(stage, opts) {
   let raf = 0, timer = 0, first = true;
   const loop = () => {
     raf = 0; if (timer) { clearTimeout(timer); timer = 0; }
-    // The tick that draws is named first: an input between frames then lays out only its own change.
     const t = now();
-    w.framing(t);
     let d = w.frame(t);
     // A picture drawn for the first time is made, and the frame drawn again before it is shown.
     if (w.pictures()) d = w.frame(t);
