@@ -331,6 +331,9 @@ pub struct Gallery {
     pub sheet: bool,
     /// The page's stage alone, for a live stage on a docs page (`<path>#stage`).
     pub stage_only: bool,
+    /// The stage drawn for its still (`<path>#still`): a specimen that is closed at rest is shown in
+    /// the state that shows it (R.2 item 8); the live stage starts closed.
+    pub still: bool,
     /// The page before this one; where the pointer pressed the link of an in-app navigation (CSS px
     /// on the canvas); whether the app has been routed once (the first route is the page loading, not
     /// a navigation); until when a change of section's front runs at its own speed.
@@ -433,7 +436,7 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::TREE, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, still: false, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
@@ -855,13 +858,27 @@ fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
             // The specimen alone (I.2 item 7): a crafted demo without its formula caption and its
             // number controls (the component's own page keeps them).
             let bare = |e: El<Msg>| if e.key.ends_with("/cap/with") { e.children.into_iter().next().unwrap_or_else(|| space(0.0, 0.0)) } else { e };
-            let e = craft::live(s, n).map(bare).or(near).or_else(|| docs::first_example(n)).unwrap_or_else(|| space(0.0, 0.0));
+            let e = craft::live(s, n).map(bare).or(near).or_else(|| still_specimen(s, n)).or_else(|| docs::first_example(n)).unwrap_or_else(|| space(0.0, 0.0));
             col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(e)
         }
         Page::Experiment(i) => { let w = (s.width - 32.0).clamp(200.0, 760.0); col().key(format!("stage/{}", s.page.hash())).width(w)
             .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize]), w, false).map(Rc::new(Msg::Lab))) }
         Page::Scene(i) => col().key(format!("main/{}", s.page.hash())).fill_width().fill_height().child(scenes::page(s, i as usize)),
         _ => col().key(format!("main/{}", s.page.hash())).scroll().fill_width().fill_height().child(main_page(s, narrow)),
+    }
+}
+
+/// For a stage's still, the specimens that are closed at rest in the state that shows them: the context
+/// menu open at its anchor and the sheet at its resting detent, as the index draws them, and the skip
+/// link as itself (the still's script focuses it, web/build.py).
+fn still_specimen(s: &Gallery, n: &str) -> Option<El<Msg>> {
+    if !s.still { return None; }
+    let k = format!("stage/{}/w", s.page.hash());
+    match n {
+        "context_menu" | "sheet" => index::widget_preview(n, &k),
+        "skip-link" | "skip_link" => Some(col().key(format!("{k}/box")).width(160.0).height(48.0)
+            .child(amenui::widgets::skip_link(&k, &amenui::i18n::tr("shell.skip"), &format!("stage/{}", s.page.hash())))),
+        _ => None,
     }
 }
 

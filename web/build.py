@@ -209,11 +209,18 @@ if render_bin:
     shots = dist / 'stills'
     shots.mkdir(exist_ok=True)
     routes = docs_html.stage_routes({'root': root, 'fw': fw, 'data': data})
+    # The still's script (R.2 item 8): `#still` draws the stage with a specimen that is closed at rest
+    # in the state that shows it (the context menu open, the sheet at its resting detent), and the skip
+    # link is focused by a Tab before the capture. The live stage (`#stage`) starts as it is.
+    focus = dist / 'still-focus.json'
+    focus.write_text(json.dumps([{'at_ms': 800, 'kind': 'key', 'key': 'Tab'}]))
+    FOCUSED = {'components/skip-link/'}
     def shoot(job):
         route, kind = job
         w, h = docs_html.STILLS[kind]
         png = shots / (route.strip('/').replace('/', '-') + '-' + kind + '.png')
-        r = subprocess.run([render_bin, '--page', route + '#stage', '--size', f'{w * 2}x{h * 2}', '--scale', '2', '--at', '1500', '--locale', 'en', '--out', str(png)], capture_output=True, text=True)
+        events = ['--events', str(focus)] if route in FOCUSED else []
+        r = subprocess.run([render_bin, '--page', route + '#still', '--size', f'{w * 2}x{h * 2}', '--scale', '2', '--at', '1500', '--locale', 'en', *events, '--out', str(png)], capture_output=True, text=True)
         return route, kind, png if r.returncode == 0 and png.exists() else None
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
         for route, kind, png in pool.map(shoot, [(r, k) for r in routes for k in docs_html.STILLS]):
