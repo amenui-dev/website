@@ -88,10 +88,6 @@ mod site_exports {
         if MADE.with(|m| m.get()) { return; }
         if host(|s| super::setup(&mut s.r)).is_some() { MADE.with(|m| m.set(true)); }
     }
-    /// Draw the next frame even though nothing moves: a frame that came after the end of a motion (a
-    /// slow machine) shows where the clock says, not the last frame drawn in it.
-    #[wasm_bindgen]
-    pub fn redraw() { host(|s| s.ui.invalidate()); }
     /// On a stage route, draw the specimen at the scale that keeps it inside the box (the page calls
     /// it after every frame; it lays out again only when the scale changes).
     #[wasm_bindgen]

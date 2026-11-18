@@ -465,7 +465,7 @@ impl Gallery {
         if let Page::Marks(s) = self.page { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
         pics[STYLE_SLOT as usize] = self.style_pic;
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
-        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay,
+        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0],
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
                           press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
@@ -488,17 +488,20 @@ impl Gallery {
     pub fn title_flow(&self) -> String { if self.from == Page::Components { format!("card-name-{}", self.page.hash()) } else { "page-title".into() } }
     /// What a navigation inside the running app does on the way from `from` to `to` (F.7): one lead —
     /// a commit from the pressed point when the look changes, or the flow of the parts two pages share —
-    /// and everything else closes. None with reduced motion (a cut). The doors from home take the
-    /// table's fallback (front and close): a morph cannot yet start from the page being left.
+    /// and everything else closes. With reduced motion (F.10) nothing moves: the old page fades out and
+    /// the new one in, 150 ms each, and a shared part is at its new place at once. The doors from home
+    /// take the table's fallback (front and close): a morph from the last frame flies glyphs only, so
+    /// the stage's cells cannot close into the index's cards.
     fn transition(&mut self, from: Page, to: Page) {
         let at = self.pressed_at.take();
-        if self.body.reduced || from == to { return; }
+        if from == to { return; }
+        if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, ..self.flow })); return; }
         let (x, y) = at.unwrap_or((self.width * 0.5, BAR * 0.5));
         let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, _ => 0 };
         match (from, to) {
             _ if look(from) != look(to) => {
                 if from.section() != to.section() { self.section_front = self.clock + (self.width.hypot(self.height) / SECTION_FRONT); }
-                self.cmds.push(Cmd::Commit { x, y });
+                self.cmds.push(Cmd::Commit { x, y, scope: None });
             }
             // Inside a section (and between sections in one look): the shared parts flow.
             _ if from.section() == to.section() => self.cmds.push(Cmd::Flow(self.flow_to(to))),
@@ -564,7 +567,7 @@ impl Gallery {
     fn morph_to(&mut self, i: usize) {
         if i == self.shape || i >= MORPH_NAMES.len() { return; }
         // The tiles are the material's lattice cells.
-        let spec = MorphSpec { lattice: self.demo.fx.pitch, ..self.morph };
+        let spec = MorphSpec { lattice: self.demo.fx.pitch, ..self.morph.clone() };
         self.cmds.push(Cmd::Morph { from: Self::shape_key(self.shape), to: Self::shape_key(i), spec });
         self.shape_before = Some(self.shape);
         self.shape = i;

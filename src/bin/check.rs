@@ -276,7 +276,7 @@ fn main() {
             moving.pointer_leave();
             moving.set_particle_gpu(gpu);
             moving.tick(t0);
-            moving.morph("a", "b", spec);
+            moving.morph("a", "b", spec.clone());
             if moving.morph_run().is_some_and(|r| r.grid.is_some()) != gpu { eprintln!("FAIL morph {pair}: the {} path was not taken", if gpu { "GPU" } else { "CPU" }); failed += 1; }
             let (ra, rb) = (moving.node("a").expect("a").rect, moving.node("b").expect("b").rect);
             // (a) The hand-over.
@@ -299,7 +299,7 @@ fn main() {
         let mut moving = Ui::new(Stage { pair, loose: [0.0, 0.0], shown: [true, false] }, stage, |_, _| {}, fonts(), W, H, 1.0);
         moving.pointer_leave();
         moving.tick(t0);
-        moving.morph("a", "b", spec);
+        moving.morph("a", "b", spec.clone());
         let (ra, rb) = (moving.node("a").expect("a").rect, moving.node("b").expect("b").rect);
         moving.tick(t1 + 0.5);
         let img = o.render(&mut moving, &look);
@@ -327,7 +327,7 @@ fn main() {
             m.set_particle_gpu(true);
             let mut t = t0;
             m.tick(t);
-            m.morph("a", "b", spec);
+            m.morph("a", "b", spec.clone());
             m.pointer_move(300.0, 200.0);
             let look = Look { theme: DARK, material: Material::Dottr, ..Look::default() };
             while t < t1 + 0.4 { t += 1.0 / 60.0; m.tick(t); let _ = o.render(&mut m, &look); }

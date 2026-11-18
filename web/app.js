@@ -37,17 +37,12 @@ async function mount(stage, opts) {
   sync();
   // Frames on demand: the animation-frame loop runs only while the framework needs frames; when it
   // does not, the loop stops, and input or a timed wake (the caret's blink, a clock) starts it again.
-  let raf = 0, timer = 0, first = true, moving = false;
+  let raf = 0, timer = 0, first = true;
   const loop = () => {
     raf = 0; if (timer) { clearTimeout(timer); timer = 0; }
-    const drawn = w.frames()[0];
     let d = w.frame(now());
-    // Motion keeps the clock's time: when a late frame finds it over and draws nothing, the screen
-    // still holds the last frame drawn in it, so the frame at rest is drawn now.
-    if (moving && d !== 0 && w.frames()[0] === drawn) { w.redraw(); d = w.frame(now()); }
     // A stage route draws its specimen at the scale that fits its box: a new scale draws again.
     if (w.fit_stage && w.fit_stage()) d = 0;
-    moving = d === 0;
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
     if (opts.frame) opts.frame();

@@ -88,7 +88,7 @@ fn leads(cmds: &[amenui::morph::Cmd]) -> (usize, usize) {
 fn a_change_of_section_commits_from_the_pressed_link_at_its_own_speed() {
     let mut ui = routed("components/button/");
     let cmds = nav(&mut ui, "lab/", (300.0, -24.0));
-    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Commit { x, y }] if *x == 300.0 && *y == -24.0), "{cmds:?}");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Commit { x, y, .. }] if *x == 300.0 && *y == -24.0), "{cmds:?}");
     assert!(ui.split().is_some());
     assert_eq!(ui.state.look().fx.wave_speed, gallery::SECTION_FRONT);
     // Inside a section the shared parts flow, and there is no front.
