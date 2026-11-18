@@ -17,7 +17,7 @@ The blades are bent on the GPU from the field map at their roots: while only the
 
 ## What it costs
 
-What moves by itself is paced at 30 frames a second (`Ui::ambient_fps`), input is not. Between gusts the only frames are the countdown's, one a second. After 60 seconds without input the gust under way ends and the piece rests until the next input. With reduced motion it is still: one gust band held with its centre 72 % across the far row, from the mast down to the foot.
+What moves by itself is paced at 30 frames a second (`Ui::ambient_fps`), input is not. Between gusts the only frames are the countdown's, one a second. After 60 seconds without input the gust under way ends and the piece rests until the next input. With reduced motion it is still: one gust band held with its centre 72 % across the far row, from the mast down to the foot, and the sock lifted as at the band's peak, 55° · (1 − 0.79), about 11.5° below the horizontal.
 
 Measured at 1440 × 900 and 2× in headless Chrome on SwiftShader, a software renderer (not a GPU), so a real machine does better:
 

@@ -8,6 +8,7 @@ use super::{Gallery, Msg, NARROW, Page};
 use amenui::draw::{Blade, Drawing, Head};
 use amenui::el::{El, Font, Paint, Response, Scope, canvas, col};
 use amenui::fieldmap::Gust;
+use amenui::i18n::Locale;
 use amenui::morph::{Cmd, StirAt};
 
 /// W-01's place in the day.
@@ -183,13 +184,13 @@ fn stalks(w: f32, h: f32, hz: f32) -> Vec<Stalk> {
 /// near the strip, the small line, the status line or the callout is planted without its head
 /// (S.2 item 2); on a wide page it is left out. The small line states the count, so its box is taken
 /// at the count it ends up with.
-pub(crate) fn planted(s: &Gallery, w: f32, h: f32, fit: &Fit) -> Vec<Stalk> {
+pub(crate) fn planted(locale: Locale, w: f32, h: f32, fit: &Fit) -> Vec<Stalk> {
     let hz = horizon(fit, w);
     let all = stalks(w, h, hz);
     let phone = w < NARROW;
     // Each stalk as planted: with its head, without it, or not at all.
     let keep = |n: usize| -> Vec<Option<bool>> {
-        let (types, heads) = clear_boxes(s, w, h, fit, &micro_of(n));
+        let (types, heads) = clear_boxes(locale, w, h, fit, &micro_of(n));
         all.iter().map(|st| {
             let (e, head) = st.extent();
             if types.iter().any(|b| meets(e, *b)) { return None; }
@@ -207,14 +208,14 @@ fn meets(a: [f32; 4], b: [f32; 4]) -> bool { a[0] < b[2] && b[0] < a[2] && a[1] 
 /// What no stalk may come near (the number, the title and, on a wide page, the small line, grown by
 /// 24 px) and what no head may (the strip, the status line, the callout and, on a phone, the small
 /// line's lines, grown by 8).
-fn clear_boxes(s: &Gallery, w: f32, h: f32, fit: &Fit, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
+fn clear_boxes(locale: Locale, w: f32, h: f32, fit: &Fit, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
     let grow = |b: [f32; 4], d: f32| [b[0] - d, b[1] - d, b[2] + d, b[3] + d];
-    let (types, mut heads) = super::works::touch_text_boxes(s, w, h, small);
+    let (types, mut heads) = super::works::touch_text_boxes(locale, w, h, small);
     heads.extend(callout_boxes(w, horizon(fit, w)));
     (types.into_iter().map(|b| grow(b, TYPE_CLEAR)).collect(), heads.into_iter().map(|b| grow(b, HEAD_CLEAR)).collect())
 }
 /// How many stalks the field has at this size.
-pub fn count(s: &Gallery, w: f32, h: f32, fit: &Fit) -> usize { planted(s, w, h, fit).len() }
+pub fn count(s: &Gallery, w: f32, h: f32, fit: &Fit) -> usize { planted(s.locale, w, h, fit).len() }
 
 /// The upright stalk's paint in a row whose ground is `ground`: the stalk at `alpha` over it, as one
 /// colour at full strength (`tone` toward the ink, `accent` toward the stalk; the theme's ground is the
@@ -262,7 +263,7 @@ pub fn field(s: &Gallery, w: f32, h: f32, fit: &Fit) -> El<Msg> {
     let foot = fit.at(0.0, 900.0).1;
     let mut d = Drawing::new(w, h);
     let mut rows: Vec<(f32, Paint)> = vec![];
-    for st in planted(s, w, h, fit) {
+    for st in planted(s.locale, w, h, fit) {
         // Far rows are mixed 55 % toward the ground; leaning, every row is the pale side at full strength.
         let paint = match rows.iter().find(|r| r.0 == st.t) { Some(r) => r.1, None => {
             let alpha = 1.0 - 0.55 * (1.0 - st.t);
@@ -285,11 +286,12 @@ pub fn field(s: &Gallery, w: f32, h: f32, fit: &Fit) -> El<Msg> {
 
 /// The windsock's angle below the horizontal now, degrees (R.2 item 7): 55° with no wind, lifted to
 /// 55° · (1 − f) while a band is over the mast, f the gust's own value at the mast's foot (0.79 in a
-/// normal gust, 1 in a strong one). With reduced motion, at the held band's.
+/// normal gust, 1 in a strong one). With reduced motion, at the held band's peak: 55° · (1 − 0.79),
+/// 11.5° (T.2 item 1).
 fn sock_angle(s: &Gallery, w: f32, h: f32, hz: f32) -> f32 {
     let mx = (w * 0.78).round() + 0.5;
     let at = |n: u32, t: f32| gust(n, w, hz).at([mx, hz.floor() + 0.5], t, scope_box(w, h, hz)).1[0].clamp(0.0, 1.0);
-    let f = if s.body.reduced { at(0, 0.0) } else { s.works.grass.current.map_or(0.0, |(n, start)| at(n, s.clock - start)) };
+    let f = if s.body.reduced { gust(0, w, hz).strength } else { s.works.grass.current.map_or(0.0, |(n, start)| at(n, s.clock - start)) };
     SOCK_HANG * (1.0 - f)
 }
 /// The windsock: 22 px from the mast's top, 8 px wide there tapering to 4, in the accent; its own small
@@ -478,6 +480,77 @@ pub fn pixels(phone: bool) -> Vec<u8> {
             px.extend([col[0].round() as u8, col[1].round() as u8, col[2].round() as u8, 255]);
         }
     }
+    px
+}
+
+/// The piece's still for the index's window (S.5, T.2 item 2), 960 × 600: the picture with the field
+/// at 1440 × 900 in its rest pose as reduced motion draws it (the first gust held with its band's
+/// centre 72 % across, the sock at the band's peak), each blade's joints as the framework bends them
+/// (`Blade::shape`) stroked with round ends at two thirds, its colour mixed to the pale side by
+/// `Blade::mix`; a head is a short stroke in its colour where its glyph stands.
+pub fn still_pixels() -> Vec<u8> {
+    let (pw, ph, k) = (1440.0f32, 900.0f32, 600.0 / 900.0);
+    let fit = Fit::new(pw, ph, super::works::PIECES[TOUCH_GRASS].focus);
+    let hz = horizon(&fit, pw);
+    let foot = fit.at(0.0, ph).1;
+    let mut px = pixels(false);
+    let (wd, hd) = (960i32, 600i32);
+    // A shape's coverage of each pixel (the most of its strokes'), laid over the picture in `c`.
+    let mut lay = |segs: &[([f32; 2], [f32; 2])], width: f32, c: [f32; 3]| {
+        let r = width * 0.5;
+        let (mut x0, mut y0, mut x1, mut y1) = (f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for (a, b) in segs { x0 = x0.min(a[0].min(b[0])); y0 = y0.min(a[1].min(b[1])); x1 = x1.max(a[0].max(b[0])); y1 = y1.max(a[1].max(b[1])); }
+        let (ix0, iy0) = (((x0 - r - 1.0).floor() as i32).max(0), ((y0 - r - 1.0).floor() as i32).max(0));
+        let (ix1, iy1) = (((x1 + r + 1.0).ceil() as i32).min(wd - 1), ((y1 + r + 1.0).ceil() as i32).min(hd - 1));
+        for y in iy0..=iy1 {
+            for x in ix0..=ix1 {
+                let p = [x as f32 + 0.5, y as f32 + 0.5];
+                let cov = segs.iter().map(|(a, b)| {
+                    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                    let l2 = dx * dx + dy * dy;
+                    let t = if l2 > 1e-9 { (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+                    let d = (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy);
+                    // A stroke thinner than a pixel covers as much as its width.
+                    (r.max(0.5) + 0.5 - d).clamp(0.0, 1.0) * (width / width.max(1.0))
+                }).fold(0.0f32, f32::max);
+                if cov <= 0.0 { continue; }
+                let o = ((y * wd + x) * 4) as usize;
+                for (j, v) in c.iter().enumerate() { px[o + j] = (px[o + j] as f32 + (v * 255.0 - px[o + j] as f32) * cov).round() as u8; }
+            }
+        }
+    };
+    let mix = |a: [f32; 3], b: [f32; 3], t: f32| -> [f32; 3] { std::array::from_fn(|j| a[j] + (b[j] - a[j]) * t) };
+    for st in planted(Locale::En, pw, ph, &fit) {
+        let alpha = 1.0 - 0.55 * (1.0 - st.t);
+        let depth = ((st.y - hz) / (foot - hz).max(1.0)).clamp(0.0, 1.0).powf(0.8);
+        let ground = mix(super::works::rgb(FAR), super::works::rgb(NEAR), depth);
+        let upright = mix(ground, STALK, alpha);
+        let lean = (st.lean + rest_lean(st.x, st.y, pw, ph, hz)).min(MAX_LEAN.to_radians());
+        let blade = Blade { len: st.len, width: st.width, lean, max_lean: MAX_LEAN.to_radians(), lean_from: PALE_FROM.to_radians(), lean_full: PALE_FULL.to_radians(), ..Blade::default() };
+        let m = blade.mix(lean);
+        let pts: Vec<[f32; 2]> = Blade::shape(lean, blade.stiff, st.len, 1.0).iter().map(|q| [(st.x + q[0]) * k, (st.y + q[1]) * k]).collect();
+        let segs: Vec<_> = pts.windows(2).map(|w| (w[0], w[1])).collect();
+        lay(&segs, st.width * k, mix(upright, STALK_LEAN, m));
+        if let Some((_, size)) = st.head {
+            let tip = pts[pts.len() - 1];
+            lay(&[([tip[0], tip[1] - 0.7 * size * k], [tip[0], tip[1] - 0.2 * size * k])], 0.1 * size * k, mix(HEAD, STALK_LEAN, m));
+        }
+    }
+    // The mast and the windsock at the band's peak.
+    let mx = (pw * 0.78).round() + 0.5;
+    lay(&[([mx * k, (hz - 46.0) * k], [mx * k, hz * k])], k, INK);
+    let a = (SOCK_HANG * (1.0 - gust(0, pw, hz).strength)).to_radians();
+    let (dir, across) = ((a.cos(), a.sin()), (-a.sin(), a.cos()));
+    let mouth = (mx + 0.5, hz - 46.0 + SOCK_MOUTH * 0.5);
+    let lw = 1.2f32;
+    let socks: Vec<_> = (0..8).map(|j| {
+        let u = j as f32 / 7.0 * 2.0 - 1.0;
+        let (o0, o1) = (u * (SOCK_MOUTH * 0.5 - lw * 0.5), u * (SOCK_TIP * 0.5 - lw * 0.5));
+        let p0 = [mouth.0 + dir.0 * lw * 0.5 + across.0 * o0, mouth.1 + dir.1 * lw * 0.5 + across.1 * o0];
+        let p1 = [mouth.0 + dir.0 * (SOCK - lw * 0.5) + across.0 * o1, mouth.1 + dir.1 * (SOCK - lw * 0.5) + across.1 * o1];
+        ([p0[0] * k, p0[1] * k], [p1[0] * k, p1[1] * k])
+    }).collect();
+    lay(&socks, lw * k, super::works::theme(TOUCH_GRASS).accent);
     px
 }
 

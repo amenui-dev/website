@@ -150,21 +150,35 @@ fn nodes(ui: &GalleryUi) -> Vec<amenui::tree::TreeNode> {
 
 #[test]
 fn only_a_built_piece_is_a_window_that_answers() {
-    let ui = at(Page::Works, 1440, 824);
-    // With no pointer the wide window is the first built piece; Tab reaches it and no other window.
+    let mut ui = at(Page::Works, 1440, 900);
+    // With no pointer the wide window is the first built piece in the day's order: W-01 (T.2 item 2).
     assert_eq!(ui.state.works.wide, works::first_built());
+    assert_eq!(works::first_built(), works::TOUCH_GRASS);
     let n = nodes(&ui);
     let windows: Vec<_> = n.iter().filter(|t| t.key.starts_with("works/w") && t.key.len() == "works/w0".len() && t.focusable).map(|t| t.key.clone()).collect();
-    assert_eq!(windows, vec![format!("works/w{}", works::GROUND_TRUTH)]);
-    // The address of a piece with no page shows the index.
+    let built: Vec<_> = works::PIECES.iter().enumerate().filter(|(_, p)| p.built).map(|(i, _)| format!("works/w{i}")).collect();
+    assert_eq!(windows, built);
+    assert_eq!(built, vec!["works/w0".to_owned(), format!("works/w{}", works::GROUND_TRUTH)]);
+    // Tab from the heading reaches the two windows, 01 then 03, and no other.
+    let mut seen = vec![];
+    for _ in 0..40 {
+        ui.key(amenui::el::Key::Tab, false);
+        if let Some(f) = ui.focus() && f.starts_with("works/w") && !seen.iter().any(|s: &String| s == f) { seen.push(f.to_owned()); }
+    }
+    assert_eq!(seen, built, "Tab reaches {seen:?}");
+    // The address of a piece with no page shows the index; a built piece's is its page.
     let mut ui = at(Page::Works, 1440, 824);
     assert!(ui.state.route("works/line-too-long/"));
     assert_eq!(ui.state.page, Page::Works);
-    // From the one built piece the arrows go nowhere.
-    let mut ui2 = at(Page::Work(works::GROUND_TRUTH as u8), 1440, 900);
-    assert!(works::key(&mut ui2.state, amenui::el::Key::Right));
-    assert_eq!(ui2.state.page, Page::Work(works::GROUND_TRUTH as u8));
+    assert!(ui.state.route("works/touch-grass/"));
+    assert_eq!(ui.state.page, Page::Work(works::TOUCH_GRASS as u8));
     ui.relayout();
+    // The arrows go between the two built pieces, round the day.
+    for (from, to) in [(works::GROUND_TRUTH, works::TOUCH_GRASS), (works::TOUCH_GRASS, works::GROUND_TRUTH)] {
+        let mut ui2 = at(Page::Work(from as u8), 1440, 900);
+        assert!(works::key(&mut ui2.state, amenui::el::Key::Right));
+        assert_eq!(ui2.state.page, Page::Work(to as u8));
+    }
 }
 
 /// A label's ink box from its layout box (the type keeps its size in a smaller window).
@@ -394,21 +408,31 @@ fn grass_frames(ui: &mut GalleryUi, from: f32, to: f32) -> (u32, u32) {
 }
 
 #[test]
-fn touch_grass_has_its_page_and_stays_an_unbuilt_window_on_the_index() {
+fn touch_grass_has_its_page_and_a_built_window_on_the_index() {
     let i = 0usize;
     let p = &works::PIECES[i];
-    assert!(p.page && !p.built, "W-01 is made and waits for its review");
-    let ui = at(Page::Work(i as u8), 1440, 900);
+    // Signed off (T.2 item 2): its window shows its still and states the count as built at 1440.
+    assert!(p.page && p.built);
+    assert_eq!(p.live, "WIND OVER A FIELD OF 1,570 STALKS");
+    let mut ui = gallery::new_ui(fonts(), 1440, 900, 1.0);
+    gallery::update(&mut ui.state, Msg::Locale(amenui::i18n::Locale::En));
+    gallery::update(&mut ui.state, Msg::Go(Page::Work(i as u8)));
+    ui.relayout();
     let n = nodes(&ui);
     let small = n.iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
     let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
     // M.4's spacing (R.2 item 1) less what stands too near the type (R.2 item 4).
     assert!((1_300..=1_700).contains(&count), "{small}");
     assert_eq!(count, works::touch_extents(&ui.state).len(), "the small line states the count as built");
-    // On the index its window does not answer.
+    assert_eq!(p.live, format!("WIND OVER A FIELD OF {} STALKS", small.split(" · ").find(|s| s.ends_with(" STALKS")).unwrap().trim_end_matches(" STALKS")));
+    // On the index its window answers: hovered it runs with its live line; pressed, it opens.
     let mut idx = at(Page::Works, 1440, 900);
+    gallery::update(&mut idx.state, Msg::Works(works::WMsg::Hover(i, Some((400.0, 400.0)))));
+    idx.relayout();
+    let live = nodes(&idx).into_iter().find(|t| t.key == "works/w0/live").and_then(|t| t.text).expect("its live line");
+    assert_eq!(live, format!("LIVE · {} · OPEN →", p.live));
     gallery::update(&mut idx.state, Msg::Works(works::WMsg::Tap(i)));
-    assert_eq!(idx.state.page, Page::Works);
+    assert_eq!(idx.state.page, Page::Work(i as u8));
     // On a phone at most 900 stalks.
     let ui = at(Page::Work(i as u8), 390, 844);
     let small = nodes(&ui).iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
@@ -471,12 +495,18 @@ fn touch_grass_moves_in_gusts_at_thirty_frames_a_second_and_is_still_between_the
     eprintln!("touch grass: {wide} instances at 1440 x 900, {phone} at 390 x 844");
     assert!(wide <= 7_500, "{wide} instances");
     assert!(phone <= 2_500, "{phone} instances on a phone");
-    // S.2 item 4: the first frame (200 ms in) has the band 72 % across, the mast in its leading half,
-    // and the sock lifted from its 55° below the horizontal.
+    // S.2 item 4, T.3 (2): the first frame (200 ms in) has the band 72 % across, the mast in its
+    // leading half, and the sock lifted from its 55° below the horizontal to 16° to 28°, at both sizes.
+    for (w, h) in [(1440, 900), (390, 844)] {
+        let mut ui = at(Page::Work(0), w, h);
+        ui.ambient_fps(works::ambient_fps(ui.state.page));
+        // The clock from 0, as the render tool steps it, to the frame at 200 ms.
+        grass_frames(&mut ui, -1.0 / 60.0, 0.2);
+        let sock = ui.state.works.grass.sock;
+        eprintln!("touch grass: the sock at {sock}° in the first frame at {w}");
+        assert!((16..=28).contains(&sock), "the sock at {sock}° in the first frame at {w}");
+    }
     grass_frames(&mut ui, 0.0, 0.2);
-    let sock = ui.state.works.grass.sock;
-    eprintln!("touch grass: the sock at {sock}° in the first frame");
-    assert!(sock < 40, "the sock at {sock}° in the first frame");
     // The first gust is under way from the first frame; between it and the second only the countdown
     // draws, once a second.
     let first = grass_frames(&mut ui, 0.2, 5.5);
@@ -521,4 +551,35 @@ fn touch_grass_costs() {
     }
     eprintln!("touch grass, CPU: a frame during a gust {:.2} ms ({n} frames); the pointer walking {:.2} ms an event (240 events, {m} frames), the worst {:.2} ms (event {}), a jump of 800 px {:.2} ms; {} instances",
         gust * 1e3 / n as f64, walk * 1e3 / 240.0, worst.0 * 1e3, worst.1, jump * 1e3 / jumps.max(1) as f64, ui.scene().instances.len());
+}
+
+/// R.2 item 7, T.2 item 1: the windsock hangs at 55° with no wind, is level (at most 2°) at the peak of
+/// a strong gust, and with reduced motion holds at the held band's peak, 55° · (1 − 0.79) = 11.5°.
+#[test]
+fn the_windsock_lifts_in_a_strong_gust_and_holds_at_the_bands_peak_with_reduced_motion() {
+    for (w, h) in [(1440, 900), (390, 844)] {
+        let mut ui = at(Page::Work(0), w, h);
+        ui.ambient_fps(works::ambient_fps(ui.state.page));
+        // Through the fourth gust, the first strong one.
+        let (mut t, mut least, mut most) = (-1.0 / 60.0, i32::MAX, i32::MIN);
+        while ui.state.works.grass.gusts < 5 && t < 90.0 {
+            t += 1.0 / 60.0;
+            ui.tick(t);
+            if ui.needs_frame(t) { ui.settle(); ui.frame_drawn(); }
+            let g = &ui.state.works.grass;
+            if g.current.is_some_and(|(n, _)| n == 3) { least = least.min(g.sock); }
+            most = most.max(g.sock);
+        }
+        eprintln!("touch grass at {w}: the sock at {least}° at the least in the strong gust, {most}° at the most");
+        assert!(least <= 2, "{w}: the sock at {least}° in a strong gust");
+        assert_eq!(most, 55, "{w}: between gusts");
+        let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+        amenui::app::App::set_reduced_motion(&mut ui.state, true);
+        gallery::update(&mut ui.state, Msg::Go(Page::Work(0)));
+        ui.relayout();
+        grass_frames(&mut ui, 0.0, 3.0);
+        let sock = ui.state.works.grass.sock;
+        eprintln!("touch grass at {w}, reduced motion: the sock at {sock}°");
+        assert!((10..=13).contains(&sock), "{w}: the sock at {sock}° with reduced motion");
+    }
 }

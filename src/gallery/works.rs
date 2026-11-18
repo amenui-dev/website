@@ -15,7 +15,8 @@
 //! which the picture covers, is set to a ramp that follows the sky, so the mixes over the sky are the
 //! sky's.
 use super::{BAR, Gallery, Msg, NARROW, Page, Section};
-use super::touch::{self, TOUCH_GRASS};
+pub use super::touch::TOUCH_GRASS;
+use super::touch;
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
@@ -50,7 +51,7 @@ pub struct Piece {
     pub recipe: &'static str,
 }
 pub const PIECES: [Piece; COUNT] = [
-    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 1,570 STALKS", page: true, built: false, recipe: "recipes/touch-grass/" },
+    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 1,570 STALKS", page: true, built: true, recipe: "recipes/touch-grass/" },
     Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", page: false, built: false, recipe: "concepts/annotation/" },
     Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", page: true, built: true, recipe: "recipes/ground-truth/" },
     Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: false, built: false, recipe: "concepts/annotation/" },
@@ -65,11 +66,14 @@ pub fn step(i: usize, dir: isize) -> Option<usize> {
 /// The links a piece's page prints (its recipe), under the site's base: the build checks each resolves.
 pub fn links() -> Vec<String> { PIECES.iter().filter(|p| p.page).map(|p| format!("docs/{}", p.recipe)).collect() }
 
-/// The pieces' pictures: `PIC + i` (`picture`). W-03's ridges are 960 × 600, shown scaled; an unbuilt
-/// piece's is its colours alone, with the piece's grain.
+/// The pieces' pictures: `PIC + i` (`picture`), each 960 × 600, shown scaled. W-03's ridges; W-01's sky
+/// and ground, which its page draws the field over; an unbuilt piece's colours alone, with the piece's
+/// grain.
 pub const PIC: u32 = 100;
-/// W-01's picture on a phone's page, its horizon at 70 %.
+/// W-01's picture on a phone's page, its horizon at 62 %.
 pub const PIC_PHONE: u32 = PIC + COUNT as u32;
+/// W-01's still in the index's windows: the field at rest (`touch::still_pixels`).
+pub const PIC_STILL: u32 = PIC + COUNT as u32 + 1;
 /// The `Markr` slot a piece's picture is drawn through: the picture as it is.
 pub const PIC_SLOT: u8 = 5;
 
@@ -658,11 +662,11 @@ fn lum(c: [f32; 3]) -> f32 {
 /// Give a renderer every piece's picture (native hosts and offscreen renders; the web makes each when
 /// a page first draws it).
 pub fn set_pictures(r: &mut amenui::render::Renderer) {
-    for i in 0..=COUNT as u32 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
+    for i in 0..=COUNT as u32 + 1 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
 }
 /// The size of piece picture `id` (`PIC + i`).
 pub fn picture_size(id: u32) -> Option<(u32, u32)> {
-    match id.checked_sub(PIC)? as usize { i if i <= COUNT => Some((960, 600)), _ => None }
+    match id.checked_sub(PIC)? as usize { i if i <= COUNT + 1 => Some((960, 600)), _ => None }
 }
 /// W-03's picture, made once (the scan window and the faint shades read its colours).
 fn ground_pixels() -> &'static [u8] {
@@ -718,6 +722,7 @@ pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = picture_size(id)?;
     let i = (id - PIC) as usize;
     if i == GROUND_TRUTH { return Some((w, h, ground_pixels().to_vec())); }
+    if id == PIC_STILL { return Some((w, h, touch::still_pixels())); }
     if i == TOUCH_GRASS || id == PIC_PHONE { return Some((w, h, touch::pixels(id == PIC_PHONE))); }
     let stops = stops(i);
     // An unbuilt piece: its colours and the piece's grain (0.04, as the finishing pass's), nothing else.
@@ -919,14 +924,14 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
 /// set, S.2 item 2); then the strip's links and the status line. Mono at 11 px advances `ADV` a character (a CJK one 11.66) in a box 18 px high; the
 /// title's box is 272 × 48 (the serif at 30 px, measured on renders); the status line is the shell's,
 /// right-aligned in the bottom 28 px with the margin, taken at the width it has on renders (240 px).
-pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
+pub(crate) fn touch_text_boxes(locale: amenui::i18n::Locale, w: f32, h: f32, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
     let i = TOUCH_GRASS;
     let narrow = w < NARROW;
     let adv = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2e80 { 11.66 } else { ADV }).sum::<f32>();
     let line = |t: &str, x: f32, y: f32| [x, y, x + adv(t), y + 18.0];
     let b = block_with(i, w, h, small);
     let (mut types, mut heads) = (vec![], vec![]);
-    if number_paint_at(s, i, w, h, &b).is_some() { types.push(line(PIECES[i].n, 32.0, b.n)); }
+    if number_paint_in(i, &Fit::new(w, h, PIECES[i].focus), &b).is_some() { types.push(line(PIECES[i].n, 32.0, b.n)); }
     types.push([32.0, b.title, 32.0 + 272.0, b.title + 48.0]);
     if narrow {
         // Wrapped to the width: each line's box (the last one as long as what is left).
@@ -945,7 +950,7 @@ pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec
     } else {
         types.push(line(small, 32.0, b.small));
     }
-    let made = format!("{} ↗", s.locale.tr("works.made")).to_uppercase();
+    let made = format!("{} ↗", locale.tr("works.made")).to_uppercase();
     let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
     let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
     if narrow {
@@ -966,22 +971,25 @@ pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec
 /// W-01's stalks as planted on its page: each one's upright extent with its head, and its head's box.
 pub fn touch_extents(s: &Gallery) -> Vec<([f32; 4], Option<[f32; 4]>)> {
     let (w, h) = (s.width, s.height);
-    touch::planted(s, w, h, &Fit::new(w, h, PIECES[TOUCH_GRASS].focus)).iter().map(|st| st.extent()).collect()
+    touch::planted(s.locale, w, h, &Fit::new(w, h, PIECES[TOUCH_GRASS].focus)).iter().map(|st| st.extent()).collect()
 }
 
 /// The title block's number (P.2 item 1): in the accent where the accent measures at least 4.5 : 1
 /// against the median luminance of the picture under the number at this size, otherwise in the foot's
 /// ink where that does, otherwise not drawn.
 fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> { number_paint_at(s, i, w, h, &block(s, i, w, h)) }
-fn number_paint_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> Option<Paint> {
-    let (a, ink) = number_contrast_at(s, i, w, h, b);
+fn number_paint_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> Option<Paint> { number_paint_in(i, &piece_fit(s, i, w, h), b) }
+fn number_paint_in(i: usize, fit: &Fit, b: &Block) -> Option<Paint> {
+    let (a, ink) = number_contrast_in(i, fit, b);
     if a >= 4.5 { Some(Paint::ACCENT) } else if ink >= 4.5 { Some(Paint::INK) } else { None }
 }
+/// How a piece's picture lies in a `w × h` piece (W-03's own fit; the others about their centre).
+fn piece_fit(s: &Gallery, i: usize, w: f32, h: f32) -> Fit { if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) } }
 /// The accent's and the foot ink's contrast against the median luminance under the title block's number.
 pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) { number_contrast_at(s, i, w, h, &block(s, i, w, h)) }
-fn number_contrast_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> (f32, f32) {
+fn number_contrast_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> (f32, f32) { number_contrast_in(i, &piece_fit(s, i, w, h), b) }
+fn number_contrast_in(i: usize, fit: &Fit, b: &Block) -> (f32, f32) {
     let r = label_ink(PIECES[i].n, 32.0, b.n, 1.0);
-    let fit = if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) };
     let mut ls: Vec<f32> = vec![];
     let (mut y, mut x);
     y = r.1 + 0.5;
@@ -1024,8 +1032,13 @@ enum Mode { Page, Live, Still, Band }
 fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view: (f32, f32, f32, f32)) -> El<Msg> {
     let p = &PIECES[i];
     let fit = fit_for(s, w, h);
-    // W-01 on a phone's page has its horizon lower: a picture of its own.
-    let id = if i == TOUCH_GRASS && mode == Mode::Page && w < NARROW { PIC_PHONE } else { PIC + i as u32 };
+    // W-01 on a phone's page has its horizon lower: a picture of its own; in the index's windows its
+    // still, the field at rest.
+    let id = match (i, mode) {
+        (TOUCH_GRASS, Mode::Page) if w < NARROW => PIC_PHONE,
+        (TOUCH_GRASS, Mode::Live | Mode::Still | Mode::Band) => PIC_STILL,
+        _ => PIC + i as u32,
+    };
     let pic = picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
     let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
@@ -1034,7 +1047,7 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
 /// How the 1440 × 900 picture lies in a `w × h` piece: cover, about its centre of interest.
 pub struct Fit { s: f32, pw: f32, ox: f32, oy: f32 }
 impl Fit {
-    fn new(w: f32, h: f32, focus: f32) -> Self {
+    pub(crate) fn new(w: f32, h: f32, focus: f32) -> Self {
         let s = (w / 1440.0).max(h / 900.0);
         let pw = 1440.0 * s;
         let ox = (w * 0.5 - focus * pw).clamp(w - pw, 0.0);
