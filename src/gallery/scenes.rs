@@ -3,7 +3,7 @@
 //! one obvious way to begin, and has a strip of its numbers at the bottom. `#scenes` lists them.
 use super::pages::ratio;
 use super::{Gallery, Msg, Page, Target};
-use crate::demo::{BUST, CUTOUT, SKY, SPHERE, TERRAIN, cutout_alpha};
+use crate::demo::{CUTOUT, SKY, SPHERE, TERRAIN, TREE, cutout_alpha};
 use amenui::el::{Cursor, Drag, El, Font, Key, Paint, Phase, col, picture, row, space, stack, text, text_lh};
 use amenui::morph::{Cmd, FlowSpec, MorphSpec};
 use amenui::style::{Gaze, GazeMode, Look, Material, Markr, colour, gaze, set, styles};
@@ -500,7 +500,7 @@ fn op_page(g: &Gallery, w: f32) -> El<Msg> {
         .child(text(t, 14.0, Paint::TEXT));
     let mut cards = row().key("op/cards").gap(16.0).fill_width();
     if narrow { cards = cards.wrap(); }
-    for (i, (id, t)) in [(SKY, "傍晚"), (TERRAIN, "地形"), (BUST, "石膏像")].into_iter().enumerate() {
+    for (i, (id, t)) in [(SKY, "傍晚"), (TERRAIN, "地形"), (TREE, "孤树")].into_iter().enumerate() {
         if narrow && i > 0 { break; }
         cards = cards.child(card(i, id, t));
     }
@@ -523,13 +523,13 @@ const ARTICLE: &str = "一页文字通常被看成一个方框：框里是字，
 
 在这一页上，图片可以拖动。每次它移动，正文就重新断行：每一行先量出这一条带子里哪一段没有被挡住，再把能放下的字放进去。如果图片把一行分成左右两段，两段各排一行，读的时候从左到右。缝的宽度是一个数字，在下面可以改。
 
-这件事依赖的是图片真实的轮廓，而不是它的方框。图片带着透明的底，所以框的四角是空的，字可以一直排到石膏像的肩膀旁边。圆形也一样：离圆心越远的行，留给文字的地方越宽。
+这件事依赖的是图片真实的轮廓，而不是它的方框。图片带着透明的底，所以框的四角是空的，字可以一直排进树冠下面，挨着树干。圆形也一样：离圆心越远的行，留给文字的地方越宽。
 
 排版本身没有新的规则。断行仍然交给排版系统，它照常处理中文和 Latin words 的混排、标点和行宽；这里只是每一行给它一个不同的起点和宽度。所以字号、行高、字体都可以换，换了以后仍然绕得开。
 
 拖动的时候，你看到的是同一套布局在每一步重新计算的结果：没有动画曲线，也没有特殊的过渡。松手以后，页面就是一张普通的、安静的页面。";
 
-fn silhouette_bust(x: f32, y: f32, w: f32) -> Silhouette {
+fn silhouette_tree(x: f32, y: f32, w: f32) -> Silhouette {
     static ALPHA: OnceLock<(u32, u32, Vec<u8>)> = OnceLock::new();
     let (iw, ih, a) = ALPHA.get_or_init(cutout_alpha);
     Silhouette::from_alpha(*iw, *ih, |tx, ty| a[(ty * iw + tx) as usize], x, y, w)
@@ -555,9 +555,9 @@ fn reading(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
         Some(Msg::Scene(SMsg::Place(k, x, y)))
     };
     if sc.obstacle != 1 {
-        obstacles.push(silhouette_bust(bx, by, pw));
-        body = body.child(col().key("read/bust").width(pw).height(ph).absolute(Some(bx), Some(by), None, None).on_drag_with(drag(0, bx, by)).on_key(nudge(0, bx, by))
-            .child(picture(CUTOUT, ratio(CUTOUT)).key("read/bust-pic")));
+        obstacles.push(silhouette_tree(bx, by, pw));
+        body = body.child(col().key("read/tree").width(pw).height(ph).absolute(Some(bx), Some(by), None, None).on_drag_with(drag(0, bx, by)).on_key(nudge(0, bx, by))
+            .child(picture(CUTOUT, ratio(CUTOUT)).key("read/tree-pic")));
     }
     if sc.obstacle != 0 {
         obstacles.push(Silhouette::circle(dx + disc * 0.5, dy + disc * 0.5, disc * 0.5));
@@ -572,7 +572,7 @@ fn reading(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
         .child(text_lh("沿着轮廓排字", (cw / 14.0).clamp(28.0, 46.0), (cw / 14.0).clamp(28.0, 46.0) * 1.25, Paint::INK).font(Font::Display).weight(1.5))
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::END).wrap().gap(10.0)
             .child(text("文 / 编辑部　约 900 字", 13.0, Paint::DIM))
-            .child(segmented("read/which", &["胸像", "圆", "两个"], sc.obstacle, 28.0, |i| Msg::Scene(SMsg::Obstacle(i)))))
+            .child(segmented("read/which", &["孤树", "圆", "两个"], sc.obstacle, 28.0, |i| Msg::Scene(SMsg::Obstacle(i)))))
         .child(space(1.0, 1.0).fill_width().fill(Paint::FAINT))
         .child(body)
 }
@@ -583,7 +583,7 @@ const STRIP_NAMES: [&str; 5] = ["字符", "像素画", "笔触", "光点", "积�
 fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let sc = &g.sc;
     let q = |j| sc.get(2, j);
-    let id = [SKY, TERRAIN, BUST][sc.pic.min(2)];
+    let id = [SKY, TERRAIN, TREE][sc.pic.min(2)];
     let r_ = ratio(id);
     // The picture covers the whole wall (cropped, centred), so it fills most of the window.
     let top = 26.0;
@@ -643,7 +643,7 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     col().key("pr/page").gap(10.0).align(AlignItems::CENTER)
         .child(row().key("pr/bar").width(w).gap(12.0).align(AlignItems::CENTER).wrap()
             .child(segmented("pr/mode", &["五种记号", "一种记号"], sc.pr_mode, 28.0, |i| Msg::Scene(SMsg::PrMode(i))))
-            .child(segmented("pr/which", &["天空", "地形", "胸像"], sc.pic, 28.0, |i| Msg::Scene(SMsg::Picture(i))))
+            .child(segmented("pr/which", &["天空", "地形", "孤树"], sc.pic, 28.0, |i| Msg::Scene(SMsg::Picture(i))))
             .child(text(hint, 12.0, Paint::DIM).shrink()))
         .child(wall)
 }

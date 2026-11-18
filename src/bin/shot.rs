@@ -96,7 +96,7 @@ fn main() {
     run(&mut ui, 21.0);
     s.shoot(&mut ui, "12-light-lens");
 
-    // Pictures into marks: the compare line dragged across the bust, then the pixel type.
+    // Pictures into marks: the compare line dragged across the tree, then the pixel type.
     let (_, my) = centre(&mut ui, "marks-picture");
     let r = ui.node("marks-picture").expect("marks picture").rect;
     ui.pointer_leave();

@@ -148,8 +148,8 @@ fn pointer_shapes() {
     ui.release(x, y);
     gallery::update(&mut ui.state, Msg::Go(Page::from_hash("scene-reading").unwrap()));
     ui.relayout();
-    assert_eq!(at(&mut ui, "read/bust"), Cursor::Grab);
-    let (x, y) = ui.node("read/bust").unwrap().rect.center();
+    assert_eq!(at(&mut ui, "read/tree"), Cursor::Grab);
+    let (x, y) = ui.node("read/tree").unwrap().rect.center();
     ui.press(x, y);
     assert_eq!(ui.cursor(), Cursor::Grabbing);
     ui.release(x, y);

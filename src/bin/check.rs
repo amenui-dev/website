@@ -13,7 +13,7 @@
 //!  6. Every material, light theme: a fully loosened picture shows no page-ground pixel.
 //!  7. Annotation frames lie on the layout rects to the pixel.
 //!  8. Text around an outline (`wrap`), light theme: no glyph ink pixel within `gap - 1` px of the
-//!     obstacle's ink (a disc and the cut-out bust, several gaps), with a control that ignores the gap.
+//!     obstacle's ink (a disc and the cut-out tree, several gaps), with a control that ignores the gap.
 //!  9. Every showcase scene at rest is calm: no instance outside its declared live area is loose,
 //!     still condensing, or under a front.
 //! 10. Every component page under every material but `near`, at rest (dark theme; light too for print
@@ -64,7 +64,7 @@
 //!     the outline at rest; with threads, drawn in part equals drawn whole.
 //!
 //! usage: check [components | recompose | mesh | dirty | presets | scroll | looks | fieldmap | scribblr]     (`components` runs only 10 and 11, `recompose` only 13, `mesh` only 14, `dirty` only 15)
-use website::demo::{BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
+use website::demo::{PICTURE_SIZES, SKY, SPHERE, TERRAIN, TREE};
 use amenui::el::{El, Font, Paint, col, picture, row, space, text_lh};
 use amenui::morph::MorphSpec;
 use amenui::marks::PALETTES;
@@ -165,7 +165,7 @@ fn main() {
     let mut ui = Ui::new(One { id: SKY, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
     let mut worst = 0usize;
     let mut checked = 0usize;
-    for id in [SPHERE, SKY, TERRAIN, BUST] {
+    for id in [SPHERE, SKY, TERRAIN, TREE] {
         ui.state.id = id;
         ui.relayout();
         ui.tick(100.0);
@@ -187,7 +187,7 @@ fn main() {
     // ── 2. Pitch 1 is the picture itself, however loose ─────────────────────────────────────────────
     let before = failed;
     let mut max_diff = 0;
-    for id in [SKY, BUST] {
+    for id in [SKY, TREE] {
         for f in [Markr::with_set(set::CHARS), Markr { glow: 2.0, relief: 2.0, follow: 1.0, depth: 10.0, ..Markr::with_set(set::GLOW) },
                   Markr { palette: 1.0, colours: 3.0, spread: 1.0, ..Markr::with_set(set::DITHER) }, Markr { regions: 4.0, ..Markr::default() }] {
             let f = Markr { pitch: 1.0, ..f };
@@ -219,7 +219,7 @@ fn main() {
     {
         let mut look = Look { theme: LIGHT, material: Material::Dottr, ..Look::default() };
         look.pics[0] = Markr::with_set(set::CHARS);
-        let mut ui = Ui::new(One { id: BUST, loose: 0.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
+        let mut ui = Ui::new(One { id: TREE, loose: 0.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
         ui.tick(100.0);
         let base = o.render(&mut ui, &look);
         ui.state.loose = 1.0;
@@ -373,7 +373,7 @@ fn main() {
     // ── 6. No material shows the ground inside a loosened picture ───────────────────────────────────
     let before = failed;
     let ground = rgb8(LIGHT.ground);
-    let mut ui = Ui::new(One { id: BUST, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
+    let mut ui = Ui::new(One { id: TREE, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
     ui.pointer_leave();
     ui.tick(100.0);
     let (x0, y0, x1, y1) = device_rect(ui.node("pic").expect("pic").rect, 1.0);
@@ -657,7 +657,7 @@ fn diff_ink(a: &[u8], b: &[u8], r: amenui::ui::Rect, ground: [u8; 3]) -> i32 {
     d
 }
 
-/// Text flowing around an obstacle: a disc (kind 1) or the cut-out bust (0), at (x, y). `show` 1 draws
+/// Text flowing around an obstacle: a disc (kind 1) or the cut-out tree (0), at (x, y). `show` 1 draws
 /// only the obstacle, 2 only the text (laid out the same either way).
 struct Wr { kind: u8, x: f32, y: f32, gap: f32, show: u8 }
 const WRAP_TEXT: &str = "文字沿着轮廓排开，每一行只拿到这一条带子里没有被挡住的部分；被挡成两段时，左右各排一行。Text keeps its distance from the ink of whatever is in its way, whatever its shape. ";
@@ -1212,7 +1212,7 @@ fn scroll(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
 
 // ── 19. The field map ────────────────────────────────────────────────────────────────────────────
 struct Pic { cmds: Vec<amenui::morph::Cmd> }
-fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(BUST, 1.0).key("pic").loose(1.0).respond(amenui::el::Response::Loosen)) }
+fn pic_page(_: &Pic) -> El<()> { col().pad(20.0, 20.0).width(360.0).child(picture(TREE, 1.0).key("pic").loose(1.0).respond(amenui::el::Response::Loosen)) }
 fn fieldmap(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     use website::gallery::{self, Msg, Page};
     use amenui::morph::{Cmd, StirAt};
@@ -1388,7 +1388,7 @@ fn scribblr(fonts: &dyn Fn() -> Vec<amenui::text::Face>) -> usize {
     // 2. Light theme, a fully loosened picture: no page ground in it.
     let before = failed;
     let ground = rgb8(LIGHT.ground);
-    let mut ui = Ui::new(One { id: BUST, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
+    let mut ui = Ui::new(One { id: TREE, loose: 1.0 }, one, |_, _| {}, fonts(), W, H, 1.0);
     ui.pointer_leave();
     ui.tick(100.0);
     let (x0, y0, x1, y1) = device_rect(ui.node("pic").expect("pic").rect, 1.0);

@@ -79,9 +79,9 @@ fn script(d: &mut Dir, i: usize) -> usize {
         }
         1 => {
             d.snap("rest");
-            d.drag("read/bust", -240.0, 60.0, 0.5, true); d.snap("dragging the bust left");
-            d.drag("read/bust", 0.0, 0.0, 0.05, false);
-            d.drag("read/bust", 300.0, -20.0, 0.6, false); d.wait(0.6); d.snap("dropped to the right");
+            d.drag("read/tree", -240.0, 60.0, 0.5, true); d.snap("dragging the tree left");
+            d.drag("read/tree", 0.0, 0.0, 0.05, false);
+            d.drag("read/tree", 300.0, -20.0, 0.6, false); d.wait(0.6); d.snap("dropped to the right");
             d.click("read/which:2"); d.wait(0.8); d.snap("two obstacles");
             let (dx, dy) = if narrow { (120.0, -120.0) } else { (230.0, -150.0) };
             d.drag("read/disc", dx, dy, 0.6, true); d.snap("the disc dragged into the text");
@@ -108,7 +108,7 @@ fn script(d: &mut Dir, i: usize) -> usize {
             d.wait(1.0); d.snap("characters, three-colour palette");
             d.send(Msg::Num(website::gallery::Target::Scene(2, 4), amenui::widgets::Edit::Set(2.0)));
             d.send(Msg::Num(website::gallery::Target::Scene(2, 5), amenui::widgets::Edit::Set(6.0)));
-            d.click("pr/which:2"); d.wait(1.0); d.snap("pixels, PICO-8, the bust");
+            d.click("pr/which:2"); d.wait(1.0); d.snap("pixels, PICO-8, the tree");
             1
         }
         3 => {
@@ -235,7 +235,7 @@ fn perf() {
         // Into the busy part of each scene.
         match i {
             0 => { d.click("op/start"); d.wait(0.7); }
-            1 => { d.drag("read/bust", -120.0, 40.0, 0.2, true); }
+            1 => { d.drag("read/tree", -120.0, 40.0, 0.2, true); }
             2 => { let r = d.ui.node("pr/wall").unwrap().rect; d.hover(r.x + r.w * 0.5, r.y + r.h * 0.5); }
             3 => { d.click("mo/next"); d.wait(0.7); }
             4 => { d.ui.key(Key::Char(' '), false); d.wait(1.0); }

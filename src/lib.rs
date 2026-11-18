@@ -43,7 +43,7 @@ pub fn setup(r: &mut amenui::render::Renderer) { for (id, w, h, px) in demo::pic
 /// One of the pictures, by id (`demo::pictures` makes them all): its width, height and RGBA8.
 pub fn picture(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let f: fn(u32, u32) -> Vec<u8> = match id {
-        demo::SPHERE => demo::picture_pixels, demo::SKY => demo::sky_pixels, demo::TERRAIN => demo::terrain_pixels, demo::BUST => demo::bust_pixels,
+        demo::SPHERE => demo::picture_pixels, demo::SKY => demo::sky_pixels, demo::TERRAIN => demo::terrain_pixels, demo::TREE => demo::tree_pixels,
         demo::CUTOUT => demo::cutout_pixels, demo::DUSK => demo::dusk_pixels, demo::PLANET => demo::planet_pixels, demo::FLOWER => demo::flower_pixels,
         _ => return None,
     };

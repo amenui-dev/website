@@ -69,14 +69,14 @@ fn opening_builds_and_operates() {
 fn reading_reflows_when_dragged() {
     let mut ui = at(1, 1280, 800);
     let before = ui.instances_of("read/text");
-    let (x, y) = ui.node("read/bust").unwrap().rect.center();
+    let (x, y) = ui.node("read/tree").unwrap().rect.center();
     ui.press(x, y);
     ui.pointer_move(x - 150.0, y + 30.0);
     ui.release(x - 150.0, y + 30.0);
     assert_eq!(ui.state.sc.obj[0], (330.0 - 150.0, 120.0 + 30.0));
     assert_ne!(before.iter().map(|i| i.rect).collect::<Vec<_>>(), ui.instances_of("read/text").iter().map(|i| i.rect).collect::<Vec<_>>());
     // Keys move it too.
-    click(&mut ui, "read/bust");
+    click(&mut ui, "read/tree");
     ui.key(Key::Right, false);
     assert_eq!(ui.state.sc.obj[0].0, 190.0);
 }

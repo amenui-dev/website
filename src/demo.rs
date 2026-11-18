@@ -26,7 +26,7 @@ impl Default for Demo {
     fn default() -> Self {
         let mut pics = [Markr::default(); 8];
         pics[1] = Markr { pitch: 16.0, levels: 16.0, set: set::CHARS as f32, ground: 0.0, gamma: 0.6, ..Markr::default() };
-        Self { count: 0, fx: Fx::default(), pics, theme: 0, material: Material::Dottr, edit: None, picked: None, shown: BUST, wipe: 0.42 }
+        Self { count: 0, fx: Fx::default(), pics, theme: 0, material: Material::Dottr, edit: None, picked: None, shown: TREE, wipe: 0.42 }
     }
 }
 impl Demo {

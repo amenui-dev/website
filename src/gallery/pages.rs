@@ -1,7 +1,7 @@
 //! The pages of the gallery: one per component, one per mark set, and the type. Every component page
 //! has the same parts, top to bottom: title, one sentence, 预览, 变体, 参数, 源码.
 use super::{Gallery, IMAGE_SLOT, MARK_SLOT, Msg, Page, Target, WIPE_SPEC};
-use crate::demo::{self, BUST, PICTURE_SIZES, SKY, SPHERE, TERRAIN};
+use crate::demo::{self, PICTURE_SIZES, SKY, SPHERE, TERRAIN, TREE};
 use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, stack, text, text_lh};
 use amenui::morph::{Ease, FlowSpec, MorphSpec};
 use amenui::style::set;
@@ -291,7 +291,7 @@ pub fn index_preview(s: &Gallery, c: usize) -> El<Msg> {
         CARD => card(k("live"), Some("Title"), text("Related content, together.", 13.0, Paint::TEXT)).width(200.0),
         DIALOG => button_as(k("open"), "Rename…", Variant::Default, Msg::Dialog(1)),
         // Inset by the card's padding inside the preview's height too: 16 px above and below.
-        IMAGE => col().width(((super::index::PREVIEW_H - 32.0) / ratio(BUST)).min(200.0)).child(picture(BUST, ratio(BUST)).key(k("live")).markr(IMAGE_SLOT)),
+        IMAGE => col().width(((super::index::PREVIEW_H - 32.0) / ratio(TREE)).min(200.0)).child(picture(TREE, ratio(TREE)).key(k("live")).markr(IMAGE_SLOT)),
         DIVIDER => col().width(200.0).gap(10.0).child(text("Above", 13.0, Paint::TEXT)).child(divider(1.0)).child(text("Below", 13.0, Paint::TEXT)),
         SCROLL => {
             let mut c = col().key(k("lines")).gap(6.0);
@@ -425,7 +425,7 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         }
         IMAGE => {
             let ratio = |id: u32| { let (w, h) = PICTURE_SIZES[id as usize]; h as f32 / w as f32 };
-            let live = col().width(560.0).child(image(&k("live"), BUST, ratio(BUST), IMAGE_SLOT, Some("在图上移动指针，图会在指针附近松开成记号。")));
+            let live = col().width(560.0).child(image(&k("live"), TREE, ratio(TREE), IMAGE_SLOT, Some("在图上移动指针，图会在指针附近松开成记号。")));
             (live, vec![
                 ("原图", col().width(220.0).child(image(&k("a"), SKY, ratio(SKY), IMAGE_SLOT, None))),
                 ("完全松开", col().width(220.0).child(picture(SKY, ratio(SKY)).key(k("b")).markr(IMAGE_SLOT).loose(1.0))),
@@ -537,8 +537,8 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         .child(tag("原图 · BEFORE", "before").absolute(Some(10.0), Some(8.0), None, None))
         .child(row().key(format!("{h}/after-row")).width(pw).pad(10.0, 0.0).justify(JustifyContent::END).respond(Response::Ignore).pass(true).absolute(Some(0.0), Some(8.0), None, None)
             .child(tag(&format!("{} · AFTER", set::NAMES[k as usize]), "after")));
-    let pick: [u32; 7] = [demo::SPHERE, demo::SKY, demo::TERRAIN, demo::BUST, demo::DUSK, demo::PLANET, demo::FLOWER];
-    let pick_names = ["球", "天空", "地形", "胸像", "黄昏", "行星", "花"];
+    let pick: [u32; 7] = [demo::SPHERE, demo::SKY, demo::TERRAIN, demo::TREE, demo::DUSK, demo::PLANET, demo::FLOWER];
+    let pick_names = ["球", "天空", "地形", "孤树", "黄昏", "行星", "花"];
     let at = pick.iter().position(|&i| i == s.shown).unwrap_or(0);
     // In English the names are longer: on a phone the choice scrolls sideways.
     let view = col().fill_width().min_width(0.0).gap(14.0)
@@ -664,7 +664,7 @@ const FLOW_ITEMS: [(&str, &str, u32); 6] = [
     ("球", "一个被光照亮的球体，停在地平线上方。", SPHERE),
     ("傍晚", "低垂的太阳，被下方照亮的云层，和渐渐隐入雾气的山脊。", SKY),
     ("地形", "按高度着色的地形，等高线一圈套一圈。", TERRAIN),
-    ("胸像", "一尊石膏胸像，光从左上方来。", BUST),
+    ("孤树", "草坡上一棵被风吹斜的孤树。", TREE),
     ("天空", "同一片天空，换一种记号来看。", SKY),
     ("山", "同一片地形，从另一个方向看。", TERRAIN),
 ];

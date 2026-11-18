@@ -2,7 +2,7 @@
 //! components, with at least one real interaction. Opening a page applies its style.
 use super::pages::ratio;
 use super::{Gallery, Msg, STYLE_SLOT, Target};
-use crate::demo::{BUST, SKY, SPHERE, TERRAIN};
+use crate::demo::{SKY, SPHERE, TERRAIN, TREE};
 use amenui::el::{El, Font, Paint, Scope, Stirr, col, picture, row, space, text, text_lh};
 use amenui::style::styles;
 use amenui::widgets::{Spec, Variant, button_as, card, choice, input, number, segmented, switch};
@@ -55,11 +55,11 @@ fn pic_at(h: &str, k: &str, id: u32, w: f32, loose: f32) -> El<Msg> {
 // ── 1 Algorithmic / Digital Gaze: a feed, framed and measured ───────────────────────────────────────
 fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
     const ITEMS: [(u32, &str, &str, f32); 6] = [
-        (BUST, "人物", "IMG_0412", 0.93), (TERRAIN, "地形", "IMG_0418", 0.88), (SKY, "天空", "IMG_0421", 0.97),
-        (SPHERE, "物体", "IMG_0433", 0.71), (BUST, "人物", "IMG_0440", 0.84), (TERRAIN, "地形", "IMG_0452", 0.66),
+        (TREE, "风景", "IMG_0412", 0.93), (TERRAIN, "地形", "IMG_0418", 0.88), (SKY, "天空", "IMG_0421", 0.97),
+        (SPHERE, "物体", "IMG_0433", 0.71), (TREE, "风景", "IMG_0440", 0.84), (TERRAIN, "地形", "IMG_0452", 0.66),
     ];
     let filter = s.choices[0].min(3);
-    let names = ["全部", "人物", "地形", "天空"];
+    let names = ["全部", "风景", "地形", "天空"];
     let mut feed = row().key(format!("{h}/feed")).gap(22.0).wrap().fill_width();
     for (i, (id, tag, file, conf)) in ITEMS.iter().enumerate() {
         if filter != 0 && *tag != names[filter] { continue; }
@@ -160,10 +160,10 @@ fn print_zine(s: &Gallery, h: &str) -> El<Msg> {
                     .child(button_as(format!("{h}/subscribe"), "订阅", Variant::Accent, Msg::Press))
                     .child(segmented(&format!("{h}/issue"), &issues, issue, 30.0, |i| Msg::Choose(2, i)))))
             .child(col().key(format!("{h}/right")).width(390.0).gap(12.0)
-                .child(pic_at(h, "photo", if issue == 1 { SKY } else { BUST }, 390.0, 1.0))
+                .child(pic_at(h, "photo", if issue == 1 { SKY } else { TREE }, 390.0, 1.0))
                 .child(row().gap(10.0).align(AlignItems::CENTER)
                     .child(space(28.0, 28.0).radius(14.0).fill(Paint::ACCENT))
-                    .child(text_lh("图注：石膏像，复印三次。", 13.0, 20.0, Paint::DIM)))))
+                    .child(text_lh("图注：孤树，复印三次。", 13.0, 20.0, Paint::DIM)))))
         .child(space(1.0, 3.0).fill_width().fill(Paint::INK))
 }
 
@@ -188,7 +188,7 @@ fn glitch(s: &Gallery, h: &str) -> El<Msg> {
 /// Below the card: three channels, each a picture and a signal level, that tear when the pointer
 /// comes onto them.
 fn glitch_monitor(s: &Gallery, h: &str) -> El<Msg> {
-    let chans = [(SKY, "CH 01", 0.82), (TERRAIN, "CH 02", 0.41), (BUST, "CH 03", 0.0)];
+    let chans = [(SKY, "CH 01", 0.82), (TERRAIN, "CH 02", 0.41), (TREE, "CH 03", 0.0)];
     let mut r = row().key(format!("{h}/monitor")).gap(20.0).wrap();
     for (i, (id, name, level)) in chans.iter().enumerate() {
         let lost = *level == 0.0 && s.presses == 0;
@@ -208,7 +208,7 @@ fn glitch_monitor(s: &Gallery, h: &str) -> El<Msg> {
 
 // ── 5 Metamorphosis Linocut: a poster ────────────────────────────────────────────────────────────────
 fn linocut(s: &Gallery, h: &str) -> El<Msg> {
-    let shown = [BUST, TERRAIN, SKY][s.choices[3].min(2)];
+    let shown = [TREE, TERRAIN, SKY][s.choices[3].min(2)];
     row().key(format!("{h}/comp")).gap(44.0).align(AlignItems::START).wrap()
         .child(col().key(format!("{h}/left")).width(520.0).gap(20.0)
             .child(col().key(format!("{h}/hero")).width(520.0).height(300.0)

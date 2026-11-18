@@ -424,7 +424,7 @@ impl Default for Gallery {
             page: Page::Comp(0), theme: 0, material: Material::Dottr,
             params: COMPONENTS.iter().map(|c| c.params.iter().map(|p| p.default).collect()).collect(),
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
-            tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::BUST, wipe: 0.3,
+            tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::TREE, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
             shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, stage_fit: 1.0, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),

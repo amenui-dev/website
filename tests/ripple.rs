@@ -185,8 +185,8 @@ fn a_changed_digit_recomposes_and_hands_over() {
 struct Pic;
 fn pic_view(_: &Pic) -> El<()> {
     col().pad(40.0, 40.0)
-        .child(row().key("thumb").on_press(()).child(amenui::el::picture(website::demo::BUST, 1.0).key("in-control").width(120.0)))
-        .child(amenui::el::picture(website::demo::BUST, 1.0).key("loose-pic").width(120.0))
+        .child(row().key("thumb").on_press(()).child(amenui::el::picture(website::demo::TREE, 1.0).key("in-control").width(120.0)))
+        .child(amenui::el::picture(website::demo::TREE, 1.0).key("loose-pic").width(120.0))
 }
 
 #[test]
