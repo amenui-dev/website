@@ -87,7 +87,10 @@ fn unbuilt() -> Paint { Paint::INK.alpha(0.4) }
 
 /// A piece's colours: the chrome's ink by its foot's tone, the accent for that ground (the title
 /// block's number, the pointer's box over a dark part of the picture), the accent for a light ground as
-/// the second hue (the pointer's box over a light part), and the survey ink as the third.
+/// the second hue (the pointer's box over a light part), and the survey ink as the third. The title and
+/// the number are at full strength in every state (Q.1 (4), (5)): only the small line, the strip and the
+/// status line fade. Check (P.2 item 4): the median of the title's ink is within 3 of the declared colour
+/// in every channel, at 0.4 s and after the chrome has faded, at both sizes.
 pub fn theme(i: usize) -> Theme {
     let p = &PIECES[i];
     let (ink, accent) = if p.light { (rgb(0x17181a), ACCENT_LIGHT) } else { (rgb(0xe2e3e0), ACCENT_DARK) };
@@ -828,8 +831,8 @@ fn title_box(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32, f32, f32) {
 }
 
 /// The title block and the piece strip (M.2): the strip and the small line fade after 3 s without
-/// input and return on the next. The title and the number stay as they are, in one ink whatever else
-/// shows (P.2 item 4). A neighbour that is not built is named at 40 % and is not a link (N.2 item 1).
+/// input and return on the next. The title and the number stay as they are, in one ink at full strength
+/// whatever else shows (P.2 item 4, Q.1 (4)). A neighbour that is not built is named at 40 % and is not a link (N.2 item 1).
 fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
     let p = &PIECES[i];
     let op = fade_at(&s.works, s.clock);
@@ -1101,6 +1104,9 @@ struct Glyph { i: usize, j: usize, n: usize, paint: Paint, pale: bool }
 /// as sampled, which a render's pixels and grain move by up to about 0.05. Where even the survey ink
 /// at full strength does not read, a cell's character goes to the pale side; it comes back once the
 /// luminance is `HOLD` above that (P.2 item 2).
+/// The target sits between two limits (Q.1 (1), (2)): the dark survey ink `#231f33` reaches it from a cell
+/// luminance of 0.157 up, and the foot's ink (0.763) holds it up to 0.208. That band of 0.051 has to
+/// hold `HOLD`'s 0.03; it is 0.029 at 3.30, so do not raise this past 3.28.
 const READS: f32 = 3.15;
 fn reads(a: f32, b: f32) -> bool { (a.max(b) + 0.05) / (a.min(b) + 0.05) >= READS }
 /// The scan window's characters (O.2 item 4): worked out again only when what they depend on changes
