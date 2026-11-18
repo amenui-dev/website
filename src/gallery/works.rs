@@ -1040,7 +1040,8 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
         _ => PIC + i as u32,
     };
     let pic = picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
-    let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
+    let mut layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
+    if i == TOUCH_GRASS && mode != Mode::Page && let Some(c) = touch::still_callout(&fit, z, view, Paint::hue(2)) { layer = layer.child(c); }
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
 
@@ -1559,7 +1560,7 @@ fn index(s: &Gallery) -> El<Msg> {
         let (wide, live) = (s.works.wide == i, s.works.live == Some(i) && p.built);
         // The piece as it is laid out in the window, scaled to the window's height, cropped about its
         // centre of interest.
-        let x0 = (p.focus * pw - ww / kz * 0.5).clamp(0.0, (pw - ww / kz).max(0.0));
+        let x0 = (crop_x(s, i, ww, pw, ph) - ww / kz * 0.5).clamp(0.0, (pw - ww / kz).max(0.0));
         let view = (x0, 0.0, x0 + ww / kz, ph);
         let mode = if live { Mode::Live } else { Mode::Still };
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
@@ -1623,6 +1624,20 @@ fn ruler(s: &Gallery, w: f32, yr: f32) -> El<Msg> {
     }
     at(r, 0.0, yr)
 }
+
+/// Where a window of the index centres its crop, in the piece's space: about the piece's centre of
+/// interest; W-01's about its mast (x 1,123 of its 1,440) when narrow and x 950 when wide, the band from
+/// the mast to its foot (T.5 items 1, 2), moving between the two as the window widens.
+fn crop_x(s: &Gallery, i: usize, ww: f32, pw: f32, ph: f32) -> f32 {
+    if i != TOUCH_GRASS { return PIECES[i].focus * pw; }
+    let total = s.width - 64.0 - 16.0 * (COUNT as f32 - 1.0);
+    let narrow = ((total - WIDE) / (COUNT as f32 - 1.0)).max(0.0);
+    let k = if WIDE.min(total) > narrow { ((ww - narrow) / (WIDE.min(total) - narrow)).clamp(0.0, 1.0) } else { 1.0 };
+    fit_for(s, pw, ph).at(MAST + (STILL_WIDE - MAST) * k, 0.0).0
+}
+/// W-01's mast and the wide window's centre, in px of its 1440 × 900 picture.
+const MAST: f32 = 1123.0;
+const STILL_WIDE: f32 = 950.0;
 
 /// The index on a phone: the windows are bands down the page, from x = 32 to the right gutter, 132 px
 /// high (48 for an unbuilt piece); a tap widens a built band to 16 : 10 and runs it, a second opens it.

@@ -333,13 +333,44 @@ fn callout_place(w: f32, hz: f32) -> (f32, f32, bool, f32) {
     (lx, ly, right, mx)
 }
 
+/// The callout's two lines, `left` s before the next gust.
+fn callout_lines(left: u32) -> [String; 2] { ["WIND 284°  3.1 M/S".to_owned(), format!("GUST IN {:02}:{:02}", left / 60, left % 60)] }
+/// The callout over the still in a window of the index (T.5 item 3): its lines as the page's first
+/// frame has them, the leader in `lw`, all in `paint`, in the piece's space by `fit`; the type keeps its
+/// size, `z` px of the window a px of the piece. Drawn only when its whole box is at least 8 px inside
+/// `view` (N.2 item 2).
+pub fn still_callout(fit: &Fit, z: f32, view: (f32, f32, f32, f32), paint: Paint) -> Option<El<Msg>> {
+    let (pw, hz) = (1440.0, 900.0 * HORIZON);
+    let (lx, ly, right, mx) = callout_place(pw, hz);
+    let tw = 18.0 * super::works::ADV;
+    let (ax, ay) = (mx + if right { 26.0 } else { -4.0 }, hz - 52.0);
+    let (bx, by) = (if right { lx - 6.0 } else { lx + tw + 6.0 }, ly + 7.5);
+    let kx = bx - if right { 14.0 } else { -14.0 };
+    let (a, b, c, t) = (fit.at(ax, ay), fit.at(kx, by), fit.at(bx, by), fit.at(lx, ly));
+    // The lines' box: from where the first starts, the type's own size.
+    let text = [t.0, t.1, t.0 + tw / z, t.1 + 34.0 / z];
+    let lead = [a.0.min(c.0), b.1.min(a.1), a.0.max(c.0), b.1.max(a.1)];
+    let m = 8.0 / z;
+    let inside = |r: [f32; 4]| r[0] >= view.0 + m && r[1] >= view.1 + m && r[2] <= view.2 - m && r[3] <= view.3 - m;
+    if !(inside(text) && inside(lead)) { return None; }
+    let (x0, y0) = (lead[0].min(text[0]).floor(), lead[1].min(text[1]).floor());
+    let (x1, y1) = (lead[2].max(text[2]).ceil(), lead[3].max(text[3]).ceil());
+    let mut d = Drawing::new(x1 - x0, y1 - y0);
+    d.line((a.0 - x0, a.1 - y0), (b.0 - x0, b.1 - y0), 1.0 / z, paint);
+    d.line((b.0 - x0, b.1 - y0), (c.0 - x0, c.1 - y0), 1.0 / z, paint);
+    let [wind, next] = callout_lines(FIRST as u32);
+    let k = |p: &str| format!("works/still/touch-grass/{p}");
+    Some(at(col().key(k("callout")).width(x1 - x0).height(y1 - y0).respond(Response::Ignore)
+        .child(canvas(d).key(k("leader")).width(x1 - x0).absolute(Some(0.0), Some(0.0), None, None).pass(true))
+        .child(at(mono(wind, paint).key(k("wind")), t.0 - x0, t.1 - y0))
+        .child(at(mono(next, paint).key(k("countdown")), t.0 - x0, t.1 - y0 + 16.0 / z)), x0, y0))
+}
 /// The callout at the mast: the wind and the countdown to the next gust (one small redraw a second).
 pub fn callout(s: &Gallery, w: f32, fit: &Fit) -> El<Msg> {
     let hz = horizon(fit, w);
     let g = &s.works.grass;
     let left = (g.next - s.clock).max(0.0).ceil() as u32;
-    let wind = "WIND 284°  3.1 M/S".to_owned();
-    let next = format!("GUST IN {:02}:{:02}", left / 60, left % 60);
+    let [wind, next] = callout_lines(left);
     let (lx, ly, right, mx) = callout_place(w, hz);
     let tw = 18.0 * super::works::ADV;
     let mut d = Drawing::new(w, hz);

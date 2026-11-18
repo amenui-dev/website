@@ -524,6 +524,10 @@ fn touch_grass_moves_in_gusts_at_thirty_frames_a_second_and_is_still_between_the
 #[ignore = "timings: cargo test --profile quick --test works touch_grass_costs -- --ignored --nocapture"]
 fn touch_grass_costs() {
     use std::time::Instant;
+    // The index's still, the first time it is made (T.5).
+    let a = Instant::now();
+    let still = works::picture_pixels(works::PIC_STILL).expect("the still");
+    eprintln!("touch grass's still: {:.1} ms the first time ({} x {})", a.elapsed().as_secs_f64() * 1e3, still.0, still.1);
     let mut ui = at(Page::Work(0), 1440, 900);
     ui.ambient_fps(works::ambient_fps(ui.state.page));
     let mut t = 0.0f32;
@@ -581,5 +585,26 @@ fn the_windsock_lifts_in_a_strong_gust_and_holds_at_the_bands_peak_with_reduced_
         let sock = ui.state.works.grass.sock;
         eprintln!("touch grass at {w}, reduced motion: the sock at {sock}°");
         assert!((10..=13).contains(&sock), "{w}: the sock at {sock}° with reduced motion");
+    }
+}
+
+/// T.5: W-01's window crops its still about the mast: wide, centred on x 950 of the 1,440 (the mast
+/// between 60 % and 75 % across); narrow, on the mast; the callout only where it is whole and 8 px
+/// inside (at these sizes its type, which keeps its size, runs past the edge: left out).
+#[test]
+fn touch_grass_s_window_crops_its_still_about_the_mast() {
+    for (hover, wide) in [(None, true), (Some(works::GROUND_TRUTH), false)] {
+        let mut ui = at(Page::Works, 1440, 900);
+        if let Some(i) = hover { gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(i, Some((400.0, 300.0))))); ui.relayout(); ui.tick(2.0); ui.relayout(); }
+        let n = nodes(&ui);
+        let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
+        let win = rect("works/w0");
+        let pic = rect("works/window/work/touch-grass/picture");
+        let mast = (pic[0] + 1123.5 / 1440.0 * pic[2] - win[0]) / win[2];
+        let centre = (pic[0] + 950.0 / 1440.0 * pic[2] - win[0]) / win[2];
+        eprintln!("touch grass's window, {} px: the mast {:.1} % across, x 950 at {:.1} %", win[2], mast * 100.0, centre * 100.0);
+        if wide { assert!((0.60..=0.75).contains(&mast) && (centre - 0.5).abs() < 0.01, "{mast} {centre}"); }
+        else { assert!(((mast - 0.5) * win[2]).abs() <= 8.0, "{mast}"); }
+        assert!(!n.iter().any(|t| t.key.starts_with("works/still/touch-grass/")), "the callout is not whole in the window");
     }
 }
