@@ -516,7 +516,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     // sets as a row of plain text chips along the frame's bottom edge, by family.
     let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::side(s) - 120.0 }).clamp(240.0, 820.0);
     let phh = pw * ph as f32 / w as f32;
-    let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore);
+    let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore).pass(true);
     let hx = pw * s.wipe;
     let mut chips = row().key(format!("{h}/chips")).wrap().gap(4.0).width(pw - 20.0);
     for (fi, (fam, sets)) in set::FAMILIES.iter().enumerate() {
@@ -528,12 +528,14 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
                 .child(text(set::NAMES[j as usize], 11.0, if on { Paint::GROUND } else { Paint::TEXT }).key(format!("{h}/chip{j}/t"))));
         }
     }
+    // The divider, the handle and the two tags over the picture let the pointer through, so a drag
+    // that starts on any of them moves the wipe.
     let frame = col().key(format!("{h}/frame")).width(pw).height(phh)
         .child(picture(s.shown, ph as f32 / w as f32).key(format!("{h}/picture")).width(pw).markr(MARK_SLOT).wipr(s.wipe).on_drag(|x, _| Msg::Wipe(x)).absolute(Some(0.0), Some(0.0), None, None))
-        .child(space(1.5, phh).fill(Paint::INK).key(format!("{h}/divider")).respond(Response::Ignore).absolute(Some(hx - 0.75), Some(0.0), None, None))
-        .child(col().key(format!("{h}/handle")).width(26.0).height(26.0).radius(13.0).fill(Paint::GROUND).border(1.5, Paint::INK).respond(Response::Ignore).absolute(Some(hx - 13.0), Some(phh * 0.5 - 13.0), None, None))
+        .child(space(1.5, phh).fill(Paint::INK).key(format!("{h}/divider")).respond(Response::Ignore).pass(true).absolute(Some(hx - 0.75), Some(0.0), None, None))
+        .child(col().key(format!("{h}/handle")).width(26.0).height(26.0).radius(13.0).fill(Paint::GROUND).border(1.5, Paint::INK).respond(Response::Ignore).pass(true).absolute(Some(hx - 13.0), Some(phh * 0.5 - 13.0), None, None))
         .child(tag("原图 · BEFORE", "before").absolute(Some(10.0), Some(8.0), None, None))
-        .child(row().key(format!("{h}/after-row")).width(pw).pad(10.0, 0.0).justify(JustifyContent::END).respond(Response::Ignore).absolute(Some(0.0), Some(8.0), None, None)
+        .child(row().key(format!("{h}/after-row")).width(pw).pad(10.0, 0.0).justify(JustifyContent::END).respond(Response::Ignore).pass(true).absolute(Some(0.0), Some(8.0), None, None)
             .child(tag(&format!("{} · AFTER", set::NAMES[k as usize]), "after")));
     let pick: [u32; 7] = [demo::SPHERE, demo::SKY, demo::TERRAIN, demo::BUST, demo::DUSK, demo::PLANET, demo::FLOWER];
     let pick_names = ["球", "天空", "地形", "胸像", "黄昏", "行星", "花"];

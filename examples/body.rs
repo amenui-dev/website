@@ -250,9 +250,8 @@ pub struct Body {
     pub cmds: Vec<amenui::morph::Cmd>,
     /// With reduced motion, a change of state under way: (start, target, length).
     pub fade: Option<(f32, f32, f32)>,
-    /// When the state last changed (the caption's dimming counts from it), and when a material was
-    /// last committed.
-    pub changed: f32, pub committed: Option<f32>,
+    /// When the state last changed (the caption's dimming counts from it).
+    pub changed: f32,
     pub t: f32,
     /// How ready the renderer and the page's preparations are (`Ui::readiness`, 0..1), as the host
     /// last said (`set_ready`); and the frames of the first morph's flight in the walk (count, seconds).
@@ -311,7 +310,7 @@ impl Default for Body {
             ptr: None, under: None, over: false, touch_at: None, bulge: Animated::new(0.0, Spring { ..LAMP }), rings: vec![], lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, vel: Velocity::default(), dragged: false, motes: vec![], made: 0,
             at: 4, was: 4, lands: 0.0, spec: Specimen::default(), walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
-            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0, committed: None,
+            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, ready: 1.0, flight: (0, 0.0), cache: Rc::default(),
         }
     }
@@ -772,7 +771,7 @@ impl Body {
                 self.later.push((self.lands, Step::Reset));
             }
             // 02 ↔ 03: the card loosens (or closes) at once, and the material is committed a moment
-            // later, once the caption has recomposed, so the commit's old frame holds the new caption.
+            // later, inside the card.
             _ if to == 3 => {
                 if !self.spec.loosen { self.cmds.push(amenui::morph::Cmd::Press { key: format!("{KEY}/specimen/loosen") }); }
                 if self.spec.material == 0 { self.later.push((now + SECOND_PRESS, Step::Material(REST_MATERIAL))); }
@@ -1203,14 +1202,14 @@ impl Body {
         let marks = if drawn { self.readouts() } else { vec![] };
         let empty = || Drawing::new(w, h);
         let mut parts = vec![
-            canvas(if drawn { self.back() } else { empty() }).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
+            canvas(if drawn { self.back() } else { empty() }).key(format!("{key}/back")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore).pass(true),
             numbers,
             code,
-            canvas(if drawn { self.front(&marks) } else { empty() }).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore),
+            canvas(if drawn { self.front(&marks) } else { empty() }).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore).pass(true),
         ];
-        // Over the drawings, which would otherwise take its presses (a drawing is hit as a box). Gone
-        // once a morph has taken it away (and with it the focus the walk left on it).
-        if card || self.t < self.lands { parts.push(self.specimen(key).hidden_until_morphed(!card)); }
+        // The drawings let the pointer through to the specimen and the stage. The specimen is gone once a
+        // morph has taken it away (and with it the focus the walk left on it).
+        if card || self.t < self.lands { parts.push(self.specimen(key).hidden_until_morphed(!card).opacity(dim)); }
         for m in &marks {
             parts.push(mono(m.text.clone(), LINE, Paint::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
         }
@@ -1226,11 +1225,13 @@ impl Body {
         };
         let quiet = body && self.t - self.changed > 4.0;
         let cy = self.caption_y();
-        parts.push(mono(num.into(), LINE, Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None));
+        // With reduced motion the caption changes with the stage, by the same opacity change, and its
+        // glyphs do not recompose.
+        parts.push(mono(num.into(), LINE, Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None).opacity(dim).recompose(!self.reduced));
         // A screen reader hears it as it changes.
         // Under 360 px the sentence starts a cell nearer its number, so its longest one ends inside the stage.
         let gutter = if w < 360.0 { GUTTER - ADVANCE } else { GUTTER };
-        parts.push(mono(sentence, LINE, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite));
+        parts.push(mono(sentence, LINE, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite).opacity(dim).recompose(!self.reduced));
         let grabbing = self.grab.is_some() && self.dragged;
         let mut stage = layers(parts).key(key.to_owned()).width(w).height(h).clip();
         // The idle turn moves on purpose.
@@ -1288,17 +1289,20 @@ impl Body {
         // and the rows at `SPEC_LOOSE`; the segmented control's shapes and the button's fill take it as
         // their own, under labels drawn tight.
         let frame = col().key(k("frame")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None).radius(6.0).border(1.0, Paint::FAINT).loosen(hold(SPEC_LOOSE));
+        // A material's commit plays inside the card only.
         let mut card = col().key(format!("{key}/specimen")).width(w).height(h).pad(20.0, 20.0).gap(24.0).radius(6.0)
-            .material(SPEC_MATERIALS[sp.material].1.id())
+            .material(SPEC_MATERIALS[sp.material].1.id()).commit_scope()
             .child(frame)
             .child(col().fill_width().gap(14.0).child(rows).child(material))
             .child(row().fill_width().child(space(0.0, 0.0).grow(1.0)).child(button));
         // Held loose, the card's shapes (its frame, the switch, the track and thumb, the segmented
         // control's frame and selected segment, the button's fill) take the whole looseness and its text
         // stays text to read, under the framework's legibility cap: the shapes are marked as decoration,
-        // every text as legible.
+        // every text as legible. A control says so itself (the framework holds a control in a
+        // decoration subtree tight unless it is marked).
         fn text_legible<M>(e: &mut El<M>) {
             if matches!(e.content, amenui::el::Content::Text { .. }) { e.ripple.legible = Some(true); }
+            else if (e.focusable || e.on_press.is_some() || e.on_drag.is_some()) && e.ripple.legible.is_none() { e.ripple.legible = Some(false); }
             for c in &mut e.children { text_legible(c); }
         }
         if sp.loosen { card = card.legible(false); text_legible(&mut card); }
@@ -1314,10 +1318,6 @@ impl Body {
         let last = s.text.rsplit('\n').next().unwrap_or("").chars().count();
         (st[0] + GUTTER + ADVANCE * (last as f32 + 1.5), st[1] + LINE * (s.rows.max(1) as f32 - 0.5))
     }
-    /// The caption has just changed while a commit's old frame may still be showing beyond its front:
-    /// the host ends that commit at once (its front has long left the card), so the caption is never
-    /// held in the old frame.
-    pub fn flushing(&self) -> bool { self.committed.is_some_and(|c| self.changed > c && self.t - self.changed < 0.05) }
     /// The front for the host to send now, once (`front`).
     pub fn take_front(&mut self) -> Option<(f32, f32)> { self.front.take() }
     /// A front across the listing is under way (its speed is `FRONT_SPEED`).
@@ -1431,9 +1431,9 @@ impl Experiment for Body {
             }
             Msg::Spec(SpecMsg::Pitch(v)) => self.spec.pitch = v.clamp(3.0, 12.0).round(),
             Msg::Spec(SpecMsg::Material(i)) => {
-                // A commit from the pressed segment: the frame as it was stays beyond its front.
+                // A commit from the pressed segment, inside the card: the card as it was stays beyond
+                // its front, and nothing outside the card (the caption) is held.
                 self.spec.material = i.min(SPEC_MATERIALS.len() - 1);
-                self.committed = Some(now);
             }
             Msg::Key(Key::Char('f' | 'F')) | Msg::Form => { self.form = 1 - self.form; self.changed = now; }
             Msg::Key(Key::Char('[')) => self.update(Msg::Seed(-1), now),

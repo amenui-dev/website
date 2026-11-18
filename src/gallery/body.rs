@@ -31,9 +31,12 @@ pub fn look(s: &Gallery, l: &mut Look) {
     l.material = b.material;
     l.post = b.post;
     if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
-    // A commit whose front is still out when the caption changes ends at once (its front has left the
-    // card; only the caption would be held in the old frame).
-    if s.body.flushing() { l.fx.wave_speed = 1.0e6; }
+    // The F2 readout is a tool and never covers the page's chrome (H.3): its right edge on the stage's,
+    // its foot 8 px above the caption, so it stays over the stage, clear of the caption under it and of
+    // the rail and the status line under that (the framework moves a readout off text to read).
+    let st = s.body.stage();
+    l.overlay_at = amenui::style::Corner::BottomRight;
+    l.overlay_inset = [(s.width - st[2]).max(0.0), (s.height - s.body.caption_y() + 8.0).max(0.0)];
     // The specimen's lattice pitch (the morphs' cells too).
     l.fx.pitch = s.body.spec.pitch;
 }
