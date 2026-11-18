@@ -48,6 +48,9 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     ui.pointer_leave();
     if let Some(l) = locale { gallery::update(&mut ui.state, Msg::Locale(l)); }
     gallery::update(&mut ui.state, Msg::Go(p));
+    // Routes after this one are navigations inside the running app (a flow, a commit), as on the web
+    // after the first route.
+    ui.state.routed = true;
     // `<path>#stage`: the page's stage alone, as a docs page's live stage shows it.
     if state == "stage" { ui.state.stage_only = true; }
     // `body#walk` plays the full intro from the first frame, `body#short` the short path.

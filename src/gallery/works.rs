@@ -508,7 +508,7 @@ pub fn look(s: &Gallery, l: &mut Look) {
 /// 120 ms opacity change, not a cut.
 pub fn flow(_s: &Gallery, from: Page, to: Page) -> Option<FlowSpec> {
     match (from, to) {
-        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 120.0 }),
+        (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => Some(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 120.0, fade_ms: 120.0 }),
         _ => None,
     }
 }

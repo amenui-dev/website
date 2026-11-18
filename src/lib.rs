@@ -59,10 +59,19 @@ pub fn picture(id: u32) -> Option<(u32, u32, Vec<u8>)> {
 #[cfg(target_arch = "wasm32")]
 fn web_setup(_: &mut amenui::render::Renderer) {}
 
+/// The serif (Source Serif 4 at 8 pt, Basic Latin, its one weight; OFL, `assets/fonts/SourceSerif4-OFL.txt`),
+/// compiled into the web module.
+#[cfg(target_arch = "wasm32")]
+const SERIF: &[u8] = include_bytes!("../assets/fonts/SourceSerif4-8pt-subset.ttf");
+
 /// The site in one `Ui`. The Body scene is the landing page; any other page is one hash away (`#gallery`
 /// is the gallery's first, `#lab` the Lab).
 pub fn make(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> gallery::GalleryUi {
     let mut ui = gallery::new_ui(faces, w, h, scale);
+    // On the web the module carries one face beyond the three the page passes in: the serif, which
+    // titles across the site are set in. The five Geist Pixel faces are fetched when a page uses one.
+    #[cfg(target_arch = "wasm32")]
+    if let Err(e) = ui.add_face(amenui::text::SERIF_FILE, SERIF.to_vec()) { panic!("{e}"); }
     if ui.state.route("body") { ui.relayout(); }
     ui
 }

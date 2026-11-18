@@ -727,7 +727,7 @@ fn morph(g: &Gallery, w: f32, h: f32) -> El<Msg> {
 fn apart(g: &mut Gallery, a: bool) {
     if a == g.sc.apart { return; }
     g.sc.apart = a;
-    g.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 520.0, flow_loose: 0.3, out_ms: 240.0 }));
+    g.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 520.0, flow_loose: 0.3, out_ms: 240.0, ..FlowSpec::default() }));
 }
 /// The small application that is taken apart; `layer` names the copy (its keys), `filled` whether
 /// its panels are filled (the nearness copy is not: a filled panel would hide the nearness of

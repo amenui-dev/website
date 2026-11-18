@@ -4,7 +4,8 @@
 // mount once in #stage (`site()` at the end); `<amenui-view>` (embed.js) mounts in its shadow root.
 // One view per document: the module keeps one interface.
 //
-// opts: `load` (a function giving { module, fonts: [sans, pixel, mono] } as promises), `route` (the
+// opts: `load` (a function giving { module, fonts: [sans, pixel, mono] } as promises), `faces` (the
+// faces the module does not carry, name → URL: each is fetched once, when a page first uses it), `route` (the
 // first page: a path such as `components/button/`, or a hash name such as `#button`), `keys` (where
 // key events come from; the window by default), `onRoute(path, hash)` (the page changed inside it),
 // `started(module)` (after the module started, before its first frame), `onFrame()` (the first frame
@@ -45,6 +46,7 @@ async function mount(stage, opts) {
     if (w.pictures()) d = w.frame(t);
     // A stage route draws its specimen at the scale that fits its box: a new scale draws again.
     if (w.fit_stage && w.fit_stage()) d = 0;
+    fetchFaces();
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
     if (opts.frame) opts.frame();
@@ -52,6 +54,18 @@ async function mount(stage, opts) {
     else if (d > 0) timer = setTimeout(kick, d * 1000);
   };
   const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+  // Faces the page uses that have not come: each fetched once; when its bytes come the page takes it
+  // (each line sweeps over to it).
+  const asked = new Set();
+  const fetchFaces = () => {
+    if (!opts.faces || !w.faces_wanted) return;
+    for (const name of JSON.parse(w.faces_wanted())) {
+      if (asked.has(name) || !opts.faces[name]) continue;
+      asked.add(name);
+      fetch(opts.faces[name]).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+        .then(b => { w.add_face(name, new Uint8Array(b), now()); kick(); }, () => {});
+    }
+  };
   // Text: while a text field has focus the hidden text element sits at its caret and has the keyboard.
   const ta = stage.querySelector('.ta');
   const syncText = () => {
@@ -321,7 +335,7 @@ function site() {
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   mount(stage, {
     route: A.route === '' ? '/' : A.route,
-    load: () => ({ module: A.wasm, fonts: A.fonts }),
+    load: () => ({ module: A.wasm, fonts: A.fonts }), faces: A.files.faces,
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };

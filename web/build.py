@@ -74,7 +74,7 @@ wasm_fn = hashed('amenui.wasm', wasm)
 # Its size as a server compressing it sends it: the boot line's total when there is no Content-Length.
 wasm_gz = gz(wasm)
 # The size gate (P.2 item 7), in bytes of gzip.
-WASM_GATE = 3_072_000
+WASM_GATE = 3_040_870
 assert wasm_gz <= WASM_GATE, f'the module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 
 # The glue: wasm-bindgen's, then the site's.
@@ -169,6 +169,14 @@ serif = fw / 'assets/SourceSerif4-8pt-subset.ttf'
 serif_fn = f'fonts/source-serif.{hashlib.sha256(serif.read_bytes()).hexdigest()[:10]}.ttf'
 (out / 'fonts').mkdir(exist_ok=True)
 (out / serif_fn).write_bytes(serif.read_bytes())
+# The faces the module does not carry, the five Geist Pixel files: fetched when a page uses one
+# (`faces_wanted`: the type page, on entering its route), by the framework's name for it.
+late = {}
+for f in ['GeistPixel-Square.otf', 'GeistPixel-Grid.otf', 'GeistPixel-Circle.otf', 'GeistPixel-Triangle.otf', 'GeistPixel-Line.otf']:
+    b = (fw / 'assets' / f).read_bytes()
+    fn = f'fonts/{f[:-4].lower()}.{hashlib.sha256(b).hexdigest()[:10]}.otf'
+    (out / fn).write_bytes(b)
+    late[f] = BASE + fn
 mono_url = fonts['en'][2]['url']
 faces_css = ('@font-face{font-family:"Departure Mono";src:url(%s) format("opentype");font-display:swap}'
              '@font-face{font-family:"Source Serif 4";src:url(%s) format("truetype");font-display:swap}') % (mono_url, BASE + serif_fn)
@@ -179,7 +187,7 @@ def doc_frame(lang, path, title, description, main):
     bar = re.sub(r'<button type="button" class="menu-btn"([^>]*)>(.*?)</button>', r'<a class="menu-btn" href="#sheet"\1>\2</a>', bar)
     alt = ''.join(f'<link rel="alternate" hreflang="{l}" href="{BASE + ("" if l == "en" else l + "/") + path}">' for l in langs)
     t = lambda k: tr(lang, k)
-    cfg = {'files': {'wasm': BASE + wasm_fn, 'fonts': fonts[lang], 'app': BASE + app_fn}, 'copied': t('web.copied'), 'live': t('web.docs.live'), 'starting': t('web.docs.starting'), 'fail': t('web.docs.unavailable'), 'canvas': t('web.canvas')}
+    cfg = {'files': {'wasm': BASE + wasm_fn, 'fonts': fonts[lang], 'faces': late, 'app': BASE + app_fn}, 'copied': t('web.copied'), 'live': t('web.docs.live'), 'starting': t('web.docs.starting'), 'fail': t('web.docs.unavailable'), 'canvas': t('web.canvas')}
     foot = (f'<footer class="foot"><a href="{v["href_release"]}">amenui v{version}</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>')
     return ('<!doctype html>\n'
             f'<html lang="{lang}" class="doc">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
@@ -283,7 +291,7 @@ def page(lang, path, title, section, tone='', foot=''):
     t = lambda k: tr(lang, k)
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
-    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang]}
+    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang], 'faces': late}
     config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), **{k: t('web.' + k) for k in ('fps', 'glyphs', 'compiling', 'starting', 'first-frame')}, 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root can
     # receive them here.

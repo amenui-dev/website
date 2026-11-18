@@ -480,9 +480,9 @@ impl Gallery {
         if let Page::Marks(s) = self.page { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
         pics[STYLE_SLOT as usize] = self.style_pic;
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
-        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0],
+        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0], overlay_keep: false,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
-                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat };
+                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat, off: amenui::style::Off::default() };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
@@ -512,7 +512,7 @@ impl Gallery {
     fn transition(&mut self, from: Page, to: Page) {
         let at = self.pressed_at.take();
         if from == to { return; }
-        if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, ..self.flow })); return; }
+        if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, fade_ms: 120.0, ..self.flow })); return; }
         let (x, y) = at.unwrap_or((self.width * 0.5, BAR * 0.5));
         let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, Page::Works => 4, Page::Work(i) => 200 + i as u32, _ => 0 };
         match (from, to) {
@@ -836,16 +836,9 @@ fn view_in(s: &Gallery) -> El<Msg> {
 /// How far a stage's specimen keeps from the stage's box.
 pub const STAGE_INSET: f32 = 16.0;
 
-/// `El::zoom`, and the offsets a widget places its parts by (`El::shift`: a floating box's corner,
-/// a chart's dots) times the same scale.
-pub(crate) fn zoomed(e: El<Msg>, k: f32) -> El<Msg> {
-    fn shifts(mut e: El<Msg>, k: f32) -> El<Msg> {
-        e.shift = (e.shift.0 * k, e.shift.1 * k);
-        e.children = std::mem::take(&mut e.children).into_iter().map(|c| shifts(c, k)).collect();
-        e
-    }
-    if (k - 1.0).abs() < 1e-4 { e } else { shifts(e.zoom(k), k) }
-}
+/// `El::zoom` (which scales the offsets a widget places its parts by, `El::shift`, too: a floating
+/// box's corner, a chart's dots).
+pub(crate) fn zoomed(e: El<Msg>, k: f32) -> El<Msg> { if (k - 1.0).abs() < 1e-4 { e } else { e.zoom(k) } }
 
 /// On a stage route, scale the specimen to what the box holds inside `STAGE_INSET`: its laid-out
 /// extent (its box and every part under it, not what scrolls inside a scroller) at scale 1, then a
