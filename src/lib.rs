@@ -137,6 +137,10 @@ mod site_exports {
     pub fn works_state() -> Vec<u8> {
         host(|s| { let g = &s.ui.state; vec![gallery::works::tone(g.page), (g.works.fade.1 < 1.0) as u8, g.works.resting as u8, gallery::works::foot_tone(g.page)] }).unwrap_or_default()
     }
+    /// Pace what moves by itself on the current page (`Ui::ambient_fps`): 30 frames a second on a
+    /// page of Works (M.7), no pacing elsewhere. The page calls it when its path changes.
+    #[wasm_bindgen]
+    pub fn pace() { host(|s| { let n = gallery::works::ambient_fps(s.ui.state.page); s.ui.ambient_fps(n); }); }
     /// An HTML page a press asked for (a piece's recipe), once.
     #[wasm_bindgen]
     pub fn take_navigate() -> String { host(|s| s.ui.state.navigate.take()).flatten().unwrap_or_default() }

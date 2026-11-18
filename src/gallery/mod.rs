@@ -15,6 +15,7 @@ mod scenes;
 mod styles;
 pub mod three;
 pub mod works;
+mod touch;
 pub mod particles;
 pub mod presets;
 pub mod routes;
@@ -68,8 +69,8 @@ impl Page {
         v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
         v.push(Page::Works);
-        // A piece that is not built has no page (N.2 item 1): its address goes on to the index.
-        v.extend((0..works::COUNT as u8).filter(|&i| works::PIECES[i as usize].built).map(Page::Work));
+        // A piece that has no page yet (N.2 item 1): its address goes on to the index.
+        v.extend((0..works::COUNT as u8).filter(|&i| works::PIECES[i as usize].page).map(Page::Work));
         v
     }
     /// The page's address on the web: plain ASCII words, so a page can be linked.
@@ -479,7 +480,7 @@ impl Gallery {
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
         let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0], overlay_keep: false,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
-                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat, off: amenui::style::Off::default() };
+                          press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: works::map(self.page, self.map), beat: self.beat, off: amenui::style::Off::default() };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
         scenes::look(self, &mut l);
         lab::look(self, &mut l);

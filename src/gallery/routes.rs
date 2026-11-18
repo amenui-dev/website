@@ -82,7 +82,7 @@ pub fn aliases() -> Vec<(&'static str, Page)> { vec![] }
 /// A piece of Works that is not built yet has no page: its address goes on to the index.
 pub fn moved() -> Vec<(String, Page)> {
     let scenes = std::iter::once(Page::Scenes).chain((0..scenes::COUNT as u8).map(Page::Scene)).map(|p| (p.path()["lab/".len()..].to_owned(), p));
-    let unbuilt = works::PIECES.iter().filter(|p| !p.built).map(|p| (format!("works/{}/", p.slug), Page::Works));
+    let unbuilt = works::PIECES.iter().filter(|p| !p.page).map(|p| (format!("works/{}/", p.slug), Page::Works));
     scenes.chain(unbuilt).collect()
 }
 /// The older hash names of the docs pages, which are HTML now, and the path each has: the prose pages

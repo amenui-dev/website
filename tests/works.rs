@@ -14,11 +14,12 @@ fn at(p: Page, w: u32, h: u32) -> GalleryUi {
 fn works_has_an_index_and_a_page_a_piece_and_the_scenes_live_in_the_lab() {
     assert_eq!(Page::from_path("works/"), Some(Page::Works));
     for (i, p) in works::PIECES.iter().enumerate() {
-        // A piece that is not built has no page: its address goes on to the index (N.2 item 1).
-        let to = if p.built { Page::Work(i as u8) } else { Page::Works };
+        // A piece with no page yet: its address goes on to the index (N.2 item 1). A built piece has one.
+        let to = if p.page { Page::Work(i as u8) } else { Page::Works };
         assert_eq!(Page::from_path(&format!("works/{}/", p.slug)), Some(to));
         assert_eq!(Page::Work(i as u8).section(), gallery::Section::Works);
-        assert_eq!(Page::all().contains(&Page::Work(i as u8)), p.built);
+        assert_eq!(Page::all().contains(&Page::Work(i as u8)), p.page);
+        assert!(p.page || !p.built);
     }
     assert_eq!(Page::Scenes.path(), "lab/scenes/");
     assert_eq!(Page::Scenes.section(), gallery::Section::Lab);
@@ -155,9 +156,9 @@ fn only_a_built_piece_is_a_window_that_answers() {
     let n = nodes(&ui);
     let windows: Vec<_> = n.iter().filter(|t| t.key.starts_with("works/w") && t.key.len() == "works/w0".len() && t.focusable).map(|t| t.key.clone()).collect();
     assert_eq!(windows, vec![format!("works/w{}", works::GROUND_TRUTH)]);
-    // An unbuilt piece's address shows the index.
+    // The address of a piece with no page shows the index.
     let mut ui = at(Page::Works, 1440, 824);
-    assert!(ui.state.route("works/touch-grass/"));
+    assert!(ui.state.route("works/line-too-long/"));
     assert_eq!(ui.state.page, Page::Works);
     // From the one built piece the arrows go nowhere.
     let mut ui2 = at(Page::Work(works::GROUND_TRUTH as u8), 1440, 900);
@@ -379,4 +380,82 @@ fn the_scan_window_at_rest_lays_nothing_out_again() {
     assert_eq!(ui.counters().shaped, before, "paragraphs shaped during a flight");
     let rows = nodes(&ui).iter().filter(|n| n.key.starts_with("work/ground-truth/scan/")).count();
     assert_eq!(rows, 14, "a line a row");
+}
+
+/// W-01 on its page: the scene's instances, and whether a frame is wanted, at `t`.
+fn grass_frames(ui: &mut GalleryUi, from: f32, to: f32) -> (u32, u32) {
+    let (mut t, mut frames, mut quiet) = (from, 0, 0);
+    while t < to {
+        t += 1.0 / 60.0;
+        ui.tick(t);
+        if ui.needs_frame(t) { frames += 1; ui.settle(); ui.frame_drawn(); } else { quiet += 1; }
+    }
+    (frames, quiet)
+}
+
+#[test]
+fn touch_grass_has_its_page_and_stays_an_unbuilt_window_on_the_index() {
+    let i = 0usize;
+    let p = &works::PIECES[i];
+    assert!(p.page && !p.built, "W-01 is made and waits for its review");
+    let ui = at(Page::Work(i as u8), 1440, 900);
+    let n = nodes(&ui);
+    let small = n.iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
+    let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
+    assert!((2_500..=3_000).contains(&count), "{small}");
+    // On the index its window does not answer.
+    let mut idx = at(Page::Works, 1440, 900);
+    gallery::update(&mut idx.state, Msg::Works(works::WMsg::Tap(i)));
+    assert_eq!(idx.state.page, Page::Works);
+    // On a phone at most 900 stalks.
+    let ui = at(Page::Work(i as u8), 390, 844);
+    let small = nodes(&ui).iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
+    let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
+    assert!(count <= 900, "{small}");
+}
+
+#[test]
+fn touch_grass_moves_in_gusts_at_thirty_frames_a_second_and_is_still_between_them() {
+    let mut ui = at(Page::Work(0), 1440, 900);
+    ui.ambient_fps(works::ambient_fps(ui.state.page));
+    let instances = { ui.tick(0.05); ui.settle(); ui.scene().instances.len() };
+    eprintln!("touch grass: {instances} instances at 1440 x 900");
+    assert!(instances < 30_000, "{instances} instances");
+    // The first gust is under way from the first frame; between it and the second only the countdown
+    // draws, once a second.
+    let first = grass_frames(&mut ui, 0.05, 5.5);
+    let gap = (ui.state.works.grass.next - 0.3, ui.state.works.grass.next);
+    eprintln!("first gust: {} frames, {} quiet; next gust at {:.2} s", first.0, first.1, gap.1);
+    assert!(first.0 <= (5.5 * 31.0) as u32, "{} frames in 5.5 s", first.0);
+    let minute = grass_frames(&mut ui, 5.5, 60.0);
+    eprintln!("the first minute after 5.5 s: {} frames", minute.0);
+    assert!(minute.0 > 0 && minute.1 > 0);
+}
+
+/// W-01's CPU time a frame, natively: during a gust, and while the pointer walks the field at 60 events
+/// a second (what it stirs goes in at 30 frames a second).
+#[test]
+#[ignore = "timings: cargo test --profile quick --test works touch_grass_costs -- --ignored --nocapture"]
+fn touch_grass_costs() {
+    use std::time::Instant;
+    let mut ui = at(Page::Work(0), 1440, 900);
+    ui.ambient_fps(works::ambient_fps(ui.state.page));
+    let mut t = 0.0f32;
+    let (mut gust, mut n) = (0.0f64, 0);
+    while t < 4.0 {
+        t += 1.0 / 30.0;
+        let a = Instant::now();
+        ui.tick(t);
+        if ui.needs_frame(t) { ui.settle(); let _ = ui.scene().instances.len(); ui.frame_drawn(); gust += a.elapsed().as_secs_f64(); n += 1; }
+    }
+    let (mut walk, mut m) = (0.0f64, 0);
+    for k in 0..120 {
+        t += 1.0 / 60.0;
+        let a = Instant::now();
+        ui.pointer_move(300.0 + 6.0 * k as f32, 720.0);
+        ui.tick(t);
+        if ui.needs_frame(t) { ui.settle(); let _ = ui.scene().instances.len(); ui.frame_drawn(); m += 1; }
+        walk += a.elapsed().as_secs_f64();
+    }
+    eprintln!("touch grass, CPU: a frame during a gust {:.2} ms ({n} frames); the pointer walking {:.2} ms an event (120 events, {m} frames); {} instances", gust * 1e3 / n as f64, walk * 1e3 / 120.0, ui.scene().instances.len());
 }

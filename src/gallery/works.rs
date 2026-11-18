@@ -15,6 +15,7 @@
 //! which the picture covers, is set to a ramp that follows the sky, so the mixes over the sky are the
 //! sky's.
 use super::{BAR, Gallery, Msg, NARROW, Page, Section};
+use super::touch::{self, TOUCH_GRASS};
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
@@ -41,15 +42,18 @@ pub struct Piece {
     pub bar_light: bool,
     pub focus: f32,
     pub live: &'static str,
+    /// Whether it has its page (built, or made and waiting for its review: then its window on the
+    /// index and its name in a strip stay as an unbuilt piece's).
+    pub page: bool,
     pub built: bool,
     /// The docs page `how this is made ↗` opens, under `docs/`.
     pub recipe: &'static str,
 }
 pub const PIECES: [Piece; COUNT] = [
-    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 2,640 STALKS", built: false, recipe: "concepts/annotation/" },
-    Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", built: false, recipe: "concepts/annotation/" },
-    Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", built: true, recipe: "recipes/ground-truth/" },
-    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", built: false, recipe: "concepts/annotation/" },
+    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 2,640 STALKS", page: true, built: false, recipe: "recipes/touch-grass/" },
+    Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", page: false, built: false, recipe: "concepts/annotation/" },
+    Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", page: true, built: true, recipe: "recipes/ground-truth/" },
+    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: false, built: false, recipe: "concepts/annotation/" },
 ];
 pub const GROUND_TRUTH: usize = 2;
 /// The first built piece in the day's order: the wide window with no pointer (N.2 item 1).
@@ -58,16 +62,18 @@ pub fn first_built() -> usize { PIECES.iter().position(|p| p.built).unwrap_or(0)
 pub fn step(i: usize, dir: isize) -> Option<usize> {
     (1..COUNT as isize).map(|k| (i as isize + dir * k).rem_euclid(COUNT as isize) as usize).find(|&j| PIECES[j].built)
 }
-/// The links a piece prints (its recipe), under the site's base: the build checks each resolves.
-pub fn links() -> Vec<String> { PIECES.iter().filter(|p| p.built).map(|p| format!("docs/{}", p.recipe)).collect() }
+/// The links a piece's page prints (its recipe), under the site's base: the build checks each resolves.
+pub fn links() -> Vec<String> { PIECES.iter().filter(|p| p.page).map(|p| format!("docs/{}", p.recipe)).collect() }
 
 /// The pieces' pictures: `PIC + i` (`picture`). W-03's ridges are 960 × 600, shown scaled; an unbuilt
 /// piece's is its colours alone, with the piece's grain.
 pub const PIC: u32 = 100;
+/// W-01's picture on a phone's page, its horizon at 70 %.
+pub const PIC_PHONE: u32 = PIC + COUNT as u32;
 /// The `Markr` slot a piece's picture is drawn through: the picture as it is.
 pub const PIC_SLOT: u8 = 5;
 
-const fn rgb(h: u32) -> [f32; 3] { [((h >> 16) & 255) as f32 / 255.0, ((h >> 8) & 255) as f32 / 255.0, (h & 255) as f32 / 255.0] }
+pub(crate) const fn rgb(h: u32) -> [f32; 3] { [((h >> 16) & 255) as f32 / 255.0, ((h >> 8) & 255) as f32 / 255.0, (h & 255) as f32 / 255.0] }
 /// W-03's survey ink (`Paint::hue(2)`).
 const SURVEY: [f32; 3] = rgb(0x231f33);
 /// The accent on a dark ground and on a light one (M.2, N.2 item 6).
@@ -94,10 +100,20 @@ fn unbuilt() -> Paint { Paint::INK.alpha(0.4) }
 pub fn theme(i: usize) -> Theme {
     let p = &PIECES[i];
     let (ink, accent) = if p.light { (rgb(0x17181a), ACCENT_LIGHT) } else { (rgb(0xe2e3e0), ACCENT_DARK) };
+    // W-01: the mast's and the notes' ink, the stalk upright as its third hue and leaning as its
+    // ground (which the picture covers): a blade's two paints differ only in tone and accent, so the
+    // one it leans to is the ground with no hue (`touch::field`).
+    if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: ACCENT_LIGHT, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
     Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
 pub fn tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].bar_light { 1 } else { 2 }, _ => 0 } }
+/// The field map's settings on a page: on W-01 energy does not creep along ink. Its field spreads
+/// nothing inside the area whose life it sets (`El::map_life`), so creep changes nothing there, and
+/// with none the map does not take the scene's ink again on every frame the pointer walks.
+pub fn map(p: Page, m: amenui::fieldmap::MapFx) -> amenui::fieldmap::MapFx { if touch::on(p) { amenui::fieldmap::MapFx { creep: 0.0, ..m } } else { m } }
+/// Frames a second for what moves by itself on a page (`Ui::ambient_fps`): 30 on a page of Works.
+pub fn ambient_fps(p: Page) -> f32 { if p.section() == Section::Works { 30.0 } else { 60.0 } }
 /// The status line's tone on a page (the ground at the foot of the picture), as `tone`.
 pub fn foot_tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].light { 1 } else { 2 }, _ => 0 } }
 
@@ -122,10 +138,11 @@ pub struct Works {
     /// The last tick.
     pub t: f32,
     pub ground: Ground,
+    pub grass: touch::Grass,
 }
 impl Default for Works {
     fn default() -> Self {
-        Self { wide: first_built(), from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default() }
+        Self { wide: first_built(), from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default(), grass: touch::Grass::default() }
     }
 }
 
@@ -223,12 +240,14 @@ pub enum WMsg {
     Point(Option<Point>),
     /// The piece's recipe in the docs.
     Recipe(usize),
+    /// A drag over W-01's field (its own space).
+    Walk(f32, f32),
 }
 
 /// Entering the index or a piece: from outside the section, everything is built new. An unbuilt
 /// piece has no page: its address is the index's.
 pub fn enter(s: &mut Gallery, p: Page) {
-    let p = match p { Page::Work(i) if !PIECES[i as usize].built => { s.page = Page::Works; Page::Works } _ => p };
+    let p = match p { Page::Work(i) if !PIECES[i as usize].page => { s.page = Page::Works; Page::Works } _ => p };
     if s.style.is_some() { s.site_look(); }
     let inside = s.from.section() == Section::Works && s.from != p;
     if !inside {
@@ -240,6 +259,7 @@ pub fn enter(s: &mut Gallery, p: Page) {
     s.works.resting = false;
     s.works.held = false;
     if let Page::Work(i) = p { s.works.live = None; s.works.wide = i as usize; }
+    if touch::on(p) { touch::enter(s); }
     let g = &mut s.works.ground;
     if g.next.is_infinite() { g.next = s.clock + (FLIGHT * 0.5) + (EVERY - FLIGHT); }
 }
@@ -285,6 +305,7 @@ pub fn update(s: &mut Gallery, m: WMsg) {
             if running(s, GROUND_TRUTH) { point(s, p.map(|p| (p.x, p.y))); }
         }
         WMsg::Recipe(i) => s.navigate = Some(format!("docs/{}", PIECES[i].recipe)),
+        WMsg::Walk(x, y) => if touch::on(s.page) { walk(s, x, y); },
     }
 }
 /// Go to a page of the section as a navigation does (its transition, the address).
@@ -371,8 +392,18 @@ fn zoom_of(s: &Gallery) -> f32 {
     }
 }
 
-/// The input that moves the pointer anywhere: the chrome comes back, a resting piece wakes.
-pub fn pointer(s: &mut Gallery, _x: f32, _y: f32) -> bool { heard(s) }
+/// The input that moves the pointer anywhere: the chrome comes back, a resting piece wakes. Over W-01
+/// the pointer walks its path, which the next frame takes without a new view of its own.
+pub fn pointer(s: &mut Gallery, x: f32, y: f32) -> bool {
+    if touch::on(s.page) { walk(s, x, y); }
+    heard(s)
+}
+/// The pointer at (x, y) on W-01's page.
+fn walk(s: &mut Gallery, x: f32, y: f32) {
+    let (w, h) = (s.width, s.height);
+    let fit = Fit::new(w, h, PIECES[TOUCH_GRASS].focus);
+    touch::point(s, Some((x, y)), w, &fit);
+}
 /// A press, a wheel turn or a key: the same.
 pub fn heard(s: &mut Gallery) -> bool {
     if s.page.section() != Section::Works { return false; }
@@ -419,6 +450,7 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     }
     if s.page == Page::Works && t - s.works.wide_at <= WIDEN + 0.02 { changed = true; }
     if running(s, GROUND_TRUTH) { changed |= ground_tick(s, t, dt); }
+    if touch::on(s.page) { let (w, h) = (s.width, s.height); let fit = Fit::new(w, h, PIECES[TOUCH_GRASS].focus); changed |= touch::tick(s, t, w, &fit); }
     changed
 }
 fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
@@ -476,6 +508,7 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
         if !w.resting { want(w.last_input + REST); }
     }
     if s.page == Page::Works && w.wide_at >= 0.0 && t - w.wide_at < WIDEN { want(t); }
+    if touch::on(s.page) && let Some(v) = touch::wake(s, t) { want(v); }
     if running(s, GROUND_TRUTH) && !reduced(s) {
         let g = &w.ground;
         if g.flight.is_some() { if !w.held { want(paced); } } else if !w.held && !w.resting { want(g.next); }
@@ -628,11 +661,11 @@ fn lum(c: [f32; 3]) -> f32 {
 /// Give a renderer every piece's picture (native hosts and offscreen renders; the web makes each when
 /// a page first draws it).
 pub fn set_pictures(r: &mut amenui::render::Renderer) {
-    for i in 0..COUNT as u32 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
+    for i in 0..=COUNT as u32 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
 }
 /// The size of piece picture `id` (`PIC + i`).
 pub fn picture_size(id: u32) -> Option<(u32, u32)> {
-    match id.checked_sub(PIC)? as usize { i if i < COUNT => Some((960, 600)), _ => None }
+    match id.checked_sub(PIC)? as usize { i if i <= COUNT => Some((960, 600)), _ => None }
 }
 /// W-03's picture, made once (the scan window and the faint shades read its colours).
 fn ground_pixels() -> &'static [u8] {
@@ -688,6 +721,7 @@ pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = picture_size(id)?;
     let i = (id - PIC) as usize;
     if i == GROUND_TRUTH { return Some((w, h, ground_pixels().to_vec())); }
+    if i == TOUCH_GRASS || id == PIC_PHONE { return Some((w, h, touch::pixels(id == PIC_PHONE))); }
     let stops = stops(i);
     // An unbuilt piece: its colours and the piece's grain (0.04, as the finishing pass's), nothing else.
     let mut px = Vec::with_capacity((w * h * 4) as usize);
@@ -776,9 +810,9 @@ fn ground_at(x: f64, y: f64, ridges: &[f64; 5]) -> [f64; 3] {
 
 // ── Views ──────────────────────────────────────────────────────────────────────────────────────────
 
-fn mono<M>(s: impl Into<String>, paint: Paint) -> El<M> { text(s, 11.0, paint).font(Font::Face(amenui::text::MONO)).tracking(0.06) }
+pub(crate) fn mono<M>(s: impl Into<String>, paint: Paint) -> El<M> { text(s, 11.0, paint).font(Font::Face(amenui::text::MONO)).tracking(0.06) }
 fn serif<M>(s: impl Into<String>, size: f32, track: f32, paint: Paint) -> El<M> { text(s, size, paint).font(Font::Whisper).tracking(track) }
-fn at<M>(e: El<M>, x: f32, y: f32) -> El<M> { e.absolute(Some(x), Some(y), None, None) }
+pub(crate) fn at<M>(e: El<M>, x: f32, y: f32) -> El<M> { e.absolute(Some(x), Some(y), None, None) }
 fn at_right<M>(e: El<M>, right: f32, y: f32) -> El<M> { e.absolute(None, Some(y), Some(right), None) }
 fn k(slug: &str, part: &str) -> String { format!("work/{slug}/{part}") }
 
@@ -801,9 +835,20 @@ pub fn page(s: &Gallery) -> El<Msg> {
 fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
     let (w, h) = (s.width, s.height);
     let p = &PIECES[i];
-    let pic = picture_layer(s, i, w, h, 1.0, Mode::Page, (0.0, 0.0, w, h)).flow(format!("work/{}", p.slug)).on_point(|p| Some(Msg::Works(WMsg::Point(p))));
-    let page = frame(s, i, w, h, col().key("work/page").width(w).height(h).clip().calm().child(pic));
-    if i == GROUND_TRUTH { page.child(scan_and_pointer(s, w, h, &fit_for(s, w, h), 1.0, Mode::Page)) } else { page }
+    let pic = picture_layer(s, i, w, h, 1.0, Mode::Page, (0.0, 0.0, w, h)).flow(format!("work/{}", p.slug));
+    // W-01 hears a mouse that moves without making a new view (`pointer`), and a drag (a finger) as
+    // the path too.
+    let pic = if i == TOUCH_GRASS { pic.on_drag_with(|d| Some(Msg::Works(WMsg::Walk(d.x, d.y)))).unframed() } else { pic.on_point(|p| Some(Msg::Works(WMsg::Point(p)))) };
+    // Fronts do not move a piece, except W-01's field, which the map bends (`touch`).
+    let root = col().key("work/page").width(w).height(h).clip().child(pic);
+    let root = if i == TOUCH_GRASS { { let fit = Fit::new(w, h, p.focus); root.child(touch::area(touch::field(s, w, h, &fit), w, h, &fit)) } } else { root.calm() };
+    let page = frame(s, i, w, h, root);
+    if i == GROUND_TRUTH { return page.child(scan_and_pointer(s, w, h, &fit_for(s, w, h), 1.0, Mode::Page)); }
+    if i == TOUCH_GRASS {
+        let fit = Fit::new(w, h, p.focus);
+        return page.child(touch::callout(s, w, &fit));
+    }
+    page
 }
 
 /// Where the title block's parts are on a piece's page: the number's, the title's and the small line's
@@ -901,10 +946,11 @@ fn picture_colour(i: usize, x: f32, y: f32) -> [f32; 3] {
 }
 
 /// The small line: the piece's real state. A piece not drawn yet has only its number and hour.
-fn micro(_s: &Gallery, i: usize) -> String {
+fn micro(s: &Gallery, i: usize) -> String {
     let p = &PIECES[i];
     match i {
         GROUND_TRUTH => format!("{} · {} · 5 RIDGES · {BIRDS} TRACKED · THE BOX FOLLOWS WHAT MOVES", p.n, p.hour),
+        TOUCH_GRASS => { let (w, h) = (s.width, s.height); touch::micro(w, h, &Fit::new(w, h, p.focus)) }
         _ => format!("{} · {}", p.n, p.hour),
     }
 }
@@ -920,7 +966,9 @@ enum Mode { Page, Live, Still, Band }
 fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view: (f32, f32, f32, f32)) -> El<Msg> {
     let p = &PIECES[i];
     let fit = fit_for(s, w, h);
-    let pic = picture(PIC + i as u32, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
+    // W-01 on a phone's page has its horizon lower: a picture of its own.
+    let id = if i == TOUCH_GRASS && mode == Mode::Page && w < NARROW { PIC_PHONE } else { PIC + i as u32 };
+    let pic = picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
     let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
@@ -935,7 +983,7 @@ impl Fit {
         Self { s, pw, ox, oy: (h - 900.0 * s) * 0.5 }
     }
     /// A point of the picture (px of 1440 × 900) in the piece.
-    fn at(&self, x: f32, y: f32) -> (f32, f32) { (self.ox + x * self.s, self.oy + y * self.s) }
+    pub(crate) fn at(&self, x: f32, y: f32) -> (f32, f32) { (self.ox + x * self.s, self.oy + y * self.s) }
     /// A point of the piece in the picture.
     fn to_picture(&self, x: f32, y: f32) -> (f32, f32) { ((x - self.ox) / self.s, (y - self.oy) / self.s) }
 }

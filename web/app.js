@@ -33,7 +33,7 @@ async function mount(stage, opts) {
   const now = () => performance.now() / 1000;
   const at = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   let shown = null;
-  const sync = () => { const p = w.path(); if (p === shown) return; shown = p; if (opts.onRoute) opts.onRoute(p, w.hash()); };
+  const sync = () => { const p = w.path(); if (p === shown) return; shown = p; if (w.pace) w.pace(); if (opts.onRoute) opts.onRoute(p, w.hash()); };
   sync();
   // Frames on demand: the animation-frame loop runs only while the framework needs frames; when it
   // does not, the loop stops, and input or a timed wake (the caret's blink, a clock) starts it again.
