@@ -402,7 +402,9 @@ fn touch_grass_has_its_page_and_stays_an_unbuilt_window_on_the_index() {
     let n = nodes(&ui);
     let small = n.iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
     let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
-    assert!((2_500..=3_000).contains(&count), "{small}");
+    // M.4's spacing (R.2 item 1) less what stands too near the type (R.2 item 4).
+    assert!((1_300..=1_700).contains(&count), "{small}");
+    assert_eq!(count, works::touch_extents(&ui.state).len(), "the small line states the count as built");
     // On the index its window does not answer.
     let mut idx = at(Page::Works, 1440, 900);
     gallery::update(&mut idx.state, Msg::Works(works::WMsg::Tap(i)));
@@ -412,15 +414,43 @@ fn touch_grass_has_its_page_and_stays_an_unbuilt_window_on_the_index() {
     let small = nodes(&ui).iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-01 ·")).expect("the small line");
     let count: usize = small.split(" · ").find(|s| s.ends_with(" STALKS")).and_then(|s| s.trim_end_matches(" STALKS").replace(',', "").parse().ok()).expect("its count");
     assert!(count <= 900, "{small}");
+    assert_eq!(count, works::touch_extents(&ui.state).len(), "the small line states the count as built");
+}
+
+/// R.2 item 4: no stalk's upright extent (with its head) within 24 px of the number, the title or the
+/// small line as laid out, and no head within 8 px of the strip or the callout.
+#[test]
+fn no_stalk_of_touch_grass_comes_near_its_type() {
+    let grow = |r: [f32; 4], d: f32| [r[0] - d, r[1] - d, r[0] + r[2] + d, r[1] + r[3] + d];
+    for (w, h) in [(1440, 900), (390, 844), (1024, 768)] {
+        let ui = at(Page::Work(0), w, h);
+        let n = nodes(&ui);
+        let rect = |k: &str| n.iter().find(|n| n.key == format!("work/touch-grass/{k}")).map(|n| n.rect);
+        let mut types: Vec<[f32; 4]> = ["n", "title"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 24.0)).collect();
+        // The small line on a wide page, one line (on a phone each line's own length is the site's to
+        // work out; the renders check it).
+        let m = rect("micro").expect("the small line");
+        if w >= 720 { types.push(grow(m, 24.0)); }
+        let heads: Vec<[f32; 4]> = ["strip", "wind", "countdown"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 8.0)).collect();
+        assert!(!heads.is_empty() && types.len() >= 2);
+        for (e, head) in works::touch_extents(&ui.state) {
+            assert!(!types.iter().any(|b| meets(e, *b)), "{w}x{h}: a stalk at {e:?} near the type");
+            if let Some(hb) = head { assert!(!heads.iter().any(|b| meets(hb, *b)), "{w}x{h}: a head at {hb:?} near the strip or the callout"); }
+        }
+    }
 }
 
 #[test]
 fn touch_grass_moves_in_gusts_at_thirty_frames_a_second_and_is_still_between_them() {
     let mut ui = at(Page::Work(0), 1440, 900);
     ui.ambient_fps(works::ambient_fps(ui.state.page));
-    let instances = { ui.tick(0.05); ui.settle(); ui.scene().instances.len() };
-    eprintln!("touch grass: {instances} instances at 1440 x 900");
-    assert!(instances < 30_000, "{instances} instances");
+    // R.4 (3): every blade segment and head, at most 7,500 at 1440 and 2,500 on a phone (once the
+    // way in from the page before has finished).
+    let count = |w: u32, h: u32| { let mut ui = at(Page::Work(0), w, h); ui.ambient_fps(works::ambient_fps(ui.state.page)); grass_frames(&mut ui, 0.0, 1.0); ui.scene().instances.len() };
+    let (wide, phone) = (count(1440, 900), count(390, 844));
+    eprintln!("touch grass: {wide} instances at 1440 x 900, {phone} at 390 x 844");
+    assert!(wide <= 7_500, "{wide} instances");
+    assert!(phone <= 2_500, "{phone} instances on a phone");
     // The first gust is under way from the first frame; between it and the second only the countdown
     // draws, once a second.
     let first = grass_frames(&mut ui, 0.05, 5.5);

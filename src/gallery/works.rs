@@ -50,7 +50,7 @@ pub struct Piece {
     pub recipe: &'static str,
 }
 pub const PIECES: [Piece; COUNT] = [
-    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 2,640 STALKS", page: true, built: false, recipe: "recipes/touch-grass/" },
+    Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 1,570 STALKS", page: true, built: false, recipe: "recipes/touch-grass/" },
     Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", page: false, built: false, recipe: "concepts/annotation/" },
     Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", page: true, built: true, recipe: "recipes/ground-truth/" },
     Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: false, built: false, recipe: "concepts/annotation/" },
@@ -100,10 +100,10 @@ fn unbuilt() -> Paint { Paint::INK.alpha(0.4) }
 pub fn theme(i: usize) -> Theme {
     let p = &PIECES[i];
     let (ink, accent) = if p.light { (rgb(0x17181a), ACCENT_LIGHT) } else { (rgb(0xe2e3e0), ACCENT_DARK) };
-    // W-01: the mast's and the notes' ink, the stalk upright as its third hue and leaning as its
-    // ground (which the picture covers): a blade's two paints differ only in tone and accent, so the
-    // one it leans to is the ground with no hue (`touch::field`).
-    if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: ACCENT_LIGHT, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
+    // W-01: the mast's and the notes' ink, the heads as its second hue, the stalk upright as its third
+    // and leaning as its ground (which the picture covers): a blade's two paints differ only in tone and
+    // accent, so the one it leans to is the ground with no hue (`touch::field`).
+    if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
     Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
@@ -213,7 +213,7 @@ const WIDE: f32 = 560.0;
 const PACE: f32 = 30.0;
 /// Departure Mono at 11 px with 0.06 em tracking: the advance of a character, and where a line's ink
 /// lies in its box (from its left, from its top, its height), measured on renders.
-const ADV: f32 = 69.0 / 9.0;
+pub(crate) const ADV: f32 = 69.0 / 9.0;
 const INK_X: f32 = 1.0;
 const INK_TOP: f32 = 5.0;
 const INK_H: f32 = 8.0;
@@ -854,9 +854,10 @@ fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
 /// Where the title block's parts are on a piece's page: the number's, the title's and the small line's
 /// tops, and the small line's wrapping width on a phone.
 struct Block { n: f32, title: f32, small: f32, lines: f32 }
-fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block {
+fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block { block_with(i, w, h, &micro(s, i)) }
+fn block_with(_i: usize, w: f32, h: f32, small: &str) -> Block {
     if w < NARROW {
-        let lines = (micro(s, i).chars().count() as f32 * ADV / (w - 64.0)).ceil().max(1.0);
+        let lines = (small.chars().count() as f32 * ADV / (w - 64.0)).ceil().max(1.0);
         let y_m = h - 120.0 - 14.0 * lines;
         Block { n: y_m - 76.0, title: y_m - 48.0, small: y_m, lines }
     } else {
@@ -912,16 +913,73 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         .child(at(small, 32.0, b.small))
         .child(at_right(strip, 32.0, h - 64.0))
 }
+/// W-01's text boxes as laid out at this size (R.2 item 4), with `small` as the small line: the number
+/// (where it is drawn), the title and each line of the small line; then the strip's links and the
+/// status line. Mono at 11 px advances `ADV` a character (a CJK one 11.66) in a box 18 px high; the
+/// title's box is 272 × 48 (the serif at 30 px, measured on renders); the status line is the shell's,
+/// right-aligned in the bottom 28 px with the margin, taken at the width it has on renders (240 px).
+pub(crate) fn touch_text_boxes(s: &Gallery, w: f32, h: f32, small: &str) -> (Vec<[f32; 4]>, Vec<[f32; 4]>) {
+    let i = TOUCH_GRASS;
+    let narrow = w < NARROW;
+    let adv = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2e80 { 11.66 } else { ADV }).sum::<f32>();
+    let line = |t: &str, x: f32, y: f32| [x, y, x + adv(t), y + 18.0];
+    let b = block_with(i, w, h, small);
+    let mut types = vec![];
+    if number_paint_at(s, i, w, h, &b).is_some() { types.push(line(PIECES[i].n, 32.0, b.n)); }
+    types.push([32.0, b.title, 32.0 + 272.0, b.title + 48.0]);
+    if narrow {
+        // Wrapped to the width: each line's box (the last one as long as what is left).
+        let per = ((w - 64.0) / ADV).floor().max(1.0) as usize;
+        let chars: Vec<char> = small.chars().collect();
+        let mut at = 0;
+        let mut y = b.small;
+        while at < chars.len() {
+            let mut end = (at + per).min(chars.len());
+            if end < chars.len() && let Some(sp) = chars[at..end].iter().rposition(|c| *c == ' ') { end = at + sp; }
+            let t: String = chars[at..end].iter().collect();
+            types.push(line(t.trim_end(), 32.0, y));
+            at = end; while at < chars.len() && chars[at] == ' ' { at += 1; }
+            y += 18.0;
+        }
+    } else {
+        types.push(line(small, 32.0, b.small));
+    }
+    let made = format!("{} ↗", s.locale.tr("works.made")).to_uppercase();
+    let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
+    let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
+    let mut heads = vec![];
+    if narrow {
+        // The strip's column: the recipe's line over the steps by number, 28 px each.
+        let steps = adv(&format!("← {:02}", prev + 1)) + 21.0 + 8.0 + 21.0 + adv(&format!("{:02} →", next + 1));
+        heads.push([32.0, h - 100.0, 32.0 + steps.max(adv(&made)), h - 44.0]);
+    } else {
+        let steps = adv(&format!("← {}", name(prev))) + 21.0 + 8.0 + 21.0 + adv(&format!("{} →", name(next)));
+        let x1 = w - 32.0;
+        let x0 = x1 - steps - 56.0 - adv(&made);
+        heads.push([x0, h - 64.0, x1, h - 36.0]);
+    }
+    let m = if w >= 1080.0 { 32.0 } else if w >= 720.0 { 24.0 } else { 16.0 };
+    heads.push([w - m - 240.0, h - 28.0, w - m, h]);
+    (types, heads)
+}
+
+/// W-01's stalks as planted on its page: each one's upright extent with its head, and its head's box.
+pub fn touch_extents(s: &Gallery) -> Vec<([f32; 4], Option<[f32; 4]>)> {
+    let (w, h) = (s.width, s.height);
+    touch::planted(s, w, h, &Fit::new(w, h, PIECES[TOUCH_GRASS].focus)).iter().map(|st| st.extent()).collect()
+}
+
 /// The title block's number (P.2 item 1): in the accent where the accent measures at least 4.5 : 1
 /// against the median luminance of the picture under the number at this size, otherwise in the foot's
 /// ink where that does, otherwise not drawn.
-fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> {
-    let (a, ink) = number_contrast(s, i, w, h);
+fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> { number_paint_at(s, i, w, h, &block(s, i, w, h)) }
+fn number_paint_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> Option<Paint> {
+    let (a, ink) = number_contrast_at(s, i, w, h, b);
     if a >= 4.5 { Some(Paint::ACCENT) } else if ink >= 4.5 { Some(Paint::INK) } else { None }
 }
 /// The accent's and the foot ink's contrast against the median luminance under the title block's number.
-pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) {
-    let b = block(s, i, w, h);
+pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) { number_contrast_at(s, i, w, h, &block(s, i, w, h)) }
+fn number_contrast_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> (f32, f32) {
     let r = label_ink(PIECES[i].n, 32.0, b.n, 1.0);
     let fit = if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) };
     let mut ls: Vec<f32> = vec![];
@@ -950,7 +1008,7 @@ fn micro(s: &Gallery, i: usize) -> String {
     let p = &PIECES[i];
     match i {
         GROUND_TRUTH => format!("{} · {} · 5 RIDGES · {BIRDS} TRACKED · THE BOX FOLLOWS WHAT MOVES", p.n, p.hour),
-        TOUCH_GRASS => { let (w, h) = (s.width, s.height); touch::micro(w, h, &Fit::new(w, h, p.focus)) }
+        TOUCH_GRASS => { let (w, h) = (s.width, s.height); touch::micro(s, w, h, &Fit::new(w, h, p.focus)) }
         _ => format!("{} · {}", p.n, p.hour),
     }
 }

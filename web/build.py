@@ -73,8 +73,8 @@ if opt:
 wasm_fn = hashed('amenui.wasm', wasm)
 # Its size as a server compressing it sends it: the boot line's total when there is no Content-Length.
 wasm_gz = gz(wasm)
-# The size gate (P.2 item 7), in bytes of gzip.
-WASM_GATE = 3_040_870
+# The size gate (P.2 item 7, R.5), in bytes of gzip: nothing grows.
+WASM_GATE = 2_945_000
 assert wasm_gz <= WASM_GATE, f'the module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 
 # The glue: wasm-bindgen's, then the site's.
