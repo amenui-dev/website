@@ -52,6 +52,19 @@ async function mount(stage, opts) {
     else if (d > 0) timer = setTimeout(kick, d * 1000);
   };
   const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+  // The renderer's warm-up goes on in idle time, whether or not the page draws (a page at rest draws
+  // nothing): each idle period makes the next pieces and draws nothing; a frame only when the look's
+  // material can be drawn (2). It stops once nothing is left (no 1). Without requestIdleCallback, an
+  // animation frame that does warm-up work only.
+  const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 200 }) : f => requestAnimationFrame(() => f(null));
+  const warmIdle = d => {
+    if (!w.warm_idle) return;
+    const ms = d && !d.didTimeout ? Math.max(1, Math.min(d.timeRemaining(), 6)) : 6;
+    const r = w.warm_idle(ms, now());
+    if (r & 2) kick();
+    if (r & 1) idle(warmIdle);
+  };
+  idle(warmIdle);
   // Faces the page uses that have not come: each fetched once; when its bytes come the page takes it
   // (each line sweeps over to it).
   const asked = new Set();
