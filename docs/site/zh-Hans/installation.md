@@ -16,7 +16,7 @@ cargo run --release --bin check
 
 ## 网页（wasm 包）
 
-浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。构建把网站写到 `dist/site/`：每个地址一个小 HTML 页面，加上胶水脚本、模块和字体子集，各自是单独的文件，文件名里带内容哈希。
+浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。WebGL2 这条路是 `webgl` 功能，默认打开；设成 `default-features = false` 后模块只带 WebGPU，小大约四分之一，没有 WebGPU 的浏览器不会启动，而是调用 `opts.onFail('adapter', message)`。构建把网站写到 `dist/site/`：每个地址一个小 HTML 页面，加上胶水脚本、模块和字体子集，各自是单独的文件，文件名里带内容哈希。
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown

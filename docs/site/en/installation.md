@@ -16,7 +16,7 @@ The window opens on the page named after `--`: `body` (the landing scene), a com
 
 ## The web (wasm bundle)
 
-WebGPU when the browser has it, else WebGL2. The build writes the site to `dist/site/`: one small HTML page per address, the glue script, the module and the font subsets as separate files with content hashes in their names.
+WebGPU when the browser has it, else WebGL2. The WebGL2 path is the `webgl` feature, on by default; with `default-features = false` the module carries only WebGPU and is about a quarter smaller, and a browser without WebGPU reports `opts.onFail('adapter', message)` instead of starting. The build writes the site to `dist/site/`: one small HTML page per address, the glue script, the module and the font subsets as separate files with content hashes in their names.
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
