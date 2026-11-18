@@ -16,11 +16,13 @@ The window opens on the page named after `--`: `body` (the landing scene), a com
 
 ## The web (wasm bundle)
 
-WebGPU when the browser has it, else WebGL2. The WebGL2 path is the `webgl` feature, on by default; with `default-features = false` the module carries only WebGPU and is about a quarter smaller, and a browser without WebGPU reports `opts.onFail('adapter', message)` instead of starting. The build writes the site to `dist/site/`: one small HTML page per address, the glue script, the module and the font subsets as separate files with content hashes in their names.
+WebGPU when the browser has it, else WebGL2. The WebGL2 path is the `webgl` feature, on by default; with `default-features = false` the module carries only WebGPU and is about a quarter smaller, and a browser without WebGPU reports `opts.onFail('adapter', message)` instead of starting. The site is built twice from the same code: the full module (`dist/pkg`, with `webgl`) and a WebGPU-only one (`dist/pkg-gpu`, `--no-default-features`). The page loads the WebGPU-only module where `navigator.gpu` exists, and the full one otherwise or when that one cannot start. `web/build.py` writes the site to `dist/site/`: one small HTML page per address, the glue script, both modules and the font subsets, each a separate file with a content hash in its name. The longer texts some pages show (the Lab's Markdown, the sources on component pages, the demos' English) are files beside the module, fetched by the page that shows them, not compiled in.
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
 wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+cargo build --release --lib --target wasm32-unknown-unknown --no-default-features
+wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg-gpu target/wasm32-unknown-unknown/release/website.wasm
 BASE=/ python3 web/build.py
 python3 -m http.server -d dist/site
 ```

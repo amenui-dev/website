@@ -16,11 +16,13 @@ cargo run --release --bin check
 
 ## 网页（wasm 包）
 
-浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。WebGL2 这条路是 `webgl` 功能，默认打开；设成 `default-features = false` 后模块只带 WebGPU，小大约四分之一，没有 WebGPU 的浏览器不会启动，而是调用 `opts.onFail('adapter', message)`。构建把网站写到 `dist/site/`：每个地址一个小 HTML 页面，加上胶水脚本、模块和字体子集，各自是单独的文件，文件名里带内容哈希。
+浏览器有 WebGPU 时用 WebGPU，否则用 WebGL2。WebGL2 这条路是 `webgl` 功能，默认打开；设成 `default-features = false` 后模块只带 WebGPU，小大约四分之一，没有 WebGPU 的浏览器不会启动，而是调用 `opts.onFail('adapter', message)`。网站用同一份代码构建两次：完整模块（`dist/pkg`，带 `webgl`）和只有 WebGPU 的模块（`dist/pkg-gpu`，`--no-default-features`）。有 `navigator.gpu` 时页面加载只有 WebGPU 的模块，否则或者它启动不了时加载完整模块。`web/build.py` 把网站写到 `dist/site/`：每个地址一个小 HTML 页面，加上胶水脚本、两个模块和字体子集，各自是单独的文件，文件名里带内容哈希。有些页面要显示的较长文字（实验室的 Markdown、组件页上的源码、演示里的英文）是模块旁边的文件，由显示它们的页面去取，不编进模块。
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
 wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg target/wasm32-unknown-unknown/release/website.wasm
+cargo build --release --lib --target wasm32-unknown-unknown --no-default-features
+wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg-gpu target/wasm32-unknown-unknown/release/website.wasm
 BASE=/ python3 web/build.py
 python3 -m http.server -d dist/site
 ```
