@@ -98,15 +98,16 @@ fn a_change_of_section_commits_from_the_pressed_link_at_its_own_speed() {
 }
 
 #[test]
-fn a_card_name_flies_to_the_specimen_title_and_reduced_motion_cuts() {
+fn a_card_name_flies_to_the_specimen_title_and_reduced_motion_fades() {
     let mut ui = routed("components/");
     let cmds = nav(&mut ui, "components/switch/", (600.0, 300.0));
     assert_eq!(leads(&cmds), (1, 0));
     assert!(ui.flowing() > 0);
-    // With reduced motion a route change is a cut.
+    // With reduced motion a route change is an opacity change (F.10): one flow that moves nothing and
+    // fades the old page out, no front.
     ui.state.body.reduced = true;
     let cmds = nav(&mut ui, "scenes/", (600.0, 300.0));
-    assert!(cmds.is_empty(), "{cmds:?}");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 0.0 && f.flow_loose == 0.0 && f.out_ms > 0.0), "{cmds:?}");
     // From home every door has at most one lead and one front.
     let mut ui = routed("/");
     let cmds = nav(&mut ui, "components/", (900.0, 860.0));
