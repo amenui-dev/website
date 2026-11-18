@@ -8,11 +8,12 @@
 //! index); between events a piece wants no frame; what moves by itself is paced at 30 frames a
 //! second, what the hand moves is not; 60 s without input the piece rests after its current event.
 //!
-//! What is drawn over a picture is drawn in a layer of its own, opaque and on the pixel grid (N.4 (1)).
-//! A colour there is a mix of the page's ground, its ink and one of its three hues; a faint shade is
-//! the survey ink mixed toward the picture's own colour at that place (N.2 item 5), found as the nearest
-//! such mix (`InkSpace::paint`). On a piece's page the ground, which the picture covers, is set to a
-//! ramp that follows the sky, so the mixes over the sky are the sky's.
+//! What is drawn over a picture is drawn in its own colour on the pixel grid, its edges blended with the
+//! picture by coverage (N.4 (1)). A faint shade is the survey ink at the shade's alpha over the picture
+//! (N.2 item 5). A colour of its own (a scan character's) is a mix of the page's ground, its ink and one
+//! of its three hues, found as the nearest such mix (`InkSpace::paint`); on a piece's page the ground,
+//! which the picture covers, is set to a ramp that follows the sky, so the mixes over the sky are the
+//! sky's.
 use super::{BAR, Gallery, Msg, NARROW, Page, Section};
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
@@ -917,15 +918,7 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
     let p = &PIECES[i];
     let fit = fit_for(s, w, h);
     let pic = picture(PIC + i as u32, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
-    let mut layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
-    // What is drawn over the picture (the survey, the title block and the strip) is drawn after this
-    // element in a layer of its own, where its ink replaces the picture's in the near image; in the one
-    // layer it would be read as the picture's own colours. A frame has one such layer: the piece on its
-    // page, the one window of the index with something drawn over it.
-    if i == GROUND_TRUTH || matches!(s.page, Page::Work(_)) {
-        let over = amenui::el::Stirr { energy: 0.0, radius: Some(0.0), scope: amenui::el::Scope::Off };
-        layer = layer.child(at(space(0.0, 0.0).key(k(p.slug, "over")).fill(Paint::GROUND.alpha(0.0)).stirr(over).pass(true), 0.0, 0.0));
-    }
+    let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
 
@@ -1182,14 +1175,8 @@ fn pointer_hole(s: &Gallery, z: f32) -> Option<(R, R, String)> {
 fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, mode: Mode, view: R) -> (El<Msg>, Drawn) {
     let lw = 1.0 / z;
     let slug = PIECES[GROUND_TRUTH].slug;
-    let ink = ink_space(s);
-    // A faint shade at a place of the piece: the survey ink mixed toward the picture there. `oy` is
-    // where the piece's top is on screen (0 on its page; the index's ground is flat).
-    let faint = |x: f32, y: f32, a: f32| -> Paint {
-        if a >= 1.0 { return INK_FULL; }
-        let (qx, qy) = fit.to_picture(x, y);
-        ink.paint(mix3(picture_at(qx, qy), SURVEY, a), y * z)
-    };
+    // A faint shade: the survey ink mixed toward the picture under it (N.2 item 5), by its alpha.
+    let faint = |a: f32| -> Paint { if a >= 1.0 { INK_FULL } else { INK_FULL.alpha(a) } };
     let m = INSIDE / z;
     let mut hidden = vec![];
     if mode == Mode::Page { hidden.push(grow(title_box(s, GROUND_TRUTH, w, h), CLEAR)); }
@@ -1220,11 +1207,12 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         (r, (lx, ly), label_ink("BIRD 0.03", lx, ly, z))
     });
     if let Some((r, (lx, ly), li)) = cloud && notes.keep(r, Some(li)) {
-        rect(&mut d, r, z, faint(r.0, r.1, 0.45));
-        let paint = faint(r.0, r.3 + 8.0, 0.70);
+        rect(&mut d, r, z, faint(0.45));
+        let paint = faint(0.70);
         label(&mut labels, "cloud", "BIRD 0.03", paint, (lx, ly));
         let (a, b) = (fit.to_picture(li.0, li.1), fit.to_picture(li.2, li.3));
-        drawn.cloud_contrast = contrast(ink.colour(paint, (r.3 + 8.0) * z), mean_at(a.0, a.1, b.0, b.1));
+        let under = mean_at(a.0, a.1, b.0, b.1);
+        drawn.cloud_contrast = contrast(mix3(under, SURVEY, paint.alpha), under);
         drawn.cloud = Some((r, li));
     }
     // The flight: seven birds in a loose line, right to left, each in its box with three echoes.
@@ -1268,11 +1256,11 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
             if notes.keep_label(li) { label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly)); drawn.labels.push(li); }
         }
         if echoes && !band {
-            for &(_, bx, by, r) in &kept {
+            for &(_, _, _, r) in &kept {
                 for &(back, a) in &ECHOES {
                     if f * speed < back { break; }
                     let er = (r.0 + back, r.1, r.2 + back, r.3);
-                    if notes.keep(er, None) { rect(&mut d, er, z, faint(bx + back, by + BOX.1, a)); drawn.echoes.push(er); }
+                    if notes.keep(er, None) { rect(&mut d, er, z, faint(a)); drawn.echoes.push(er); }
                 }
             }
         }
@@ -1287,7 +1275,7 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         let lx = (w - 32.0).min(view.2 - m) - (t.chars().count() as f32 * ADV) / z;
         let ly = yl - 16.0 / z;
         let li = label_ink(t, lx, ly, z);
-        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(lx, ly + 8.0, 170.0 / 255.0), (lx, ly)); }
+        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(170.0 / 255.0), (lx, ly)); }
     }
     // The dashes: none by the title block or under the pointer's plate, and the scan window cuts the line
     // 8 px outside its rect.
@@ -1326,8 +1314,8 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         let li = label_ink(t, lx, ly, z);
         if !notes.keep(union(lead, li), Some(li)) { continue; }
         heights += 1;
-        d.line((px(bx, z), by - 3.0), (px(bx, z), by - up), lw, faint(bx + 3.0, by - up * 0.5, 170.0 / 255.0));
-        label(&mut labels, &format!("height{n}"), t, faint(lx, ly + 8.0, 235.0 / 255.0), (lx, ly));
+        d.line((px(bx, z), by - 3.0), (px(bx, z), by - up), lw, faint(170.0 / 255.0));
+        label(&mut labels, &format!("height{n}"), t, faint(235.0 / 255.0), (lx, ly));
     }
     let mut layer = layer.child(at(canvas(d).key(k(slug, "survey")).width(w).pass(true), 0.0, 0.0));
     for l in labels { layer = layer.child(l.pass(true)); }
