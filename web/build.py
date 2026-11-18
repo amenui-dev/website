@@ -73,9 +73,36 @@ if opt:
 wasm_fn = hashed('amenui.wasm', wasm)
 # Its size as a server compressing it sends it: the boot line's total when there is no Content-Length.
 wasm_gz = gz(wasm)
-# The size gate (P.2 item 7, R.5), in bytes of gzip: nothing grows.
-WASM_GATE = 2_945_000
+# The size gate (P.2 item 7, R.5 step 1), in bytes of gzip: the texts are out of the module.
+WASM_GATE = 2_840_000
 assert wasm_gz <= WASM_GATE, f'the module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
+
+# The texts the module does not carry (R.5, `src/texts.rs`): the demos' English, the Lab's Markdown,
+# the Lab reader's page and the sources the components' pages show (the framework's examples, its
+# widgets and src/morph.rs), each at `texts/<name>`. A page fetches those its route shows beside the
+# module (`boot`) and any other the module asks for later; `textsV` changes with any of them.
+texts = {'english.txt': (root / 'assets/english.txt').read_text(), 'en/layout.md': (root / 'docs/site/en/layout.md').read_text()}
+for p in sorted((root / 'docs/site').glob('*/lab-*.md')): texts[f'{p.parent.name}/{p.name}'] = p.read_text()
+for p in sorted((fw / 'examples/components').glob('*.rs')): texts[f'examples/{p.name}'] = p.read_text()
+for p in sorted((fw / 'src/widgets').glob('*.rs')): texts[f'widgets/{p.name}'] = p.read_text()
+texts['morph.rs'] = (fw / 'src/morph.rs').read_text()
+widget_file = {i['name']: i['files'][0].rsplit('/', 1)[-1] for i in json.loads((fw / 'registry.json').read_text())['items'] if i.get('files')}
+for name, body in texts.items():
+    (out / 'texts' / name).parent.mkdir(parents=True, exist_ok=True)
+    (out / 'texts' / name).write_text(body)
+texts_v = hashlib.sha256(json.dumps(texts, sort_keys=True).encode()).hexdigest()[:8]
+texts_files = {'texts': BASE + 'texts/', 'textsV': texts_v}
+def boot_texts(path, lang):
+    """The texts a route's first frame shows: the demos' English on every page, and its own."""
+    names = ['english.txt']
+    parts = path.strip('/').split('/')
+    if parts[0] == 'lab' and len(parts) == 2: names.append('en/layout.md' if parts[1] == 'reader' else f'{lang}/lab-{parts[1]}.md')
+    if parts[0] == 'components' and len(parts) == 2:
+        names.append('examples/' + {'scroll-area': 'scroll'}.get(parts[1], parts[1].replace('-', '_')) + '.rs')
+        f = widget_file.get(parts[1]) or widget_file.get(parts[1].replace('-', '_'))
+        if f: names.append('widgets/' + f)
+    return [n for n in names if n in texts]
+print(f'texts: {len(texts)} files, {sum(len(b.encode()) for b in texts.values())} bytes, gzip {sum(gz(b.encode()) for b in texts.values())}')
 
 # The glue: wasm-bindgen's, then the site's.
 glue = (pkg / 'website.js').read_text() + '\n' + (root / 'web/app.js').read_text()
@@ -187,7 +214,7 @@ def doc_frame(lang, path, title, description, main):
     bar = re.sub(r'<button type="button" class="menu-btn"([^>]*)>(.*?)</button>', r'<a class="menu-btn" href="#sheet"\1>\2</a>', bar)
     alt = ''.join(f'<link rel="alternate" hreflang="{l}" href="{BASE + ("" if l == "en" else l + "/") + path}">' for l in langs)
     t = lambda k: tr(lang, k)
-    cfg = {'files': {'wasm': BASE + wasm_fn, 'fonts': fonts[lang], 'faces': late, 'app': BASE + app_fn}, 'copied': t('web.copied'), 'live': t('web.docs.live'), 'starting': t('web.docs.starting'), 'fail': t('web.docs.unavailable'), 'canvas': t('web.canvas')}
+    cfg = {'files': {'wasm': BASE + wasm_fn, 'fonts': fonts[lang], 'faces': late, 'app': BASE + app_fn, **texts_files}, 'copied': t('web.copied'), 'live': t('web.docs.live'), 'starting': t('web.docs.starting'), 'fail': t('web.docs.unavailable'), 'canvas': t('web.canvas')}
     foot = (f'<footer class="foot"><a href="{v["href_release"]}">amenui v{version}</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>')
     return ('<!doctype html>\n'
             f'<html lang="{lang}" class="doc">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
@@ -298,7 +325,7 @@ def page(lang, path, title, section, tone='', foot=''):
     t = lambda k: tr(lang, k)
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
-    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang], 'faces': late}
+    files = {'wasm': BASE + wasm_fn, 'wasmSize': len(wasm), 'wasmGz': wasm_gz, 'fonts': fonts[lang], 'faces': late, **texts_files, 'boot': boot_texts(path, lang)}
     config = {'base': BASE, 'prefix': prefix, 'route': path, 'locale': lang, 'files': files, **({'phone': data['phone']} if path == '' else {}), 't': {'rest': t('works.rest'), 'copied': t('web.copied'), **{k: t('web.' + k) for k in ('fps', 'glyphs', 'compiling', 'starting', 'first-frame')}, 'fail': t('web.fail').replace('{docs}', href('docs/'))}}
     # Older addresses (`#button`) go to the page's path before anything loads; only the root can
     # receive them here.
@@ -342,7 +369,7 @@ for old, new in data['moved']:
 (out / '404.html').write_text(docs_html.not_found({'base': BASE, 'langs': langs, 'cats': cats, 'redirects': redirects}, doc_frame, lambda l: search_boot(l, index_urls[l])))
 (out / '.nojekyll').write_text('')
 # The embedding example: the glue, the element, and where the files are.
-files = {'wasm': BASE + wasm_fn, 'fonts': fonts['en']}
+files = {'wasm': BASE + wasm_fn, 'fonts': fonts['en'], **texts_files}
 ex = (root / 'web/embed-example.html').read_text().replace('__AMENUI__', f'<script>window.AMENUI_FILES = {json.dumps(files)};</script>\n<script src="{BASE + app_fn}"></script>\n<script src="{BASE + embed_fn}"></script>')
 (out / 'embed-example.html').write_text(ex)
 

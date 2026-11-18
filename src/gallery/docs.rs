@@ -93,23 +93,7 @@ fn header_line(src: &str, part: &str) -> String {
     out
 }
 /// The source of a widget file by its path.
-fn widget_source(path: &str) -> &'static str {
-    match path.rsplit('/').next().unwrap_or("") {
-        "button.rs" => amenui::sources::widget::BUTTON, "number.rs" => amenui::sources::widget::NUMBER, "input.rs" => amenui::sources::widget::INPUT,
-        "switch.rs" => amenui::sources::widget::SWITCH, "slider.rs" => amenui::sources::widget::SLIDER, "tabs.rs" => amenui::sources::widget::TABS,
-        "choice.rs" => amenui::sources::widget::CHOICE, "list.rs" => amenui::sources::widget::LIST, "card.rs" => amenui::sources::widget::CARD,
-        "dialog.rs" => amenui::sources::widget::DIALOG, "image.rs" => amenui::sources::widget::IMAGE, "divider.rs" => amenui::sources::widget::DIVIDER,
-        "scroll.rs" => amenui::sources::widget::SCROLL, "menu.rs" => amenui::sources::widget::MENU, "orbit.rs" => amenui::sources::widget::ORBIT,
-        "checkbox.rs" => amenui::sources::widget::CHECKBOX, "radio.rs" => amenui::sources::widget::RADIO, "select.rs" => amenui::sources::widget::SELECT,
-        "tooltip.rs" => amenui::sources::widget::TOOLTIP, "popover.rs" => amenui::sources::widget::POPOVER, "toast.rs" => amenui::sources::widget::TOAST,
-        "progress.rs" => amenui::sources::widget::PROGRESS, "accordion.rs" => amenui::sources::widget::ACCORDION, "table.rs" => amenui::sources::widget::TABLE,
-        "badge.rs" => amenui::sources::widget::BADGE, "avatar.rs" => amenui::sources::widget::AVATAR, "skeleton.rs" => amenui::sources::widget::SKELETON,
-        "breadcrumb.rs" => amenui::sources::widget::BREADCRUMB, "pagination.rs" => amenui::sources::widget::PAGINATION, "sheet.rs" => amenui::sources::widget::SHEET,
-        "context_menu.rs" => amenui::sources::widget::CONTEXT_MENU, "command.rs" => amenui::sources::widget::COMMAND, "toggle.rs" => amenui::sources::widget::TOGGLE,
-        "bottom_sheet.rs" => amenui::sources::widget::BOTTOM_SHEET, "floating.rs" => amenui::sources::widget::FLOATING, "caption.rs" => amenui::sources::widget::CAPTION, "nested_menu.rs" => amenui::sources::widget::NESTED_MENU, "card_stack.rs" => amenui::sources::widget::CARD_STACK, "dot_chart.rs" => amenui::sources::widget::DOT_CHART,
-        _ => "",
-    }
-}
+pub fn widget_source(path: &str) -> &'static str { crate::texts::get(&format!("widgets/{}", path.rsplit('/').next().unwrap_or(""))).unwrap_or("") }
 /// The registry names of the components the gallery has its own live page for (`COMPONENTS`).
 pub const COMP_NAMES: [&str; 13] = ["button", "number", "input", "switch", "slider", "tabs", "choice", "list", "card", "dialog", "image", "divider", "scroll-area"];
 /// The other components: their pages are made from their examples (`Page::Widget(i)`).
@@ -119,7 +103,8 @@ pub fn widget_names() -> Vec<String> {
 }
 /// The examples file of a component (registry name → `examples/components/<name>.rs`).
 fn example_name(name: &str) -> &str { match name { "scroll_area" | "scroll-area" => "scroll", n => n } }
-pub fn example_source(name: &str) -> Option<&'static str> { amenui::recipes::components::all().into_iter().find(|(n, _)| *n == example_name(name)).map(|(_, s)| s) }
+/// Its source (the framework's, which the web module fetches: `texts`).
+pub fn example_source(name: &str) -> Option<&'static str> { crate::texts::get(&format!("examples/{}.rs", example_name(name))) }
 /// The examples in a file: (label, the function's source).
 pub fn examples_of(src: &str) -> Vec<(String, String)> {
     let mut out = vec![];
@@ -213,12 +198,13 @@ fn frame(s: &Gallery, page: &str, body: El<Msg>, titles: &[(String, String)]) ->
     r
 }
 
-/// The page the reader sets: one docs page, in English as every Lab page is.
-const READER: &str = include_str!("../../docs/site/en/layout.md");
+/// The page the reader sets: one docs page, in English as every Lab page is (`docs/site/en/layout.md`,
+/// which the web module fetches: `texts`).
+fn reader_page() -> &'static str { crate::texts::get("en/layout.md").unwrap_or("") }
 /// The reader (`/lab/reader/`): one docs page set by the framework, with its outline and selection.
 pub fn reader(s: &Gallery) -> El<Msg> {
     let w = doc_w(s, 820.0);
-    let (body, out) = amenui::markdown::render(front_matter(READER).1, "doc/reader/md", w, &|t| link(t));
+    let (body, out) = amenui::markdown::render(front_matter(reader_page()).1, "doc/reader/md", w, &|t| link(t));
     frame(s, "reader", body, &out.into_iter().filter(|o| o.0 == 2).map(|o| (o.1, o.2)).collect::<Vec<_>>())
 }
 /// The first example of a component's recipe, as a preview.
@@ -332,7 +318,7 @@ pub fn scrolled(s: &mut Gallery, key: &str, _off: f32, at: &dyn Fn(&str) -> Opti
     let page = s.page;
     let keys: Vec<String> = match page {
         Page::Comp(_) | Page::Widget(_) => (0..7).map(|i| format!("doc/{}/sec{i}", page.hash())).collect(),
-        Page::Reader => amenui::markdown::parse(READER).iter().enumerate().filter(|(_, b)| matches!(b, amenui::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/reader/md/h{j}")).collect(),
+        Page::Reader => amenui::markdown::parse(reader_page()).iter().enumerate().filter(|(_, b)| matches!(b, amenui::markdown::Block::Heading(2, _))).map(|(j, _)| format!("doc/reader/md/h{j}")).collect(),
         _ => return false,
     };
     let mut now = 0;

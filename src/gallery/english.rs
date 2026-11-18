@@ -1,5 +1,5 @@
 //! The demos in English whatever the interface language: the words the site's and the framework's
-//! examples are written with (`assets/english.txt`) put in English on the way to the screen. A text
+//! examples are written with (`assets/english.txt`, which the web module fetches: `texts`) put in English on the way to the screen. A text
 //! is looked up whole (numbers in it stand for `{n}`), then by its quoted strings (a line of code),
 //! then by the longer phrases in it. Editable text is left as the person typed it.
 use amenui::el::{Content, El};
@@ -10,10 +10,19 @@ use std::sync::OnceLock;
 struct Table { whole: HashMap<String, String>, phrases: Vec<(String, String)> }
 
 fn table() -> &'static Table {
+    // `assets/english.txt` is one of the texts the web module fetches (`texts`): until it has come the
+    // table is the catalogs' alone, and it is not kept.
     static T: OnceLock<Table> = OnceLock::new();
-    T.get_or_init(|| {
+    static PART: OnceLock<Table> = OnceLock::new();
+    match crate::texts::get("english.txt") {
+        Some(words) => T.get_or_init(|| make(words)),
+        None => PART.get_or_init(|| make("")),
+    }
+}
+fn make(words: &str) -> Table {
+    {
         let mut whole = HashMap::new();
-        for line in include_str!("../../assets/english.txt").lines() {
+        for line in words.lines() {
             if line.starts_with('#') { continue; }
             let Some((k, v)) = line.split_once(" = ") else { continue };
             whole.insert(k.replace("\\n", "\n"), v.replace("\\n", "\n"));
@@ -42,7 +51,7 @@ fn table() -> &'static Table {
         let mut phrases: Vec<(String, String)> = whole.iter().filter(|(k, _)| k.chars().count() >= 2 && !k.contains('{')).map(|(k, v)| (k.clone(), v.clone())).collect();
         phrases.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then(a.0.cmp(&b.0)));
         Table { whole, phrases }
-    })
+    }
 }
 
 fn cjk(s: &str) -> bool { s.chars().any(|c| ('\u{2e80}'..='\u{9fff}').contains(&c) || ('\u{f900}'..='\u{faff}').contains(&c) || ('\u{ff00}'..='\u{ffef}').contains(&c) || ('\u{3000}'..='\u{303f}').contains(&c)) }

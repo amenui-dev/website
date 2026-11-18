@@ -7,6 +7,7 @@ pub mod demo;
 pub mod drive;
 pub mod gallery;
 pub mod showcase;
+pub mod texts;
 
 /// The site's message catalogs (`assets/i18n/`), installed over amenui's own.
 pub const CATALOGS: [(amenui::i18n::Locale, &str, &str); 2] = [
@@ -73,6 +74,10 @@ pub fn make(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> galle
     #[cfg(target_arch = "wasm32")]
     if let Err(e) = ui.add_face(amenui::text::SERIF_FILE, SERIF.to_vec()) { panic!("{e}"); }
     if ui.state.route("body") { ui.relayout(); }
+    // The first layouts are of the gallery's first page and of home, before the page's own route: what
+    // they asked for is not wanted.
+    #[cfg(target_arch = "wasm32")]
+    texts::forget();
     ui
 }
 
@@ -130,6 +135,12 @@ mod site_exports {
             true
         }).unwrap_or(false)
     }
+    /// A text the module does not carry (`texts`), given by the page: the view is laid out again.
+    #[wasm_bindgen]
+    pub fn put_text(name: &str, body: String) { crate::texts::put(name, body); host(|s| s.ui.relayout()); }
+    /// The texts the module has asked for since the last call, one a line, for the page to fetch.
+    #[wasm_bindgen]
+    pub fn wanted_texts() -> String { crate::texts::wanted().join("\n") }
     /// The current page's path under the site's base (`components/button/`; empty for home).
     /// A piece of Works, for the page around the canvas: [the bar's tone (0 none, 1 light, 2 dark),
     /// the chrome faded (1), the piece resting (1), the status line's tone].

@@ -137,7 +137,7 @@ fn read_only_selection_across_source_lines() {
     let sel = ui.selection();
     assert_eq!(sel.len(), 3, "three lines: {sel:?}");
     let copied = ui.copy().expect("copied");
-    let src = gallery::COMPONENTS.iter().find(|c| c.hash == "input").unwrap().source;
+    let src = gallery::docs::widget_source(gallery::COMPONENTS.iter().find(|c| c.hash == "input").unwrap().file);
     let lines: Vec<&str> = src.lines().collect();
     assert!(copied.starts_with(lines[0]), "{copied:?}");
     assert_eq!(copied.lines().count(), 3);

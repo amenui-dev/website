@@ -39,7 +39,7 @@
       const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(u + ': HTTP ' + r.status); return r; });
       this.ready = mount(root.querySelector('.stage'), {
         route: '#' + first, keys: this,
-        load: () => ({ module: get(F.wasm), fonts: Promise.all(F.fonts.map(f => get(f.url).then(r => r.arrayBuffer()))) }), faces: F.faces,
+        load: () => ({ module: get(F.wasm), fonts: Promise.all(F.fonts.map(f => get(f.url).then(r => r.arrayBuffer()))) }), faces: F.faces, texts: F,
         onRoute: (path, page) => this.dispatchEvent(new CustomEvent('amenui-route', { detail: { page, path }, bubbles: true, composed: true })),
       }).then(api => {
         this.api = api;

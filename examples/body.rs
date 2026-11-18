@@ -108,6 +108,25 @@ pub struct SurfacePoint { pub p: [f32; 3], pub n: [f32; 3], pub t: [f32; 3], pub
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VolumePoint { pub p: [f32; 3], pub n: [f32; 3], pub size: f32 }
 
+/// What of `SOURCE` the body can be made of: its whole lines to the first line end past `CHARS`
+/// characters (the most any size takes), copied when the module is compiled, so that the module carries
+/// these and not the rest of the file.
+const SHOWN: &str = {
+    const fn cut(s: &str, most: usize) -> usize {
+        let b = s.as_bytes();
+        let (mut i, mut n) = (0, 0);
+        while i < b.len() {
+            if b[i] & 0xc0 != 0x80 { n += 1; }
+            if n > most && b[i] == b'\n' { return i; }
+            i += 1;
+        }
+        b.len()
+    }
+    const N: usize = cut(SOURCE, CHARS);
+    const fn head<const N: usize>(s: &str) -> [u8; N] { let mut out = [0u8; N]; let b = s.as_bytes(); let mut i = 0; while i < N { out[i] = b[i]; i += 1; } out }
+    const B: [u8; N] = head::<N>(SOURCE);
+    match std::str::from_utf8(&B) { Ok(s) => s, Err(_) => panic!("cut inside a character") }
+};
 /// The text on the body: the listing (the whole lines of `SOURCE` in its first `chars` characters)
 /// and, for each of its glyphs (characters that are not white space), the cell it sits in. A run of
 /// white space (indentation, a line end) takes one cell; `cells` is how many the text takes. `mid`
@@ -116,7 +135,7 @@ pub struct VolumePoint { pub p: [f32; 3], pub n: [f32; 3], pub size: f32 }
 pub struct Stream { pub listing: String, pub lines: usize, pub cell: Vec<usize>, pub cells: usize, pub mid: Vec<usize> }
 pub fn stream(chars: usize) -> Stream {
     let (mut listing, mut cell, mut at, mut lines) = (String::new(), vec![], 0usize, 0usize);
-    for line in SOURCE.lines() {
+    for line in SHOWN.lines() {
         let line = line.trim_end();
         if listing.chars().count() + (lines > 0) as usize + line.chars().count() > chars { break; }
         let mut add = vec![];

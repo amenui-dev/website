@@ -204,10 +204,10 @@ pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
 }
 
 /// An experiment's documentation in a language.
+/// (`docs/site/<lang>/lab-<name>.md`, which the web module fetches: `texts`).
 pub fn doc(name: &str, l: amenui::i18n::Locale) -> &'static str {
-    let en = l == amenui::i18n::Locale::En;
-    macro_rules! pick { ($($n:literal),*) => { match name { $( $n => if en { include_str!(concat!("../../docs/site/en/lab-", $n, ".md")) } else { include_str!(concat!("../../docs/site/zh-Hans/lab-", $n, ".md")) }, )* _ => "" } } }
-    pick!("lumen", "contours", "silk", "grown", "mercury", "flow", "loupe", "orbit", "spring", "stack")
+    let lang = if l == amenui::i18n::Locale::En { "en" } else { "zh-Hans" };
+    crate::texts::get(&format!("{lang}/lab-{name}.md")).unwrap_or("")
 }
 
 /// What a Lab card shows of its page, drawn small and still in ink: the decode's blocks half way

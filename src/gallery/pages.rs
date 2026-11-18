@@ -25,7 +25,6 @@ pub struct Comp {
     pub func: &'static str,
     pub desc: &'static str,
     pub file: &'static str,
-    pub source: &'static str,
     pub params: &'static [ParamDef],
 }
 
@@ -45,43 +44,43 @@ pub const SCROLL: usize = 12;
 
 pub const COMPONENTS: [Comp; 13] = [
     Comp { hash: "button", title: "按钮", func: "button / button_as", desc: "执行一个操作。按下时立即触发，也可以用 Enter 或空格键触发。",
-        file: "src/widgets/button.rs", source: amenui::sources::widget::BUTTON,
+        file: "src/widgets/button.rs",
         params: &[p("高度", 20.0, 60.0, 1.0, 0, "px", 30.0), p("左右留白", 0.0, 40.0, 1.0, 0, "px", 14.0), p("圆角", 0.0, 20.0, 1.0, 0, "px", 4.0)] },
     Comp { hash: "number", title: "数字", func: "number", desc: "精确设置一个数值：获得焦点后直接键入，或用方向键和两侧的按钮按步长改；在数值上横向拖动可以连续调。",
-        file: "src/widgets/number.rs", source: amenui::sources::widget::NUMBER,
+        file: "src/widgets/number.rs",
         params: &[p("最小值", -1000.0, 1000.0, 1.0, 0, "", 0.0), p("最大值", -1000.0, 1000.0, 1.0, 0, "", 100.0), p("步长", 0.01, 100.0, 0.5, 2, "", 0.5), p("小数位", 0.0, 4.0, 1.0, 0, "", 1.0)] },
     Comp { hash: "input", title: "输入框", func: "input", desc: "输入一行或多行文字（textarea）。可以点、拖动、双击选择，Shift 加方向键扩展选区；Ctrl / ⌘ 加 A、C、X、V、Z 全选、复制、剪切、粘贴、撤销；支持输入法，正在组字的部分画在插入点上，带下划线。",
-        file: "src/widgets/input.rs", source: amenui::sources::widget::INPUT,
+        file: "src/widgets/input.rs",
         params: &[p("宽度", 120.0, 600.0, 10.0, 0, "px", 300.0), p("最多字数", 1.0, 200.0, 1.0, 0, "", 40.0)] },
     Comp { hash: "switch", title: "开关", func: "switch / switch_sized", desc: "在两种状态之间切换一项设置。",
-        file: "src/widgets/switch.rs", source: amenui::sources::widget::SWITCH,
+        file: "src/widgets/switch.rs",
         params: &[p("轨道高度", 12.0, 40.0, 1.0, 0, "px", 18.0)] },
     Comp { hash: "slider", title: "滑块", func: "slider", desc: "在一个范围内大致地选一个值。需要精确的值时，用数字控件。",
-        file: "src/widgets/slider.rs", source: amenui::sources::widget::SLIDER,
+        file: "src/widgets/slider.rs",
         params: &[p("最小值", -1000.0, 1000.0, 1.0, 0, "", 0.0), p("最大值", -1000.0, 1000.0, 1.0, 0, "", 100.0), p("步长", 0.1, 50.0, 0.1, 1, "", 1.0), p("宽度", 120.0, 640.0, 10.0, 0, "px", 320.0)] },
     Comp { hash: "tabs", title: "标签页", func: "tabs", desc: "在同一位置的几组内容之间切换。",
-        file: "src/widgets/tabs.rs", source: amenui::sources::widget::TABS,
+        file: "src/widgets/tabs.rs",
         params: &[p("标签间距", 0.0, 60.0, 1.0, 0, "px", 18.0), p("下划线粗细", 1.0, 6.0, 0.5, 1, "px", 2.0)] },
     Comp { hash: "choice", title: "选项", func: "choice / segmented", desc: "从几个互斥的选项中选一个。",
-        file: "src/widgets/choice.rs", source: amenui::sources::widget::CHOICE,
+        file: "src/widgets/choice.rs",
         params: &[p("高度", 20.0, 48.0, 1.0, 0, "px", 30.0)] },
     Comp { hash: "list", title: "列表", func: "list", desc: "显示一组条目，可以选中其中一项；条目多时可以滚动。",
-        file: "src/widgets/list.rs", source: amenui::sources::widget::LIST,
+        file: "src/widgets/list.rs",
         params: &[p("行高", 24.0, 64.0, 1.0, 0, "px", 36.0), p("可见高度", 100.0, 480.0, 4.0, 0, "px", 232.0), p("行数", 1.0, 200.0, 1.0, 0, "", 40.0)] },
     Comp { hash: "card", title: "卡片", func: "card", desc: "把相关的内容放在一个带边框的区域里。",
-        file: "src/widgets/card.rs", source: amenui::sources::widget::CARD,
+        file: "src/widgets/card.rs",
         params: &[p("内边距", 0.0, 48.0, 1.0, 0, "px", 18.0), p("圆角", 0.0, 24.0, 1.0, 0, "px", 6.0), p("线宽", 0.0, 4.0, 0.5, 1, "px", 1.0)] },
     Comp { hash: "dialog", title: "对话框", func: "dialog", desc: "在页面之上显示需要处理的内容。关闭之前，页面的其余部分不响应操作；Esc 或关闭按钮关闭它。",
-        file: "src/widgets/dialog.rs", source: amenui::sources::widget::DIALOG,
+        file: "src/widgets/dialog.rs",
         params: &[p("宽度", 280.0, 720.0, 10.0, 0, "px", 420.0), p("下方松开度", 0.0, 1.0, 0.05, 2, "", 0.35)] },
     Comp { hash: "image", title: "图片", func: "image", desc: "按原比例显示一张图片。图片松开时变成记号；指针在图上移动时，图会在指针附近松开。",
-        file: "src/widgets/image.rs", source: amenui::sources::widget::IMAGE,
+        file: "src/widgets/image.rs",
         params: &[p("点距", 1.0, 64.0, 1.0, 0, "px", 8.0), p("亮度级数", 2.0, 16.0, 1.0, 0, "", 8.0)] },
     Comp { hash: "divider", title: "分隔线", func: "divider / vdivider", desc: "分开两组内容。",
-        file: "src/widgets/divider.rs", source: amenui::sources::widget::DIVIDER,
+        file: "src/widgets/divider.rs",
         params: &[p("粗细", 0.5, 8.0, 0.5, 1, "px", 1.0), p("上下留白", 0.0, 48.0, 1.0, 0, "px", 12.0)] },
     Comp { hash: "scroll-area", title: "滚动区", func: "scroll_area", desc: "在固定的高度里显示更长的内容，用滚轮滚动；一侧的细条表示当前位置。",
-        file: "src/widgets/scroll.rs", source: amenui::sources::widget::SCROLL,
+        file: "src/widgets/scroll.rs",
         params: &[p("高度", 80.0, 480.0, 4.0, 0, "px", 180.0), p("行数", 1.0, 200.0, 1.0, 0, "", 24.0)] },
 ];
 
@@ -181,7 +180,7 @@ fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
             .child(amenui::widgets::button_as(format!("{h}/10k"), &format!("{} →", Page::LongList.name()), amenui::widgets::Variant::Default, Msg::Go(Page::LongList))))))
         .child(section(h, "变体", variants(h, vars)))
         .child(section(h, "参数", params(s, c)))
-        .child(section(h, "源码", source(h, comp.file, comp.source)));
+        .child(section(h, "源码", source(h, comp.file, super::docs::widget_source(comp.file))));
     super::docs::component(s, super::docs::COMP_NAMES[c], Some(live), Some(extra))
 }
 
@@ -657,7 +656,7 @@ fn morph_page(s: &Gallery) -> El<Msg> {
         .child(header(s, h, "变形", "Ui::morph / Cmd::Morph", "把一样东西按材质的点阵散成粒子，飞过去拼成另一样东西：先松开，粒子接手，飞行，再由目标接手、合拢。飞行途中按“反向”，粒子从当前位置原路返回。"))
         .child(section(h, "预览", col().fill_width().gap(14.0).child(stage).child(controls)))
         .child(section(h, "参数", col().fill_width().gap(14.0).child(nums).child(ease)))
-        .child(section(h, "源码", source(h, "src/morph.rs", amenui::sources::MORPH)))
+        .child(section(h, "源码", source(h, "src/morph.rs", crate::texts::get("morph.rs").unwrap_or(""))))
         .child(space(1.0, 24.0))
 }
 

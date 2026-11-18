@@ -55,7 +55,7 @@
       mount(live, {
         // Stages are demonstrations: in English in every language, as their stills are drawn.
         route: st.dataset.route, keys: live, started: w => { w.set_locale('en'); },
-        load: () => ({ module: get(A.files.wasm), fonts: Promise.all(A.files.fonts.map(f => get(f.url).then(r => r.arrayBuffer()))) }), faces: A.files.faces,
+        load: () => ({ module: get(A.files.wasm), fonts: Promise.all(A.files.fonts.map(f => get(f.url).then(r => r.arrayBuffer()))) }), faces: A.files.faces, texts: A.files,
         onFrame: () => { try { localStorage.setItem('amenui.module', A.files.wasm); } catch (e) {} const run = box.querySelector('.run'); if (run) run.remove(); st.classList.add('on'); state.textContent = A.live || 'live'; },
       }).then(() => {}, e => { state.textContent = A.fail || 'unavailable'; console.error(e); });
     };

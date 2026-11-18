@@ -4,8 +4,10 @@
 // mount once in #stage (`site()` at the end); `<amenui-view>` (embed.js) mounts in its shadow root.
 // One view per document: the module keeps one interface.
 //
-// opts: `load` (a function giving { module, fonts: [sans, pixel, mono] } as promises), `faces` (the
-// faces the module does not carry, name → URL: each is fetched once, when a page first uses it), `route` (the
+// opts: `load` (a function giving { module, fonts: [sans, pixel, mono], texts } as promises; `texts`,
+// [name, body] pairs, may be left out), `faces` (the faces the module does not carry, name → URL: each
+// is fetched once, when a page first uses it), `texts` ({ texts: base URL, textsV: version }: where the
+// texts the module does not carry are, each fetched when the module first asks for it), `route` (the
 // first page: a path such as `components/button/`, or a hash name such as `#button`), `keys` (where
 // key events come from; the window by default), `onRoute(path, hash)` (the page changed inside it),
 // `started(module)` (after the module started, before its first frame), `onFrame()` (the first frame
@@ -25,7 +27,20 @@ async function mount(stage, opts) {
   const compiled = performance.now() - t0;
   const w = wasm_bindgen;
   const [sans, pixel, mono] = (await got.fonts).map(b => new Uint8Array(b));
+  // The texts the module does not carry: those given go in before it starts; one it asks for later is
+  // fetched once and the page is drawn again when it comes. What the first page asks for comes before
+  // its first frame.
+  const textsAsked = new Set(), redraw = { kick: () => {} };
+  const putTexts = list => { for (const [n, b] of list || []) { textsAsked.add(n); if (typeof b === 'string') w.put_text(n, b); } };
+  const fetchTexts = () => {
+    const want = w.wanted_texts ? w.wanted_texts().split('\n').filter(n => n && !textsAsked.has(n)) : [];
+    if (!want.length || !opts.texts) return null;
+    return Promise.all(want.map(n => { textsAsked.add(n); return fetch(opts.texts.texts + n + '?' + opts.texts.textsV).then(r => r.ok ? r.text() : null).then(b => { if (b !== null) { w.put_text(n, b); redraw.kick(); } }, () => {}); }));
+  };
+  putTexts(await got.texts);
   await w.start(canvas, sans, pixel, mono, dpr, opts.route || '/');
+  const asking = fetchTexts();
+  if (asking) await asking;
   // After start: the pictures the first page draws go to the renderer, which start makes.
   w.pictures();
   if (opts.started) opts.started(w);
@@ -45,6 +60,7 @@ async function mount(stage, opts) {
     // A picture drawn for the first time is made, and the frame drawn again before it is shown.
     if (w.pictures()) d = w.frame(t);
     fetchFaces();
+    fetchTexts();
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
     if (opts.frame) opts.frame();
@@ -52,6 +68,7 @@ async function mount(stage, opts) {
     else if (d > 0) timer = setTimeout(kick, d * 1000);
   };
   const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+  redraw.kick = kick;
   // The renderer's warm-up goes on in idle time, whether or not the page draws (a page at rest draws
   // nothing): each idle period makes the next pieces and draws nothing; a frame only when the look's
   // material can be drawn (2). It stops once nothing is left (no 1), never on a call that traps.
@@ -349,7 +366,7 @@ function site() {
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   mount(stage, {
     route: A.route === '' ? '/' : A.route,
-    load: () => ({ module: A.wasm, fonts: A.fonts }), faces: A.files.faces,
+    load: () => ({ module: A.wasm, fonts: A.fonts, texts: A.texts }), faces: A.files.faces, texts: A.files,
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };
