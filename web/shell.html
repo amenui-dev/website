@@ -179,6 +179,9 @@ html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m
 /* A piece of Works (M.2): the picture is the whole window, and the bar and the status line lie over it
    with no ground, in the piece's tone (dark type over a pale sky, pale over a dark one). */
 html.work #stage { top: 0; bottom: 0; }
+/* Works from 720 px wide: the canvas is the whole window on the index too, so a piece is laid out once
+   at the window's size and the index → piece Flow keeps one canvas (U.2 item 1). */
+@media (min-width: 720px) { html.works #stage { top: 0; bottom: 0; } }
 html.work .bar, html.work .status { background: transparent; border-color: transparent; }
 .work .status { transition: opacity .15s, color .12s; }
 .work.idle .status { opacity: 0; }
@@ -269,6 +272,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
     const sec = path.split('/')[0];
     root.classList.toggle('home', path === '');
     root.classList.toggle('work', sec === 'works' && path !== 'works/');
+    root.classList.toggle('works', sec === 'works');
     for (const a of D.querySelectorAll('[data-section]')) { if (a.dataset.section === sec) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
   };
   A.mark(A.route);

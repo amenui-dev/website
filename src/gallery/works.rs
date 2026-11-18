@@ -14,7 +14,7 @@
 //! of its three hues, found as the nearest such mix (`InkSpace::paint`); on a piece's page the ground,
 //! which the picture covers, is set to a ramp that follows the sky, so the mixes over the sky are the
 //! sky's.
-use super::{BAR, Gallery, Msg, NARROW, Page, Section};
+use super::{Gallery, Msg, NARROW, Page, Section};
 pub use super::touch::TOUCH_GRASS;
 use super::touch;
 use amenui::draw::Drawing;
@@ -270,13 +270,14 @@ fn running(s: &Gallery, i: usize) -> bool {
 }
 fn reduced(s: &Gallery) -> bool { s.body.reduced }
 
-/// The size a piece is laid out at: the window on its page; on the index the window too (the canvas
-/// lies under the bar and above the status line there); a phone's bands show the 16 : 10 piece.
+/// The size a piece is laid out at, once, wherever it is shown (U.2 item 1): the whole window, which the
+/// canvas is on a piece's page and, from 720 px wide, on the index too, so a window of the index and the
+/// Flow's rect show the page's own layout through one scale; a phone's bands show the 16 : 10 piece.
 fn piece_size(s: &Gallery) -> (f32, f32) {
     match s.page {
         Page::Work(_) => (s.width, s.height),
         _ if s.width < NARROW => (1440.0, 900.0),
-        _ => (s.width, s.height + BAR + 28.0),
+        _ => (s.width, s.height),
     }
 }
 
@@ -1543,18 +1544,18 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
 fn index(s: &Gallery) -> El<Msg> {
     let w = s.width;
     let (pw, ph) = piece_size(s);
-    // Window coordinates (the mock-up's) are the canvas's plus the bar.
-    let y = |wy: f32| wy - BAR;
+    // Window coordinates (the mock-up's) are the canvas's: it is the whole window, under the bar and the
+    // status line.
     let hh = (ph - 400.0).max(320.0);
-    let top = y(208.0);
+    let top: f32 = 208.0;
     // The scale makes the piece a whole number of pixels wide, so its drawings' strokes land on the
     // pixel grid where `px` puts them.
     let kz = zoom_of(s);
     let widths = widths(s, s.clock);
     let mut root = col().key("works/index").width(w).height(s.height).clip()
-        .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, y(98.0)))
-        .child(at(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead"), 32.0, y(150.0)))
-        .child(at_right(mono(amenui::i18n::tr("works.keys"), Paint::DIM).key("works/keys"), 32.0, y(150.0)));
+        .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, 98.0))
+        .child(at(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead"), 32.0, 150.0))
+        .child(at_right(mono(amenui::i18n::tr("works.keys"), Paint::DIM).key("works/keys"), 32.0, 150.0));
     let mut x: f32 = 32.0;
     for (i, p) in PIECES.iter().enumerate() {
         let ww = widths[i];
@@ -1584,7 +1585,7 @@ fn index(s: &Gallery) -> El<Msg> {
         }
         x += ww + 16.0;
     }
-    root.child(ruler(s, w, y(ph - 84.0)))
+    root.child(ruler(s, w, ph - 84.0))
 }
 /// The live window's frame: 1 px in the accent on all four sides, on the pixel grid (N.2 item 8).
 fn live_frame(key: &str, ww: f32, hh: f32) -> El<Msg> {
@@ -1627,18 +1628,16 @@ fn ruler(s: &Gallery, w: f32, yr: f32) -> El<Msg> {
 }
 
 /// Where a window of the index centres its crop, in the piece's space: about the piece's centre of
-/// interest; W-01's about its mast (x 1,123 of its 1,440) when narrow and x 950 when wide, the band from
-/// the mast to its foot (T.5 items 1, 2), moving between the two as the window widens.
+/// interest; W-01's about its mast (x 1,123 of its 1,440) when narrow and x 950 when wide (T.5 items 1,
+/// 2), W-03's about its flock (x 1,140) when narrow and x 943 when wide, the flock and the scan window
+/// whole (U.2 item 1); moving between the two as the window widens.
 fn crop_x(s: &Gallery, i: usize, ww: f32, pw: f32, ph: f32) -> f32 {
-    if i != TOUCH_GRASS { return PIECES[i].focus * pw; }
+    let (narrow_at, wide_at) = match i { TOUCH_GRASS => (1123.0, 950.0), GROUND_TRUTH => (1140.0, 943.0), _ => return PIECES[i].focus * pw };
     let total = s.width - 64.0 - 16.0 * (COUNT as f32 - 1.0);
     let narrow = ((total - WIDE) / (COUNT as f32 - 1.0)).max(0.0);
     let k = if WIDE.min(total) > narrow { ((ww - narrow) / (WIDE.min(total) - narrow)).clamp(0.0, 1.0) } else { 1.0 };
-    fit_for(s, pw, ph).at(MAST + (STILL_WIDE - MAST) * k, 0.0).0
+    fit_for(s, pw, ph).at(narrow_at + (wide_at - narrow_at) * k, 0.0).0
 }
-/// W-01's mast and the wide window's centre, in px of its 1440 × 900 picture.
-const MAST: f32 = 1123.0;
-const STILL_WIDE: f32 = 950.0;
 
 /// The index on a phone: the windows are bands down the page, from x = 32 to the right gutter, 132 px
 /// high (48 for an unbuilt piece); a tap widens a built band to 16 : 10 and runs it, a second opens it.

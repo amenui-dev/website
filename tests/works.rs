@@ -588,8 +588,8 @@ fn the_windsock_lifts_in_a_strong_gust_and_holds_at_the_bands_peak_with_reduced_
     }
 }
 
-/// T.5: W-01's window crops its still about the mast: wide, centred on x 950 of the 1,440 (the mast
-/// between 60 % and 75 % across); narrow, on the mast; and
+/// T.5: W-01's window crops its still about the mast: wide, centred on x 950 of the 1,440 as far as the
+/// picture's right edge allows (the mast between 60 % and 75 % across); narrow, on the mast; and
 /// (T.6) the callout is never drawn over it.
 #[test]
 fn touch_grass_s_window_crops_its_still_about_the_mast() {
@@ -603,7 +603,9 @@ fn touch_grass_s_window_crops_its_still_about_the_mast() {
         let mast = (pic[0] + 1123.5 / 1440.0 * pic[2] - win[0]) / win[2];
         let centre = (pic[0] + 950.0 / 1440.0 * pic[2] - win[0]) / win[2];
         eprintln!("touch grass's window, {} px: the mast {:.1} % across, x 950 at {:.1} %", win[2], mast * 100.0, centre * 100.0);
-        if wide { assert!((0.60..=0.75).contains(&mast) && (centre - 0.5).abs() < 0.01, "{mast} {centre}"); }
+        // Centred on x 950, unless that would show past the picture's right edge: then up to it.
+        let right = pic[0] + pic[2] - (win[0] + win[2]);
+        if wide { assert!((0.60..=0.75).contains(&mast) && ((centre - 0.5).abs() < 0.01 || right.abs() < 1.0), "{mast} {centre} {right}"); }
         else { assert!(((mast - 0.5) * win[2]).abs() <= 8.0, "{mast}"); }
         assert!(!n.iter().any(|t| t.key.starts_with("works/still/touch-grass/")), "no callout over the still");
     }
@@ -640,4 +642,27 @@ fn touch_grass_s_still_has_no_ink_in_its_sky_but_the_mast() {
     eprintln!("touch grass's still: {} ink pixels in the sky off the mast, the mast {rows} px tall", off.len());
     assert!(off.is_empty(), "{:?}", &off[..off.len().min(8)]);
     assert!(rows >= 25, "the mast");
+}
+
+/// U.2 item 1: a piece is laid out once, at the window's size: W-03's window on the index shows the
+/// page's own layout through one scale (its picture the page's, scaled), cropped about x 943 when wide
+/// (as far as the picture's edge allows) and the flock's x 1,140 when narrow.
+#[test]
+fn ground_truth_s_window_shows_the_page_s_layout_through_one_scale() {
+    let page = at(Page::Work(works::GROUND_TRUTH as u8), 1440, 900);
+    let pp = nodes(&page).into_iter().find(|t| t.key == "work/ground-truth/picture").expect("the page's picture").rect;
+    for (hover, wide) in [(Some(works::GROUND_TRUTH), true), (None, false)] {
+        let mut ui = at(Page::Works, 1440, 900);
+        if let Some(i) = hover { gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(i, Some((400.0, 300.0))))); ui.relayout(); ui.tick(2.0); ui.relayout(); }
+        let n = nodes(&ui);
+        let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
+        let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("works/window/work/ground-truth/picture"));
+        let s = win[3] / 900.0;
+        assert!((pic[2] - pp[2] * s).abs() <= 1.0 && (pic[3] - pp[3] * s).abs() <= 1.0, "{pic:?} against the page's {pp:?} at {s}");
+        let at = |x: f32| pic[0] + x / 1440.0 * pic[2] - win[0];
+        let (c, want) = (at(if wide { 943.0 } else { 1140.0 }), win[2] * 0.5);
+        let right = pic[0] + pic[2] - (win[0] + win[2]);
+        eprintln!("ground truth's window, {} px at {s:.4}: its crop's centre at {:.1} px, the picture's right edge {right:.1} px past the window's", win[2], c);
+        assert!((c - want).abs() <= 1.0 || (wide && right.abs() < 1.0), "{c} {want} {right}");
+    }
 }

@@ -352,7 +352,7 @@ def page(lang, path, title, section, tone='', foot=''):
     redirect = ''
     if path == '':
         redirect = '<script>(()=>{const m=%s,h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace(%s+m[h]);})()</script>\n' % (json.dumps(redirects, separators=(',', ':')), json.dumps(BASE))
-    classes = ' '.join(c for c in ['home' if path == '' else '', 'work' if path.startswith('works/') and path != 'works/' else ''] if c)
+    classes = ' '.join(c for c in ['home' if path == '' else '', 'work' if path.startswith('works/') and path != 'works/' else '', 'works' if path.startswith('works/') else ''] if c)
     v = chrome_vars(lang, path) | {
         'classes': classes, 'tone': tone, 'foot': foot, 'title': html.escape(title), 'description': html.escape(t('web.description')),
         'redirect': redirect, 'wasm_url': BASE + wasm_fn, 'wasm_gpu_url': BASE + wasm_gpu_fn,
