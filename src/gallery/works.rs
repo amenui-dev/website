@@ -1163,6 +1163,8 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         let lead = w * 0.5 + reach - f * speed - fw * 0.5;
         let y0 = flight_row(fit, w, z, mode, cloud.map(|c| c.0.1));
         let echoes = !reduced(s);
+        // The boxes first, then the labels (clear of every box), then the echoes (clear of both).
+        let mut kept = vec![];
         for (b, &(dx, dy)) in FLOCK.iter().enumerate() {
             let (bx, by) = ((lead + dx * sx).round(), (y0 + dy).round());
             let r = (bx + BOX.0, by + BOX.1, bx + BOX.2, by + BOX.3);
@@ -1172,6 +1174,7 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
             // window, never for meeting a note (O.2 item 1). Its label and its echoes are notes.
             if !notes.subject(r) { continue; }
             drawn.birds.push(r);
+            kept.push((b, bx, by, r));
             // Two strokes on the pixel grid, one pixel a column (a stroke antialiased over the picture
             // would mix its colour code with the sky's).
             let span = 5.0 + (b % 3) as f32;
@@ -1182,12 +1185,15 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
                 d.line((x, y), (x, y), lw, INK_FULL);
             }
             rect(&mut d, r, z, INK_FULL);
-            if let Some(t) = BIRD_LABELS[b].filter(|_| !band) {
-                let (lx, ly) = under(r.0, r.3, z);
-                let li = label_ink(t, lx, ly, z);
-                if notes.keep_label(li) { label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly)); drawn.labels.push(li); }
-            }
-            if echoes && !band {
+        }
+        for &(b, _, _, r) in &kept {
+            let Some(t) = BIRD_LABELS[b].filter(|_| !band) else { continue };
+            let (lx, ly) = under(r.0, r.3, z);
+            let li = label_ink(t, lx, ly, z);
+            if notes.keep_label(li) { label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly)); drawn.labels.push(li); }
+        }
+        if echoes && !band {
+            for &(_, bx, by, r) in &kept {
                 for &(back, a) in &ECHOES {
                     if f * speed < back { break; }
                     let er = (r.0 + back, r.1, r.2 + back, r.3);

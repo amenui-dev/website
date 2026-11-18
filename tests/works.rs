@@ -275,6 +275,7 @@ fn the_flight_flies_above_the_cloud_and_no_bird_is_left_out() {
             let lowest = d.tags.iter().map(|t| t.3).fold(f32::MIN, f32::max);
             assert!(cloud.1 - lowest >= 24.0, "{w}×{h}: the lowest label ends at {lowest}, the cloud's box starts at {}", cloud.1);
             assert!(!d.echoes.iter().any(|&e| meets(e, cloud) || meets(e, cloud_label)), "{w}×{h} at {k}: an echo on the cloud");
+            assert!(!d.labels.iter().any(|&l| d.birds.iter().any(|&b| meets(l, b))), "{w}×{h} at {k}: a label on a bird");
         }
         // The rest pose: halfway.
         ui.state.works.ground.flight = Some(8.0);
