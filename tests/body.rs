@@ -498,3 +498,21 @@ fn the_walk_gives_way_when_the_page_is_not_ready() {
     run(&mut ui, d);
     assert!(ui.state.at == 4 && ui.state.walk.is_none(), "landed");
 }
+
+#[test]
+fn under_360_px_the_segmented_control_ends_inside_the_card() {
+    for state in ["interface", "material"] {
+        let mut ui = body::ui(fonts(), 320, 640, 1.0);
+        ui.state.open(state, 0);
+        ui.relayout();
+        run(&mut ui, 0.5);
+        let card = ui.node("body/specimen").expect("card").rect;
+        let (l, r) = (card.x + 20.0, card.x + card.w - 20.0);
+        let c = ui.node("body/specimen/material").expect("control").rect;
+        assert!(c.x >= l && c.x + c.w <= r, "{state}: control {:?} inside the card's inner edges {l}..{r}", c);
+        for i in 0..body::SPEC_MATERIALS.len() {
+            let seg = ui.node(&format!("body/specimen/material:{i}")).expect("segment").rect;
+            assert!(seg.x >= 16.0 && seg.x + seg.w <= 320.0 - 16.0, "{state}: segment {i} {:?} at least 16 px from the window's edges", seg);
+        }
+    }
+}

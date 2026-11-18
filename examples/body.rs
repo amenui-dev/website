@@ -281,14 +281,15 @@ fn ringed<M>(mut c: El<M>, pad: f32, gap: (f32, f32), k: f32, paint: Option<Pain
     let mid = row().height(INK + 2.0 * gap.1).align(taffy::AlignItems::CENTER).child(side()).child(space(gap.0, 0.0)).children(label).child(space(gap.0, 0.0)).child(side());
     c.pad(0.0, 0.0).child(col().fill_height().child(band()).child(mid).child(band()))
 }
-/// A segmented control held loose by `k` with its labels drawn tight: its frame takes `k` as its own
-/// looseness, and the selected segment's fill becomes bands round its label (`ringed`) that stop
-/// `SEGMENT_GAP` short of its ink box.
-fn tight_labels<M>(mut c: El<M>, k: f32) -> El<M> {
+/// A segmented control with `pad` px each side of every segment's label, held loose by `k` with its
+/// labels drawn tight: its frame takes `k` as its own looseness, and the selected segment's fill
+/// becomes bands round its label (`ringed`) that stop `SEGMENT_GAP` short of its ink box.
+fn tight_labels<M>(mut c: El<M>, pad: f32, k: f32) -> El<M> {
+    c.children = std::mem::take(&mut c.children).into_iter().map(|seg| seg.pad(pad, 0.0)).collect();
     if k <= 0.0 { return c; }
     c.loose = k;
     c.children = std::mem::take(&mut c.children).into_iter().map(|mut seg| {
-        if seg.fill.is_some() { return ringed(seg, 10.0, (SEGMENT_GAP, SEGMENT_GAP), k, None); }
+        if seg.fill.is_some() { return ringed(seg, pad, (SEGMENT_GAP, SEGMENT_GAP), k, None); }
         seg.children = std::mem::take(&mut seg.children).into_iter().map(|t| inked(t, None)).collect();
         seg
     }).collect();
@@ -1274,7 +1275,10 @@ impl Body {
         let rows = rows.loosen(hold(SPEC_LOOSE));
         // The Material row and the button are not under the rows' looseness: their shapes take it as
         // their own, and the labels on them are drawn tight (a label is never loosened).
-        let choice = tight_labels(amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit(), hold(SPEC_LOOSE));
+        // Under 360 px the segments' labels sit 4 px from their sides (10 elsewhere), so the four
+        // materials end inside the card.
+        let seg_pad = if self.size.0 < 360.0 { 4.0 } else { 10.0 };
+        let choice = tight_labels(amenui::widgets::segmented(&k("material"), &names, sp.material, 28.0, |i| Msg::Spec(SpecMsg::Material(i))).commit(), seg_pad, hold(SPEC_LOOSE));
         let material = row().key(k("row-Material")).fill_width().align(taffy::AlignItems::CENTER).child(label("Material").loosen(hold(SPEC_LOOSE))).child(choice);
         let mut button = amenui::widgets::button_as(k(gather), "GATHER →", amenui::widgets::Variant::Accent, Msg::Show(4));
         // Held loose, the fill as loose as the card's other shapes, round the label drawn tight in the
