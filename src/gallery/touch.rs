@@ -39,11 +39,26 @@ const BAND: f32 = 330.0;
 const SPEED: f32 = 240.0;
 const SLANT: f32 = 500.0;
 const CURVE: f32 = 0.53;
-/// How long the path takes to close (s), and the first gust after the piece opens (s).
+/// Where the rest pose's band is centred on the far row, a share of the width across (S.2 item 4).
+const REST_AT: f32 = 0.72;
+/// Where a stalk turns to its pale side (S.3 item 1): its upright colour up to 8° of lean, the pale side
+/// from 20°, a smoothstep between, so a stalk at its own lean or swaying back is upright and everything
+/// in a band or on a path is pale.
+const PALE_FROM: f32 = 8.0;
+const PALE_FULL: f32 = 20.0;
+/// How long the path takes to close (s; the small line says it), and the first gust after the piece
+/// opens (s).
 pub const CLOSES: f32 = 6.0;
+/// The field's map life (s): what the path puts in is back at rest after this, along the framework's
+/// fixed curve. At 8 s a stalk on the path is still at 20 to 23° (the pale side) 3 s after the pointer
+/// and under 8° (the upright colour) by 6 s, so the path is closed in 6 s and gone at 8 (S.2 item 5).
+const LIFE: f32 = 8.0;
 const FIRST: f32 = 6.0;
 /// A pointer faster than this (px a second) pushes a small gust ahead of itself, at most once a second.
 const FAST: f32 = 1400.0;
+/// What one stir of the path puts in (S.2 item 5): its flow, a multiple of the look's, and its energy.
+const PATH_FLOW: f32 = 3.0;
+const PATH_ENERGY: f32 = 0.4;
 /// The farthest one pointer event walks (px); farther is a jump, and the path starts again there.
 const JUMP: f32 = 320.0;
 /// The piece's frame time, s: what the pointer stirs goes in at most this often.
@@ -222,17 +237,18 @@ fn upright(alpha: f32, ground: [f32; 3]) -> Paint {
     Paint { tone: best.1, accent: best.2, alpha: 1.0, hue: 2 }
 }
 
-/// Gust `n` across a field `w` wide under a horizon at `hz`. The first starts with its band a third of
-/// the way across the far row: the piece opens on its rest pose (M.4), which then moves on.
+/// Gust `n` across a field `w` wide under a horizon at `hz`. The first starts with its band's centre
+/// 72 % across the far row (S.2 item 4): the piece opens on its rest pose (M.4), the band from the mast
+/// down to the foot, which then moves on.
 fn gust(n: u32, w: f32, hz: f32) -> Gust {
     let (band, slant) = band(w);
-    let from = if n == 0 { w / 3.0 + band * 0.5 } else { -40.0 };
+    let from = if n == 0 { REST_AT * w + band * 0.5 } else { -40.0 };
     Gust { from: [from, hz], dir: [1.0, 0.0], speed: SPEED, width: band, slant, curve: CURVE, strength: if strong(n) { STRONG } else { NORMAL }, ..Gust::default() }
 }
 /// The field's box in the piece, which the gusts cross.
 fn scope_box(w: f32, h: f32, hz: f32) -> [f32; 4] { [0.0, hz.floor(), w, h] }
-/// The rest pose's lean at a point: the first gust held with its band a third of the way across the
-/// far row (with reduced motion the map has no flow, so this is drawn as each blade's own lean).
+/// The rest pose's lean at a point: the first gust held with its band's centre 72 % across the far
+/// row (with reduced motion the map has no flow, so this is drawn as each blade's own lean).
 fn rest_lean(x: f32, y: f32, w: f32, h: f32, hz: f32) -> f32 {
     let (_, f) = gust(0, w, hz).at([x, y], 0.0, scope_box(w, h, hz));
     MAX_LEAN.to_radians() * f[0].clamp(-1.0, 1.0)
@@ -258,7 +274,7 @@ pub fn field(s: &Gallery, w: f32, h: f32, fit: &Fit) -> El<Msg> {
         let lean_paint = Paint { tone: 0.0, accent: 0.0, alpha: 1.0, hue: 2 };
         let head = st.head.map(|(ch, size)| Head { ch, size, font: Font::Face(amenui::text::MONO), paint: Paint::hue(1) });
         let lean = if still { (st.lean + rest_lean(st.x, st.y, w, h, hz)).min(MAX_LEAN.to_radians()) } else { st.lean };
-        d.blade(Blade { root: (st.x, st.y), len: st.len, width: st.width, lean, max_lean: MAX_LEAN.to_radians(), paint, lean_paint, head, ..Blade::default() });
+        d.blade(Blade { root: (st.x, st.y), len: st.len, width: st.width, lean, max_lean: MAX_LEAN.to_radians(), paint, lean_paint, lean_from: PALE_FROM.to_radians(), lean_full: PALE_FULL.to_radians(), head, ..Blade::default() });
     }
     // The mast: 1 px, 46 px tall, on the pixel grid.
     let mx = (w * 0.78).round() + 0.5;
@@ -339,12 +355,12 @@ pub fn callout(s: &Gallery, w: f32, fit: &Fit) -> El<Msg> {
 
 /// The small line: the piece's real state.
 pub fn micro(s: &Gallery, w: f32, h: f32, fit: &Fit) -> String { micro_of(count(s, w, h, fit)) }
-fn micro_of(n: usize) -> String { format!("W-01 · 12:00 · SEED {SEED:04} · {} STALKS · PATH CLOSES IN 6 S", thousands(n)) }
+fn micro_of(n: usize) -> String { format!("W-01 · 12:00 · SEED {SEED:04} · {} STALKS · PATH CLOSES IN {CLOSES:.0} S", thousands(n)) }
 
 /// A count with a comma between thousands.
 fn thousands(n: usize) -> String { let d = n.to_string(); let mut o = String::new(); for (k, c) in d.chars().enumerate() { if k > 0 && (d.len() - k).is_multiple_of(3) { o.push(','); } o.push(c); } o }
 
-/// Entering the piece: the first gust is under way on its first frame, a third of the way across.
+/// Entering the piece: the first gust is under way on its first frame, its band 72 % across.
 pub fn enter(s: &mut Gallery) { s.works.grass = Grass { next: s.clock, ..Grass::default() }; }
 
 /// A tick on the piece's page: the next gust when it is due (none while the piece rests or is held,
@@ -416,7 +432,7 @@ pub fn point(s: &mut Gallery, p: Option<(f32, f32)>, w: f32, fit: &Fit) {
         let r = 10.0 + 60.0 * depth(py);
         // Each side of the pointer lies away from it.
         for side in [-1.0f32, 1.0] {
-            s.cmds.push(Cmd::Stir { at: StirAt::Point([px + side * r * 0.5, py]), v: [side, 0.0], energy: 0.4, radius: r * 0.7, scope: area() });
+            s.cmds.push(Cmd::Stir { at: StirAt::Point([px + side * r * 0.5, py]), v: [side * PATH_FLOW, 0.0], energy: PATH_ENERGY, radius: r * 0.7, scope: area() });
         }
     }
     g.walked = now;
@@ -490,12 +506,12 @@ fn streaks(x: f32, y: f32, field: f32) -> f32 {
     18.0 * sum / norm
 }
 
-/// The field's page area: the drawing under the map's 6 s lives, the scope the gusts cross.
+/// The field's page area: the drawing under the map's 8 s lives (the path closed by 6 s), the scope the gusts cross.
 /// It is the field from the horizon down, so a gust's lag runs from the far row (0) to the near (1);
 /// the drawing inside it is the whole piece's, from its top left.
 pub fn area(field: El<Msg>, w: f32, h: f32, fit: &Fit) -> El<Msg> {
     let hz = horizon(fit, w).floor();
-    col().key(AREA).width(w).height(h - hz).absolute(Some(0.0), Some(hz), None, None).map_life(CLOSES, CLOSES).respond(Response::Ignore).pass(true)
+    col().key(AREA).width(w).height(h - hz).absolute(Some(0.0), Some(hz), None, None).map_life(LIFE, LIFE).respond(Response::Ignore).pass(true)
         .child(field.absolute(Some(0.0), Some(-hz), None, None))
 }
 

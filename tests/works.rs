@@ -471,9 +471,15 @@ fn touch_grass_moves_in_gusts_at_thirty_frames_a_second_and_is_still_between_the
     eprintln!("touch grass: {wide} instances at 1440 x 900, {phone} at 390 x 844");
     assert!(wide <= 7_500, "{wide} instances");
     assert!(phone <= 2_500, "{phone} instances on a phone");
+    // S.2 item 4: the first frame (200 ms in) has the band 72 % across, the mast in its leading half,
+    // and the sock lifted from its 55° below the horizontal.
+    grass_frames(&mut ui, 0.0, 0.2);
+    let sock = ui.state.works.grass.sock;
+    eprintln!("touch grass: the sock at {sock}° in the first frame");
+    assert!(sock < 40, "the sock at {sock}° in the first frame");
     // The first gust is under way from the first frame; between it and the second only the countdown
     // draws, once a second.
-    let first = grass_frames(&mut ui, 0.05, 5.5);
+    let first = grass_frames(&mut ui, 0.2, 5.5);
     let gap = (ui.state.works.grass.next - 0.3, ui.state.works.grass.next);
     eprintln!("first gust: {} frames, {} quiet; next gust at {:.2} s", first.0, first.1, gap.1);
     assert!(first.0 <= (5.5 * 31.0) as u32, "{} frames in 5.5 s", first.0);
