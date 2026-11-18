@@ -67,8 +67,10 @@ async function mount(stage, opts) {
     axUpdate();
     if (first && w.frames()[0] > 0) { first = false; if (opts.onFrame) opts.onFrame(); }
     if (opts.frame) opts.frame();
+    // A wait ends on an animation frame: the timer wakes a refresh early (as amenui.js does), so a frame
+    // due in one refresh (30 a second on a 60 Hz display) is drawn on that refresh and not the one after.
     if (d === 0) raf = requestAnimationFrame(loop);
-    else if (d > 0) timer = setTimeout(kick, d * 1000);
+    else if (d > 0) timer = setTimeout(kick, Math.max(0, d * 1000 - 20));
   };
   const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
   redraw.kick = kick;
