@@ -361,14 +361,12 @@ fn line_of_type(l: &Lay, c: &(Vec<(f32, f32)>, Vec<f32>), t: String, key: String
     let cells = t.chars().count().max(1);
     let adv = super::works::ADV;
     let places = place_cells(l, c, cells);
-    // The box lies across the middle of the line, so a band cropped about it keeps it in view.
-    let mid = (places.iter().map(|p| p.1).sum::<f32>() / cells as f32 - 6.0).round();
     text(t, 11.0, TYPE).font(Font::Face(amenui::text::MONO)).tracking(0.06).nowrap().key(key).recompose(false).pass(true)
         .pose(move |g| {
             let (x, y, angle) = places[((g.x / adv) as usize).min(cells - 1)];
-            Pose { dx: x - g.x, dy: y - mid - g.y, angle, ..Pose::default() }
+            Pose { dx: x - g.x, dy: y - g.y, angle, ..Pose::default() }
         })
-        .absolute(Some(0.0), Some(mid), None, None)
+        .absolute(Some(0.0), Some(0.0), None, None)
 }
 /// Where each glyph's centre is at rest, and the line's turn there (for the checks).
 pub fn places(l: &Lay) -> Vec<(f32, f32, f32)> { let c = curve(l, 0.0, FIRST_BUILD); place_cells(l, &c, line_text(l, FIRST_BUILD).chars().count()) }
