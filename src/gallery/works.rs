@@ -897,8 +897,22 @@ fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
 /// tops, and the small line's wrapping width on a phone.
 /// `strip` is the strip's top on a phone.
 struct Block { n: f32, title: f32, small: f32, lines: f32, strip: f32 }
-fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block { block_with(i, w, h, &micro(s, i)) }
-fn block_with(i: usize, w: f32, h: f32, small: &str) -> Block {
+fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block { block_with(i, w, h, &micro(s, i), &amenui::i18n::tr("works.made")) }
+/// Mono at 11 px across: `ADV` a character, a CJK one 11.66.
+fn mono_w(t: &str) -> f32 { t.chars().map(|c| if (c as u32) >= 0x2e80 { 11.66 } else { ADV }).sum() }
+/// The strip on a wide page, right-aligned 32 px in on the bottom row: its leftmost word's x, with
+/// `made` the recipe link's word(s).
+fn strip_left(i: usize, w: f32, made: &str) -> f32 {
+    let (prev, next) = ((i + COUNT - 1) % COUNT, (i + 1) % COUNT);
+    let name = |j: usize| format!("{:02} {}", j + 1, PIECES[j].title).to_uppercase();
+    let steps = mono_w(&format!("← {}", name(prev))) + 21.0 + 8.0 + 21.0 + mono_w(&format!("{} →", name(next)));
+    w - 32.0 - steps - 56.0 - mono_w(&format!("{made} ↗").to_uppercase())
+}
+/// How far the title block rises on a wide page when its small line would come within 32 px of the
+/// strip's leftmost word (X.2 item 1): one row of the strip's small type (28 px) and 8 px, so the small
+/// line has a row of its own, 8 px over the strip's. It never wraps and loses no words.
+const RISE: f32 = 28.0 + 8.0;
+fn block_with(i: usize, w: f32, h: f32, small: &str, made: &str) -> Block {
     if w < NARROW {
         let lines = (small.chars().count() as f32 * ADV / (w - 64.0)).ceil().max(1.0);
         let y_m = h - 120.0 - 14.0 * lines;
@@ -907,7 +921,8 @@ fn block_with(i: usize, w: f32, h: f32, small: &str) -> Block {
         let y_m = y_m + drop;
         Block { n: y_m - 76.0, title: y_m - 48.0, small: y_m, lines, strip: h - 100.0 + drop }
     } else {
-        Block { n: h - 132.0, title: h - 104.0, small: h - 56.0, lines: 1.0, strip: h - 64.0 }
+        let rise = if 32.0 + mono_w(small) + 32.0 > strip_left(i, w, made) { RISE } else { 0.0 };
+        Block { n: h - 132.0 - rise, title: h - 104.0 - rise, small: h - 56.0 - rise, lines: 1.0, strip: h - 64.0 }
     }
 }
 /// Where the title's ink starts below its box's top (the serif at 30 px, measured on renders).
@@ -973,7 +988,7 @@ pub(crate) fn touch_text_boxes(locale: amenui::i18n::Locale, w: f32, h: f32, sma
     let narrow = w < NARROW;
     let adv = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2e80 { 11.66 } else { ADV }).sum::<f32>();
     let line = |t: &str, x: f32, y: f32| [x, y, x + adv(t), y + 18.0];
-    let b = block_with(i, w, h, small);
+    let b = block_with(i, w, h, small, &locale.tr("works.made"));
     let (mut types, mut heads) = (vec![], vec![]);
     if number_paint_in(i, &Fit::new(w, h, PIECES[i].focus), &b).is_some() { types.push(line(PIECES[i].n, 32.0, b.n)); }
     types.push([32.0, b.title, 32.0 + 272.0, b.title + 48.0]);

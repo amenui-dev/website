@@ -202,6 +202,56 @@ fn the_index_shows_nightly_as_unbuilt_and_its_window_opens_it() {
     assert_eq!(ui.state.page, Page::Work(3), "one tap on W-04's band opens it");
 }
 
+/// X.2 item 1: from 720 to 1,440 wide, where the small line would come within 32 px of the strip's
+/// leftmost word, the title block rises (one row of the strip's small type and 8 px) and the strip keeps
+/// the bottom row. The small line is one line with every word; the clear ground goes with the block: no
+/// note of W-03's and no dash of W-04's reflection in it (W-01's stalks: `no_stalk_of_touch_grass_comes_near_its_type`).
+/// At 1440 × 900 nothing moves.
+#[test]
+fn between_720_and_1440_the_title_block_rises_clear_of_the_strip() {
+    let grow = |r: [f32; 4], d: f32| [r[0] - d, r[1] - d, r[2] + d, r[3] + d];
+    let bx = |r: [f32; 4]| [r[0], r[1], r[0] + r[2], r[1] + r[3]];
+    for (w, h, english) in [(1024u32, 768u32, true), (800, 600, true), (1440, 900, true), (1024, 768, false), (800, 600, false), (1440, 900, false)] {
+        for i in [0usize, 2, 3] {
+            let ui = if english { en(Page::Work(i as u8), w, h) } else { at(Page::Work(i as u8), w, h) };
+            let slug = works::PIECES[i].slug;
+            let n = nodes(&ui);
+            let key = |p: &str| format!("work/{slug}/{p}");
+            let node = |p: &str| n.iter().find(|t| t.key == key(p)).unwrap_or_else(|| panic!("{w}: {}", key(p)));
+            let small = node("micro");
+            let m = bx(small.rect);
+            assert!(small.rect[3] <= 18.5 && small.text.as_deref().is_some_and(|t| t.ends_with("PRESS TO RUN THE NEXT STEP") || t.contains(" · ")), "{w} {slug}: the small line is one line");
+            let strip: Vec<_> = n.iter().filter(|t| t.key.starts_with(&key("strip")) || t.key.starts_with(&key("made")) || t.key.starts_with(&key("steps")) || t.key.starts_with(&key("prev")) || t.key.starts_with(&key("next"))).collect();
+            assert!(strip.len() >= 5, "{w} {slug}: the strip");
+            let (mut dx, mut dy) = (f32::MAX, f32::MAX);
+            for b in &strip {
+                let r = bx(b.rect);
+                let (gx, gy) = ((r[0] - m[2]).max(m[0] - r[2]), (r[1] - m[3]).max(m[1] - r[3]));
+                assert!(gx >= 32.0 || gy >= 8.0, "{w}x{h} {slug}: the small line {m:?} and {} {r:?}", b.key);
+                dx = dx.min(gx); dy = dy.min(gy);
+            }
+            let rise = (h as f32 - 56.0) - small.rect[1];
+            eprintln!("{w}x{h} {} {slug}: the block rises {rise} px; the small line {dx:.0} px from the strip in x, {dy:.0} in y", if english { "en" } else { "zh-Hans" });
+            if w == 1440 { assert_eq!(rise, 0.0, "at 1440 x 900 nothing moves"); }
+            // The clear ground: the block from the number's (or the title's) ink to the small line, 24 px out.
+            let t = bx(node("title").rect);
+            let top = n.iter().find(|t| t.key == key("n")).map_or(t[1] + 12.0, |n| n.rect[1] + 5.0);
+            // (Half a pixel less: a box's width is its text's advance rounded up.)
+            let clear = grow([32.0, top, m[2].max(t[2]), m[3]], 23.5);
+            if i == 2 {
+                for note in n.iter().filter(|t| t.text.is_some() && t.key.starts_with("work/ground-truth/") && !strip.iter().any(|s| s.key == t.key) && !["n", "title", "micro"].iter().any(|p| t.key == key(p))) {
+                    assert!(!meets(bx(note.rect), clear), "{w}x{h}: {} {:?} in the block's clear ground {clear:?}", note.key, note.rect);
+                }
+            }
+            if i == 3 {
+                let dashes = ui.instances_of("work/nightly/reflection");
+                assert!(!dashes.is_empty());
+                for d in dashes { let r = [d.rect[0], d.rect[1], d.rect[0] + d.rect[2], d.rect[1] + d.rect[3]]; assert!(!meets(r, clear), "{w}x{h}: a dash {r:?} in the block's clear ground {clear:?}"); }
+            }
+        }
+    }
+}
+
 /// A label's ink box from its layout box (the type keeps its size in a smaller window).
 fn ink(r: [f32; 4]) -> [f32; 4] { if r[3] >= 18.0 { [r[0] + 1.0, r[1] + 5.0, r[0] + r[2] - 2.0, r[1] + 13.0] } else { [r[0] + 1.0, r[1] + 1.0, r[0] + r[2] - 2.0, r[1] + 10.0] } }
 fn meets(a: [f32; 4], b: [f32; 4]) -> bool { a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3] }
@@ -475,8 +525,9 @@ fn touch_grass_has_its_page_and_a_built_window_on_the_index() {
 #[test]
 fn no_stalk_of_touch_grass_comes_near_its_type() {
     let grow = |r: [f32; 4], d: f32| [r[0] - d, r[1] - d, r[0] + r[2] + d, r[1] + r[3] + d];
-    for (w, h) in [(1440, 900), (390, 844), (1024, 768)] {
-        let ui = at(Page::Work(0), w, h);
+    // At 1024 and 800 in both languages: in English the title block rises there (X.2 item 1).
+    for (w, h, english) in [(1440, 900, false), (390, 844, false), (1024, 768, false), (800, 600, false), (1024, 768, true), (800, 600, true)] {
+        let ui = if english { en(Page::Work(0), w, h) } else { at(Page::Work(0), w, h) };
         let n = nodes(&ui);
         let rect = |k: &str| n.iter().find(|n| n.key == format!("work/touch-grass/{k}")).map(|n| n.rect);
         let mut types: Vec<[f32; 4]> = ["n", "title"].iter().filter_map(|k| rect(k)).map(|r| grow(r, 24.0)).collect();
