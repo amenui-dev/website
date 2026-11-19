@@ -123,29 +123,36 @@ fn a_state_clock_wakes_once_a_second() {
 }
 
 #[test]
-fn the_labs_pieces_run_while_seen_and_stop_when_scrolled_out() {
+fn the_labs_index_rests_as_stills_and_runs_the_cell_under_the_pointer() {
     let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
     gallery::update(&mut ui.state, Msg::Go(Page::Lab));
     ui.relayout();
     let t0 = ui.now();
     run(&mut ui, t0 + 4.0);
-    // Long after any input, what is seen still steps: frames keep coming.
+    // Every piece stands at its still, and the index draws nothing with the pointer outside every cell.
+    let l = &ui.state.lab;
+    assert!(l.local.iter().all(|&t| t >= website::gallery::lab::STILL_S), "every cell at its still: {:?}", l.local);
     let t = ui.now();
-    assert!(ui.needs_frame(t + 1.0 / 60.0) || ui.moving_at(t), "seen cells run on");
+    assert_eq!(run(&mut ui, t + 5.0), 0, "the index at rest draws no frames");
+    // The pointer on a cell's piece runs it at full rate, and only it.
+    let r = ui.node("labi/contours").expect("the contours cell").rect;
+    ui.pointer_move(r.x + r.w * 0.5, r.y + r.h * 0.6);
+    let before = ui.state.lab.local;
+    let t = ui.now();
     let drawn = run(&mut ui, t + 1.0);
-    assert!(drawn > 40, "a second of living pieces draws most frames: {drawn}");
-    assert!(ui.state.lab.seen.iter().any(|&v| v) && !ui.state.lab.seen.iter().all(|&v| v), "some cells are seen, not all: {:?}", ui.state.lab.seen);
-    // Scrolled far down past every cell: nothing is seen, the page rests.
-    for _ in 0..80 { ui.wheel(700.0, 420.0, 400.0); }
+    assert!(drawn > 50, "the cell under the pointer runs at the display's rate: {drawn}");
+    let after = ui.state.lab.local;
+    let ran: Vec<usize> = (0..before.len()).filter(|&i| after[i] > before[i]).collect();
+    assert_eq!(ran, vec![1], "one cell runs: {before:?} -> {after:?}");
+    // Off it, the cell stops where it is, and the index rests again.
+    ui.pointer_move(4.0, 4.0);
     let t = ui.now();
     run(&mut ui, t + 2.0);
-    if ui.state.lab.seen.iter().all(|&v| !v) {
-        let t = ui.now();
-        assert_eq!(run(&mut ui, t + 1.0), 0, "nothing seen, nothing drawn");
-    }
-    // Reduced motion: it comes to rest.
+    let t = ui.now();
+    assert_eq!(run(&mut ui, t + 2.0), 0, "the pointer off every cell: no frames");
+    // Reduced motion: the cell under the pointer rests after its idle time.
     ui.state.lab.reduced = true;
-    for _ in 0..80 { ui.wheel(700.0, 420.0, -400.0); }
+    ui.pointer_move(r.x + r.w * 0.5, r.y + r.h * 0.6);
     let t = ui.now();
     run(&mut ui, t + 4.0);
     let t = ui.now();

@@ -236,6 +236,9 @@ async function mount(stage, opts) {
   // Reduced motion: the Lab's living pieces and the home page's idle turn rest.
   const rm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   if (rm) { w.set_reduced_motion(rm.matches); if (rm.addEventListener) rm.addEventListener('change', e => { w.set_reduced_motion(e.matches); kick(); }); }
+  // No hover (touch): the Lab index runs the cell nearest the centre.
+  const hv = window.matchMedia && w.set_hover ? window.matchMedia('(hover: hover)') : null;
+  if (hv) { w.set_hover(hv.matches); if (hv.addEventListener) hv.addEventListener('change', e => { w.set_hover(e.matches); kick(); }); }
   // A new size clears the canvas, and the observer runs after this refresh's animation frame and before
   // its paint: the frame is drawn again here, at the new size, so no refresh shows an empty canvas.
   new ResizeObserver(() => {

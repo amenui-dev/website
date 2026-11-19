@@ -141,6 +141,9 @@ mod site_exports {
     /// The texts the module has asked for since the last call, one a line, for the page to fetch.
     #[wasm_bindgen]
     pub fn wanted_texts() -> String { crate::texts::wanted().join("\n") }
+    /// Whether the pointer can hover: without (touch), the Lab index runs its centred cell.
+    #[wasm_bindgen]
+    pub fn set_hover(on: bool) { host(|s| s.ui.state.lab.coarse = !on); }
     /// The current page's path under the site's base (`components/button/`; empty for home).
     /// A piece of Works, for the page around the canvas: [the bar's tone (0 none, 1 light, 2 dark),
     /// the chrome faded (1), the piece resting (1), the status line's tone].

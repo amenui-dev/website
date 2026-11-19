@@ -1,6 +1,6 @@
 //! The Lab (DESIGN.md §5.3): a grid of small live cells, one experiment each (`examples/lab/`), in the
 //! lab's look (near-black ground, grey-white hairlines and dots, one blue accent where the pointer
-//! reaches). A cell steps only while it can be seen; an experiment's own page shows it larger with its
+//! reaches). On the index each cell rests as a still and one runs at a time; an experiment's own page shows it larger with its
 //! documentation (`docs/site/<language>/lab-<name>.md`).
 use super::{Gallery, Msg};
 use amenui::el::{El, Font, Paint, col, text};
@@ -17,12 +17,27 @@ macro_rules! cells {
     (@view $s:ident, lumen, $l:ident, $k:ident) => { $l };
     (@view $s:ident, stack, $l:ident, $k:ident) => { $k };
     (@view $s:ident, $f:ident, $l:ident, $k:ident) => { (&$s.$f) };
+    // Whether a piece's message says the pointer came onto it (`Some(true)`) or left it.
+    (@over stack, $m:ident) => { match &$m { x::stack::Msg::Deck(amenui::widgets::StackMsg::Hover(h)) => Some(h.is_some()), _ => None } };
+    (@over $f:ident, $m:ident) => { match &$m { x::$f::Msg::Point(p) => Some(p.is_some()), _ => None } };
     ($( $i:literal => $f:ident : $t:ty , $v:ident );* $(;)?) => {
         #[derive(Clone, Debug, PartialEq)]
-        pub enum LMsg { Seen(usize, bool), $( $v(<$t as Experiment>::Msg) ),* }
-        /// Every experiment's state, and which can be seen.
+        pub enum LMsg { Seen(usize, bool), /** The pointer is over cell `i`'s frame (outside its piece). */ Frame(usize, bool), $( $v(<$t as Experiment>::Msg) ),* }
+        /// Every experiment's state, its own clock, and which cell can be seen and which the pointer is on.
         #[derive(Clone, Default)]
-        pub struct Lab { pub seen: [bool; COUNT], pub until: f32, /** Whose turn it is when only some cells step. */ pub turn: usize, /** The viewer asked for reduced motion: cells rest after `IDLE_S`. */ pub reduced: bool, $( pub $f: $t ),* }
+        pub struct Lab {
+            pub seen: [bool; COUNT], pub until: f32,
+            /// The viewer asked for reduced motion: cells rest after `IDLE_S`.
+            pub reduced: bool,
+            /// Each piece's own time: it advances only while the piece runs, so a still stays where it stopped.
+            pub local: [f32; COUNT], pub last: f32,
+            /// The pointer is on the cell's frame, on its piece.
+            pub frame: [bool; COUNT], pub over: [bool; COUNT],
+            /// No hover (touch): the cell nearest the window's centre runs, `centred`, once scrolling has
+            /// rested `SETTLE_S` after `seen_t`.
+            pub coarse: bool, pub centred: Option<usize>, pub seen_t: f32,
+            $( pub $f: $t ),*
+        }
         impl Lab {
             /// Cell `i`, keyed under `key`, telling when it comes into view, `width` px wide (Lumen's
             /// text fills its stage in whole lines of that width); on the index (`index`) only its name,
@@ -33,10 +48,11 @@ macro_rules! cells {
                 let (lumen, stack) = (&lumen, &stack);
                 let mut c = match i { $( $i => cells!(@view self, $f, lumen, stack).view(key).map(Rc::new(LMsg::$v)), )* _ => col() };
                 if index { c.children.truncate(2); }
-                // A living piece moves on purpose while it is seen.
+                // A living piece moves on purpose while it runs.
                 if !self.reduced { c = c.ongoing(); }
-                // It steps while at least half of it is in the window: a point at the middle of its stage
-                // (the cell's padding, its name's line and the gap above the stage) tells when it is seen.
+                c = c.on_move(move |p| Some(LMsg::Frame(i, p.is_some())));
+                // At least half of it is in the window: a point at the middle of its stage (the cell's
+                // padding, its name's line and the gap above the stage) tells when it is seen.
                 let stage = (width - 26.0) * amenui::experiment::STAGE;
                 let mid = amenui::el::space(1.0, 1.0).key(format!("{key}/seen")).absolute(Some(width * 0.5), Some(10.0 + 14.0 + 8.0 + stage * 0.5), None, None)
                     .on_visible(move |v| Some(LMsg::Seen(i, v)));
@@ -44,27 +60,48 @@ macro_rules! cells {
                 c.child(mid).flow(format!("lab-cell-{i}"))
             }
             pub fn update(&mut self, m: LMsg, now: f32) {
-                if !matches!(m, LMsg::Seen(..)) { self.until = now + amenui::experiment::IDLE_S; }
-                match m { LMsg::Seen(i, v) => self.seen[i] = v, $( LMsg::$v(m) => self.$f.update(m, now), )* }
+                if !matches!(m, LMsg::Seen(..) | LMsg::Frame(..)) { self.until = now + amenui::experiment::IDLE_S; }
+                match m {
+                    LMsg::Seen(i, v) => if self.seen[i] != v { self.seen[i] = v; self.seen_t = now; },
+                    LMsg::Frame(i, v) => self.frame[i] = v,
+                    $( LMsg::$v(m) => { if let Some(o) = cells!(@over $f, m) { self.over[$i] = o; } self.$f.update(m, self.local[$i]) } )*
+                }
             }
-            /// Step what can be seen, every frame (the living pieces); with motion reduced only for
-            /// `IDLE_S` after input and while settling. Whether the view changed.
-            /// The pieces draw from the frame budget: when frames run over it (`budget::usage().scale` < 1),
-            /// only that share of the seen cells steps each frame, in turn, so the page's cost falls with it.
-            pub fn step(&mut self, now: f32) -> bool {
-                let live = !self.reduced || now < self.until;
-                let seen = self.seen.iter().filter(|&&v| v).count();
-                let share = ((seen as f32 * amenui::budget::usage().scale).ceil() as usize).clamp(1, COUNT);
-                let (mut c, mut k) = (false, 0usize);
-                self.turn = (self.turn + 1) % COUNT;
-                $( if self.seen[$i] && (live || self.$f.moving()) {
-                    k += 1;
-                    let mine = share >= seen || ((k - 1 + self.turn) % seen.max(1)) < share;
-                    if mine { c |= self.$f.step(now); }
+            /// The one cell that runs: the page's own, else the one under the pointer, else (touch) the
+            /// centred one.
+            fn running(&self, page: Option<usize>) -> Option<usize> {
+                page.or_else(|| (0..COUNT).find(|&i| self.frame[i] || self.over[i])).or(if self.coarse { self.centred } else { None })
+            }
+            /// The middle one of the cells in view, in page order (the one nearest the window's centre).
+            fn middle(&self) -> Option<usize> {
+                let seen: Vec<usize> = (0..COUNT).filter(|&i| self.seen[i]).collect();
+                seen.get(seen.len() / 2).copied()
+            }
+            fn ready(&self, i: usize) -> bool { i != 3 || self.grown.mask.is_some() }
+            /// Each frame: on the index, bring every piece to its still (`STILL_S` of its own time) once;
+            /// then step the one cell that runs (with motion reduced only for `IDLE_S` after input), and
+            /// any piece still settling. Whether the view changed.
+            pub fn step(&mut self, now: f32, page: Option<usize>, index: bool) -> bool {
+                let dt = (now - self.last).clamp(0.0, 0.1);
+                self.last = now;
+                let mut c = false;
+                // Grown's reaction-diffusion costs a few ms a step: its still comes over a second.
+                $( if index && self.ready($i) && self.local[$i] < STILL_S {
+                    let mut n = if $i == 3 { 4 } else { 240 };
+                    while self.local[$i] < STILL_S && n > 0 { self.local[$i] += 1.0 / 60.0; self.$f.step(self.local[$i]); n -= 1; }
+                    c = true;
                 } )*
+                if self.coarse && now - self.seen_t >= SETTLE_S { self.centred = self.middle(); }
+                let run = self.running(page).filter(|_| !self.reduced || now < self.until);
+                $( if run == Some($i) || self.$f.moving() { self.local[$i] += dt; c |= self.$f.step(self.local[$i]); } )*
                 c
             }
-            pub fn moving(&self, now: f32) -> bool { let live = !self.reduced || now < self.until; false $( || (self.seen[$i] && (live || self.$f.moving())) )* }
+            /// When the cells next need a frame.
+            pub fn wake(&self, now: f32, page: Option<usize>, index: bool) -> Option<f32> {
+                let live = !self.reduced || now < self.until;
+                let busy = (live && self.running(page).is_some()) || (index && (0..COUNT).any(|i| self.ready(i) && self.local[i] < STILL_S)) $( || self.$f.moving() )*;
+                if busy { Some(now) } else if self.coarse && self.middle() != self.centred { Some(self.seen_t + SETTLE_S) } else { None }
+            }
         }
     };
 }
@@ -94,9 +131,15 @@ pub fn fanned(d: &amenui::widgets::Stack) -> amenui::widgets::Stack {
 }
 
 pub fn update(s: &mut Gallery, m: LMsg) { let now = s.clock; s.lab.update(m, now); }
-/// Step the cells that can be seen, on the Lab and on an experiment's page.
-pub fn tick(s: &mut Gallery, t: f32) -> bool { on_lab(s) && s.lab.step(t) }
-pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (on_lab(s) && s.lab.moving(t)).then_some(t) }
+/// A piece's time at which the index shows it still (the frame the audit uses).
+pub const STILL_S: f32 = 4.0;
+/// With no hover, how long scrolling rests before the centred cell takes over.
+pub const SETTLE_S: f32 = 0.2;
+fn page_cell(s: &Gallery) -> Option<usize> { if let super::Page::Experiment(i) = s.page { Some(i as usize) } else { None } }
+/// Step the one cell that runs (Y.7): on an experiment's page its own; on the index the one under the
+/// pointer, or with no hover the one nearest the window's centre; every other cell is a still.
+pub fn tick(s: &mut Gallery, t: f32) -> bool { let (p, i) = (page_cell(s), s.page == super::Page::Lab); on_lab(s) && s.lab.step(t, p, i) }
+pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if on_lab(s) { s.lab.wake(t, page_cell(s), s.page == super::Page::Lab) } else { None } }
 /// Arriving on a Lab page starts the idle motion of what can be seen.
 pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + amenui::experiment::IDLE_S; }
 fn on_lab(s: &Gallery) -> bool { matches!(s.page, super::Page::Lab | super::Page::Experiment(_)) }
