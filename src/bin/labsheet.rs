@@ -102,7 +102,7 @@ fn decode(out: &str) {
 }
 
 /// The Body scene: eight frames (the page, gathering, the body turning, dragged, the opening, the
-/// release, the page again), one large still at 1600 × 1000 (`body-large.png`, and `body-cloud.png`),
+/// release, the page again), one large still at 1600 × 1000 (`body-large.png`),
 /// and what a frame costs with one and with three copies of the passage.
 fn body(out: &str) {
     use website::showcase::scenes::body;
@@ -127,24 +127,21 @@ fn body(out: &str) {
     frames.push(o.render(&mut u, &look));
     u.pointer_leave();
     step(&mut u, &mut t, 30);
-    u.state.update(body::Msg::Gather, t);
+    u.state.update(body::Msg::Show(1), t);
     step(&mut u, &mut t, 40); frames.push(o.render(&mut u, &look));
     step(&mut u, &mut t, 160); frames.push(o.render(&mut u, &look));
     let small: Vec<(u32, u32, Vec<u8>)> = frames.iter().map(|px| crop(px, w, h, [0, 0, w, h])).collect();
     let (sw, sh, spx) = sheet(&small, 4);
     save_png(&format!("{out}/body.png"), sw, sh, &spx);
-    // One large still of each form at 1600 × 1000, the pointer resting to one side.
+    // One large still of the stone at 1600 × 1000, the pointer resting to one side.
     let (lw, lh) = (1600u32, 1000u32);
     let mut ol = Offscreen::new(lw, lh);
-    for (form, file) in [(0u32, "body-large.png"), (1, "body-cloud.png")] {
-        let mut ul = body::ui(faces(), lw, lh, 1.0);
-        ul.state.form = form;
-        let mut t = 0.0;
-        ul.state.look_at(0.18, -0.08);
-        step(&mut ul, &mut t, 420);
-        let px = ol.render(&mut ul, &body::look(form, 1.0));
-        save_png(&format!("{out}/{file}"), lw, lh, &px);
-    }
+    let mut ul = body::ui(faces(), lw, lh, 1.0);
+    let mut lt = 0.0;
+    ul.state.look_at(0.18, -0.08);
+    step(&mut ul, &mut lt, 420);
+    let px = ol.render(&mut ul, &body::look(0, 1.0));
+    save_png(&format!("{out}/body-large.png"), lw, lh, &px);
     // The cost of a frame while it turns: one copy of the passage, and three (a taller window, so
     // every glyph is drawn: several thousand).
     for copies in [1usize] {

@@ -182,26 +182,26 @@ fn the_walk_keeps_the_clock_at_ten_frames_a_second() {
         }
         // Its clock starts at the second frame (the first one after a frame was presented).
         let ended = ended.expect("the walk ends") - 1.0 / hz;
-        assert!((ended - 6.5).abs() <= 0.15, "at {hz} Hz the walk ended at {ended:.2} s, not 6.5 ± 0.15");
+        assert!((ended - 6.85).abs() <= 0.15, "at {hz} Hz the walk ended at {ended:.2} s, not 6.85 ± 0.15");
         assert_eq!(ui.state.body.at, 4, "it lands on the body");
     }
 }
 
 #[test]
-fn the_focus_marks_leave_with_the_gather_button() {
+fn the_focus_marks_leave_when_the_walk_lands() {
     let mut ui = walk();
     let mut t = 0.0f32;
     let mut seen_before = false;
-    while t < 6.0 {
+    while t < 7.5 {
         t += 1.0 / 60.0;
         ui.tick(t);
         ui.frame_drawn();
         // The walk's clock starts at the second frame (the first one after a frame was presented).
         let w = t - 1.0 / 60.0;
-        if (4.5..4.69).contains(&w) && ui.marks_frame().is_some() { seen_before = true; }
-        if w >= 4.8 { assert!(ui.marks_frame().is_none(), "focus marks still drawn at {t:.2} s: {:?}", ui.marks_frame()); }
+        if (3.9..4.19).contains(&w) && ui.marks_frame().is_some() { seen_before = true; }
+        if w >= 7.0 { assert!(ui.marks_frame().is_none(), "focus marks still drawn at {t:.2} s: {:?}", ui.marks_frame()); }
     }
-    assert!(seen_before, "the marks frame the gather button before its press");
+    assert!(seen_before, "the marks frame GATHER before the walk takes it");
 }
 
 #[test]

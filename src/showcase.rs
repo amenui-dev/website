@@ -10,6 +10,8 @@
 #[path = "../examples/lab/kern.rs"] pub mod lab_kern;
 #[path = "../examples/lab/spring.rs"] pub mod lab_spring;
 #[path = "../examples/lab/stack.rs"] pub mod lab_stack;
+/// Body (the home page): a stone made of the text of its own file, with the file's first four lines as
+/// its console.
 #[path = "../examples/body.rs"] pub mod scene_body;
 /// The showcase scenes written as examples against the public API (DESIGN.md §6.2): name and source.
 pub mod scenes {

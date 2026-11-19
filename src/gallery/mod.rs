@@ -43,8 +43,11 @@ pub const NARROW: f32 = 720.0;
 pub const RAIL: f32 = 232.0;
 /// The height of the page's HTML navigation bar, which a scene's canvas lies under.
 pub const BAR: f32 = 48.0;
-/// A change of section's front (px/s, F.6).
-pub const SECTION_FRONT: f32 = 2_800.0;
+/// A change of page (AA.11): the old content fades out over this (ms), the new in over this, and what
+/// is the same object on both pages travels over this.
+pub const PAGE_OUT: f32 = 90.0;
+pub const PAGE_IN: f32 = 140.0;
+pub const PAGE_TRAVEL: f32 = 240.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page { Components, Widget(u8), Comp(usize), LongList, Marks(u8), Material(u8), Gaze, Style(u8), Morph, Particles, Flow, Three, Presets, Type, Demo, Scenes, Scene(u8), Body, Lab, Experiment(u8), Reader, Decode, Stirr, Works, Work(u8) }
@@ -340,11 +343,10 @@ pub struct Gallery {
     pub still: bool,
     /// The page before this one; where the pointer pressed the link of an in-app navigation (CSS px
     /// on the canvas); whether the app has been routed once (the first route is the page loading, not
-    /// a navigation); until when a change of section's front runs at its own speed.
+    /// a navigation).
     pub from: Page,
     pub pressed_at: Option<(f32, f32)>,
     pub routed: bool,
-    pub section_front: f32,
     pub clipboard: Option<String>,
     /// Which of the look strip's menus is open (0 = none).
     pub menu: u8,
@@ -374,6 +376,11 @@ pub struct Gallery {
     /// material resolution (0 = automatic).
     pub overlay: u8,
     pub quality: f32,
+    /// The page around the canvas has the HTML status line, which carries the one-line readout's
+    /// numbers: the canvas draws the full readout only (AA.6).
+    pub status_line: bool,
+    /// The palette: 0 the site's, 1 and 2 the proposed dark and light (AA.9, AA.10), for review only.
+    pub palette: u8,
     /// The input page's multi-line field.
     pub notes: TextEdit,
     /// The ten thousand rows: the selected one, and which switches were flipped from where they start.
@@ -440,11 +447,11 @@ impl Default for Gallery {
             edit: None, presses: 0, value: 42.0, text: TextEdit::default(), dialog_text: TextEdit::default(), on: true, level: 40.0,
             tab: 0, pick: 1, row: Some(2), dialog: 0, marks: std::array::from_fn(|s| mark_defaults(s as u8)), shown: demo::TREE, wipe: 0.3,
             demo: Demo::default(), width: 1280.0, height: 800.0,
-            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, still: false, from: Page::Components, pressed_at: None, routed: false, section_front: 0.0, clipboard: None,
+            shape: 0, shape_before: None, morph: MorphSpec::default(), opened: None, flow: FlowSpec::default(), cmds: vec![], locale: amenui::i18n::Locale::default(), doc_tab: 0, outline_at: 0, rail_open: None, sheet: false, stage_only: false, still: false, from: Page::Components, pressed_at: None, routed: false, clipboard: None,
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
-            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, long_pick: None, long_on: vec![],
+            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, status_line: false, palette: 0, long_pick: None, long_on: vec![],
             rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), works: works::Works::default(), navigate: None, thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
@@ -487,52 +494,39 @@ impl Gallery {
         if self.page == Page::Lab && let Page::Marks(s) = lab::family(1)[(self.lab.fam_t[1] / lab::FAMILY_S) as usize % lab::MARK_ORDER.len()] { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
         pics[STYLE_SLOT as usize] = self.style_pic;
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
-        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0], overlay_keep: false,
+        let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: if self.status_line && self.overlay == 1 { 0 } else { self.overlay }, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0], overlay_keep: false,
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
                           press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat, off: amenui::style::Off::default(), select: amenui::style::Select::default() };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
+        // The proposed palette, behind its switch: the ground, the ink and the one signal.
+        if self.palette > 0 {
+            let (ground, ink, accent, second) = crate::showcase::scenes::body::palette(self.palette);
+            l.theme = Theme { ground, ground2: ground, ink, accent, second, ..l.theme };
+        }
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
         body::look(self, &mut l);
         works::look(self, &mut l);
         // With reduced motion nothing condenses from dots: a page is at rest from its first frame.
         if self.body.reduced { l.fx.enter = 0.0; }
-        // A change of section's front, at its own speed until it has crossed the window.
-        if self.clock < self.section_front { l.fx.wave_speed = SECTION_FRONT; }
         l
-    }
-    /// The flow to page `to`: from the Lab's index to an experiment the other cells do not leave as
-    /// ghosts (the live cell is the lead; the rest closes).
-    fn flow_to(&self, to: Page) -> FlowSpec {
-        if let Some(f) = works::flow(self, self.page, to) { return f; }
-        if self.page == Page::Lab && matches!(to, Page::Experiment(_)) { FlowSpec { out_ms: 0.0, ..self.flow } } else { self.flow }
     }
     /// The title's flow id on a page: from the Components index, the pressed card's name (so it flies
     /// to the title); otherwise the one id every page title shares (it flies from page to page).
     pub fn title_flow(&self) -> String { if self.from == Page::Components { format!("card-name-{}", self.page.hash()) } else { "page-title".into() } }
-    /// What a navigation inside the running app does on the way from `from` to `to` (F.7): one lead —
-    /// a commit from the pressed point when the look changes, or the flow of the parts two pages share —
-    /// and everything else closes. With reduced motion (F.10) nothing moves: the old page fades out and
-    /// the new one in, 150 ms each, and a shared part is at its new place at once. The doors from home
-    /// take the table's fallback (front and close): a morph from the last frame flies glyphs only, so
-    /// the stage's cells cannot close into the index's cards.
+    /// What a navigation inside the running app does on the way from `from` to `to` (AA.11): one quiet
+    /// change everywhere. The old page fades out and the new one in at its place, with no looseness,
+    /// no flight and no front; only what is literally the same object on both pages (a Works window
+    /// and its piece, a Lab cell and its experiment, a Components card and its stage) travels, 240 ms.
+    /// With reduced motion it is a cut.
     fn transition(&mut self, from: Page, to: Page) {
-        let at = self.pressed_at.take();
+        self.pressed_at = None;
         if from == to { return; }
-        if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, fade_ms: 120.0, ..self.flow })); return; }
-        let (x, y) = at.unwrap_or((self.width * 0.5, BAR * 0.5));
-        let look = |p: Page| match p { Page::Body => 1, Page::Lab | Page::Experiment(_) => 2, Page::Presets => 3, Page::Style(i) => 10 + i as u32, Page::Scene(i) => 100 + i as u32, Page::Works => 4, Page::Work(i) => 200 + i as u32, _ => 0 };
-        match (from, to) {
-            // The index and its pieces: the window grows to the whole window, and back (M.5).
-            (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) => self.cmds.push(Cmd::Flow(self.flow_to(to))),
-            _ if look(from) != look(to) => {
-                if from.section() != to.section() { self.section_front = self.clock + (self.width.hypot(self.height) / SECTION_FRONT); }
-                self.cmds.push(Cmd::Commit { x, y, scope: None });
-            }
-            // Inside a section (and between sections in one look): the shared parts flow.
-            _ if from.section() == to.section() => self.cmds.push(Cmd::Flow(self.flow_to(to))),
-            _ => {}
-        }
+        if self.body.reduced { self.cmds.push(Cmd::Flow(FlowSpec { flow_ms: 0.0, flow_loose: 0.0, out_ms: 0.0, fade_ms: 1.0 })); return; }
+        let travels = matches!((from, to), (Page::Works, Page::Work(_)) | (Page::Work(_), Page::Works) | (Page::Lab, Page::Experiment(_)) | (Page::Experiment(_), Page::Lab))
+            || (from == Page::Components && matches!(to, Page::Comp(_) | Page::Widget(_)));
+        let flow_ms = if travels { PAGE_TRAVEL } else { 0.0 };
+        self.cmds.push(Cmd::Flow(FlowSpec { flow_ms, flow_loose: 0.0, out_ms: PAGE_OUT, fade_ms: PAGE_IN }));
     }
     /// Apply style preset `i`: everything at once; the theme and material switches still work after.
     pub fn apply_style(&mut self, i: usize) {
@@ -639,7 +633,7 @@ pub fn update(s: &mut Gallery, m: Msg) {
     match m {
         Msg::Go(p) => {
             // Parts the two pages share (the page title, the rail's selection) move rather than vanish.
-            if p != s.page { s.cmds.push(Cmd::Flow(s.flow_to(p))); s.from = s.page; }
+            if p != s.page { let from = s.page; s.transition(from, p); s.from = from; }
             s.page = p; s.edit = None; s.dialog = 0; s.rail_open = None; s.sheet = false;
             // A style page shows its style, a scene its own.
             s.enter(p);

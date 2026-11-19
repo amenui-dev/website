@@ -1,518 +1,388 @@
-//! The Body scene (the home page's canvas) through its own runtime: the body is made of this file's
-//! text, one glyph per cell with spaces between words; its glyph count is conserved between the
-//! listing and the body and does not follow the window; glyphs facing the viewer do not overlap; the
-//! listing fills the stage in 14 px lines cut at whole words; the body and its readouts stay in the
-//! stage at every size; a click never releases it; the address's states open at rest and the short
-//! path gathers; the rest states ask for no frames but the idle turn.
+//! The Body scene (the home page's canvas) through its own runtime (AA.12, AA.14): the file's first
+//! four lines are the console's constants and the scene's defaults; the console sits on the listing's
+//! grid inside the stage, its controls apart; the glyphs of the console's lines and of the stone are the
+//! listing's; every state rests without drawing, TURN on turns on every frame and stops; a hover or a
+//! scrub lays nothing out; the thumb is under the hand; the stone turns 1:1, tilts at most 20° and
+//! settles upright; the walk lands on time; the way back is the first frame.
 use amenui::experiment::Experiment;
 use website::showcase::scenes::body::{self, Body, Msg};
 use amenui::scene::Instance;
 use amenui::ui::Ui;
 
 fn fonts() -> Vec<amenui::text::Face> { amenui::text::load_bundled(amenui::text::ASSETS).expect("fonts") }
+/// Ticks at 60 Hz for `secs`; the frames the scene asked for.
 fn run(ui: &mut Ui<Body, Msg>, secs: f32) -> usize {
     let (mut t, end, mut drawn) = (ui.now(), ui.now() + secs, 0);
-    while t < end { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { drawn += 1; } ui.frame_drawn(); }
+    while t < end - 1e-4 { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { drawn += 1; } ui.frame_drawn(); }
     drawn
 }
-/// The glyphs drawn of the listing's text (`listing`) or of all of it (the listing and the rest).
-fn drawn(ui: &Ui<Body, Msg>, keys: &[&str]) -> Vec<Instance> { keys.iter().flat_map(|k| ui.instances_of(k)).filter(|i| i.paint[3] == amenui::scene::GLYPH).collect() }
-fn glyphs(ui: &Ui<Body, Msg>) -> Vec<Instance> { drawn(ui, &["body/text", "body/rest"]) }
-fn listing(ui: &Ui<Body, Msg>) -> Vec<Instance> { drawn(ui, &["body/text"]) }
-fn click(ui: &mut Ui<Body, Msg>, x: f32, y: f32) { ui.pointer_move(x, y); ui.press(x, y); ui.release(x, y); }
+fn at(state: &str, w: u32, h: u32) -> Ui<Body, Msg> {
+    let mut ui = body::ui(fonts(), w, h, 1.0);
+    ui.state.open(state, 0);
+    ui.relayout();
+    run(&mut ui, 0.5);
+    ui
+}
+fn glyphs(ui: &Ui<Body, Msg>, key: &str) -> Vec<Instance> { ui.instances_of(key).into_iter().filter(|i| i.paint[3] == amenui::scene::GLYPH).collect() }
+fn layouts(ui: &Ui<Body, Msg>) -> u64 { ui.counters().layouts }
+fn shaped(ui: &Ui<Body, Msg>) -> u64 { ui.counters().shaped }
+/// Everything the scene draws, as numbers (identical input gives identical instances).
+fn picture(ui: &Ui<Body, Msg>) -> Vec<u32> { ui.scene().instances.iter().flat_map(|i| i.rect.iter().chain(&i.paint).chain(&i.xf).chain(&i.extra).map(|v| v.to_bits()).collect::<Vec<_>>()).collect() }
+fn inside(a: [f32; 4], b: [f32; 4]) -> bool { a[0] >= b[0] - 0.01 && a[1] >= b[1] - 0.01 && a[2] <= b[2] + 0.01 && a[3] <= b[3] + 0.01 }
+fn apart(a: [f32; 4], b: [f32; 4], gap: f32) -> bool { a[2] + gap <= b[0] || b[2] + gap <= a[0] || a[3] + gap <= b[1] || b[3] + gap <= a[1] }
 
 #[test]
-fn the_text_is_this_file_one_glyph_a_cell() {
-    let s = body::stream(body::CHARS);
+fn the_first_four_lines_are_the_consoles_constants_and_the_scenes_defaults() {
+    let lines: Vec<&str> = body::SOURCE.lines().take(4).collect();
+    assert!(lines[0].starts_with("pub const GATHER: f32 = 1.0;"), "{}", lines[0]);
+    assert_eq!(lines[1], "pub const MATERIAL: Material = Material::Plain;");
+    assert_eq!(lines[2], "pub const TURN: bool = false;");
+    assert_eq!(lines[3], "pub const SEED: u32 = 26;");
+    let b = Body::default();
+    assert_eq!((b.gather.value, b.at), (body::GATHER, 4));
+    assert_eq!((body::MATERIALS[b.material].1, b.turn, b.seed), (body::MATERIAL, body::TURN, body::SEED));
+    assert!(!b.turn, "TURN is off by default (AA.14)");
+}
+
+#[test]
+fn the_text_is_this_file_and_its_glyphs_are_the_consoles_and_the_stones() {
+    let s = body::stream(body::CHARS, 4);
     assert!(body::SOURCE.starts_with(&s.listing), "whole lines of the file, from its start");
-    assert!(s.listing.chars().count() <= body::CHARS && body::SOURCE[s.listing.len()..].starts_with('\n'), "cut at a line end");
-    assert!(s.listing.contains("pub const CHARS"), "{} lines", s.lines);
-    // The body is made of about 2,700 cells (1,400 on a phone): the number the page reports.
-    assert!((2_600..=2_800).contains(&s.cells), "{} cells", s.cells);
-    assert!((1_300..=1_400).contains(&body::stream(body::CHARS_SMALL).cells));
-    // Words are a cell apart: consecutive glyphs of one word are in consecutive cells, and the first
-    // glyph after a space is two cells on.
-    let words: Vec<&str> = s.listing.split_whitespace().collect();
+    assert!(s.listing.contains("pub const CHARS"));
+    assert!((2_600..=2_800).contains(&s.all), "{} cells", s.all);
+    // Words are a cell apart on the stone.
+    let rest: Vec<&str> = s.listing.split('\n').skip(4).flat_map(|l| l.split_whitespace()).collect();
     let mut i = 0;
-    for w in &words {
+    for w in &rest {
         let n = w.chars().count();
         for k in 1..n { assert_eq!(s.cell[i + k], s.cell[i + k - 1] + 1, "inside {w}"); }
         if i > 0 { assert_eq!(s.cell[i], s.cell[i - 1] + 2, "before {w}"); }
         i += n;
     }
-    assert!(*s.cell.last().unwrap() < s.cells);
-    // The glyph size is the one at which the text fills the spiral, with no more than a ring to spare.
-    let em = body::em_to_fill(s.cells);
-    let room = body::spiral_count(0.62 * em, 1.45 * em);
-    assert!(room >= s.cells && room < s.cells + 60, "{room} cells for {}", s.cells);
+    // AA.12.8: the console's lines' glyphs and the stone's are the listing's.
+    let all = s.listing.chars().filter(|c| !c.is_whitespace()).count();
+    let head = s.listing.split('\n').take(4).flat_map(|l| l.chars()).filter(|c| !c.is_whitespace()).count();
+    assert_eq!(head + s.cell.len(), all);
+    let ui = at("body", 1440, 900);
+    let sh = ui.state.shown();
+    assert_eq!(sh.map.len() + sh.rest_map.len(), ui.state.stone_glyphs(), "each of the stone's glyphs once");
 }
 
 #[test]
-fn glyphs_are_conserved_and_their_count_does_not_follow_the_window() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.5);
-    let n = ui.state.glyphs();
-    let on = glyphs(&ui);
-    // Facing away glyphs are left out of the drawing, and so are those squeezed, faded or foreshortened
-    // past legibility at the rim (their cells are dots); every one is posed (none sits in the listing).
-    assert!(n > 1800, "the body is made of {n} glyphs");
-    assert!(on.len() > n / 8 && on.len() < n, "{} of {n} drawn on the body", on.len());
-    assert!(on.iter().all(|i| i.xf != [0.0; 4]), "none in the listing");
-    // Released: every glyph in the first lines is in the listing, flat.
-    ui.state.update(Msg::Gather, ui.now());
-    run(&mut ui, 4.0);
-    assert!(ui.state.flat());
-    let flat = listing(&ui);
-    assert!(flat.len() > 400 && flat.iter().all(|i| i.xf == [0.0; 4]), "{} flat", flat.len());
-    assert_eq!(flat.len(), ui.state.shown().map.len(), "every glyph of the listing is drawn");
-    // Every glyph of the file is in the listing or in the rest, once.
-    let s = ui.state.shown();
-    let mut all: Vec<usize> = s.map.iter().chain(&s.rest_map).copied().collect();
-    all.sort();
-    assert!(all == (0..body::stream(body::CHARS).cell.len()).collect::<Vec<_>>(), "each glyph of the text once");
-    // The count is the same on a wider window: the glyphs grow, their number does not.
-    let mut wide = body::ui(fonts(), 2560, 1440, 1.0);
-    run(&mut wide, 0.2);
-    assert_eq!(wide.state.glyphs(), n);
+fn the_console_is_on_the_listings_grid_inside_the_stage_and_its_controls_are_apart() {
+    for (w, h) in [(1440u32, 900u32), (1024, 768), (390, 844)] {
+        for st in ["interface", "material", "body"] {
+            let ui = at(st, w, h);
+            let b = &ui.state;
+            let s = b.stage();
+            let c = b.console();
+            assert!(inside(c.rect(), s), "{w}×{h} {st}: console {:?} in stage {s:?}", c.rect());
+            assert_eq!(c.x, s[0] + body::GUTTER, "on the listing's text column");
+            assert!((c.w / body::ADVANCE).fract() == 0.0 && c.w <= body::CONSOLE_W, "whole cells");
+            let cap = b.caption_box();
+            let boxes: Vec<[f32; 4]> = vec![c.segment(0), c.segment(1), c.segment(2), c.segment(3), c.turn(), c.seed()];
+            for (i, a) in boxes.iter().enumerate() {
+                assert!(inside(*a, c.rect()), "{w}×{h}: control {i} {a:?} in the console");
+                for bb in &boxes[i + 1..] { assert!(apart(*a, *bb, 0.0), "{w}×{h}: {a:?} and {bb:?} overlap"); }
+                assert!(apart(*a, cap, 0.0));
+            }
+            // AA.12.2: no outline within 3 px of another: the TURN frame and the SEED frame.
+            assert!(apart(c.turn_frame(), c.seed(), 3.0), "{w}×{h}");
+            // The console's tree: what the layout gave is what the console says, on whole pixels.
+            let n = ui.node("body/console").expect("the console").rect;
+            assert_eq!([n.x, n.y, n.x + n.w, n.y + n.h], c.rect(), "{w}×{h} {st}");
+            for k in ["gather", "material", "turn", "seed"] {
+                let r = ui.node(&format!("body/console/{k}")).unwrap_or_else(|| panic!("{k}")).rect;
+                for v in [r.x, r.y, r.w, r.h] { assert_eq!(v.fract(), 0.0, "{w}×{h}: {k} at {r:?}"); }
+            }
+            // No material, looseness or ripple on any part of the console.
+            let t = ui.export_tree();
+            let con = t.find("body/console").expect("console");
+            fn each(n: &amenui::tree::TreeNode, f: &mut dyn FnMut(&amenui::tree::TreeNode)) { f(n); for c in &n.children { each(c, f); } }
+            each(con, &mut |n| assert!(n.loose == 0.0 && n.ripple.is_none(), "{}: loose {} ripple {:?}", n.key, n.loose, n.ripple));
+        }
+    }
 }
 
 #[test]
-fn a_click_never_releases_it_and_a_drag_turns_it() {
+fn every_state_rests_without_drawing() {
+    // AA.12.5, AA.14 (22): 60 s at rest in each state draws nothing, TURN off.
+    for st in ["source", "interface", "material", "body"] {
+        let mut ui = at(st, 1440, 900);
+        run(&mut ui, 2.0);
+        assert!(!ui.needs_frame(ui.now() + 0.016), "{st}: a frame asked for at rest");
+        assert_eq!(run(&mut ui, 60.0), 0, "{st}: frames drawn in a minute at rest");
+    }
+    // The walk lands, arrives, and rests.
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.5);
+    ui.state.open("", 2);
+    run(&mut ui, 8.5);
+    assert_eq!(ui.state.at, 4);
+    assert_eq!(run(&mut ui, 60.0), 0, "after the walk's arrival");
+    // AA.14 (23): the stone still, two frames a second apart are the same: the dust has no clock.
+    let a = picture(&ui);
+    ui.invalidate();
+    run(&mut ui, 1.0);
+    assert!(a == picture(&ui), "the picture at rest changed");
+}
+
+#[test]
+fn identical_input_gives_identical_frames() {
+    // AA.12.3: the same chapter at 3,000, 3,016 and 4,000 ms, and two runs.
+    for st in ["interface", "material"] {
+        let mut a = body::ui(fonts(), 1440, 900, 1.0);
+        a.state.open(st, 0);
+        a.relayout();
+        run(&mut a, 3.0);
+        let p0 = picture(&a);
+        run(&mut a, 0.016);
+        assert!(p0 == picture(&a), "{st}: 3,000 → 3,016 ms");
+        run(&mut a, 0.984);
+        assert!(p0 == picture(&a), "{st}: 3,000 → 4,000 ms");
+        let mut b = body::ui(fonts(), 1440, 900, 1.0);
+        b.state.open(st, 0);
+        b.relayout();
+        run(&mut b, 3.0);
+        assert!(p0 == picture(&b), "{st}: two runs");
+    }
+}
+
+#[test]
+fn turn_on_turns_on_every_frame_and_stops_after_twenty_seconds() {
+    // AA.14 (24): with TURN on and no input, a frame on every refresh; none after 21 s.
+    let mut ui = at("body", 1440, 900);
+    ui.state.update(Msg::Turn, ui.now());
+    run(&mut ui, 1.2);
+    let yaw = ui.state.yaw;
+    assert_eq!(run(&mut ui, 5.0), 300, "every refresh while it turns");
+    assert!(ui.state.yaw > yaw + 0.5, "it turns: {yaw} → {}", ui.state.yaw);
+    run(&mut ui, 15.0);
+    assert_eq!(run(&mut ui, 5.0), 0, "it eased out after 20 s without input");
+    // Out of view nothing turns; reduced motion shows it off.
+    let mut ui = at("body", 1440, 900);
+    ui.state.update(Msg::Turn, ui.now());
+    ui.state.update(Msg::Away(true), ui.now());
+    run(&mut ui, 0.3);
+    assert_eq!(run(&mut ui, 3.0), 0, "away (after the switch's 140 ms slide)");
+    let mut ui = at("body", 1440, 900);
+    ui.state.reduced = true;
+    ui.state.update(Msg::Turn, ui.now());
+    assert!(!ui.state.turn, "reduced motion: TURN stays off");
+}
+
+#[test]
+fn a_hover_across_the_console_lays_nothing_out() {
+    // AA.12.6: a pointer move across the console: 0 layouts, 0 shapings.
+    for st in ["interface", "body"] {
+        let mut ui = at(st, 1440, 900);
+        let c = ui.state.console();
+        let (l0, s0) = (layouts(&ui), shaped(&ui));
+        let (mut x, y) = (c.x + 2.0, c.y + c.row * 1.5);
+        while x < c.x + c.w { ui.pointer_move(x, y); run(&mut ui, 1.0 / 60.0); ui.pointer_move(x, c.y + 10.0); run(&mut ui, 1.0 / 60.0); x += 9.0; }
+        assert_eq!(layouts(&ui) - l0, 0, "{st}: layouts in a hover");
+        assert_eq!(shaped(&ui) - s0, 0, "{st}: shapings in a hover");
+    }
+}
+
+#[test]
+fn the_thumb_is_under_the_hand_and_lets_go_to_the_nearer_end() {
+    // AA.12.7.
+    for (end, want) in [(0.49f32, (0.0f32, 2u8)), (0.51, (1.0, 4))] {
+        let mut ui = at("interface", 1440, 900);
+        let c = ui.state.console();
+        let (t0, t1) = c.track();
+        let travel = t1 - t0 - 8.0;
+        let y = c.y + c.row * 0.5;
+        let x0 = t0 + 4.0;
+        ui.pointer_move(x0, y);
+        ui.press(x0, y);
+        run(&mut ui, 1.0 / 60.0);
+        let l0 = layouts(&ui);
+        for k in 1..=30 {
+            let v = end * k as f32 / 30.0;
+            let x = x0 + travel * v;
+            ui.pointer_move(x, y);
+            run(&mut ui, 1.0 / 60.0);
+            assert!((ui.state.gather.value - v).abs() < 1e-3, "the gather is the thumb's value: {} for {v}", ui.state.gather.value);
+            let thumb = ui.instances_of("body/console/gather/3");
+            let cx = thumb.first().map(|i| i.rect[0] + i.rect[2] * 0.5).expect("the thumb");
+            assert!((cx - x).abs() <= 1.0, "frame {k}: thumb at {cx}, pointer at {x}");
+        }
+        assert_eq!(layouts(&ui) - l0, 0, "layouts while scrubbing");
+        ui.release(x0 + travel * end, y);
+        run(&mut ui, 3.0);
+        assert_eq!((ui.state.gather.value, ui.state.at), want, "released at {end}");
+    }
+}
+
+#[test]
+fn the_stone_turns_one_to_one_tilts_softly_and_settles_upright() {
+    let mut ui = at("body", 1440, 900);
     let (cx, cy, r) = ui.state.placement();
-    for k in 0..20 { click(&mut ui, cx + (k as f32 - 10.0) * r * 0.05, cy); run(&mut ui, 0.1); }
-    assert!(ui.state.target() >= 0.5 && ui.state.gather.value > 0.99, "still the body after 20 clicks");
-    let yaw0 = ui.state.yaw;
+    let (yaw0, pitch0) = (ui.state.yaw, ui.state.pitch);
+    // AA.12.14: a horizontal drag of R px turns it 1 rad.
     ui.pointer_move(cx, cy);
     ui.press(cx, cy);
-    for k in 1..=10 { run(&mut ui, 1.0 / 60.0); ui.pointer_move(cx + 18.0 * k as f32, cy); }
-    ui.release(cx + 180.0, cy);
-    assert!(ui.state.yaw > yaw0 + 0.4, "dragged round: {} → {}", yaw0, ui.state.yaw);
-    assert!(ui.state.target() >= 0.5, "a drag does not release");
-    run(&mut ui, 8.0);
-    assert!((ui.state.turn_rate() - ui.state.omega).abs() < 0.02, "back to the idle turn: {}", ui.state.turn_rate());
-    // At any pointer place, nothing shows in the listing: no partial words.
-    for (px, py) in [(cx, cy), (cx - r * 0.5, cy - r * 0.3), (cx + r * 0.7, cy + r * 0.2), (100.0, 100.0)] {
-        ui.pointer_move(px, py);
-        run(&mut ui, 0.4);
-        assert!(glyphs(&ui).iter().all(|i| i.xf != [0.0; 4]), "a glyph back in the listing at {px},{py}");
-    }
-    // Space releases it and gathers it again.
-    ui.focus_key("body");
-    ui.key(amenui::el::Key::Char(' '), false);
-    assert!(ui.state.target() < 0.5);
-    ui.key(amenui::el::Key::Char(' '), false);
-    assert!(ui.state.target() >= 0.5);
-}
-
-#[test]
-fn the_pointer_moves_the_lamp_not_the_view() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.3);
-    ui.state.omega = 0.0;
-    ui.state.spin = 0.0;
-    let v0 = ui.state.view();
-    let (cx, cy, r) = ui.state.placement();
-    ui.pointer_move(cx + r * 0.5, cy - r * 0.2);
+    ui.pointer_move(cx + 4.0, cy);
+    run(&mut ui, 1.0 / 60.0);
+    for k in 1..=20 { ui.pointer_move(cx + 4.0 + r * k as f32 / 20.0, cy); run(&mut ui, 1.0 / 60.0); }
+    let turned = ui.state.yaw - yaw0;
+    assert!((turned - 1.0).abs() < 0.01, "a drag of R turned {turned} rad");
+    // Held still 60 ms and let go: no inertia.
+    run(&mut ui, 0.07);
+    ui.release(cx + 4.0 + r, cy);
+    let y1 = ui.state.yaw;
     run(&mut ui, 1.0);
-    let v1 = ui.state.view();
-    assert_eq!((v0.c, v0.r, v0.pitch), (v1.c, v1.r, v1.pitch), "the view stays");
-    let l = ui.state.light();
-    assert!(l[0] > 0.2 && (l[0] - body::REST_LIGHT[0]).abs() > 0.5, "the lamp went to the pointer: {l:?}");
-}
-
-#[test]
-fn glyphs_facing_the_viewer_do_not_overlap_and_have_no_violet() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    assert!((ui.state.yaw - y1).abs() < 1e-4, "no throw after a rest: {}", ui.state.yaw - y1);
+    // A vertical drag of any length stays inside ±20°; 500 ms after release the tilt is upright.
+    ui.pointer_move(cx, cy);
+    ui.press(cx, cy);
+    for k in 1..=40 { ui.pointer_move(cx, cy + 4.0 + 40.0 * k as f32); run(&mut ui, 1.0 / 60.0); assert!((ui.state.pitch - body::REST_PITCH).abs() <= 0.35 + 1e-4, "tilt {}", ui.state.pitch); }
+    assert!((ui.state.pitch - body::REST_PITCH).abs() > 0.3, "it gave under the hand");
+    ui.release(cx, cy + 1604.0);
     run(&mut ui, 0.5);
-    // Each bright glyph as an oriented box: its centre, its turn, and the face's cell at its scale
-    // (the advance, 7 px at 11 px, by the cap height, 8 px).
-    let gs: Vec<[f32; 5]> = glyphs(&ui).into_iter().filter(|i| i.paint[2] > 0.3).map(|i| {
-        assert_eq!(i.look[1], 0.0, "glyphs are in the first colour only");
-        // `xf` is the 2 × 2 transform less the identity (`Instance::turned`).
-        let [m00, m01, m10, m11] = i.xf;
-        let (m00, m11) = (m00 + 1.0, m11 + 1.0);
-        [i.rect[0] + i.rect[2] * 0.5, i.rect[1] + i.rect[3] * 0.5, m10.atan2(m00), 7.0 * m00.hypot(m10), 8.0 * m01.hypot(m11)]
-    }).collect();
-    assert!(gs.len() > 300, "{} bright glyphs", gs.len());
-    let mut worst = 0.0f32;
-    for (i, a) in gs.iter().enumerate() {
-        for b in &gs[i + 1..] {
-            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
-            if dx.hypot(dy) > a[3].max(a[4]) + b[3].max(b[4]) { continue; }
-            // In a's frame (neighbours on a line are turned alike).
-            let (s, c) = a[2].sin_cos();
-            let (lx, ly) = (dx * c + dy * s, -dx * s + dy * c);
-            let ox = ((a[3] + b[3]) * 0.5 - lx.abs()).max(0.0);
-            let oy = ((a[4] + b[4]) * 0.5 - ly.abs()).max(0.0);
-            // Of the two boxes' summed area.
-            let o = ox.min(a[3].min(b[3])) * oy.min(a[4].min(b[4])) / (a[3] * a[4] + b[3] * b[4]).max(1.0);
-            worst = worst.max(o);
-        }
-    }
-    assert!(worst <= 0.05, "glyph boxes overlap by {:.0} % of their summed area", worst * 100.0);
-    let th = body::look(0, 1.0).theme;
-    for c in [th.accent, th.second, th.ink] { assert!(!(c[2] > c[1] + 0.2 && c[0] > c[1] + 0.1), "violet in the palette: {c:?}"); }
+    assert!((ui.state.pitch - pitch0).abs() < 0.5f32.to_radians(), "upright again: {}", ui.state.pitch);
+    // A throw slows under 0.02 rad/s and stops. AA.12.15 says within 2 s, but its own decay (±6 rad/s,
+    // τ 0.45 s) takes τ·ln(6 / 0.02) ≈ 2.57 s from the limit; the decay is kept as specified.
+    ui.pointer_move(cx, cy);
+    ui.press(cx, cy);
+    for k in 1..=10 { ui.pointer_move(cx + 30.0 * k as f32, cy); run(&mut ui, 1.0 / 60.0); }
+    ui.release(cx + 300.0, cy);
+    assert!(ui.state.turn_rate().abs() > 1.0 && ui.state.turn_rate().abs() <= body::THROW_MAX, "a throw: {}", ui.state.turn_rate());
+    run(&mut ui, body::THROW_TAU * (body::THROW_MAX / 0.02).ln() + 0.02);
+    assert!(ui.state.turn_rate().abs() < 0.02, "slowed: {}", ui.state.turn_rate());
+    assert_eq!(run(&mut ui, 3.0), 0, "and at rest");
+    // AA.12.16: the frame after a pointer move shows the stone at that move's position.
+    ui.pointer_move(cx, cy);
+    ui.press(cx, cy);
+    ui.pointer_move(cx + 10.0, cy);
+    let y = ui.state.yaw;
+    ui.pointer_move(cx + 50.0, cy);
+    assert!((ui.state.yaw - y - 40.0 / r).abs() < 1e-4, "the view follows the move it is given");
+    ui.release(cx + 50.0, cy);
 }
 
 #[test]
-fn the_body_and_its_readouts_stay_in_the_stage_at_every_size() {
-    for (w, h) in [(320u32, 600u32), (390, 844), (720, 900), (1080, 600), (1080, 900), (1440, 600), (1440, 900), (2560, 900), (2560, 1440)] {
-        let mut b = Body::default();
-        b.resize(w as f32, h as f32);
-        let st = b.stage();
-        if w >= 720 { assert!(st[0] >= b.text_box()[2] + 48.0 - 0.5, "{w}×{h}: the stage keeps 48 px from the text block"); }
-        let (cx, cy, r) = b.placement();
-        // Inside the stage, except that a middle width lets the body run off the right edge.
-        assert!(cx - r >= st[0] - 0.5 && cy - r >= st[1] - 0.5 && cy + r <= st[3] + 0.5, "{w}×{h}: the body leaves the stage");
-        if !(720..1080).contains(&w) { assert!(cx + r <= st[2] + 0.5, "{w}×{h}: the body leaves the stage on the right"); }
-        let (em, _) = body::em_for(r);
-        let px = body::em_px(r, em) * 1.33;
-        assert!(px >= 11.0 - 0.05, "{w}×{h}: glyphs at the centre are {px:.1} px");
-        b.view_in("body");
-        b.ptr = Some((cx, cy));
-        let rs = b.readouts();
-        if w >= 720 { assert!(rs.iter().any(|m| m.key == "yaw") || w < 1080, "{w}×{h}: the yaw readout"); }
-        for m in &rs {
-            let tw = body::ADVANCE * m.text.chars().count() as f32;
-            assert!(m.at.0 >= st[0] - 0.5 && m.at.0 + tw <= st[2] + 0.5, "{w}×{h}: {} at {:?}", m.text, m.at);
-            // Leaders run at 45° then level.
-            let (dx, dy) = ((m.elbow.0 - m.from.0).abs(), (m.elbow.1 - m.from.1).abs());
-            assert!((dx - dy).abs() < 0.5 && (m.to.1 - m.elbow.1).abs() < 0.01, "{w}×{h}: {} leader", m.text);
-        }
-        if w < 720 { assert!(rs.is_empty(), "no readouts on a phone"); }
-    }
-}
-
-#[test]
-fn the_listing_is_whole_lines_of_14_px_cut_at_whole_words() {
-    for h in [600u32, 784, 900] {
-        let mut ui = body::ui(fonts(), 1146, h, 1.0);
-        ui.state.open("source", 0);
-        ui.relayout();
-        run(&mut ui, 0.3);
-        let st = ui.state.stage();
-        let (rows, cols) = ui.state.grid();
-        assert_eq!(rows, (((st[3] - st[1] - 30.0) / 14.0).floor() as usize).min(body::stream(body::CHARS).lines), "{h}: lines");
-        // The caption is 16 px under the last line.
-        assert_eq!(ui.state.caption_y(), st[1] + rows as f32 * 14.0 + 16.0);
-        let s = ui.state.shown();
-        assert_eq!(s.rows, rows);
-        let full: Vec<&str> = body::SOURCE.lines().collect();
-        for (i, l) in s.text.split('\n').enumerate() {
-            assert!(l.chars().count() <= cols, "{h}: line {i} is {} cells of {cols}", l.chars().count());
-            let f = full[i].trim_end();
-            assert!(f.starts_with(l), "{h}: line {i} is the file's");
-            let next = f[l.len()..].chars().next();
-            assert!(next.is_none_or(char::is_whitespace) || l.is_empty(), "{h}: line {i} cut inside a word: {l:?}");
-        }
-        // Laid out on whole lines 14 px apart from the stage's top, and every glyph drawn on one of
-        // them (a glyph's quad is its outline's box with a margin: its centre is on its line).
-        let n = ui.node("body/text").expect("the listing").rect;
-        assert_eq!(n.y, st[1], "{h}: the listing's top");
-        let gs = listing(&ui);
-        let mut lines: Vec<i32> = gs.iter().map(|g| ((g.rect[1] + g.rect[3] * 0.5 - st[1]) / 14.0).floor() as i32).collect();
-        lines.sort();
-        lines.dedup();
-        assert!(lines.first() == Some(&0) && lines.iter().all(|&l| (l as usize) < rows), "{h}: lines {lines:?}");
-    }
-}
-
-#[test]
-fn the_address_opens_a_state_at_rest_and_the_short_path_gathers() {
+fn only_the_stone_is_reachable_and_the_address_keeps_its_seed() {
+    // AA.12.17.
     let mut b = Body::default();
     b.open("body/cloud/08", 0);
-    assert_eq!((b.form, b.seed, b.target(), b.gather.value), (1, 8, 1.0, 1.0));
-    assert_eq!(b.state(), "body/cloud/08");
+    assert_eq!((b.seed, b.at, b.state()), (8, 4, "body/08".to_owned()));
+    b.open("body/31", 0);
+    assert_eq!(b.seed, 31);
     b.open("source", 0);
     assert!(b.flat() && b.state() == "source");
     b.open("", 0);
-    assert_eq!((b.form, b.seed, b.gather.value, b.state()), (0, body::DEFAULT_SEED, 1.0, String::new()));
-    // No state: the listing first, then the short path to the body.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 1);
-    run(&mut ui, 0.4);
-    assert!(ui.state.gather.value == 0.0, "the listing for the first half second");
-    run(&mut ui, 1.2);
-    assert!(ui.state.gather.value > 0.95, "on the body by 1.6 s: {}", ui.state.gather.value);
-    // Keys: 1 the listing, 4 the body, F the form, ] the seed.
-    ui.focus_key("body");
-    ui.key(amenui::el::Key::Char('1'), false);
-    assert!(ui.state.target() < 0.5);
-    ui.key(amenui::el::Key::Char('4'), false);
-    ui.key(amenui::el::Key::Char('f'), false);
-    ui.key(amenui::el::Key::Char(']'), false);
-    assert_eq!((ui.state.target(), ui.state.form, ui.state.seed), (1.0, 1, body::DEFAULT_SEED + 1));
-    // Reduced motion: an opacity change, out then in, and no flight.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.reduced = true;
-    ui.state.open("", 1);
-    run(&mut ui, 0.05);
-    assert!(ui.state.gather.value == 0.0 && ui.state.dim() < 1.0, "fading out");
-    run(&mut ui, 0.3);
-    assert!(ui.state.gather.value == 1.0 && ui.state.dim() == 1.0 && ui.state.fade.is_none());
+    assert_eq!((b.seed, b.state()), (body::SEED, String::new()));
 }
 
 #[test]
-fn the_rest_states_ask_for_no_frames_but_the_idle_turn() {
-    let mut ui = body::ui(fonts(), 1280, 800, 1.0);
-    run(&mut ui, 1.0);
-    let yaw = ui.state.yaw;
-    assert!(run(&mut ui, 1.0) > 50, "the idle turn draws");
-    assert!(ui.state.yaw > yaw, "it turns");
-    ui.state.update(Msg::Num(3, amenui::widgets::Edit::Set(0.0)), ui.now());
-    run(&mut ui, 4.0);
-    assert_eq!(run(&mut ui, 2.0), 0, "the body without its idle turn draws nothing");
-    ui.state.update(Msg::Num(3, amenui::widgets::Edit::Set(0.16)), ui.now());
-    ui.state.reduced = true;
-    run(&mut ui, 4.0);
-    assert_eq!(run(&mut ui, 2.0), 0, "reduced motion: no turn");
-    ui.state.reduced = false;
-    ui.state.update(Msg::Gather, ui.now());
-    run(&mut ui, 4.0);
-    assert_eq!(run(&mut ui, 2.0), 0, "the listing at rest draws nothing");
-}
-
-#[test]
-fn the_glyph_readout_names_the_glyph_drawn_under_the_pointer() {
+fn the_walk_lands_on_time_and_the_way_back_is_the_first_frame() {
+    // AA.12.11: the walk lands at 6,850 ms ± 2 frames.
     let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.5);
-    let (cx, cy, r) = ui.state.placement();
-    for (px, py) in [(cx, cy), (cx - r * 0.3, cy + r * 0.2)] {
-        // A point on a glyph near there.
-        let (px, py) = (0..400).map(|k| (px + (k % 20) as f32 - 10.0, py + (k / 20) as f32 - 10.0)).find(|&(x, y)| ui.glyph_at(x, y).is_some()).expect("glyphs near the centre");
-        ui.pointer_move(px, py);
-        run(&mut ui, 0.1);
-        ui.pointer_move(px + 0.5, py);
-        run(&mut ui, 0.05);
-        let (gi, ch, at) = ui.state.glyph_under_lamp().expect("a glyph under the pointer");
-        assert!(!ch.is_whitespace());
-        assert!((at.0 - px).hypot(at.1 - py) < 14.0, "glyph {gi} `{ch}` is drawn at {at:?}, the pointer at ({px}, {py})");
+    ui.state.open("", 2);
+    let t0 = ui.now();
+    let (mut t, mut seen) = (t0, vec![]);
+    let mut landed = None;
+    while t < t0 + 9.0 {
+        t += 1.0 / 60.0;
+        ui.tick(t);
+        ui.frame_drawn();
+        if seen.last() != Some(&ui.state.at) { seen.push(ui.state.at); }
+        if landed.is_none() && ui.state.walk.is_none() && ui.state.seen { landed = Some(t - t0); }
     }
+    assert_eq!(seen, vec![1, 2, 3, 2, 4], "the states of the walk");
+    // The first frame is the clock's start (`intro_pending` waits one frame).
+    let l = landed.expect("it lands");
+    assert!((l - 6.85).abs() <= 3.0 / 60.0, "landed at {l}");
+    // AA.12.12: 04 → 01 from the rail, then the frame is body#source's at rest.
+    ui.state.update(Msg::Show(1), ui.now());
+    run(&mut ui, 4.0);
+    assert_eq!((ui.state.at, ui.state.gather.value), (1, 0.0));
+    let src = at("source", 1440, 900);
+    let (a, b) = (glyphs(&ui, "body/head"), glyphs(&src, "body/head"));
+    assert!(!a.is_empty() && a.len() == b.len() && a.iter().zip(&b).all(|(x, y)| x.rect == y.rect), "the head lines are back where body#source draws them");
+    let (a, b) = (glyphs(&ui, "body/text"), glyphs(&src, "body/text"));
+    assert!(a.len() == b.len() && a.iter().zip(&b).all(|(x, y)| x.rect == y.rect && x.xf == y.xf), "the listing is body#source's");
+    assert!(ui.node("body/console").is_some_and(|n| n.rect.w > 0.0));
 }
 
 #[test]
-fn the_short_path_sends_one_front_from_the_caret() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 1);
-    run(&mut ui, 0.1);
-    assert!(ui.state.fronted.is_none(), "not before 150 ms");
-    run(&mut ui, 0.1);
-    let at = ui.state.take_front().expect("the front at 150 ms");
-    assert_eq!(at, ui.state.caret());
-    let st = ui.state.stage();
-    assert!(at.0 > st[0] && at.0 < st[2] && at.1 > st[1] && at.1 < ui.state.caption_y(), "from the listing's end: {at:?}");
-    run(&mut ui, 2.0);
-    assert!(ui.state.take_front().is_none(), "one front");
-    // With reduced motion there is none.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.reduced = true;
-    ui.state.open("", 1);
-    run(&mut ui, 1.0);
-    assert!(ui.state.fronted.is_none());
-}
-
-#[test]
-fn a_drag_keeps_the_point_under_the_pointer_and_a_flick_slows_into_the_idle_turn() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.5);
-    let (cx, cy, r) = ui.state.placement();
-    let (x0, y0) = (cx - r * 0.2, cy - r * 0.1);
-    // A point on a glyph there, so the glyph readout names the glyph pressed.
-    let (x0, y0) = (0..400).map(|k| (x0 + (k % 20) as f32 - 10.0, y0 + (k / 20) as f32 - 10.0)).find(|&(x, y)| ui.glyph_at(x, y).is_some()).expect("a glyph");
-    ui.pointer_move(x0, y0);
-    run(&mut ui, 0.05);
-    ui.press(x0, y0);
-    let (_, _, at) = ui.state.glyph_under_lamp().expect("a glyph under the pointer");
-    let off = (at.0 - x0, at.1 - y0);
-    for k in 1..=12 {
-        let (x, y) = (x0 + 14.0 * k as f32, y0 + 5.0 * k as f32);
-        ui.pointer_move(x, y);
-        run(&mut ui, 1.0 / 60.0);
-        let (_, _, at) = ui.state.glyph_under_lamp().unwrap();
-        let miss = (at.0 - x - off.0).hypot(at.1 - y - off.1);
-        assert!(miss < 4.0, "step {k}: the pressed point is {miss:.1} px from the pointer");
-    }
-    // A flick: it keeps turning, slows, and the idle turn is back 2 s after the release, eased in.
-    ui.release(x0 + 168.0, y0 + 60.0);
-    let fast = ui.state.turn_rate();
-    assert!(fast > ui.state.omega * 3.0, "it keeps the drag's speed: {fast}");
+fn the_console_drives_the_text() {
+    let mut ui = at("interface", 1440, 900);
+    // A material: 03, the word in it.
+    ui.state.update(Msg::Material(3), ui.now());
+    assert_eq!((ui.state.at, ui.state.material), (3, 3));
     run(&mut ui, 1.2);
-    let slower = ui.state.turn_rate();
-    assert!((slower / fast - (-1.0f32).exp()).abs() < 0.05, "slows with a 1.2 s time constant: {fast} → {slower}");
-    run(&mut ui, 0.7);
-    assert_eq!(ui.state.idle, 0.0, "no idle turn within 2 s of the release");
-    run(&mut ui, 1.4);
-    assert!(ui.state.idle >= 1.0, "the idle turn eased in over a second");
+    let w = ui.node("body/word").expect("the word").rect;
+    let (k, b) = ui.state.word_box();
+    assert_eq!([w.x, w.y, w.x + w.w, w.y + w.h], b);
+    // AA.12.9: the word inside the stage, 16 px clear of the console and the caption.
+    let s = ui.state.stage();
+    assert!(inside(b, s) && apart(b, ui.state.console().rect(), 16.0) && apart(b, ui.state.caption_box(), 16.0), "word {b:?}");
+    assert_eq!(k, (0.9 * ui.state.cols() as f32 * 7.0 / 35.0).floor());
+    // Another material is a commit inside the stage; plain is 02.
+    ui.state.update(Msg::Material(1), ui.now());
+    assert!(ui.state.cmds.iter().any(|c| matches!(c, amenui::morph::Cmd::Commit { scope: Some(s), .. } if s == "body/word-box")));
+    ui.state.update(Msg::Material(0), ui.now());
+    assert_eq!((ui.state.at, ui.state.material), (2, 0));
+    // SEED steps and wraps.
+    ui.state.seed = 99;
+    ui.state.update(Msg::Seed(1), ui.now());
+    assert_eq!(ui.state.seed, 0);
+    // From 03, the thumb opens the word back into the listing first.
+    let mut ui = at("material", 1440, 900);
+    ui.state.update(Msg::Scrub(0, 0.3), ui.now());
+    assert_eq!((ui.state.at, ui.state.material), (2, 0));
 }
 
 #[test]
-fn a_click_sends_one_ring_and_the_arrows_turn_it() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    run(&mut ui, 0.5);
+fn a_click_sends_one_ring_and_the_keys_turn_it() {
+    let mut ui = at("body", 1440, 900);
     let (cx, cy, _) = ui.state.placement();
-    click(&mut ui, cx, cy);
-    assert_eq!(ui.state.rings.len(), 1, "one ring from the click");
-    run(&mut ui, 0.3);
-    let lifted = glyphs(&ui);
-    assert!(!lifted.is_empty());
-    run(&mut ui, 2.0);
-    assert!(ui.state.rings.is_empty(), "it has crossed the surface");
-    // Off the body a click sends none; with reduced motion none.
-    click(&mut ui, 40.0, 40.0);
+    ui.pointer_move(cx, cy); ui.press(cx, cy); ui.release(cx, cy);
+    assert_eq!(ui.state.rings.len(), 1);
+    run(&mut ui, 3.0);
     assert!(ui.state.rings.is_empty());
-    ui.state.reduced = true;
-    click(&mut ui, cx, cy);
-    assert!(ui.state.rings.is_empty(), "reduced motion: no ring");
-    // → turns it by 0.6 rad: at once with reduced motion, else slowing as a flick does.
-    ui.state.omega = 0.0;
+    // → turns 15° in 200 ms; 0 goes back to the opening view.
     let yaw = ui.state.yaw;
     ui.state.update(Msg::Key(amenui::el::Key::Right), ui.now());
+    run(&mut ui, 0.25);
     assert!((ui.state.yaw - yaw - body::KEY_TURN).abs() < 1e-4);
-    ui.state.reduced = false;
-    let yaw = ui.state.yaw;
-    ui.state.update(Msg::Key(amenui::el::Key::Left), ui.now());
-    run(&mut ui, 10.0);
-    assert!((yaw - ui.state.yaw - body::KEY_TURN).abs() < 0.02, "turned {}", yaw - ui.state.yaw);
-}
-
-#[test]
-fn the_bulge_lifts_and_lights_the_surface_near_the_pointer() {
-    let t = body::Touch { at: Some([0.0, 0.0, 1.0]), k: 1.0, rings: vec![] };
-    let (out, boost) = t.push([0.0, 0.0, 1.0]);
-    assert!((out - 0.07).abs() < 1e-6 && (boost - 0.25).abs() < 1e-6);
-    assert_eq!(t.push([0.0, body::BULGE, 1.0]), (0.0, 0.0), "nothing at 0.35");
-    let ring = body::Touch { at: None, k: 0.0, rings: vec![([0.0, 0.0, 1.0], 0.5)] };
-    assert!((ring.push([0.0, 0.5, 1.0]).0 - 0.05).abs() < 1e-6, "the ring lifts what it passes by 0.05");
-    assert_eq!(ring.push([0.0, 0.0, 1.0]).0, 0.0);
-    // Over the body the cursor is a hand; off it, the arrow.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.update(Msg::Key(amenui::el::Key::Char('0')), ui.now());
     run(&mut ui, 0.5);
-    let (cx, cy, _) = ui.state.placement();
-    ui.pointer_move(cx, cy);
+    assert!((ui.state.yaw - body::REST_YAW).abs() < 1e-4 && (ui.state.pitch - body::REST_PITCH).abs() < 1e-4);
+}
+
+#[test]
+fn reduced_motion_changes_state_by_opacity_and_does_not_walk() {
+    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
+    ui.state.reduced = true;
+    ui.state.open("", 2);
     run(&mut ui, 0.05);
-    assert_eq!(ui.cursor(), amenui::el::Cursor::Grab);
-    ui.pointer_move(30.0, 30.0);
-    run(&mut ui, 0.05);
-    assert_eq!(ui.cursor(), amenui::el::Cursor::Default);
-}
-
-#[test]
-fn the_walk_goes_through_the_four_states_and_a_person_takes_it_over() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 2);
-    let t0 = ui.now();
-    let at = |ui: &mut Ui<Body, Msg>, s: f32| { let d = t0 + s - ui.now(); run(ui, d); (ui.state.at, ui.state.spec.loosen, ui.state.spec.material) };
-    assert_eq!(at(&mut ui, 0.5), (1, false, 0), "the source first");
-    assert_eq!(at(&mut ui, 1.0), (2, false, 0), "the specimen from 0.7 s");
-    assert!(ui.node("body/specimen/material").is_some());
-    assert_eq!(at(&mut ui, 2.7), (3, true, 0), "Loosen pressed at 2.5 s: the card held loose, in plain");
-    assert_eq!(at(&mut ui, 3.1), (3, true, 1), "near at 2.9 s");
-    assert_eq!(at(&mut ui, 3.6), (3, true, 2), "dottr at 3.4 s");
-    assert_eq!(at(&mut ui, 4.1), (3, true, 3), "carvr at 3.9 s");
-    assert_eq!(at(&mut ui, 4.6), (3, false, 3), "Loosen off at 4.4 s: the card closes in carvr");
-    assert_eq!(at(&mut ui, 5.0).0, 4, "gathered at 4.7 s");
-    assert_eq!(at(&mut ui, 6.2), (4, false, 0), "the card, gone, is set back");
-    at(&mut ui, 6.6);
-    assert!(ui.state.walk.is_none() && ui.state.seen, "the landing state");
-    at(&mut ui, 8.0);
-    assert!(ui.state.turn_rate() > 0.1, "the idle turn eased in");
-    // A person takes over: the walk stops where it is, and plays on when asked.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 2);
-    run(&mut ui, 1.5);
-    assert_eq!(ui.state.at, 2);
-    let (x, y) = ui.node("body/specimen/loosen").unwrap().rect.center();
-    ui.pointer_move(x, y);
-    ui.press(x, y);
-    ui.release(x, y);
-    assert_eq!(ui.state.walking(), 2, "taken over");
-    assert!(ui.state.spec.loosen && ui.state.at == 3, "the press reached the switch");
-    run(&mut ui, 4.0);
-    assert_eq!((ui.state.at, ui.state.spec.material), (3, 0), "nothing more is pressed");
-    ui.state.update(Msg::Play, ui.now());
-    run(&mut ui, 4.5);
-    assert_eq!(ui.state.at, 4, "played on to the body");
-    // States 01, 02 and 03 at rest ask for no frames.
-    for st in ["source", "interface", "material"] {
-        let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-        ui.state.open(st, 0);
-        run(&mut ui, 1.0);
-        assert_eq!(run(&mut ui, 1.0), 0, "{st} at rest draws nothing");
-    }
-}
-
-#[test]
-fn skip_reaches_the_body_within_a_second() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 2);
-    run(&mut ui, 1.6);
-    assert_eq!(ui.state.at, 2);
-    ui.state.update(Msg::Skip, ui.now());
-    run(&mut ui, 1.0);
-    assert!(ui.state.at == 4 && ui.state.walk.is_none() && ui.state.seen && ui.now() >= ui.state.lands, "at the body, landed");
-}
-
-#[test]
-fn state_03_is_the_card_held_loose_and_the_rail_goes_between_02_and_03() {
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("material", 0);
-    ui.relayout();
+    assert!(ui.state.walk.is_none());
     run(&mut ui, 0.5);
-    assert_eq!((ui.state.at, ui.state.spec.loosen, ui.state.spec.material), (3, true, body::REST_MATERIAL), "loose, in its material");
-    assert!(ui.export_tree().find("body/specimen/row-Loosen/0").is_some_and(|n| n.legible) && ui.export_tree().find("body/specimen").is_some_and(|n| !n.legible), "the labels are text to read, the card's shapes are not");
-    // 03 → 02 on the rail: the card closes at once, and plain is committed a moment later.
+    assert_eq!((ui.state.at, ui.state.gather.value, ui.state.dim()), (4, 1.0, 1.0));
     ui.state.update(Msg::Show(2), ui.now());
-    ui.relayout();
-    run(&mut ui, 0.1);
-    assert_eq!((ui.state.at, ui.state.spec.loosen), (2, false), "closed at once");
-    run(&mut ui, 0.4);
-    assert_eq!(ui.state.spec.material, 0, "committed to plain");
-    // A press on Loosen reaches the switch (nothing drawn over the card takes it) and is state 03.
-    let (x, y) = ui.node("body/specimen/loosen").unwrap().rect.center();
-    click(&mut ui, x, y);
-    assert!(ui.state.spec.loosen && ui.state.at == 3, "pressed, held loose");
+    run(&mut ui, 0.05);
+    assert!(ui.state.dim() < 1.0, "fading");
+    run(&mut ui, 0.3);
+    assert_eq!((ui.state.at, ui.state.gather.value, ui.state.dim()), (2, 0.0, 1.0));
 }
 
 #[test]
-fn the_walk_gives_way_when_the_page_is_not_ready() {
-    // Not ready when the card would come: one morph to the body, the same landing.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 2);
-    ui.state.set_ready(0.5);
-    run(&mut ui, 1.0);
-    assert!(ui.state.walk.is_none() && ui.state.seen && ui.state.at == 4, "straight to the body");
-    run(&mut ui, 3.0);
-    assert!(ui.state.turn_rate() > 0.1, "the idle turn eased in");
-    // Ready for the card, not for the materials: their presses are left out, the walk still lands on time.
-    let mut ui = body::ui(fonts(), 1440, 900, 1.0);
-    ui.state.open("", 2);
-    let t0 = ui.now();
-    run(&mut ui, 2.0);
-    ui.state.set_ready(0.5);
-    let d = t0 + 4.6 - ui.now();
-    run(&mut ui, d);
-    assert_eq!((ui.state.at, ui.state.spec.material), (3, 0), "loose, no material pressed");
-    let d = t0 + 6.6 - ui.now();
-    run(&mut ui, d);
-    assert!(ui.state.at == 4 && ui.state.walk.is_none(), "landed");
-}
-
-#[test]
-fn under_360_px_the_segmented_control_ends_inside_the_card() {
-    for state in ["interface", "material"] {
-        let mut ui = body::ui(fonts(), 320, 640, 1.0);
-        ui.state.open(state, 0);
-        ui.relayout();
-        run(&mut ui, 0.5);
-        let card = ui.node("body/specimen").expect("card").rect;
-        let (l, r) = (card.x + 20.0, card.x + card.w - 20.0);
-        let c = ui.node("body/specimen/material").expect("control").rect;
-        assert!(c.x >= l && c.x + c.w <= r, "{state}: control {:?} inside the card's inner edges {l}..{r}", c);
-        for i in 0..body::SPEC_MATERIALS.len() {
-            let seg = ui.node(&format!("body/specimen/material:{i}")).expect("segment").rect;
-            assert!(seg.x >= 16.0 && seg.x + seg.w <= 320.0 - 16.0, "{state}: segment {i} {:?} at least 16 px from the window's edges", seg);
+fn the_stone_stays_in_the_stage_under_the_console_at_every_size() {
+    for (w, h) in [(320u32, 600u32), (390, 844), (720, 900), (1024, 768), (1080, 900), (1440, 900), (2560, 1440)] {
+        let mut b = Body::default();
+        b.resize(w as f32, h as f32);
+        let st = b.stage();
+        let (cx, cy, r) = b.placement();
+        assert!(cy - r >= b.room_top() - 0.5 && cy + r <= st[3] + 0.5 && cx - r >= st[0] - 0.5, "{w}×{h}: the stone leaves its room");
+        if !(720..1080).contains(&w) { assert!(cx + r <= st[2] + 0.5, "{w}×{h}: off the right"); }
+        b.view_in("body");
+        for m in b.readouts() {
+            let tw = body::ADVANCE * m.text.chars().count() as f32;
+            assert!(m.at.0 >= st[0] - 0.5 && m.at.0 + tw <= st[2] + 0.5, "{w}×{h}: {}", m.text);
         }
     }
 }

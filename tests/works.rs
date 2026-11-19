@@ -127,7 +127,7 @@ fn with_reduced_motion_ground_truth_holds_its_rest_pose() {
 
 #[test]
 fn a_window_of_the_index_grows_into_its_piece() {
-    // O.3 item 1: a Flow of 420 ms, held tight, the leaving windows out in 180 ms.
+    // AA.11 rule 5: the window travels in 240 ms with no looseness; the rest is the one fade (out 90 ms, in 140 ms).
     let mut ui = gallery::new_ui(fonts(), 1440, 824, 1.0);
     ui.pointer_leave();
     assert!(ui.state.route("works/"));
@@ -136,7 +136,7 @@ fn a_window_of_the_index_grows_into_its_piece() {
     assert!(ui.state.route("works/ground-truth/"));
     let cmds = ui.state.cmds.clone();
     ui.relayout();
-    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 420.0 && f.flow_loose == 0.0 && f.out_ms == 180.0 && f.fade_ms == 150.0), "{cmds:?}");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 240.0 && f.flow_loose == 0.0 && f.out_ms == 90.0 && f.fade_ms == 140.0), "{cmds:?}");
 }
 
 fn walk<'a>(t: &'a amenui::tree::TreeNode, out: &mut Vec<&'a amenui::tree::TreeNode>) { out.push(t); for c in &t.children { walk(c, out); } }

@@ -14,8 +14,16 @@
 /* The page around the canvas: the navigation bar, the home page's text, its stage with the source
    listing and the rail row, and the boot line. Everything here is in the first response; nothing
    blocks the first paint. */
+/* A change of page inside the canvas (AA.11): the HTML over it comes in with the canvas's new page,
+   140 ms from 70 ms. */
+@keyframes pagein { from { opacity: 0; } }
+.home .hero, .home .rail { animation: pagein 140ms linear 70ms both; }
+@media (prefers-reduced-motion: reduce) { .home .hero, .home .rail { animation: none; } }
 :root { --ground: #0c0d0e; --raised: #131517; --hairline: #24272b; --dim: #868c93; --text: #c9cbc7; --ink: #e2e3e0; --accent: #ff6b2b; --second: #4d9eff; --warn: #facc40; --halo: #5f2d18;
   --mono: "Departure Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif; --m: 32px; }
+/* The proposed palettes (AA.9, AA.10), for review only: `?palette=dark` or `?palette=light`. */
+:root[data-palette="dark"] { --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; }
+:root[data-palette="light"] { --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #e3c9b8; }
 @media (max-width: 1079px) { :root { --m: 24px; } }
 @media (max-width: 719px) { :root { --m: 16px; } }
 * { box-sizing: border-box; }
@@ -76,7 +84,7 @@ input, textarea { caret-color: var(--accent); caret-shape: block; }
 /* Cross-document view transitions (F.8): the bar holds while the page under it changes. */
 @view-transition { navigation: auto; }
 .bar { view-transition-name: bar; }
-::view-transition-group(*) { animation-duration: 180ms; }
+::view-transition-group(*) { animation-duration: 140ms; }
 @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
 /*/chrome*/
 /* The canvas: under the bar, or the whole window behind it on home and in Scenes. It draws its own
@@ -157,7 +165,9 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 @media (max-width: 719px) { .rail .st:not([aria-pressed="true"]) span { display: none; } }
 .rail .ctl { display: none; gap: 12px; align-items: center; margin-left: auto; }
 .rail .ctl b { font-weight: normal; color: var(--ink); }
-.rail.body .ctl { display: flex; }
+.rail.body .ctl { display: none; }
+/* The stone's seed is on the console; on a phone it is on the rail's second row as well. */
+@media (max-width: 719px) { .rail.body .ctl { display: flex; } }
 .rail .ctl [aria-pressed="true"] { color: var(--ink); }
 .rail .door { margin-left: auto; color: var(--text); }
 .rail.body .door { margin-left: 12px; }
@@ -254,7 +264,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   <button type="button" class="st" data-state="material" aria-pressed="false"><i>03</i><span>Material</span></button>
   <button type="button" class="st" data-state="body" aria-pressed="false"><i>04</i><span>Body</span></button>
   <span class="break"></span>
-  <span class="ctl"><button type="button" data-form="0">Rock</button><span>|</span><button type="button" data-form="1">Cloud</button><span><span class="seedw">&nbsp;Seed</span>&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
+  <span class="ctl"><span><span class="seedw">Seed</span>&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
   <a class="door" href="{{href_docs}}" data-route="docs/">docs →</a>
 </nav>
 <div class="status" data-tone="{{foot}}"><span class="quality" hidden>{{t_quality}} <button type="button" data-q="0">{{t_quality_auto}}</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="{{t_readout}}">F2</button></div>
@@ -265,6 +275,8 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
 (() => {
   const A = window.AMENUI = {{config}};
   const D = document, root = D.documentElement;
+  // The proposed palette, for review only (AA.9, AA.10).
+  { const p = new URLSearchParams(location.search).get('palette'); if (p === 'dark' || p === 'light') { root.dataset.palette = p; A.palette = p === 'dark' ? 1 : 2; } }
   const status = D.querySelector('.status');
   // One run of text (in a flex box, the spaces round a bare <b> would be dropped).
   const line = status.querySelector('.line');
@@ -308,7 +320,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   let share = 0, face = false, caret = true, queued = 0;
   // On a phone the body is made of fewer lines, as many as its radius shows at 11 px (`body::phone_table`):
   // the radius as the canvas places it, above the caption at the stage's foot.
-  const phoneLines = (w, h) => { const t = A.phone || [], r = Math.min(0.385 * w, (h - 22) * 0.5 / 1.05); const e = t.find(e => r >= e[1]) || t[t.length - 1]; return e ? e[0] : src.length; };
+  const phoneLines = (w, h) => { const t = A.phone || [], r = Math.min(0.385 * w, (h - 22 - 60) * 0.5 / 1.05); const e = t.find(e => r >= e[1]) || t[t.length - 1]; return e ? e[0] : src.length; };
   A.lines = () => { const [x0, y0, x1, y1] = A.stage(), most = innerWidth < 720 ? phoneLines(innerWidth, y1 - y0) : src.length; return [Math.min(src.length, most, Math.max(1, Math.floor((y1 - y0 - 30) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
   // The text block's optical centre (vertical): the body's centre is level with it (not on a phone,
   // where the text is under the stage).

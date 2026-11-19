@@ -62,6 +62,9 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     // The whole page's material (the look strip's material is a component stage's only).
     if let Some(m) = material { (ui.state.material, ui.state.demo.material) = (m, m); }
     if let Some(t) = theme { gallery::update(&mut ui.state, Msg::Theme(t)); }
+    // The proposed palette, for review renders only (AA.9, AA.10): `WEBSITE_PALETTE=dark` or `light`.
+    let palette = match std::env::var("WEBSITE_PALETTE").as_deref() { Ok("dark") => 1, Ok("light") => 2, _ => 0 };
+    (ui.state.palette, ui.state.body.palette) = (palette, palette);
     ui.relayout();
     let fps = gallery::works::ambient_fps(ui.state.page);
     ui.ambient_fps(fps);

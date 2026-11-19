@@ -22,23 +22,22 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     if !s.body.cmds.is_empty() { s.cmds.append(&mut s.body.cmds); changed = true; }
     changed
 }
-pub fn wake(s: &Gallery, t: f32) -> Option<f32> { (s.page == Page::Body && s.body.moving()).then_some(t) }
-/// The scene's look on its page: its form's palette on a dark ground, a bloom.
+pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if s.page == Page::Body { s.body.wake(t) } else { None } }
+/// The scene's look on its page: the palette's flat ground, a bloom.
 pub fn look(s: &Gallery, l: &mut Look) {
     if s.page != Page::Body { return; }
-    let b = scene::look(s.body.form, s.body.gather.value);
+    let b = scene::look(s.body.palette, s.body.gather.value);
     l.theme = b.theme;
     l.material = b.material;
     l.post = b.post;
     if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
-    // The F2 readout is a tool and never covers the page's chrome (H.3): its right edge on the stage's,
-    // its foot 8 px above the caption, so it stays over the stage, clear of the caption under it and of
-    // the rail and the status line under that (the framework moves a readout off text to read).
+    // The full readout is a plate inside the stage (AA.6): its right edge on the stage's, its foot 8 px
+    // above the caption, clear of the console above it and of the rail and the status line under it.
     let st = s.body.stage();
     l.overlay_at = amenui::style::Corner::BottomRight;
     l.overlay_inset = [(s.width - st[2]).max(0.0), (s.height - s.body.caption_y() + 8.0).max(0.0)];
-    // The specimen's lattice pitch (the morphs' cells too).
-    l.fx.pitch = s.body.spec.pitch;
+    // The word's lattice pitch (the morphs' cells too): a stem three units across.
+    l.fx.pitch = s.body.pitch_px();
 }
 /// A person acted: the walk stops where it is.
 pub fn heard(s: &mut Gallery) -> bool { s.page == Page::Body && s.body.heard() }
@@ -46,14 +45,14 @@ pub fn page(s: &Gallery) -> El<Msg> { s.body.view_in("body").map(Rc::new(Msg::Bo
 /// A fresh scene, sized to the window, in the stage the host gave the last one.
 pub fn fresh(s: &Gallery) -> Body {
     let mut b = Body::default();
-    (b.reduced, b.stage, b.text_centre, b.form, b.seed) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.form, s.body.seed);
+    (b.reduced, b.stage, b.text_centre, b.seed, b.palette, b.away) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.seed, s.palette, s.body.away);
     b.resize(s.width, s.height);
     b.entered = s.clock;
     b.t = s.clock;
     b
 }
-/// Keys on the Body page that no control used: 1 and 4 the states, Space and Enter between them, F the
-/// form, [ and ] the seed, ← → a turn.
+/// Keys on the Body page that no control used: 1 to 4 the states, Space and Enter between 02 and 04,
+/// [ and ] the seed, ← → a turn, 0 the opening view.
 pub fn key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     if s.page != Page::Body { return false; }
     if !Body::takes(k) { return false; }

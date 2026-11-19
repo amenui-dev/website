@@ -163,7 +163,7 @@ async function mount(stage, opts) {
   // The readout's open / compact choice outlives the page (per browser; nothing breaks without storage).
   const READOUT = 'amenui.readout';
   let readout = 0;
-  try { const v = localStorage.getItem(READOUT); if (v !== null) { w.set_readout(+v); } } catch (e) {}
+  try { const v = localStorage.getItem(READOUT); if (v !== null) { w.set_readout(+v === 2 ? 2 : 0); } } catch (e) {}
   readout = w.readout();
   const keepReadout = () => { const v = w.readout(); if (v !== readout) { readout = v; try { localStorage.setItem(READOUT, String(v)); } catch (e) {} } };
   const after = () => { sync(); syncText(); axUpdate(); clip(); keepReadout(); if (opts.after) opts.after(); kick(); };
@@ -204,7 +204,7 @@ async function mount(stage, opts) {
     // and ⌘K / Ctrl+K) are not the canvas's.
     if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
     const cmd = e.ctrlKey || e.metaKey;
-    if (e.key === 'F2' && !ours()) { e.preventDefault(); w.set_readout((w.readout() + 1) % 3); after(); return; }
+    if (e.key === 'F2' && !ours()) { e.preventDefault(); w.set_readout(w.readout() === 2 ? 0 : 2); after(); return; }
     if (!ours()) return;
     if (cmd) {
       const k = e.key.toLowerCase();
@@ -293,9 +293,7 @@ function site() {
     const st = intro ? 1 : at;
     for (const b of rail.querySelectorAll('.st')) b.setAttribute('aria-pressed', String(b.dataset.state === NAMES[st]));
     rail.classList.toggle('body', st === 4 && !intro && !playing);
-    const [form, seed] = api.w.hero_form();
-    for (const b of rail.querySelectorAll('[data-form]')) b.setAttribute('aria-pressed', String(+b.dataset.form === form));
-    rail.querySelector('.seed').textContent = String(seed).padStart(2, '0');
+    rail.querySelector('.seed').textContent = String(api.w.hero_seed()).padStart(2, '0');
     delete door.dataset.skip; delete door.dataset.play;
     if (intro || playing === 1) { door.textContent = 'skip ›'; door.dataset.skip = '1'; door.removeAttribute('href'); }
     else if (playing === 2) { door.textContent = 'continue ›'; door.dataset.play = '1'; door.removeAttribute('href'); }
@@ -316,7 +314,6 @@ function site() {
     if (b.dataset.skip) { e.preventDefault(); skip(); }
     else if (b.dataset.play || b.classList.contains('play')) { e.preventDefault(); press('play'); }
     else if (b.dataset.state) press(b.dataset.state);
-    else if (b.dataset.form) { if (+b.dataset.form !== api.w.hero_form()[0]) press('form'); }
     else if (b.dataset.seed) press(+b.dataset.seed > 0 ? 'seed+' : 'seed-');
   });
   // Esc, or a scroll of more than 8 px, skips the walk.
@@ -331,6 +328,12 @@ function site() {
     D.title = path === '' ? 'amenui' : (t ? t + ' · amenui' : 'amenui');
     place(); showRail();
   };
+  // Nothing turns by itself while the tab is hidden or less than half the stage is in view (AA.14).
+  let hidden = false, inView = true;
+  const away = () => { if (!api || !api.w.hero_press) return; api.w.hero_press(hidden || !inView ? 'hidden' : 'shown', performance.now() / 1000); api.kick(); };
+  D.addEventListener('visibilitychange', () => { hidden = D.hidden; away(); });
+  const hs = D.getElementById('hstage');
+  if (hs && window.IntersectionObserver) new IntersectionObserver(es => { for (const e of es) inView = e.intersectionRatio >= 0.5; away(); }, { threshold: [0, 0.5, 1] }).observe(hs);
   // On a phone the page scrolls under a vertical drag, except one that starts on the body: that turns it.
   D.getElementById('main').addEventListener('touchstart', e => {
     if (!api || !isHome() || e.touches.length !== 1) return;
@@ -338,7 +341,7 @@ function site() {
     if (c.length === 3 && Math.hypot(t.clientX - r.left - c[0], t.clientY - r.top - c[1]) < c[2]) e.preventDefault();
   }, { passive: false });
   const status = D.querySelector('.status'), f2 = status.querySelector('.f2'), quality = status.querySelector('.quality');
-  let running = false, lastDrawn = -1;
+  let running = false, lastDrawn = -1, lastLine = '';
   // `F2` opens the full readout (the canvas draws it over the stage's bottom right); while it is open
   // the quality choice is beside the line.
   const keepReadout = () => {
@@ -372,11 +375,13 @@ function site() {
     keepReadout();
     if (resting) { A.line(A.t.rest); return; }
     // The rate is there only while frames are being drawn; a field with nothing to report is left out.
+    // The one-line readout (AA.6): `idle` at rest, the rate and a frame's cost while frames are drawn.
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
     lastDrawn = drawn;
     const stage = api.w.stage();
-    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · ` : '') + (stage ? `<b>${stage}</b> · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`);
+    const line = `<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · <b>${c[1].toFixed(1)}</b> ms · ` : 'idle · ') + (stage ? `<b>${stage}</b> · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`;
+    if (line !== lastLine) { lastLine = line; A.line(line); }
   };
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   // The module the shell chose (`A.kind`): the WebGPU-only one where the browser has WebGPU, else the
@@ -389,6 +394,8 @@ function site() {
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };
+      if (w.set_status_line) w.set_status_line(true);
+      if (A.palette && w.set_palette) w.set_palette(A.palette);
       A.line(A.t.starting.replace('{gpu}', navigator.gpu ? 'webgpu' : 'webgl2'));
       // No state in the address: the full walk on a first visit, the short path after (and with reduced
       // motion, which plays no walk).
@@ -415,7 +422,7 @@ function site() {
       if (intro) setTimeout(() => { intro = false; showRail(); keepHash(); }, 1400);
       showRail();
       // The running line is read once, not every second.
-      setTimeout(() => { running = true; f2.hidden = false; status.querySelector('.line').setAttribute('aria-live', 'off'); keepStatus(); setInterval(keepStatus, 1000); }, 1200);
+      setTimeout(() => { running = true; f2.hidden = false; status.querySelector('.line').setAttribute('aria-live', 'off'); keepStatus(); setInterval(keepStatus, 500); }, 1200);
     },
   });
   const retry = e => {

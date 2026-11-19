@@ -190,12 +190,14 @@ mod site_exports {
     /// Open a state from the address at rest; an empty one plays the short path when `intro` is set.
     #[wasm_bindgen]
     pub fn set_hero(state: &str, walk: u8) { host(|s| { s.ui.state.body.open(state, walk); s.ui.relayout(); }); }
-    /// The rail row: `source`, `body`, `form`, `seed+`, `seed-`.
+    /// The rail row: the four states, `play`, `skip`, `seed+`, `seed-`; and `hidden` / `shown` when the
+    /// tab or the stage goes out of view and comes back (nothing turns by itself out of view).
     #[wasm_bindgen]
     pub fn hero_press(what: &str, t: f32) {
         let m = match what {
             "source" => body::Msg::Show(1), "interface" => body::Msg::Show(2), "material" => body::Msg::Show(3), "body" => body::Msg::Show(4),
-            "form" => body::Msg::Form, "seed+" => body::Msg::Seed(1), "seed-" => body::Msg::Seed(-1), "play" => body::Msg::Play, "skip" => body::Msg::Skip, _ => return,
+            "seed+" => body::Msg::Seed(1), "seed-" => body::Msg::Seed(-1), "play" => body::Msg::Play, "skip" => body::Msg::Skip,
+            "hidden" => body::Msg::Away(true), "shown" => body::Msg::Away(false), _ => return,
         };
         host(|s| { s.ui.tick(t); gallery::update(&mut s.ui.state, gallery::Msg::Body(m)); s.ui.relayout(); });
     }
@@ -207,9 +209,15 @@ mod site_exports {
     /// keyboard activation): its front starts there.
     #[wasm_bindgen]
     pub fn pressed_at(x: f32, y: f32) { host(|s| s.ui.state.pressed_at = Some((x, y))); }
-    /// The home page's form (0 rock, 1 cloud) and seed, for the rail row.
+    /// The home page's seed, for the rail row on a phone.
     #[wasm_bindgen]
-    pub fn hero_form() -> Vec<u32> { host(|s| vec![s.ui.state.body.form, s.ui.state.body.seed]).unwrap_or_default() }
+    pub fn hero_seed() -> u32 { host(|s| s.ui.state.body.seed).unwrap_or(0) }
+    /// The page has the HTML status line: it carries the one-line readout's numbers (AA.6).
+    #[wasm_bindgen]
+    pub fn set_status_line(on: bool) { host(|s| s.ui.state.status_line = on); }
+    /// The palette, for review: 0 the site's, 1 the proposed dark, 2 the proposed light (AA.9, AA.10).
+    #[wasm_bindgen]
+    pub fn set_palette(p: u8) { host(|s| { s.ui.state.palette = p.min(2); s.ui.state.body.palette = p.min(2); s.ui.relayout(); }); }
     /// The body's circle on the canvas (centre x, y and radius, CSS px), empty while it is the listing:
     /// a touch that starts inside it turns the body instead of scrolling the page.
     #[wasm_bindgen]

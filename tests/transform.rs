@@ -86,16 +86,20 @@ fn leads(cmds: &[amenui::morph::Cmd]) -> (usize, usize) {
 }
 
 #[test]
-fn a_change_of_section_commits_from_the_pressed_link_at_its_own_speed() {
+fn a_change_of_page_is_one_quiet_fade_everywhere() {
+    // AA.11: the old page out in 90 ms, the new in over 140 ms, no looseness, no front.
     let mut ui = routed("components/button/");
     let cmds = nav(&mut ui, "lab/", (300.0, -24.0));
-    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Commit { x, y, .. }] if *x == 300.0 && *y == -24.0), "{cmds:?}");
-    assert!(ui.split().is_some());
-    assert_eq!(ui.state.look().fx.wave_speed, gallery::SECTION_FRONT);
-    // Inside a section the shared parts flow, and there is no front.
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 0.0 && f.flow_loose == 0.0 && f.out_ms == gallery::PAGE_OUT && f.fade_ms == gallery::PAGE_IN), "{cmds:?}");
+    assert!(ui.split().is_none(), "no front");
+    // A Lab cell and its experiment are the same object: it travels, 240 ms, with no looseness.
     let cmds = nav(&mut ui, "lab/lumen/", (200.0, 300.0));
-    assert_eq!(leads(&cmds), (1, 0));
-    assert!(ui.flowing() > 0, "the live cell flies to its page");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == gallery::PAGE_TRAVEL && f.flow_loose == 0.0), "{cmds:?}");
+    assert!(ui.flowing() > 0, "the live cell travels to its page");
+    // From home to another section: the same quiet fade.
+    let mut ui = routed("/");
+    let cmds = nav(&mut ui, "works/", (900.0, 860.0));
+    assert_eq!(leads(&cmds), (1, 0), "{cmds:?}");
 }
 
 #[test]
@@ -104,11 +108,10 @@ fn a_card_name_flies_to_the_specimen_title_and_reduced_motion_fades() {
     let cmds = nav(&mut ui, "components/switch/", (600.0, 300.0));
     assert_eq!(leads(&cmds), (1, 0));
     assert!(ui.flowing() > 0);
-    // With reduced motion a route change is an opacity change (F.10): one flow that moves nothing and
-    // fades the old page out, no front.
+    // With reduced motion a route change is a cut (AA.11): one flow that moves and fades nothing.
     ui.state.body.reduced = true;
     let cmds = nav(&mut ui, "scenes/", (600.0, 300.0));
-    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 0.0 && f.flow_loose == 0.0 && f.out_ms > 0.0), "{cmds:?}");
+    assert!(matches!(cmds.as_slice(), [amenui::morph::Cmd::Flow(f)] if f.flow_ms == 0.0 && f.flow_loose == 0.0 && f.out_ms == 0.0), "{cmds:?}");
     // From home every door has at most one lead and one front.
     let mut ui = routed("/");
     let cmds = nav(&mut ui, "components/", (900.0, 860.0));
