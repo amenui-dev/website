@@ -181,6 +181,27 @@ fn only_a_built_piece_is_a_window_that_answers() {
     }
 }
 
+/// W.1 item 7, until a drawing has its own colours: the index shows W-04 as it shows an unbuilt piece
+/// (no widening, no live state, the arrows pass it, a 48 px band on a phone), but its window and its
+/// band are links that open its page.
+#[test]
+fn the_index_shows_nightly_as_unbuilt_and_its_window_opens_it() {
+    assert!(works::PIECES[3].built && !works::on_index(3));
+    let mut ui = at(Page::Works, 1440, 900);
+    for _ in 0..4 {
+        assert!(works::key(&mut ui.state, amenui::el::Key::Right));
+        assert_ne!(ui.state.works.wide, 3, "the arrows pass W-04");
+    }
+    gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(3, Some((500.0, 300.0)))));
+    assert_ne!(ui.state.works.wide, 3, "W-04 does not widen");
+    assert_ne!(ui.state.works.live, Some(3));
+    gallery::update(&mut ui.state, Msg::Works(works::WMsg::Open(3)));
+    assert_eq!(ui.state.page, Page::Work(3));
+    let mut ui = at(Page::Works, 390, 768);
+    gallery::update(&mut ui.state, Msg::Works(works::WMsg::Tap(3)));
+    assert_eq!(ui.state.page, Page::Work(3), "one tap on W-04's band opens it");
+}
+
 /// A label's ink box from its layout box (the type keeps its size in a smaller window).
 fn ink(r: [f32; 4]) -> [f32; 4] { if r[3] >= 18.0 { [r[0] + 1.0, r[1] + 5.0, r[0] + r[2] - 2.0, r[1] + 13.0] } else { [r[0] + 1.0, r[1] + 1.0, r[0] + r[2] - 2.0, r[1] + 10.0] } }
 fn meets(a: [f32; 4], b: [f32; 4]) -> bool { a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3] }
@@ -212,7 +233,7 @@ fn the_phone_ruler_marks_each_band_at_its_centre() {
         let band = n.iter().find(|t| t.key == format!("works/w{i}")).expect("band").rect;
         let sq = n.iter().find(|t| t.key == format!("works/ruler/p{i}")).expect("square").rect;
         assert!(((sq[1] + sq[3] * 0.5) - (band[1] + band[3] * 0.5)).abs() <= 1.0, "{i}: {sq:?} beside {band:?}");
-        assert!((band[3] - if works::PIECES[i].built { 132.0 } else { 48.0 }).abs() < 0.5, "{i}: {band:?}");
+        assert!((band[3] - if works::on_index(i) { 132.0 } else { 48.0 }).abs() < 0.5, "{i}: {band:?}");
         assert!((band[0] - 32.0).abs() < 0.5 && (band[0] + band[2] - 374.0).abs() < 0.5, "{i}: {band:?}");
     }
     assert!(!n.iter().any(|t| t.text.is_some() && t.rect[0] < 32.0 && t.key.starts_with("works/ruler")), "no hours beside the bands");

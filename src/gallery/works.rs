@@ -58,11 +58,17 @@ pub const PIECES: [Piece; COUNT] = [
     Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: true, built: true, recipe: "concepts/annotation/" },
 ];
 pub const GROUND_TRUTH: usize = 2;
-/// The first built piece in the day's order: the wide window with no pointer (N.2 item 1).
-pub fn first_built() -> usize { PIECES.iter().position(|p| p.built).unwrap_or(0) }
+/// Whether the index shows piece `i` as built. W-04 is built, but until the framework gives a drawing
+/// its own colours its window could show only its sky; the index shows it as N.2 item 1 shows an
+/// unbuilt piece, except that its window and band open it (W.1 item 7).
+pub fn on_index(i: usize) -> bool { PIECES[i].built && i != NIGHTLY }
+/// The first piece the index shows as built, in the day's order: the wide window with no pointer (N.2 item 1).
+pub fn first_built() -> usize { (0..COUNT).find(|&i| on_index(i)).unwrap_or(0) }
 /// The nearest built piece from `i` in direction `dir` (±1), round the day; none when `i` is the only one.
-pub fn step(i: usize, dir: isize) -> Option<usize> {
-    (1..COUNT as isize).map(|k| (i as isize + dir * k).rem_euclid(COUNT as isize) as usize).find(|&j| PIECES[j].built)
+/// On the index, the nearest it shows as built.
+pub fn step(i: usize, dir: isize) -> Option<usize> { step_in(i, dir, |j| PIECES[j].built) }
+fn step_in(i: usize, dir: isize, ok: impl Fn(usize) -> bool) -> Option<usize> {
+    (1..COUNT as isize).map(|k| (i as isize + dir * k).rem_euclid(COUNT as isize) as usize).find(|&j| ok(j))
 }
 /// The links a piece's page prints (its recipe), under the site's base: the build checks each resolves.
 pub fn links() -> Vec<String> { PIECES.iter().filter(|p| p.page).map(|p| format!("docs/{}", p.recipe)).collect() }
@@ -298,13 +304,14 @@ pub fn update(s: &mut Gallery, m: WMsg) {
     let now = s.clock;
     s.works.last_input = now;
     match m {
-        WMsg::Hover(i, _) if !PIECES[i].built => {}
+        WMsg::Hover(i, _) if !on_index(i) => {}
         WMsg::Hover(i, p) => {
             if p.is_some() { widen(s, i); s.works.live = Some(i); } else if s.works.live == Some(i) { s.works.live = None; }
             if i == GROUND_TRUTH { point(s, p); }
             if i == NIGHTLY { nightly::point(s, p); }
         }
         WMsg::Tap(i) | WMsg::Open(i) if !PIECES[i].built => {}
+        WMsg::Tap(i) if !on_index(i) => go(s, Page::Work(i as u8)),
         WMsg::Tap(i) => {
             if s.width < NARROW && s.works.tapped != Some(i) { s.works.tapped = Some(i); widen(s, i); s.works.live = Some(i); } else { go(s, Page::Work(i as u8)); }
         }
@@ -443,8 +450,8 @@ pub fn key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     s.works.last_input = s.clock;
     let dir = match k { Key::Left => -1, Key::Right => 1, _ => 0 };
     match (s.page, k) {
-        (Page::Works, Key::Left | Key::Right) => { if let Some(i) = step(s.works.wide, dir) { widen(s, i); s.works.live = Some(i); } true }
-        (Page::Works, Key::Enter) => { if PIECES[s.works.wide].built { go(s, Page::Work(s.works.wide as u8)); } true }
+        (Page::Works, Key::Left | Key::Right) => { if let Some(i) = step_in(s.works.wide, dir, on_index) { widen(s, i); s.works.live = Some(i); } true }
+        (Page::Works, Key::Enter) => { if on_index(s.works.wide) { go(s, Page::Work(s.works.wide as u8)); } true }
         (Page::Work(i), Key::Left | Key::Right) => { if let Some(j) = step(i as usize, dir) { go(s, Page::Work(j as u8)); } true }
         (Page::Work(_), Key::Escape) => { go(s, Page::Works); true }
         (Page::Work(_), Key::Char(' ')) => { s.works.held = !s.works.held; true }
@@ -1612,7 +1619,8 @@ fn index(s: &Gallery) -> El<Msg> {
     let mut x: f32 = 32.0;
     for (i, p) in PIECES.iter().enumerate() {
         let ww = widths[i];
-        let (wide, live) = (s.works.wide == i, s.works.live == Some(i) && p.built);
+        let shown = on_index(i);
+        let (wide, live) = (s.works.wide == i, s.works.live == Some(i) && shown);
         // The piece as it is laid out in the window, scaled to the window's height, cropped about its
         // centre of interest.
         let x0 = (crop_x(s, i, ww, pw, ph) - ww / kz * 0.5).clamp(0.0, (pw - ww / kz).max(0.0));
@@ -1620,17 +1628,19 @@ fn index(s: &Gallery) -> El<Msg> {
         let mode = if live { Mode::Live } else { Mode::Still };
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
         let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
-        if p.built {
+        if !shown && p.built {
+            win = win.on_press(Msg::Works(WMsg::Open(i))).role(Role::Link).label(p.title).unframed();
+        } else if shown {
             win = win.on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
                 .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed();
         }
         if live { win = win.child(at(live_frame(&format!("works/w{i}/frame"), ww, hh), 0.0, 0.0)); }
         root = root.child(at(win, x.round(), top.round()));
         let yb = top + hh + 18.0;
-        let title = if !p.built { unbuilt() } else if wide { Paint::INK } else { Paint::TEXT };
+        let title = if !shown { unbuilt() } else if wide { Paint::INK } else { Paint::TEXT };
         root = root.child(at(row().key(format!("works/w{i}/meta")).gap(16.0).flow(format!("work/{}/meta", p.slug))
-                .child(mono(format!("{:02}", i + 1), if wide && p.built { Paint::ACCENT } else { Paint::DIM }))
-                .child(mono(p.hour, if wide && p.built { Paint::INK } else { Paint::DIM })), x, yb))
+                .child(mono(format!("{:02}", i + 1), if wide && shown { Paint::ACCENT } else { Paint::DIM }))
+                .child(mono(p.hour, if wide && shown { Paint::INK } else { Paint::DIM })), x, yb))
             .child(at(serif(p.title, if wide { 22.0 } else { 16.0 }, if wide { 0.3 } else { 0.22 }, title)
                 .key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)), x, yb + 24.0));
         if live && wide {
@@ -1649,7 +1659,7 @@ fn live_frame(key: &str, ww: f32, hh: f32) -> El<Msg> {
 /// A ruler's square: filled (the current one in the accent), or a 1 px outline for an unbuilt piece.
 fn square(key: String, i: usize, on: bool) -> El<Msg> {
     let p = &PIECES[i];
-    if !p.built {
+    if !on_index(i) {
         let mut d = Drawing::new(6.0, 6.0);
         rect(&mut d, (0.0, 0.0, 5.0, 5.0), 1.0, Paint::INK);
         return canvas(d).key(key).width(6.0).pass(true);
@@ -1700,7 +1710,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
     let bw = w - 48.0;
     let (pw, ph) = piece_size(s);
     let kz = zoom_of(s);
-    let heights: [f32; COUNT] = std::array::from_fn(|i| if !PIECES[i].built { 48.0 } else if s.works.tapped == Some(i) { (bw * 10.0 / 16.0).round() } else { 132.0 });
+    let heights: [f32; COUNT] = std::array::from_fn(|i| if !on_index(i) { 48.0 } else if s.works.tapped == Some(i) { (bw * 10.0 / 16.0).round() } else { 132.0 });
     // A band, the gap under it, its line of number, hour and title; and the gap to the next.
     const META: f32 = 8.0 + 18.0;
     const GAP: f32 = 16.0;
@@ -1708,7 +1718,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
     let mut centres = [0.0; COUNT];
     let mut yb = 0.0;
     for (i, p) in PIECES.iter().enumerate() {
-        let open = s.works.tapped == Some(i) && p.built;
+        let open = s.works.tapped == Some(i) && on_index(i);
         let bh = heights[i];
         centres[i] = yb + bh * 0.5;
         yb += bh + META + GAP;
@@ -1730,7 +1740,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
             .child(row().key(format!("works/w{i}/meta")).height(18.0).gap(16.0).align(AlignItems::BASELINE).flow(format!("work/{}/meta", p.slug))
                 .child(mono(format!("{:02}", i + 1), if open { Paint::ACCENT } else { Paint::DIM }))
                 .child(mono(p.hour, if open { Paint::INK } else { Paint::DIM }))
-                .child(serif(p.title, 16.0, 0.22, if !p.built { unbuilt() } else if open { Paint::INK } else { Paint::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
+                .child(serif(p.title, 16.0, 0.22, if !on_index(i) { unbuilt() } else if open { Paint::INK } else { Paint::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
     }
     let len = centres[COUNT - 1] + heights[COUNT - 1] * 0.5;
     let c = col().key("works/index").fill_width().pad(16.0, 24.0).gap(16.0)
