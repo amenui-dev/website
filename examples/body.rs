@@ -93,17 +93,28 @@ pub const ROW_PHONE: f32 = 44.0;
 pub const MATERIALS: [(&str, Material); 4] = [("plain", Material::Plain), ("near", Material::Near), ("dottr", Material::Dottr), ("carvr", Material::Carvr)];
 pub const REST_MATERIAL: usize = 2;
 /// A material draws what the plain page does not where an element is loose: the word is held this
-/// loose, still (it is a picture of its name, not text to read).
+/// loose, still (it is a picture of its name, not text to read). dottr's units keep the word's lattice
+/// up to half loose, so its word is held at half.
 pub const WORD_LOOSE: f32 = 0.7;
+pub const WORD_LOOSE_DOTS: f32 = 0.5;
 /// The morphs' cells: at most this many (desktop, phone), each flying once this much of it is ink,
 /// departures spread over this share of the flight.
 pub const MORPH_CELLS: (f32, f32) = (12_000.0, 6_000.0);
 pub const MORPH_THRESHOLD: f32 = 0.02;
 pub const MORPH_STAGGER: f32 = 0.15;
-/// The morphs (loosen, flight, tighten in ms): the head lines into the console, and the listing into
-/// the word or the stone.
-pub const MORPH_CONSOLE: (f32, f32, f32) = (120.0, 200.0, 100.0);
+/// The morph (loosen, flight, tighten in ms) of the listing into the word and back.
 pub const MORPH_SHORT: (f32, f32, f32) = (160.0, 560.0, 220.0);
+/// The head lines closing into the console (ms): the words both show fly whole for `FLY`; the rest of
+/// the lines fades out where it stands by `GONE`; the controls' own ink comes in over `INK`; the console
+/// is live at `LIVE`. Opening runs it backwards from the end of `INK`.
+pub const FLY: f32 = 200.0;
+pub const GONE: f32 = 120.0;
+pub const INK: (f32, f32) = (100.0, 320.0);
+pub const LIVE: f32 = 420.0;
+/// 04 → 01: the console opens once the gather falls under this, and the gather lands with it.
+pub const UNFOLD_AT: f32 = 0.15;
+/// The commit across the word (px/s).
+pub const COMMIT_SPEED: f32 = 1_600.0;
 /// The intro's version: the page remembers it once the landing state is reached or the intro skipped.
 pub const INTRO_VERSION: u32 = 1;
 /// How the text is drawn on the form: nothing turned away, glyphs fading out from facing 0.5 (gone at
@@ -248,7 +259,7 @@ impl Console {
     pub fn track(&self) -> (f32, f32) { (self.x + 10.0 * ADVANCE, self.x + self.w - 48.0) }
     /// MATERIAL's segment `i`: eight cells (56 × 20 px), or a quarter of a narrower console.
     pub fn segment(&self, i: usize) -> [f32; 4] {
-        let sw = if self.w < 320.0 { (self.w / 4.0).floor() } else { 8.0 * ADVANCE };
+        let sw = if self.w < 400.0 { (self.w / 4.0).floor() } else { 8.0 * ADVANCE };
         let x0 = if self.fit == Fit::Wide { self.x + 10.0 * ADVANCE } else { self.x };
         let y = self.row_y(1) + ((self.row - 20.0) * 0.5).round();
         let x = x0 + sw * i as f32;
@@ -315,8 +326,10 @@ pub struct Body {
     /// The state (1 source, 2 interface, 3 material, 4 body), the one before it, and when the morphs
     /// between them land (the stone's drawings wait for them).
     pub at: u8, pub was: u8, pub lands: f32,
-    /// The console opens into its lines once the gather has landed at the listing (04 → 01).
-    pub unfold: bool,
+    /// The console opens into its lines once the gather falls under `UNFOLD_AT` (04 → 01); the head
+    /// lines closing into the console or opening from it (start, closing); the gather's last stretch
+    /// home while it opens (start, value then).
+    pub unfold: bool, pub fold: Option<(f32, bool)>, pub drop: Option<(f32, f32)>,
     /// The intro (the full walk): when it started and the steps still to come; a person took over.
     pub walk: Option<(f32, Vec<(f32, Step)>)>, pub taken: bool,
     /// The first frame plays the full walk; it has been seen; steps at a time outside the walk; the
@@ -364,7 +377,7 @@ impl Default for Body {
             ptr: None, under: None, over: false, touch_at: None, bulge: Animated::new(0.0, LAMP), rings: vec![], lamp: [lamp(REST_LIGHT[0]), lamp(REST_LIGHT[1]), lamp(REST_LIGHT[2])],
             grab: None, dragged: false, clicked: f32::NEG_INFINITY, samples: vec![], motes: vec![], made: 0,
             hover: None, turned_at: f32::NEG_INFINITY, flash: f32::NEG_INFINITY,
-            at, was: at, lands: 0.0, unfold: false, walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
+            at, was: at, lands: 0.0, unfold: false, fold: None, drop: None, walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
             size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, palette: 0, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, ready: 1.0, flight: (0, 0.0), cache: Rc::default(),
         }
@@ -550,7 +563,7 @@ pub fn lit(l: [f32; 3], p: [f32; 3], n: [f32; 3]) -> f32 {
 /// proposed one (`neutral`): from dim to ink by the light, the accent only above 0.8 and at most 35 %
 /// of the way to it. The opacity has a high floor and a short range: it keeps the text legible.
 pub fn lit_paint(l: f32, neutral: bool) -> Paint {
-    if neutral { return Paint { tone: 0.66 + 0.34 * l, accent: 0.35 * ((l - 0.8) / 0.2).clamp(0.0, 1.0), alpha: 0.70 + 0.30 * l, hue: 0 }; }
+    if neutral { let u = ((l - 0.8) / 0.2).clamp(0.0, 1.0); return Paint { tone: 0.66 + 0.34 * l, accent: 0.35 * u * u * (3.0 - 2.0 * u), alpha: 0.70 + 0.30 * l, hue: 0 }; }
     let accent = if l <= 0.5 { 1.0 } else { 1.0 - 0.85 * (l - 0.5) / 0.5 };
     Paint { tone: 1.0, accent, alpha: 0.70 + 0.30 * l, hue: 0 }
 }
@@ -662,10 +675,12 @@ pub fn phone_chars(radius_px: f32) -> usize {
     let t = phone_table();
     t.iter().find(|e| radius_px >= e.2).or(t.last()).map_or(CHARS_PHONE, |e| e.0)
 }
-/// The word of 03: its size multiple `k` for a listing `width` px wide (the largest whole number with
-/// five cells of `7k` in 90 % of it), and the material lattice's pitch for it (a stem is three units).
-pub fn word_k(width: f32) -> f32 { (0.9 * width / (5.0 * ADVANCE)).floor().max(1.0) }
-pub fn word_pitch(k: f32) -> f32 { (k / 3.0).round().clamp(3.0, 8.0) }
+/// The word of 03: a stem (one pixel of the face, `k` px) is `n` lattice units across, 3 when the
+/// fitting size multiple is 9 or more, else 2; `k` is the largest multiple of `n` with five cells of
+/// `7k` in 90 % of a listing `width` px wide, and the lattice's pitch is `k / n` exactly.
+pub fn word_units(width: f32) -> f32 { if (0.9 * width / (5.0 * ADVANCE)).floor() >= 9.0 { 3.0 } else { 2.0 } }
+pub fn word_k(width: f32) -> f32 { let n = word_units(width); ((0.9 * width / (5.0 * ADVANCE)).floor() / n).floor().max(1.0) * n }
+pub fn word_pitch(k: f32) -> f32 { if k >= 9.0 { k / 3.0 } else { (k / 2.0).max(1.0) } }
 
 impl Body {
     /// At rest in the listing.
@@ -682,7 +697,7 @@ impl Body {
     pub fn look_at(&mut self, x: f32, y: f32) { let (w, h) = self.size; self.point_lamp(Some(((x + 0.5) * w, (y + 0.5) * h))); }
     fn set_now(&mut self, st: u8) {
         self.gather = Animated::new(if st == 4 { 1.0 } else { 0.0 }, GATHER_SPRING);
-        (self.fade, self.intro_pending, self.intro_at, self.unfold, self.scrub) = (None, false, None, false, None);
+        (self.fade, self.intro_pending, self.intro_at, self.unfold, self.scrub, self.fold, self.drop) = (None, false, None, false, None, None, None);
         (self.at, self.was, self.lands, self.walk, self.settle) = (st, st, 0.0, None, None);
         if st != 3 { self.material = 0; } else if self.material == 0 { self.material = REST_MATERIAL; }
     }
@@ -695,7 +710,14 @@ impl Body {
         match parts.next().unwrap_or("") {
             "source" => self.set_now(1),
             "interface" => self.set_now(2),
-            "material" => self.set_now(3),
+            "material" => {
+                // `material/near` and the like open 03 in that material (`material/plain` too: the word
+                // in the listing's own ink).
+                let pick = parts.next().and_then(|n| MATERIALS.iter().position(|m| m.0 == n));
+                if let Some(i) = pick { self.material = i; }
+                self.set_now(3);
+                if let Some(i) = pick { self.material = i; }
+            }
             "body" => {
                 if let Some(n) = parts.filter_map(|n| n.parse::<u32>().ok()).next_back() { self.seed = n.min(99); }
                 self.set_now(4);
@@ -732,6 +754,24 @@ impl Body {
         self.cmds.push(amenui::morph::Cmd::Morph { from: format!("{KEY}/{from}"), to: format!("{KEY}/{to}"), spec });
         self.lands = self.lands.max(now + (m.0 + m.1 + m.2) / 1000.0);
     }
+    /// The head lines close into the console (`closing`) or open from it, from where a fold under way is.
+    fn fold_now(&mut self, closing: bool, now: f32) {
+        // Turned round mid-way, it goes back from the same picture.
+        let at = self.fold_ms().unwrap_or(if closing { 0.0 } else { INK.1 });
+        let t0 = if closing { now - at / 1000.0 } else { now - (INK.1 - at.min(INK.1)) / 1000.0 };
+        self.fold = Some((t0, closing));
+        self.lands = self.lands.max(if closing { t0 + LIVE / 1000.0 } else { t0 + INK.1 / 1000.0 });
+    }
+    /// Where a fold of the head lines is, as the time (ms) of the closing it shows; none at rest.
+    pub fn fold_ms(&self) -> Option<f32> {
+        let (t0, closing) = self.fold?;
+        let u = (self.t - t0) * 1000.0;
+        if closing { (u < LIVE).then_some(u.max(0.0)) } else { (u < INK.1).then_some((INK.1 - u).max(0.0)) }
+    }
+    /// The word is opening into the flat listing (03 → 01 or 02), which shows once it has landed.
+    fn opening_word(&self) -> bool { self.was == 3 && matches!(self.at, 1 | 2) && self.t < self.lands }
+    /// The head lines are on the stage, at rest: 01, the console not on its way.
+    fn head_at_rest(&self) -> bool { self.shown_state() == 1 && !self.unfold && self.fold_ms().is_none() }
     /// The gather to `to` by its spring (from where it is, at its speed).
     fn spring(&mut self, to: f32, now: f32) { if (self.gather.target - to).abs() > 1e-6 || self.gather.value != to { let v = self.gather.velocity; self.gather.to(to, v, now); } }
     /// To state `to` (1 to 4). The console closes from and opens into the head lines (01 ↔ the rest);
@@ -742,26 +782,33 @@ impl Body {
         (self.intro_pending, self.intro_at) = (false, None);
         let from = self.at;
         if to == from { if to == 4 { self.spring(1.0, now); } return; }
-        (self.was, self.at, self.changed, self.unfold, self.scrub) = (from, to, now, false, None);
+        (self.was, self.at, self.changed, self.unfold, self.scrub, self.drop) = (from, to, now, false, None, None);
         self.settle = None;
+        // A chapter changed by a person takes the focus off the controls with it; the walk keeps its own.
+        if self.walk.is_none() { self.cmds.push(amenui::morph::Cmd::ClearFocus); }
         if to == 3 { if self.material == 0 { self.material = REST_MATERIAL; } } else { self.material = 0; }
         if to == 4 && self.walk.is_some() {
             // In the walk the stone is held still while it lands, the lamp behind it, until the walk
-            // turns the lamp on.
+            // turns the lamp on; it lands turned back by the arrival's turn, which ends on the opening view.
             self.lamp = [-0.2, 0.3, -2.5].map(|v| Animated::new(v, LAMP));
             (self.spin, self.idle, self.ease) = (0.0, 0.0, None);
+            (self.yaw, self.pitch) = (REST_YAW - ARRIVE.0, REST_PITCH);
+            self.tilt.hold(REST_PITCH);
         }
         if self.reduced { self.fade = Some((now, FADE)); return; }
         self.lands = now;
-        // The console.
-        if from == 1 { self.morph("head", "console", MORPH_CONSOLE, now); }
-        if to == 1 && from != 4 { self.morph("console", "head", MORPH_CONSOLE, now); self.cmds.push(amenui::morph::Cmd::ClearFocus); }
+        // The console closes from the head lines, or opens into them (from the stone, once it has nearly landed).
+        if from == 1 { self.fold_now(true, now); }
+        if to == 1 && from != 4 { self.fold_now(false, now); }
         // The word.
+        // The morph's other end is a never-drawn copy outside the piece where it can be, so the piece
+        // stays a stage the governor can scale: the listing as it lies flat (`flat`), or the stone's text
+        // as it stands (`ghost`) as an end; from the stone it is the stone's own text (see `view_in`).
         if from == 3 {
-            self.morph("word", "text", MORPH_SHORT, now);
+            self.morph("word", if to == 4 { "ghost" } else { "flat" }, MORPH_SHORT, now);
             if to == 4 { self.gather = Animated::new(1.0, GATHER_SPRING); }
         } else if to == 3 {
-            self.morph("text", "word", MORPH_SHORT, now);
+            self.morph(if from == 4 { "text" } else { "flat" }, "word", MORPH_SHORT, now);
             if from == 4 { self.settle = Some((self.lands, 0.0)); }
         }
         // The gather between the listing and the stone.
@@ -953,6 +1000,10 @@ impl Body {
     pub fn light(&self) -> [f32; 3] { [self.lamp[0].value, self.lamp[1].value, self.lamp[2].value] }
     /// The proposed palette's neutral stone.
     fn neutral(&self) -> bool { self.palette > 0 }
+    /// The proposed light scheme: the stone on paper is as firm as the word, the far side not fogged
+    /// toward the ground.
+    fn paper(&self) -> bool { self.palette == 2 }
+    fn form_fx(&self) -> FormFx { if self.paper() { FormFx { fog: 1.0, ..FORM_FX } } else { FORM_FX } }
     /// Fill the cache for the current seed, text and console.
     fn ensure(&self) {
         let (chars, head) = (self.chars(), self.console().lines);
@@ -992,15 +1043,35 @@ impl Body {
         let s = self.stage();
         let lw = self.cols() as f32 * ADVANCE;
         let k = word_k(lw);
-        let (ww, wh) = (5.0 * ADVANCE * k, SIZE * k);
-        let x = (s[0] + GUTTER + (lw - ww) * 0.5).round();
+        // On a line of 12 of the face's pixels its glyphs' rows start a whole pixel from the box's top
+        // (the face's ascent and descent are 11 and 3 pixels): on 11 they would start half a pixel in.
+        let (ww, wh) = (5.0 * ADVANCE * k, (SIZE + 1.0) * k);
+        // Its corner on the lattice (whose origin is the window's), so each unit is whole on a stem.
+        let p = word_pitch(k);
+        let on = |v: f32| (v / p).round() * p;
+        let x = on(s[0] + GUTTER + (lw - ww) * 0.5);
         let lo = self.console().y + self.console().h() + 16.0;
         let hi = self.caption_y() - 16.0 - wh;
-        let y = (self.placement().1 - wh * 0.5).min(hi).max(lo).round();
+        let y = on((self.placement().1 - wh * 0.5).min(hi).max(lo));
         (k, [x, y, x + ww, y + wh])
     }
     /// The lattice pitch of the materials and the morphs' cells: the word's.
     pub fn pitch_px(&self) -> f32 { word_pitch(self.word_box().0) }
+    /// What the scene sets in the look it is drawn in: the word's lattice for every material's unit
+    /// (dottr's dots, carvr's strokes, near's bands), no jitter off it, the commit's speed, the hover
+    /// and focus marks in the ink, and no condensing.
+    pub fn tune(&self, l: &mut amenui::style::Look) {
+        let p = self.pitch_px();
+        l.fx.pitch = p;
+        l.fx.jitter = 0.0;
+        l.fx.wave_speed = if self.fronting() { FRONT_SPEED } else { COMMIT_SPEED };
+        l.fx.marks_accent = 0.0;
+        // Nothing condenses in: what a chapter shows is there at once, at its place (the fold's words, the
+        // head lines shown again), so a change of chapter ends on its last frame.
+        l.off.close = true;
+        if let Some(m) = l.params.get_mut(Material::Carvr.id() as usize) { m.0[3] = p; }
+        if let Some(m) = l.params.get_mut(Material::Near.id() as usize) { m.0[0] = p; }
+    }
 
     /// The pose of every glyph of the stone's text: from its place in the listing to its cell on the
     /// stone, with its depth and how it faces the viewer for `El::form`.
@@ -1031,7 +1102,8 @@ impl Body {
                 dx: (sx - fx) * e, dy: (sy - fy) * e, angle: ang * e,
                 sx: 1.0 + (s * q - 1.0) * e, sy: 1.0 + (s * gap - 1.0) * e,
                 alpha: flat_alpha + (paint.alpha * dim * shown - flat_alpha) * e,
-                accent: paint.accent * e, hue: if e > 0.5 { 0.0 } else { -1.0 },
+                // The glint is the light's: only on a glyph drawn at its full opacity.
+                accent: paint.accent * FORM_FX.facing_alpha(facing).powi(4) * e, hue: if e > 0.5 { 0.0 } else { -1.0 },
                 z: p[2] * v.r * e, facing: 1.0 + (facing - 1.0) * e,
                 ..Pose::default()
             }
@@ -1045,8 +1117,9 @@ impl Body {
         let mut d = Drawing::new(w, h);
         if g <= 0.0 { return d; }
         let neutral = self.neutral();
-        dust(&mut d, &v, self.stage(), g, if neutral { 0.0 } else { 0.4 }, 80);
         let rpx = self.placement().2;
+        let cr = self.console().rect();
+        dust(&mut d, &v, &Room { stage: self.stage(), off: [cr[0] - 8.0, cr[1] - 8.0, cr[2] + 8.0, cr[3] + 8.0], near: self.paper().then_some(1.3 * rpx) }, g, if neutral { 0.0 } else { 0.4 }, 80);
         let mut c = self.cache.borrow_mut();
         let want = amenui::budget::grant(VOLUME);
         if c.vkey != (self.seed, want) { c.vol = volume(self.seed, want); c.vkey = (self.seed, want); }
@@ -1056,7 +1129,8 @@ impl Body {
             let inside = dot3(q.p, q.p) < 0.7 * c.radius * c.radius;
             if (inside && p[2] > 0.0) || (!inside && n[2] > 0.0) { continue; }
             let ([x, y], k) = v.project(p);
-            let paint = Paint { tone: 1.0, accent: if neutral { 0.0 } else { 1.0 }, alpha: 0.20 * g * (0.4 + 0.6 * lit(l, p, n)), hue: 0 };
+            // On paper the far shell is the hairline colour.
+            let paint = if self.paper() { HAIR.alpha(g * (0.5 + 0.5 * lit(l, p, n))) } else { Paint { tone: 1.0, accent: if neutral { 0.0 } else { 1.0 }, alpha: 0.20 * g * (0.4 + 0.6 * lit(l, p, n)), hue: 0 } };
             d.dot(x, y, q.size * k * 0.9, paint);
         }
         // Where a cell's glyph has faded out at the rim, the cell is one dot in the colour the light gives it.
@@ -1068,7 +1142,7 @@ impl Body {
             let look = cell_look(&v, l, sp, 0.0, neutral);
             let ([x, y], s) = v.project(v.rot(sp.p));
             if drawn(em * s / SIZE * sp.k, squeeze(&v, &c, gi, sp, em), look.gap, look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi))) { continue; }
-            d.dot(x, y, dot_r * s, Paint { tone: look.paint.tone, accent: look.paint.accent, alpha: 0.30 * g, hue: 0 });
+            d.dot(x, y, dot_r * s, Paint { tone: look.paint.tone, accent: if neutral { 0.0 } else { look.paint.accent }, alpha: if self.paper() { 0.6 } else { 0.30 } * g, hue: 0 });
         }
         d
     }
@@ -1143,8 +1217,11 @@ impl Body {
 pub struct Readout { pub key: &'static str, pub text: String, pub from: (f32, f32), pub elbow: (f32, f32), pub to: (f32, f32), pub at: (f32, f32), pub alpha: f32 }
 
 /// The dust: `n` marks fixed in the stone's space round it, turning with it and still when it is
-/// still; in the stage only, as strong as the gather.
-fn dust(d: &mut Drawing, v: &View, st: [f32; 4], g: f32, accent: f32, n: usize) {
+/// still; in the room's stage only and never in its box `off`, as strong as the gather. On paper (the
+/// room's `near`, px) it is the hairline, 1 px, and only that near the stone.
+struct Room { stage: [f32; 4], off: [f32; 4], near: Option<f32> }
+fn dust(d: &mut Drawing, v: &View, room: &Room, g: f32, accent: f32, n: usize) {
+    let (st, off, near_px) = (room.stage, room.off, room.near);
     let n = amenui::budget::grant(n);
     for i in 0..n as u32 {
         let s = i * 7;
@@ -1156,24 +1233,46 @@ fn dust(d: &mut Drawing, v: &View, st: [f32; 4], g: f32, accent: f32, n: usize) 
         let ([x, y], k) = v.project(p);
         let size = (0.5 + 1.1 * hash(s + 3)) * k;
         if x < st[0] + size || x > st[2] - size || y < st[1] + size || y > st[3] - size { continue; }
+        if x > off[0] - size && x < off[2] + size && y > off[1] - size && y < off[3] + size { continue; }
         let near = (0.5 + 0.5 * p[2] / rho).clamp(0.0, 1.0);
+        if let Some(reach) = near_px {
+            if (x - v.c.0).hypot(y - v.c.1) > reach { continue; }
+            d.dot(x, y, 0.5, HAIR.alpha(g));
+            continue;
+        }
         d.dot(x, y, size, Paint { tone: 0.8, accent, alpha: (0.06 + 0.22 * near) * g, hue: 0 });
     }
 }
 
 /// The gather's value, `d.dd`, as wheels of digits (and the point) in a four-glyph window.
-fn odometer(g: f32) -> Vec<El<Msg>> {
+fn odometer(g: f32, ink: Paint) -> Vec<El<Msg>> {
     let n = (g.clamp(0.0, 1.0) * 100.0).round() as u32;
     let wheel = |x: f32, top: u32, d: u32| {
         let digits = (0..=top).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
-        mono(digits, Paint::INK).absolute(Some(x), Some(0.0), None, None).shift(0.0, -(d as f32) * LINE)
+        mono(digits, ink).absolute(Some(x), Some(0.0), None, None).shift(0.0, -(d as f32) * LINE)
     };
     vec![
         wheel(0.0, 1, n / 100),
-        mono(".", Paint::INK).absolute(Some(ADVANCE), Some(0.0), None, None),
+        mono(".", ink).absolute(Some(ADVANCE), Some(0.0), None, None),
         wheel(2.0 * ADVANCE, 9, n / 10 % 10),
         wheel(3.0 * ADVANCE, 9, n % 10),
     ]
+}
+/// A word the head lines and the console both show: its text, where it is in the lines and where it
+/// is in the console (window px), and the tone it is drawn in there.
+pub struct FoldWord { pub text: String, pub line: usize, pub from: (f32, f32), pub to: (f32, f32), pub tone: f32 }
+/// The head lines with the flying words left as space, so what stays keeps its place.
+fn mask(head: &str, words: &[FoldWord]) -> String {
+    let mut lines: Vec<String> = head.split('\n').map(str::to_owned).collect();
+    for w in words {
+        if let Some(line) = lines.get_mut(w.line) && let Some(i) = find_word(line, &w.text) { line.replace_range(i..i + w.text.len(), &" ".repeat(w.text.len())); }
+    }
+    lines.join("\n")
+}
+/// Where a whole word stands in a line (its byte offset).
+fn find_word(line: &str, w: &str) -> Option<usize> {
+    let b = line.as_bytes();
+    line.match_indices(w).map(|(i, _)| i).find(|&i| (i == 0 || !b[i - 1].is_ascii_alphanumeric()) && b.get(i + w.len()).is_none_or(|c| !c.is_ascii_alphanumeric()))
 }
 /// A label or value of the console: Departure Mono at 11 px on a 14 px line.
 fn mono(t: impl Into<String>, p: Paint) -> El<Msg> { text_lh(t.into(), SIZE, LINE, p).font(Font::Mono).nowrap() }
@@ -1189,27 +1288,32 @@ impl Body {
         let g = self.gather.value.clamp(0.0, 1.0);
         let held = self.scrub.is_some();
         let hov = |x: Ctl| self.hover == Some(x);
+        // While the head lines close into it (or open from it): its labels are the words flying from
+        // the lines (`fold_words`), and its own ink comes in where it stands, the track from its left end.
+        let fold = self.fold_ms();
+        let la = if fold.is_some_and(|f| f < INK.1) { 0.0 } else { 1.0 };
+        let ia = fold.map_or(1.0, |f| ((f - INK.0) / (INK.1 - INK.0)).clamp(0.0, 1.0));
         let mut parts = vec![];
         // GATHER: the whole row takes the pointer; the thumb is the listing's caret, under the hand.
         let (t0, t1) = c.track();
         let run = t1 - t0;
         let travel = run - 8.0;
-        let ink = if held { Paint::ACCENT } else { Paint::INK };
+        let ink = (if held { Paint::ACCENT } else { Paint::INK }).alpha(ia);
         let big = if hov(Ctl::Gather) || held { 1.0 } else { 0.0 };
         let mid = (c.row * 0.5).floor();
         let spec = amenui::widgets::Spec { min: 0.0, max: 1.0, step: 0.05, decimals: 2, unit: "" };
         let mut s = amenui::widgets::slider(&k("gather"), g, spec, c.w, Msg::GatherTo);
         let (lx, lt) = (t0 - c.x, ((c.row - LINE) * 0.5).round());
         s.children = vec![
-            mono("GATHER", Paint::DIM).absolute(Some(0.0), Some(lt), None, None),
-            space(run, 1.0).fill(HAIR).absolute(Some(lx), Some(mid), None, None),
+            mono("GATHER", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
+            layers(vec![space(run, 1.0).fill(HAIR.alpha(ia)).shift(-(run * (1.0 - ia)).round(), 0.0)]).width(run).height(1.0).clip().absolute(Some(lx), Some(mid), None, None),
             layers(vec![space(run, 2.0).fill(ink).shift((travel * g + 4.0 - run).round(), 0.0)]).width(run).height(2.0).clip().absolute(Some(lx), Some(mid - 1.0), None, None),
             space(8.0, 16.0).fill(ink).absolute(Some(lx), Some(((c.row - 16.0) * 0.5).round()), None, None).shift((travel * g).round(), 0.0),
             // The value as three wheels of digits behind a one-line window: a new value moves them and
             // lays nothing out (a changed string would be measured again).
-            layers(odometer(g)).width(4.0 * ADVANCE).height(LINE).clip().absolute(Some(c.w - 4.0 * ADVANCE), Some(lt), None, None),
+            layers(odometer(g, Paint::INK.alpha(ia))).width(4.0 * ADVANCE).height(LINE).clip().absolute(Some(c.w - 4.0 * ADVANCE), Some(lt), None, None),
             // Under the hand the thumb grows to 18 px: a second plate over it, shown by its alpha alone.
-            space(8.0, 18.0).fill(ink.alpha(big)).absolute(Some(lx), Some(((c.row - 18.0) * 0.5).round()), None, None).shift((travel * g).round(), 0.0),
+            space(8.0, 18.0).fill(ink.alpha(big * ia)).absolute(Some(lx), Some(((c.row - 18.0) * 0.5).round()), None, None).shift((travel * g).round(), 0.0),
         ];
         let s = s.height(c.row).absolute(Some(0.0), Some(0.0), None, None).label("Gather").unframed()
             .on_drag_with(move |d: amenui::el::Drag| {
@@ -1219,7 +1323,7 @@ impl Body {
         parts.push(s);
         // MATERIAL: four segments, the chosen one an ink plate; no frame round the group.
         let phone_rest = if c.fit == Fit::Phone && self.shown_state() == 4 { 0.0 } else { 1.0 };
-        if c.fit == Fit::Wide { parts.push(mono("MATERIAL", Paint::DIM).absolute(Some(0.0), Some(c.row + lt), None, None)); }
+        if c.fit == Fit::Wide { parts.push(mono("MATERIAL", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(c.row + lt), None, None)); }
         let names: Vec<&str> = MATERIALS.iter().map(|m| m.0).collect();
         let mut m = amenui::widgets::segmented(&k("material"), &names, self.material, 20.0, Msg::Material);
         let (s0, s3) = (c.segment(0), c.segment(3));
@@ -1234,14 +1338,16 @@ impl Body {
             // The underline is always there; hover shows it by its alpha, so the tree keeps its shape.
             let nw = ADVANCE * name.len() as f32;
             let label = vec![
-                mono(name, if on { Paint::GROUND } else if over { Paint::INK } else { Paint::TEXT }),
+                mono(name, (if on { Paint::GROUND } else if over { Paint::INK } else { Paint::TEXT }).alpha(ia)),
                 space(nw, 1.0).fill(Paint::INK.alpha(if over { 1.0 } else { 0.0 })).absolute(Some(((b[2] - b[0] - nw) * 0.5).round()), Some(17.0), None, None),
             ];
             let mut seg = seg.pad(0.0, 0.0).width(b[2] - b[0]).height(20.0).unframed();
-            (seg.radius, seg.fill, seg.children) = (0.0, on.then_some(Paint::INK), label);
+            (seg.radius, seg.fill, seg.children) = (0.0, on.then_some(Paint::INK.alpha(ia)), label);
             seg
         }).collect();
-        parts.push(put(m.unframed().label("Material").role(Role::RadioGroup), &c, [s0[0], s0[1], s3[2], s3[3]]).opacity(phone_rest));
+        // The group draws its segments 1 px inside its box: the box is 1 px larger each way, so each plate
+        // is on the row's middle and its name on the row's baseline.
+        parts.push(put(m.unframed().label("Material").role(Role::RadioGroup), &c, [s0[0] - 1.0, s0[1] - 1.0, s3[2] + 1.0, s3[3] + 1.0]).opacity(phone_rest));
         // TURN: a 28 × 14 frame with a block inside, left and dim when off, right and ink when on.
         let on = self.turn && !self.reduced;
         let u = ((self.t - self.turned_at) / 0.14).clamp(0.0, 1.0);
@@ -1250,9 +1356,9 @@ impl Body {
         let (tb, tf) = (c.turn(), c.turn_frame());
         let mut sw = amenui::widgets::switch_sized(k("turn"), "", on, None, 14.0, Msg::Turn);
         sw.children = vec![
-            mono("TURN", Paint::DIM).absolute(Some(0.0), Some(lt), None, None),
-            layers(vec![space(12.0, 10.0).fill(if on { Paint::INK } else { Paint::DIM }).absolute(Some(1.0), Some(1.0), None, None).shift((12.0 * slide).round(), 0.0)])
-                .width(28.0).height(14.0).border(1.0, if hov(Ctl::Turn) { Paint::INK } else { HAIR }).absolute(Some(tf[0] - tb[0]), Some(tf[1] - tb[1]), None, None),
+            mono("TURN", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
+            layers(vec![space(12.0, 10.0).fill((if on { Paint::INK } else { Paint::DIM }).alpha(ia)).absolute(Some(1.0), Some(1.0), None, None).shift((12.0 * slide).round(), 0.0)])
+                .width(28.0).height(14.0).border(1.0, (if hov(Ctl::Turn) { Paint::INK } else { HAIR }).alpha(ia)).absolute(Some(tf[0] - tb[0]), Some(tf[1] - tb[1]), None, None),
         ];
         sw = sw.pad(0.0, 0.0).gap(0.0).label("Turn by itself").unframed().disabled(self.reduced);
         parts.push(put(sw, &c, tb).opacity(phone_rest));
@@ -1260,16 +1366,65 @@ impl Body {
         let flash = self.t - self.flash < 0.08;
         let sb = c.seed();
         let mut b = amenui::widgets::button(k("seed"), "", Msg::Seed(1));
-        b.children = vec![mono(format!("SEED {:02} →", self.seed), if flash { Paint::GROUND } else { Paint::TEXT }).recompose(true).key(k("seed/n"))];
+        b.children = vec![mono(format!("SEED {:02} →", self.seed), (if flash { Paint::GROUND } else { Paint::TEXT }).alpha(la)).recompose(true).key(k("seed/n"))];
         (b.fill, b.radius) = (flash.then_some(Paint::INK), 0.0);
-        b = b.border(1.0, if hov(Ctl::Seed) { Paint::INK } else { HAIR }).pad(8.0, 0.0).label(format!("Next seed, {:02}", self.seed)).unframed();
+        b = b.border(1.0, (if hov(Ctl::Seed) { Paint::INK } else { HAIR }).alpha(ia)).pad(8.0, 0.0).label(format!("Next seed, {:02}", self.seed)).unframed();
         parts.push(put(b, &c, sb).opacity(phone_rest));
         layers(parts).key(format!("{key}/console")).absolute(Some(c.x), Some(c.y), None, None).width(c.w).height(c.h()).calm()
             .role(Role::Group).label("Parameters of this page's source")
     }
+    /// The words that fly from the head lines to the console's labels: GATHER, MATERIAL (when the
+    /// console labels it), TURN and SEED, and the seed's number when it is the one the line sets.
+    pub fn fold_words(&self, head: &str) -> Vec<FoldWord> {
+        let c = self.console();
+        let st = self.stage();
+        let (lx, ly) = (st[0] + GUTTER, st[1]);
+        let lt = ((c.row - LINE) * 0.5).round();
+        let sb = c.seed();
+        let sy = sb[1] + ((sb[3] - sb[1] - LINE) * 0.5).round();
+        let lines: Vec<&str> = head.split('\n').collect();
+        let digits = format!("{:02}", self.seed);
+        let mut want: Vec<(usize, &str, (f32, f32), f32)> = vec![(0, "GATHER", (c.x, c.y + lt), Paint::DIM.tone)];
+        if c.fit == Fit::Wide { want.push((1, "MATERIAL", (c.x, c.y + c.row + lt), Paint::DIM.tone)); }
+        want.push((2, "TURN", (c.turn()[0], c.turn()[1] + lt), Paint::DIM.tone));
+        want.push((3, "SEED", (sb[0] + 8.0, sy), Paint::TEXT.tone));
+        if lines.get(3).is_some_and(|l| l.contains(&format!("= {digits};"))) { want.push((3, "26", (sb[0] + 8.0 + 5.0 * ADVANCE, sy), Paint::TEXT.tone)); }
+        want.into_iter().filter_map(|(l, w, to, tone)| {
+            let w = if w == "26" { digits.as_str() } else { w };
+            let i = find_word(lines.get(l)?, w)?;
+            Some(FoldWord { text: w.to_owned(), line: l, from: (lx + i as f32 * ADVANCE, ly + l as f32 * LINE), to, tone })
+        }).collect()
+    }
+    /// For each of the first `rows` lines under the console, the stone's glyph its number leaves with
+    /// (the middle one of its glyphs).
+    fn line_glyphs(&self, rows: usize) -> Vec<usize> {
+        self.ensure();
+        let c = self.cache.borrow();
+        let n = c.text.cell.len().max(1);
+        let mut at = 0;
+        c.text.listing.split('\n').skip(c.text.head).take(rows).map(|l| {
+            let k = l.chars().filter(|ch| !ch.is_whitespace()).count();
+            let m = (at + k / 2).min(n - 1);
+            at += k;
+            m
+        }).collect()
+    }
+    /// The state the caption names: on the way between the listing and the stone it changes as the
+    /// gather crosses one half, whichever way, by key, rail or the thumb's release.
+    pub fn caption_state(&self) -> u8 {
+        let shown = self.shown_state();
+        // While the thumb is held the caption waits for the release.
+        if self.fade.is_some() || self.scrub.is_some() { return shown; }
+        let g = self.gather.value;
+        match self.at {
+            4 if g < 0.5 && matches!(self.was, 1 | 2) => self.was,
+            1 | 2 if g >= 0.5 => 4,
+            _ => shown,
+        }
+    }
     /// The control of the console at a point (window px).
     fn ctl_at(&self, x: f32, y: f32) -> Option<Ctl> {
-        if self.shown_state() == 1 { return None; }
+        if self.shown_state() == 1 || self.t < self.lands && self.fold.is_some() { return None; }
         let c = self.console();
         let inside = |b: [f32; 4]| x >= b[0] && x < b[2] && y >= b[1] && y < b[3];
         if inside(c.gather()) { return Some(Ctl::Gather); }
@@ -1290,28 +1445,66 @@ impl Body {
         let ty = ly + head as f32 * LINE;
         let (g, dim) = (self.gather.value.clamp(0.0, 1.0), self.dim());
         let shown = self.shown_state();
-        // 04 → 01 keeps the console until the glyphs have landed, then it opens into the head lines.
-        let head_on = shown == 1 && !self.unfold;
+        // 04 → 01 keeps the console until the glyphs are nearly home, then it opens into the head lines.
+        let head_on = self.head_at_rest();
+        let fold = self.fold_ms();
         let stone = self.t >= self.lands && shown != 3;
         let ink = Paint::INK;
         let txt = |t: String, p: Paint, k: &str| text_lh(t, SIZE, LINE, p).font(Font::Mono).nowrap().key(format!("{key}/{k}"));
         let cols = self.cols();
-        // The head lines: the listing's first lines in 01, the console everywhere else.
-        let head_el = txt(s.head.clone(), ink, "head").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE).height(head as f32 * LINE)
-            .opacity(dim).hidden_until_morphed(!head_on);
+        // The head lines: the listing's first lines in 01, the console everywhere else. While they close
+        // into it the words both show fly whole to its labels, and the rest of the lines fades out
+        // where it stands.
+        let flying = self.fold_words(&s.head);
+        // (Two elements, the whole lines and the lines without the words, so that neither's text changes:
+        // a changed text would recompose. Shown and left by their opacity: one shown again after being
+        // hidden would condense in as a new element.)
+        let head_a = fold.map_or(1.0, |f| 1.0 - (f / GONE).clamp(0.0, 1.0));
+        let head_el = layers(vec![
+            txt(s.head.clone(), ink, "head").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE).height(head as f32 * LINE)
+                .opacity(if head_on { dim } else { 0.0 }).recompose(false),
+            txt(mask(&s.head, &flying), ink, "head-rest").absolute(Some(lx), Some(ly), None, None).width(cols as f32 * ADVANCE).height(head as f32 * LINE)
+                .opacity(if fold.is_some() { dim * head_a } else { 0.0 }).recompose(false),
+        ]).absolute(Some(0.0), Some(0.0), None, None).width(w).height(h).pass(true);
         // The text under them in one element: the listing's lines cut at whole words; the glyphs it
         // leaves out wait unseen where they would have been.
         let mut flat = vec![false; s.map.len() + s.rest_map.len()];
         for &i in &s.map { flat[i] = true; }
         let rest = self.cache.borrow().text.listing.split('\n').skip(head).collect::<Vec<_>>().join("\n");
-        let code = txt(rest, ink, "text")
+        let flat = Rc::new(flat);
+        let posed = |k: &str| txt(rest.clone(), ink, k)
             .absolute(Some(lx), Some(ty), None, None).width(cols as f32 * ADVANCE).height(s.rows as f32 * LINE)
-            .pose(self.poser((lx, ty), Rc::new(flat))).form(FORM_FX).reveal_by(Reveal::Word).hidden_until_morphed(shown == 3);
-        let nums = |a: usize, b: usize| (a..=b).map(|i| format!("{i:>3}")).collect::<Vec<_>>().join("\n");
-        // The line numbers: dim in the listing; the console's lines keep theirs in the hairline colour.
-        let head_nums = txt(nums(1, head), if head_on { Paint::DIM } else { HAIR }, "lines-head").absolute(Some(st[0]), Some(ly), None, None).opacity(dim);
-        let rest_alpha = if shown == 3 { 0.0 } else { (1.0 - g).clamp(0.0, 1.0) * dim };
-        let numbers = txt(nums(head + 1, head + s.rows), Paint::DIM.alpha(rest_alpha), "lines").absolute(Some(st[0]), Some(ty), None, None);
+            .pose(self.poser((lx, ty), flat.clone())).form(self.form_fx());
+        // From the word to the stone the morph lands on `ghost`, the stone's text as it stands, never
+        // drawn, outside the piece, and the stone's own text waits unseen until it has: so the piece stays
+        // a stage (a morph's tiles come from the page's own pass, which a stage's content is not drawn
+        // in). From the stone to the word the morph starts from the stone's own text, which must be drawn
+        // where the tiles leave it, so the piece is not a stage until it lands.
+        let in_flight = self.t < self.lands;
+        let to_stone = self.was == 3 && self.at == 4 && in_flight;
+        let from_stone = self.was == 4 && self.at == 3 && in_flight;
+        let code = posed("text").reveal_by(Reveal::Word).hidden_until_morphed(shown == 3 || self.opening_word() || to_stone);
+        let ghost = posed("ghost").hidden_until_morphed(true);
+        // The listing as it lies flat, never drawn: the end a morph to or from the word takes.
+        let flat_el = txt(s.text.clone(), ink, "flat").absolute(Some(lx), Some(ty), None, None).width(cols as f32 * ADVANCE).height(s.rows as f32 * LINE).hidden_until_morphed(true);
+        // The line numbers, each as opaque as its line's ink: dim in the listing; the console's lines keep
+        // theirs in the hairline colour (on a phone in 04 only row A's); under the console a line's
+        // number leaves with its line, to the word or to the stone.
+        let num = |i: usize, p: Paint, y: f32| txt(format!("{i:>3}"), p, &format!("lines/{i}")).absolute(Some(st[0]), Some(y), None, None);
+        let phone_04 = self.phone() && shown == 4;
+        let mut numbers = vec![];
+        for i in 1..=head {
+            let a = if phone_04 && i as f32 * LINE > self.console().row { 0.0 } else { dim };
+            numbers.push(num(i, (if head_on { Paint::DIM } else { HAIR }).alpha(a), ly + (i - 1) as f32 * LINE));
+        }
+        let worded = shown == 3 || (self.was == 3 && self.t < self.lands);
+        let firsts = self.line_glyphs(s.rows);
+        let n = self.stone_glyphs();
+        for (j, &gi) in firsts.iter().enumerate() {
+            let a = if worded { 0.0 } else { (1.0 - progress(g, gi, n)) * dim };
+            numbers.push(num(head + 1 + j, Paint::DIM.alpha(a), ty + j as f32 * LINE));
+        }
+        let numbers = layers(numbers).key(format!("{key}/lines")).absolute(Some(0.0), Some(0.0), None, None).width(w).height(h).pass(true);
         let marks = if stone { self.readouts() } else { vec![] };
         let empty = || Drawing::new(w, h);
         // The piece: the drawings and the stone's text, a stage the governor may draw at a lower scale
@@ -1322,26 +1515,41 @@ impl Body {
             canvas(if stone { self.front(&marks) } else { empty() }).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore).pass(true),
         ]).key(format!("{key}/piece")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None)
             .role(Role::Img).label(tr("body.label"));
-        // Not a stage while the text is a morph's end (to and from the word): a morph's tiles are taken
-        // from the page's own pass, which a stage's content is not drawn in.
-        let worded = shown == 3 || (self.was == 3 && self.t < self.lands);
-        let piece = if worded { piece } else { piece.stage() };
+        let piece = if from_stone { piece } else { piece.stage() };
         let piece = if self.turning() { piece.ongoing() } else { piece };
         // The word of 03: the material's name, as large as the listing allows, drawn in that material;
         // a change of material is a commit inside the stage only.
         let (k, wb) = self.word_box();
-        let word = text_lh(MATERIALS[self.material].0.to_owned(), SIZE * k, SIZE * k, ink).font(Font::Mono).nowrap().key(format!("{key}/word"))
-            .absolute(Some(wb[0] - st[0]), Some(wb[1] - st[1]), None, None).material(MATERIALS[self.material].1.id())
-            .hidden_until_morphed(shown != 3).opacity(dim).legible(false).loose(WORD_LOOSE).role(Role::Img).label(MATERIALS[self.material].0.to_owned());
+        let word = text_lh(MATERIALS[self.material].0.to_owned(), SIZE * k, (SIZE + 1.0) * k, ink).font(Font::Mono).nowrap().key(format!("{key}/word"))
+            .absolute(Some(wb[0] - st[0]), Some(wb[1] - st[1]), None, None).width(wb[2] - wb[0]).height(wb[3] - wb[1]).material(MATERIALS[self.material].1.id())
+            .hidden_until_morphed(shown != 3).opacity(dim).legible(false).loose(if MATERIALS[self.material].1 == Material::Dottr { WORD_LOOSE_DOTS } else { WORD_LOOSE }).role(Role::Img).label(MATERIALS[self.material].0.to_owned());
         let word_box = layers(vec![word]).key(format!("{key}/word-box")).absolute(Some(st[0]), Some(st[1]), None, None).width(st[2] - st[0]).height(st[3] - st[1]).commit_scope().pass(true);
-        let mut parts = vec![head_nums, numbers, head_el, piece, word_box, self.console_el(key).hidden_until_morphed(head_on).opacity(dim)];
+        let mut parts = vec![numbers, head_el, flat_el, ghost, piece, word_box, self.console_el(key).hidden_until_morphed(head_on).opacity(dim)];
+        if let Some(f) = fold {
+            // The words in flight: straight, cubic in and out, from their places in the lines to the
+            // labels', in the lines' ink turning to the labels'.
+            let u = (f / FLY).clamp(0.0, 1.0);
+            let e = if u < 0.5 { 4.0 * u * u * u } else { 1.0 - (-2.0 * u + 2.0).powi(3) * 0.5 };
+            for wd in &flying {
+                let (dx, dy) = ((wd.to.0 - wd.from.0) * e, (wd.to.1 - wd.from.1) * e);
+                let tone = 1.0 + (wd.tone - 1.0) * e;
+                parts.push(txt(wd.text.to_owned(), Paint::tone(tone).alpha(dim), &format!("fly/{}", wd.text)).absolute(Some(wd.from.0), Some(wd.from.1), None, None).shift(dx, dy));
+            }
+            // What of the button's text is not in the lines comes in with its ink.
+            let ia = ((f - INK.0) / (INK.1 - INK.0)).clamp(0.0, 1.0);
+            let sb = self.console().seed();
+            let digits = format!("{:02}", self.seed);
+            let rest = if flying.iter().any(|w| w.text == digits) { "        →".to_owned() } else { format!("     {digits} →") };
+            parts.push(txt(rest, Paint::TEXT.alpha(ia * dim), "fly/seed-rest").absolute(Some(sb[0] + 8.0), Some(sb[1] + ((sb[3] - sb[1] - LINE) * 0.5).round()), None, None));
+        }
         for m in &marks {
             parts.push(txt(m.text.clone(), Paint::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
         }
         // The caption: the state's number in the dim colour, its sentence in the text colour; in 04 the
         // sentence dims after 4 s without a change.
-        let body = shown == 4 && !self.intro_pending && self.intro_at.is_none();
-        let (num, sentence) = match shown {
+        let cap = self.caption_state();
+        let body = cap == 4 && !self.intro_pending && self.intro_at.is_none();
+        let (num, sentence) = match cap {
             _ if body => ("04", "Posed in 3D. Your pointer is the lamp.".to_owned()),
             2 => ("02", "The same ink closes into controls.".to_owned()),
             3 => ("03", "One tree. The material sets the pixels.".to_owned()),
@@ -1354,7 +1562,7 @@ impl Body {
         parts.push(txt(sentence, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite).opacity(dim).recompose(!self.reduced));
         // The line that adds the console's components, in 02, where it clears the caption by 48 px.
         let add = "$ amenui add switch slider choice button";
-        let ax = st[2] - ADVANCE * add.chars().count() as f32;
+        let ax = { let c = self.console(); c.x + c.w - ADVANCE * add.chars().count() as f32 };
         if shown == 2 && !self.phone() && ax >= self.caption_box()[2] + 48.0 {
             parts.push(txt(add.into(), Paint::DIM, "add").absolute(Some(ax.floor()), Some(cy), None, None).opacity(dim));
         }
@@ -1607,8 +1815,10 @@ impl Experiment for Body {
     fn step(&mut self, now: f32) -> bool {
         let dt = (now - self.t).clamp(0.0, 1.0);
         if self.walk.is_some() && matches!(self.at, 2 | 3) && now < self.lands && self.was == 1 { self.flight = (self.flight.0 + 1, self.flight.1 + (now - self.t).max(0.0)); }
+        // Landing changes the view: the stone's drawings come in, its text is shown and the piece is a stage again.
+        let landed = self.t < self.lands && now >= self.lands;
         self.t = now;
-        let mut changed = false;
+        let mut changed = landed;
         // The clock of the short path and of the walk starts at the first frame after one has been presented.
         if self.intro_pending && !self.drawn { self.drawn = true; changed = true; }
         else if self.intro_pending {
@@ -1646,16 +1856,24 @@ impl Experiment for Body {
             if now - t0 >= d { self.fade = None; }
             changed = true;
         }
-        changed |= self.gather.step(now);
-        // 04 → 01: once the glyphs have landed in the listing, the console opens into its lines.
-        if self.unfold && self.gather.value <= 0.02 {
+        if let Some((t0, g0)) = self.drop {
+            // The last stretch home, eased out over the console's opening.
+            let u = ((now - t0) / (INK.1 / 1000.0)).clamp(0.0, 1.0);
+            self.gather = Animated::new(g0 * (1.0 - u) * (1.0 - u) * (1.0 - u), GATHER_SPRING);
+            if u >= 1.0 { self.drop = None; }
+            changed = true;
+        } else {
+            changed |= self.gather.step(now);
+        }
+        // 04 → 01: once the glyphs are nearly home, the console opens into its lines while they land.
+        if self.unfold && self.gather.value < UNFOLD_AT {
             self.unfold = false;
-            self.gather = Animated::new(0.0, GATHER_SPRING);
-            self.morph("console", "head", MORPH_CONSOLE, now);
-            // The console's controls go with it, and so does a focus on one of them.
-            self.cmds.push(amenui::morph::Cmd::ClearFocus);
+            self.drop = Some((now, self.gather.value));
+            self.fold_now(false, now);
             changed = true;
         }
+        // A fold is drawn on every frame while it runs.
+        if let Some((t0, closing)) = self.fold { changed = true; if (now - t0) * 1000.0 >= if closing { LIVE } else { INK.1 } { self.fold = None; } }
         for a in &mut self.lamp { changed |= a.step(now); }
         changed |= self.bulge.step(now);
         if self.grab.is_none() {
@@ -1667,7 +1885,8 @@ impl Experiment for Body {
                 changed = true;
             } else {
                 // A throw slows, and ends under 0.02 rad/s; the tilt springs upright.
-                self.spin *= (-dt / THROW_TAU).exp();
+                // Under 0.25 rad/s it settles faster (150 ms), so a throw is still within 2 s.
+                self.spin *= (-dt / if self.spin.abs() < 0.25 { 0.15 } else { THROW_TAU }).exp();
                 if self.spin.abs() < 0.02 { self.spin = 0.0; }
                 if self.tilt.step(now) { self.pitch = self.tilt.value; changed = true; }
             }
@@ -1720,7 +1939,7 @@ impl Experiment for Body {
     }
     fn moving(&self) -> bool {
         self.gather.moving() || self.lamp.iter().any(Animated::moving) || self.bulge.moving() || !self.rings.is_empty() || !self.motes.is_empty() || (self.grab.is_some() && self.dragged)
-            || self.spin != 0.0 || self.tilt.moving() || self.ease.is_some() || self.idle > 0.0 || self.unfold
+            || self.spin != 0.0 || self.tilt.moving() || self.ease.is_some() || self.idle > 0.0 || self.unfold || self.fold.is_some() || self.drop.is_some()
             || self.intro_pending || self.intro_at.is_some() || self.front_at.is_some() || self.fade.is_some()
             || self.walk.is_some() || !self.later.is_empty() || self.settle.is_some() || self.t < self.lands
             || self.t - self.turned_at < 0.2 || self.t - self.flash < 0.12
@@ -1736,7 +1955,7 @@ pub fn ui(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> amenui:
     b.resize(w as f32 / scale, h as f32 / scale);
     amenui::ui::Ui::new(b, view, update, faces, w, h, scale)
         .on_resize(|s, w, h| s.resize(w, h))
-        .on_look(|s| { let mut l = look(s.palette, s.gather.value); l.fx.pitch = s.pitch_px(); l })
+        .on_look(|s| { let mut l = look(s.palette, s.gather.value); s.tune(&mut l); l })
         .on_tick(|s, t| s.step(t))
         .on_wake(|s, t| s.wake(t))
         .on_commands(|s| std::mem::take(&mut s.cmds))

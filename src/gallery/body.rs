@@ -30,14 +30,13 @@ pub fn look(s: &Gallery, l: &mut Look) {
     l.theme = b.theme;
     l.material = b.material;
     l.post = b.post;
-    if s.body.fronting() { l.fx.wave_speed = scene::FRONT_SPEED; }
     // The full readout is a plate inside the stage (AA.6): its right edge on the stage's, its foot 8 px
     // above the caption, clear of the console above it and of the rail and the status line under it.
     let st = s.body.stage();
     l.overlay_at = amenui::style::Corner::BottomRight;
     l.overlay_inset = [(s.width - st[2]).max(0.0), (s.height - s.body.caption_y() + 8.0).max(0.0)];
-    // The word's lattice pitch (the morphs' cells too): a stem three units across.
-    l.fx.pitch = s.body.pitch_px();
+    // The word's lattice (the morphs' cells too), the fronts' speed and the marks' colour.
+    s.body.tune(l);
 }
 /// A person acted: the walk stops where it is.
 pub fn heard(s: &mut Gallery) -> bool { s.page == Page::Body && s.body.heard() }

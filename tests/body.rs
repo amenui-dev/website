@@ -242,14 +242,13 @@ fn the_stone_turns_one_to_one_tilts_softly_and_settles_upright() {
     ui.release(cx, cy + 1604.0);
     run(&mut ui, 0.5);
     assert!((ui.state.pitch - pitch0).abs() < 0.5f32.to_radians(), "upright again: {}", ui.state.pitch);
-    // A throw slows under 0.02 rad/s and stops. AA.12.15 says within 2 s, but its own decay (±6 rad/s,
-    // τ 0.45 s) takes τ·ln(6 / 0.02) ≈ 2.57 s from the limit; the decay is kept as specified.
+    // A throw slows under 0.02 rad/s within 2 s (AA.12.15): τ 0.45 s, and 0.15 s under 0.25 rad/s.
     ui.pointer_move(cx, cy);
     ui.press(cx, cy);
     for k in 1..=10 { ui.pointer_move(cx + 30.0 * k as f32, cy); run(&mut ui, 1.0 / 60.0); }
     ui.release(cx + 300.0, cy);
     assert!(ui.state.turn_rate().abs() > 1.0 && ui.state.turn_rate().abs() <= body::THROW_MAX, "a throw: {}", ui.state.turn_rate());
-    run(&mut ui, body::THROW_TAU * (body::THROW_MAX / 0.02).ln() + 0.02);
+    run(&mut ui, 2.0);
     assert!(ui.state.turn_rate().abs() < 0.02, "slowed: {}", ui.state.turn_rate());
     assert_eq!(run(&mut ui, 3.0), 0, "and at rest");
     // AA.12.16: the frame after a pointer move shows the stone at that move's position.
@@ -320,7 +319,18 @@ fn the_console_drives_the_text() {
     // AA.12.9: the word inside the stage, 16 px clear of the console and the caption.
     let s = ui.state.stage();
     assert!(inside(b, s) && apart(b, ui.state.console().rect(), 16.0) && apart(b, ui.state.caption_box(), 16.0), "word {b:?}");
-    assert_eq!(k, (0.9 * ui.state.cols() as f32 * 7.0 / 35.0).floor());
+    // AB.3 #3: a stem is n = 3 units across (2 under k 9), k the largest multiple of n that fits, the
+    // pitch k / n exactly, the word's corner on the lattice.
+    let fit = (0.9 * ui.state.cols() as f32 * 7.0 / 35.0).floor();
+    let n = if fit >= 9.0 { 3.0 } else { 2.0 };
+    assert_eq!(k, (fit / n).floor() * n);
+    let p = ui.state.pitch_px();
+    assert_eq!(p, k / n);
+    assert!(b[0] % p == 0.0 && b[1] % p == 0.0, "word {b:?} off the {p} px lattice");
+    for (w, want) in [(1024u32, (9.0, 3.0)), (390, (8.0, 4.0))] {
+        let u = at("material", w, if w == 390 { 844 } else { 768 });
+        assert_eq!((u.state.word_box().0, u.state.pitch_px()), want, "at {w}");
+    }
     // Another material is a commit inside the stage; plain is 02.
     ui.state.update(Msg::Material(1), ui.now());
     assert!(ui.state.cmds.iter().any(|c| matches!(c, amenui::morph::Cmd::Commit { scope: Some(s), .. } if s == "body/word-box")));
