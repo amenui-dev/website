@@ -173,6 +173,10 @@ mod site_exports {
     /// not, why; whether the material pass was the specialised one; the share shaded; the scales.
     #[wasm_bindgen]
     pub fn frame_path() -> String { host(|s| s.ui.perf().path.line()).unwrap_or_default() }
+    /// Force the material pass made for the page's material on (true) or off (false), or leave it to
+    /// the renderer (null), from the next frame (`Renderer::spec_force`), for an A/B on one page.
+    #[wasm_bindgen]
+    pub fn spec_force(on: Option<bool>) { host(|s| { s.r.spec_force = on; s.ui.invalidate(); }); }
     /// The graphics backend in use: `webgpu` or `webgl2`.
     #[wasm_bindgen]
     pub fn backend() -> String { host(|s| s.ui.perf().backend.to_lowercase()).unwrap_or_default() }

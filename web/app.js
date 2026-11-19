@@ -396,6 +396,9 @@ function site() {
       api = { w, kick: () => {} };
       // How the last frame was drawn, for a log from the console: `AMENUI.framePath()`.
       A.framePath = () => (api && api.w.frame_path ? api.w.frame_path() : '');
+      // The material pass made for the page's material forced on (true), off (false) or left to the
+      // renderer (null), for an A/B from the console: `AMENUI.specForce(true)`.
+      A.specForce = (v) => { if (api && api.w.spec_force) { api.w.spec_force(v === true ? true : v === false ? false : undefined); api.kick(); } };
       if (w.set_status_line) w.set_status_line(true);
       if (A.palette && w.set_palette) w.set_palette(A.palette);
       A.line(A.t.starting.replace('{gpu}', navigator.gpu ? 'webgpu' : 'webgl2'));
