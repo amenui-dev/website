@@ -19,6 +19,17 @@ On a phone the line runs from 6 % to 94 % of the width with as many cells as fit
 
 The drift is paced at 30 frames a second (`Ui::ambient_fps`) while the piece is awake; a pulse, a flare and the fold's spring ask for frames of their own only while they run. After 60 seconds without input the piece rests. With reduced motion the curtain is still: a press counts the step and shifts the reflection, with no pulse and no flare, and the fold takes its lean at once.
 
-Frame times for this piece have not been measured yet. The palette is temporary: `#1f5f86` at the rays' tips comes back when a drawing can have colours of its own.
+Measured at 1440 × 900 with motion paced at 30 frames a second. A frame holds 1,228 instances.
+
+| A frame | Mean | 95th percentile | Worst |
+|---|---|---|---|
+| At rest, natively (CPU) | 0.08 ms | 0.08 ms | 0.88 ms |
+| A pulse, natively (CPU) | 0.78 ms | 0.91 ms | 1.02 ms |
+| At rest, the first minute, headless Chrome at 2× | 1.96 ms | 2.60 ms | 14.2 ms |
+| A pulse, headless Chrome at 2× | 1.57 ms | 2.60 ms | 2.70 ms |
+
+The browser figures use WebGPU on SwiftShader, a software renderer (not a GPU), so a real machine does better. The first frame, which lays out the page, takes 62 ms natively and 92.8 ms in the browser; the browser's first-minute figures leave it out.
+
+The palette is temporary: `#1f5f86` at the rays' tips comes back when a drawing can have colours of its own.
 
 The code is `src/gallery/nightly.rs` in the website repository. Text on a curve is described in [Flow: text on a path](lab-flow.md).
