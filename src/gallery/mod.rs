@@ -1096,6 +1096,10 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             // The hosts coalesce input (`Ui::coalesce`): what a tick changes is laid out once, before the frame.
             scenes::tick(s, t) || changed || burst || coast || craft || lab || thread
         })
+        // The Lab's cells step on their own: only the stages that changed are made and drawn again.
+        .on_step(lab::step)
+        .stage_view(lab::stage_of)
+        .on_focus(lab::focus)
         .on_look(|s| s.look())
         .on_locale(|s| s.locale)
         .on_wake(|s, t| {

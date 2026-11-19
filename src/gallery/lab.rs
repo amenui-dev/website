@@ -37,6 +37,8 @@ macro_rules! cells {
             /// No hover (touch): the cell nearest the window's centre runs, `centred`, once scrolling has
             /// rested `SETTLE_S` after `seen_t`.
             pub coarse: bool, pub centred: Option<usize>, pub seen_t: f32,
+            /// The cell, or the family's cell, that has the keyboard's focus (`focus`).
+            pub focus: Option<usize>, pub focus_fam: Option<usize>,
             /// Which steps' sections are in the window (the path line marks the first).
             pub steps: [bool; 5],
             /// A family's cell under the pointer steps through its members, `FAMILY_S` each: how long it has.
@@ -84,7 +86,7 @@ macro_rules! cells {
             /// The one cell that runs: the page's own, else the one under the pointer, else (touch) the
             /// centred one.
             fn running(&self, page: Option<usize>) -> Option<usize> {
-                page.or_else(|| (0..COUNT).find(|&i| self.frame[i] || self.over[i])).or(if self.coarse { self.centred } else { None })
+                page.or_else(|| (0..COUNT).find(|&i| self.frame[i] || self.over[i])).or(self.focus).or(if self.coarse { self.centred } else { None })
             }
             /// The middle one of the cells in view, in page order (the one nearest the window's centre).
             fn middle(&self) -> Option<usize> {
@@ -172,29 +174,22 @@ fn page_cell(s: &Gallery) -> Option<usize> { if let super::Page::Experiment(i) =
 /// Step the one cell that runs (Y.7): on an experiment's page its own; on the index the one under the
 /// pointer, or with no hover the one nearest the window's centre; every other cell is a still. The
 /// stages of the cells that changed (`Ui::on_step`), which `stage_of` makes again on their own.
+/// On the index (`Ui::on_step`): the stages that changed. A cell there is its name and its stage, so
+/// only the stage is made again (`stage_of`).
 pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
-    if !on_lab(s) { return vec![]; }
-    let index = s.page == super::Page::Lab;
-    let changed = s.lab.step_cells(t, page_cell(s), index);
+    if s.page != super::Page::Lab { return vec![]; }
     let fams = path().into_iter().flatten().filter(|&p| family_of(p).is_some()).collect::<Vec<_>>();
-    changed.into_iter().filter_map(|i| match (i < COUNT, index) {
-        (true, true) => Some(format!("labi/{}/stage", super::Page::Experiment(i as u8).hash())),
-        (true, false) => Some(format!("lab/{}/stage", NAMES[i])),
-        (false, true) => fams.iter().find(|&&p| family_of(p) == Some(i - COUNT)).map(|p| format!("labi/{}/stage", p.hash())),
-        (false, false) => None,
-    }).collect()
+    s.lab.step_cells(t, None, true).into_iter().filter_map(|i| if i < COUNT { Some(super::Page::Experiment(i as u8)) } else { fams.iter().copied().find(|&p| family_of(p) == Some(i - COUNT)) })
+        .map(|p| format!("labi/{}/stage", p.hash())).collect()
 }
-/// A cell's stage alone (`Ui::stage_view`), as its page makes it: `labi/<page>/stage` on the index,
-/// `lab/<name>/stage` on an experiment's page.
+/// On an experiment's page (`Ui::on_tick`): its formula and its label beside the stage follow the
+/// piece, so the page is laid out again when it changed.
+pub fn tick(s: &mut Gallery, t: f32) -> bool { matches!(s.page, super::Page::Experiment(_)) && !s.lab.step_cells(t, page_cell(s), false).is_empty() }
+/// An index cell's stage alone (`Ui::stage_view`, `labi/<page>/stage`), as the index makes it.
 pub fn stage_of(s: &Gallery, key: &str) -> Option<El<Msg>> {
     use super::Page;
     let rest = key.strip_suffix("/stage")?;
     let stage = |c: El<Msg>| c.children.into_iter().nth(1);
-    if let Some(name) = rest.strip_prefix("lab/") {
-        let i = NAMES.iter().position(|n| *n == name)?;
-        let w = if !s.stage_only { page_width(s) } else { (s.width - 32.0).clamp(200.0, 760.0) };
-        return stage(s.lab.cell(i, rest, w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab)));
-    }
     let hash = rest.strip_prefix("labi/")?;
     let p = path().into_iter().flatten().find(|p| p.hash() == hash)?;
     let (cols, width, h) = dims(s);
@@ -205,7 +200,22 @@ pub fn stage_of(s: &Gallery, key: &str) -> Option<El<Msg>> {
         other => still_cell(s, rest, other, w, h),
     })
 }
-pub fn tick(s: &mut Gallery, t: f32) -> bool { !step(s, t).is_empty() }
+/// The keyboard's focus in a cell (its name, its frame, a family's still) runs it as the pointer
+/// over it does (Y.7). Whether that changed what runs.
+pub fn focus(s: &mut Gallery, key: Option<&str>) -> bool {
+    use super::Page;
+    let page = key.and_then(|k| k.strip_prefix("labi/").or_else(|| k.strip_prefix("labx/")))
+        .and_then(|k| path().into_iter().flatten().find(|p| k.split('/').next() == Some(&p.hash())));
+    let (cell, fam) = match page { Some(Page::Experiment(e)) => (Some(e as usize), None), Some(p) => (None, family_of(p)), None => (None, None) };
+    if (cell, fam) == (s.lab.focus, s.lab.focus_fam) { return false; }
+    if s.lab.focus_fam != fam {
+        if let Some(f) = s.lab.focus_fam { s.lab.fam_on[f] = false; }
+        if let Some(f) = fam { s.lab.fam_on[f] = true; s.lab.last = s.clock; }
+    }
+    (s.lab.focus, s.lab.focus_fam) = (cell, fam);
+    s.lab.until = s.clock + amenui::experiment::IDLE_S;
+    true
+}
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if on_lab(s) { s.lab.wake(t, page_cell(s), s.page == super::Page::Lab) } else { None } }
 /// Arriving on a Lab page starts the idle motion of what can be seen.
 pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + amenui::experiment::IDLE_S; }
@@ -457,7 +467,7 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
     let name = format!("[ {} ]", cell_name(p).to_uppercase());
     let wide = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2E80 { 11.0 } else { 6.6 }).sum::<f32>();
     let hint = Some(hint(p)).filter(|h| wide(&name) + wide(h) + 8.0 <= w);
-    let stage_el = col().key(format!("{key}/stage")).fill_width().min_width(0.0).height(h).clip().center().child(piece);
+    let stage_el = col().key(format!("{key}/stage")).stage().fill_width().min_width(0.0).height(h).clip().center().child(piece);
     let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).pad(12.0, 10.0).gap(8.0).border(1.0, Paint::FAINT).on_press(Msg::Go(p)).role(amenui::el::Role::Link).label(cell_name(p))
         .child(row().fill_width().gap(8.0)
             .child(text(name, 11.0, Paint::TEXT).font(Font::Mono).key(format!("{key}/name")))
@@ -470,14 +480,11 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
 /// The reader's still: the start of a page set in one face at one measure.
 const READER_STILL: &str = "The reader sets a page in one face at one measure. Lines break by whole words, never inside one; a long page turns instead of scrolling, and the outline beside it keeps your place.";
 
-/// How wide an experiment's page is.
-fn page_width(s: &Gallery) -> f32 { (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0) }
-
 /// An experiment's page: its documentation, then the cell.
 pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
     let name = NAMES[i.min(COUNT - 1)];
     let src = doc(name, s.locale);
-    let w = page_width(s);
+    let w = (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0);
     let (body, _) = amenui::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
     col().key(format!("lab/{name}/page")).fill_width().min_width(0.0).max_width(w).gap(18.0)
         .child(s.lab.cell(i, &format!("lab/{name}"), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab)))
