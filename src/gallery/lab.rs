@@ -35,8 +35,13 @@ macro_rules! cells {
                 if index { c.children.truncate(2); }
                 // A living piece moves on purpose while it is seen.
                 if !self.reduced { c = c.ongoing(); }
+                // It steps while at least half of it is in the window: a point at the middle of its stage
+                // (the cell's padding, its name's line and the gap above the stage) tells when it is seen.
+                let stage = (width - 26.0) * amenui::experiment::STAGE;
+                let mid = amenui::el::space(1.0, 1.0).key(format!("{key}/seen")).absolute(Some(width * 0.5), Some(10.0 + 14.0 + 8.0 + stage * 0.5), None, None)
+                    .on_visible(move |v| Some(LMsg::Seen(i, v)));
                 // The same cell on the index and on its page: it flies from one to the other.
-                c.on_visible(move |v| Some(LMsg::Seen(i, v))).flow(format!("lab-cell-{i}"))
+                c.child(mid).flow(format!("lab-cell-{i}"))
             }
             pub fn update(&mut self, m: LMsg, now: f32) {
                 if !matches!(m, LMsg::Seen(..)) { self.until = now + amenui::experiment::IDLE_S; }
