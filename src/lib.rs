@@ -169,6 +169,10 @@ mod site_exports {
     /// A new route: the stages' scale steps from the device's own again.
     #[wasm_bindgen]
     pub fn reset_stage() { host(|s| s.ui.reset_stage_scale()); }
+    /// How the last frame was drawn (`perf::FramePath::line`): whether it moved the last frame and, if
+    /// not, why; whether the material pass was the specialised one; the share shaded; the scales.
+    #[wasm_bindgen]
+    pub fn frame_path() -> String { host(|s| s.ui.perf().path.line()).unwrap_or_default() }
     /// The graphics backend in use: `webgpu` or `webgl2`.
     #[wasm_bindgen]
     pub fn backend() -> String { host(|s| s.ui.perf().backend.to_lowercase()).unwrap_or_default() }

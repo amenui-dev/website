@@ -394,6 +394,8 @@ function site() {
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {
       api = { w, kick: () => {} };
+      // How the last frame was drawn, for a log from the console: `AMENUI.framePath()`.
+      A.framePath = () => (api && api.w.frame_path ? api.w.frame_path() : '');
       if (w.set_status_line) w.set_status_line(true);
       if (A.palette && w.set_palette) w.set_palette(A.palette);
       A.line(A.t.starting.replace('{gpu}', navigator.gpu ? 'webgpu' : 'webgl2'));
