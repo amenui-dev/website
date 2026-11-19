@@ -161,7 +161,8 @@ def build(ctx):
             if not ff.exists(): ff = f
             t, body = split_title(front(ff.read_text())[1])
             md[lang], title[lang], cl[lang] = body, t or short, c
-        canvas = f'lab/{short}/' if name.startswith('lab-') else f'works/{short}/' if name.startswith('work-') else f'lab/scenes/{short}/'
+        # A scene's page is named by its hash (`scene-<name>`); its path is the Lab's (`lab/read-an-article/`).
+        canvas = f'lab/{short}/' if name.startswith('lab-') else f'works/{short}/' if name.startswith('work-') else next((q['path'] for q in ctx['data']['pages'] if q['hash'] == name), None)
         if canvas not in canvas_paths: canvas = None
         pages.append(Page(f'recipe-{short}', 'recipes', f'docs/recipes/{short}/', md=md, title=title, content_lang=cl, src=('site', f'docs/site/{{lang}}/{name}.md'), hidden=True, canvas=canvas))
     # Concepts pages under MIN_WORDS: one page, each a section with the page's name as its anchor, at

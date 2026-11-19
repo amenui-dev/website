@@ -19,13 +19,29 @@ pub fn header(key: &str, n: usize, name: &str) -> El<Msg> {
 /// How many columns of at least `min` px fit in `room` px, 16 px apart.
 pub fn columns(room: f32, min: f32) -> usize { ((room + 16.0) / (min + 16.0)).floor().max(1.0) as usize }
 
-/// A grid of `count` columns of at least `min` px in `room` px, 16 px apart.
-pub fn grid(key: &str, room: f32, min: f32) -> El<Msg> {
-    let cols = columns(room, min);
-    let mut g = col().key(key.to_owned()).fill_width().min_width(0.0);
-    g.style.display = taffy::Display::Grid;
-    g.style.grid_template_columns = vec![taffy::prelude::minmax(taffy::prelude::length(0.0), taffy::prelude::fr(1.0)); cols];
-    g.style.gap = taffy::prelude::Size { width: taffy::prelude::length(16.0), height: taffy::prelude::length(16.0) };
+/// Cells in rows of `cols` columns of one width, 16 px apart, each row as tall as its tallest cell.
+/// A cell is `span` columns wide (two: two columns and the gap between them); a row short of cells
+/// keeps its columns' width, the rest of it left empty.
+pub fn rows(key: &str, cols: usize, cells: Vec<(El<Msg>, usize)>) -> El<Msg> {
+    let mut g = col().key(key.to_owned()).fill_width().min_width(0.0).gap(16.0);
+    let (mut r, mut used, mut n) = (vec![], 0, 0);
+    let close = |r: &mut Vec<El<Msg>>, used: usize, n: &mut usize| {
+        // A column is one share of what is left after the gaps; a span of two takes two shares and a gap.
+        let mut line = row().key(format!("{key}/r{n}")).fill_width().min_width(0.0).gap(16.0);
+        for c in r.drain(..) { line = line.child(c); }
+        if used < cols { line = line.child(space(0.0, 0.0).grow((cols - used) as f32).basis(16.0 * (cols - used - 1) as f32)); }
+        *n += 1;
+        line
+    };
+    for (mut c, span) in cells {
+        let span = span.clamp(1, cols);
+        if used + span > cols { g = g.child(close(&mut r, used, &mut n)); used = 0; }
+        c.style.size.width = taffy::prelude::auto();
+        r.push(c.min_width(0.0).grow(span as f32).basis(16.0 * (span - 1) as f32));
+        used += span;
+        if used == cols { g = g.child(close(&mut r, used, &mut n)); used = 0; }
+    }
+    if !r.is_empty() { g = g.child(close(&mut r, used, &mut n)); }
     g
 }
 
@@ -65,35 +81,6 @@ pub fn two_lines(desc: &str, width: f32) -> String {
     format!("{}…", out.trim_end().trim_end_matches([',', '，']))
 }
 
-/// A card with its name on top and what it shows of its page under it, as the cards of links beside
-/// it in a row (their names on one baseline); pressing it opens the page.
-pub fn card_named(key: &str, n: usize, name: String, preview: Option<El<Msg>>, to: Page) -> El<Msg> {
-    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).gap(10.0).pad(16.0, 14.0).radius(6.0).border(1.0, Paint::FAINT)
-        .fill(Paint::GROUND).material(Material::Plain.id())
-        .on_press(Msg::Go(to)).role(Role::Link).label(&name)
-        .child(row().key(format!("{key}/name")).gap(10.0).align(AlignItems::BASELINE)
-            .child(text(format!("{n:02}"), 11.0, Paint::DIM).font(Font::Mono))
-            .child(text(name, 16.0, Paint::INK).flow(format!("card-name-{}", to.hash()))));
-    if let Some(e) = preview { c = c.child(col().key(format!("{key}/preview")).fill_width().min_width(0.0).height(PREVIEW_H).align(AlignItems::START).justify(taffy::JustifyContent::CENTER).child(e)); }
-    c
-}
-
-/// A card whose line is its pages, each a link (a Looks card on the Lab's index: every preset, mark
-/// set or material is one press away).
-pub fn card_links(key: &str, n: usize, name: String, links: Vec<Page>, to: Page) -> El<Msg> {
-    let mut line = row().key(format!("{key}/links")).wrap().gap(10.0).fill_width().min_width(0.0);
-    for p in links {
-        line = line.child(row().key(format!("{key}/to/{}", p.hash())).height(24.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).role(Role::Link)
-            .child(text(p.name(), 12.0, Paint::TEXT)));
-    }
-    col().key(key.to_owned()).fill_width().min_width(0.0).gap(10.0).pad(16.0, 14.0).radius(6.0).border(1.0, Paint::FAINT)
-        .fill(Paint::GROUND).material(Material::Plain.id())
-        .child(row().key(format!("{key}/name")).gap(10.0).align(AlignItems::BASELINE).on_press(Msg::Go(to)).role(Role::Link)
-            .child(text(format!("{n:02}"), 11.0, Paint::DIM).font(Font::Mono))
-            .child(text(name, 16.0, Paint::INK)))
-        .child(line)
-}
-
 /// The room the index has for its grids.
 pub fn room(s: &Gallery) -> f32 { s.width - super::side(s) - if s.width < super::NARROW { 36.0 } else { 80.0 } }
 
@@ -109,7 +96,7 @@ pub fn components(s: &Gallery) -> El<Msg> {
     let text_w = (room - 16.0 * (cols as f32 - 1.0)) / cols as f32 - 32.0;
     let mut n = 0;
     for (gi, (name, members)) in super::comp_groups().into_iter().enumerate() {
-        let mut g = grid(&format!("index/g{gi}/grid"), room, 240.0);
+        let mut cells = vec![];
         for p in members {
             n += 1;
             let id = match p { Page::Comp(c) => docs::COMP_NAMES[c].replace('-', "_"), Page::Widget(i) => docs::widget_names()[i as usize].clone(), _ => continue };
@@ -118,8 +105,9 @@ pub fn components(s: &Gallery) -> El<Msg> {
             let line = two_lines(&line, text_w);
             let key = format!("index/{}", p.hash());
             let preview = match p { Page::Comp(c) => Some(pages::index_preview(s, c)), _ => widget_preview(&id, &key).or_else(|| docs::first_example(&id).map(|e| e.rekey(&key))) };
-            g = g.child(card(&format!("index/{}", p.hash()), n, p.name(), line, preview, p));
+            cells.push((card(&format!("index/{}", p.hash()), n, p.name(), line, preview, p), 1));
         }
+        let g = rows(&format!("index/g{gi}/grid"), cols, cells);
         page = page.child(col().key(format!("index/g{gi}")).fill_width().min_width(0.0).gap(16.0).child(header(&format!("index/g{gi}/head"), gi + 1, &name)).child(g));
     }
     page

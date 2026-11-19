@@ -67,7 +67,6 @@ impl Page {
         v.extend([Page::Morph, Page::Particles, Page::Flow, Page::Three, Page::Decode]);
         v.push(Page::Type);
         v.push(Page::Demo);
-        v.push(Page::Scenes);
         v.extend((0..scenes::COUNT as u8).map(Page::Scene));
         v.push(Page::Works);
         // A piece that has no page yet (N.2 item 1): its address goes on to the index.
@@ -480,6 +479,8 @@ impl Gallery {
         let img = pages::IMAGE;
         pics[IMAGE_SLOT as usize] = Markr { pitch: self.param(img, 0), levels: self.param(img, 1), ..Markr::with_set(set::DOTS) };
         if let Page::Marks(s) = self.page { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
+        // The Marks cell on the Lab's index shows the member it is at.
+        if self.page == Page::Lab && let Page::Marks(s) = lab::family(1)[(self.lab.fam_t[1] / lab::FAMILY_S) as usize % lab::MARK_ORDER.len()] { pics[MARK_SLOT as usize] = self.marks[s as usize]; }
         pics[STYLE_SLOT as usize] = self.style_pic;
         let gaze = if self.page == Page::Gaze { self.gaze_page } else { self.gaze };
         let mut l = Look { fx: self.demo.fx, theme: self.theme(), material: self.material, pics, params: self.mats, gaze, loose_scale: self.loose_scale, quality: self.quality, overlay: self.overlay, overlay_at: amenui::style::Corner::BottomRight, overlay_inset: [12.0, 12.0], overlay_keep: false,
@@ -809,6 +810,7 @@ fn view_in(s: &Gallery) -> El<Msg> {
     if let Page::Scene(i) = s.page {
         // The canvas lies under the page's navigation bar here, so the scene starts below it.
         return col().key("gallery").fonts(th.roles()).fill_width().fill_height().child(space(0.0, BAR).key("bar-room"))
+            .child(lab_strip(s)).child(divider(th.hairline).key("strip-rule"))
             .child(col().key(format!("main/{}", s.page.hash())).grow(1.0).fill_width().child(scenes::page(s, i as usize)));
     }
     // The first Tab stop: past the bar and the rail to the page.
@@ -834,6 +836,8 @@ fn view_in(s: &Gallery) -> El<Msg> {
         }
         // The Lab: no rail; a page inside it has the path strip under the bar.
         Section::Lab if s.page != Page::Lab => { root = root.child(lab_strip(s)).child(divider(th.hairline).key("strip-rule")).child(main(page)); }
+        // The index: the path line stays under the bar while it scrolls.
+        Section::Lab => { root = root.child(lab::path_line(s)).child(divider(th.hairline).key("path-rule")).child(main(page)); }
         _ => { root = root.child(main(page)); }
     }
     root
@@ -863,7 +867,7 @@ fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
             col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(e)
         }
         Page::Experiment(i) => { let w = (s.width - 32.0).clamp(200.0, 760.0); col().key(format!("stage/{}", s.page.hash())).width(w)
-            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize]), w, false).map(Rc::new(Msg::Lab))) }
+            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize]), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab))) }
         Page::Scene(i) => col().key(format!("main/{}", s.page.hash())).fill_width().fill_height().child(scenes::page(s, i as usize)),
         _ => col().key(format!("main/{}", s.page.hash())).scroll().fill_width().fill_height().child(main_page(s, narrow)),
     }
@@ -903,7 +907,6 @@ fn main_page(s: &Gallery, narrow: bool) -> El<Msg> {
         Page::Particles => pad(main).child(particles::page(s)),
         Page::Presets => pad(main).child(presets::page(s)),
         Page::Widget(i) => { let n = &docs::widget_names()[i as usize]; pad(main).child(docs::component(s, n, craft::live(s, n), None)) }
-        Page::Scenes | Page::Scene(_) => pad(main).child(scenes::list(s)),
         _ => pad(main).child(pages::page(s)),
     }
 }
@@ -940,16 +943,6 @@ pub fn comp_groups() -> Vec<(String, Vec<Page>)> {
 }
 /// The Lab's three groups and their pages, in the order the path strip steps through them. The
 /// skeleton demo is in none (it is reached by its path only).
-pub fn lab_groups() -> Vec<(String, Vec<Page>)> {
-    let tr = amenui::i18n::tr;
-    vec![
-        (tr("nav.experiments"), lab::experiments()),
-        (tr("nav.looks"), std::iter::once(Page::Presets).chain((0..styles().len() as u8).map(Page::Style))
-            .chain(set::FAMILIES.iter().flat_map(|f| f.1.iter().copied()).map(Page::Marks)).chain((0..MATERIAL_COUNT as u8).map(Page::Material)).chain([Page::Gaze, Page::Type]).collect()),
-        (tr("nav.motion"), vec![Page::Morph, Page::Particles, Page::Flow, Page::Three, Page::Decode]),
-    ]
-}
-
 /// The group of the rail that holds the page.
 fn comp_group_of(p: Page) -> Option<usize> {
     let p = if p == Page::LongList { Page::Comp(pages::LIST) } else { p };
@@ -991,26 +984,47 @@ fn strip_link(key: String, label: String, here: bool, m: Msg) -> El<Msg> {
     if commit { l.commit() } else { l }
 }
 fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, Paint::DIM).font(amenui::el::Font::Mono) }
-/// The Lab's path strip: `lab / experiments / lumen` on the left, `← contours · silk →` on the right.
+/// The Lab's path strip (Z.5): `lab / ink / kern` on the left (the step goes to its header on the
+/// index), `← 02.2 take apart · 02.4 weld →` on the right, along the whole path. A family's page has
+/// its members under it, its previous and next inside the family.
 fn lab_strip(s: &Gallery) -> El<Msg> {
     let tr = amenui::i18n::tr;
     let low = |t: String| t.to_lowercase();
+    let narrow = s.width < NARROW;
+    let pad = if narrow { 16.0 } else { 32.0 };
     let mut left = row().key("strip/path").gap(8.0).align(AlignItems::CENTER)
         .child(strip_link("strip/lab".into(), low(tr("nav.lab")), false, Msg::Go(Page::Lab)));
     let mut right = row().key("strip/steps").gap(8.0).align(AlignItems::CENTER);
-    let groups = lab_groups();
-    if let Some((name, pages)) = groups.iter().find(|g| g.1.contains(&s.page)) {
-        let at = pages.iter().position(|p| *p == s.page).unwrap_or(0);
-        left = left.child(sep("/")).child(strip_link("strip/group".into(), low(name.clone()), false, Msg::Go(Page::Lab)));
-        let n = pages.len();
-        let (prev, next) = (pages[(at + n - 1) % n], pages[(at + 1) % n]);
-        right = right.child(strip_link("strip/prev".into(), format!("← {}", low(prev.name())), false, Msg::Go(prev))).child(sep("·"))
-            .child(strip_link("strip/next".into(), format!("{} →", low(next.name())), false, Msg::Go(next)));
+    if let Some((st, _)) = lab::place(s.page) {
+        left = left.child(sep("/")).child(strip_link("strip/group".into(), low(lab::step_name(st)), false, Msg::Lab(lab::LMsg::GoStep(st))));
+    }
+    if let Some((prev, (next, nl))) = lab::neighbours(s.page) {
+        if let Some((p, l)) = prev { right = right.child(strip_link("strip/prev".into(), l, false, Msg::Go(p))).child(sep("·")); }
+        right = right.child(strip_link("strip/next".into(), nl, false, Msg::Go(next)));
     }
     // Where one is: the one part of the strip that changes, and moves, from page to page.
-    left = left.child(sep("/")).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here").flow("strip-here"));
-    row().key("strip").fill_width().height(36.0).pad(if s.width < NARROW { 16.0 } else { 32.0 }, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
-        .child(left).child(space(0.0, 0.0).grow(1.0)).child(if s.width < NARROW { space(0.0, 0.0) } else { right })
+    left = left.child(sep("/")).child(text(low(lab::page_name(s.page)), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here").flow("strip-here"));
+    let top = row().key("strip").fill_width().height(36.0).pad(pad, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
+        .child(left).child(space(0.0, 0.0).grow(1.0)).child(if narrow { space(0.0, 0.0) } else { right });
+    let Some(f) = lab::family_of(s.page) else { return top };
+    // The family's members, the marks in their four runs 16 px apart.
+    let members = lab::family(f);
+    let mut m = row().key("strip/members").gap(10.0).align(AlignItems::CENTER);
+    for (j, p) in members.iter().copied().enumerate() {
+        if f == 1 && j > 0 && lab::MARK_RUNS.contains(&j) { m = m.child(space(6.0, 0.0)); }
+        let here = p == s.page;
+        m = m.child(strip_link(format!("strip/m/{}", p.hash()), if here { format!("[ {} ]", low(lab::page_name(p))) } else { low(lab::page_name(p)) }, here, Msg::Go(p)));
+    }
+    let mut row2 = row().key("strip/family").fill_width().height(28.0).pad(pad, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id());
+    row2 = row2.child(m.scroll_x().shrink().min_width(0.0));
+    if let Some(at) = members.iter().position(|&p| p == s.page).filter(|_| !narrow) {
+        let n = members.len();
+        let (p, q) = (members[(at + n - 1) % n], members[(at + 1) % n]);
+        row2 = row2.child(space(0.0, 0.0).grow(1.0))
+            .child(strip_link("strip/m-prev".into(), format!("← {}", low(lab::page_name(p))), false, Msg::Go(p))).child(sep("·"))
+            .child(strip_link("strip/m-next".into(), format!("{} →", low(lab::page_name(q))), false, Msg::Go(q)));
+    }
+    col().key("strip/both").fill_width().child(top).child(row2)
 }
 /// The Components strip on a phone: `components / inputs / button ▾`, which opens the rail as a sheet.
 fn comp_strip(s: &Gallery) -> El<Msg> {
@@ -1093,7 +1107,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
         .on_unused_key(|s, k, shift| {
             // F2 shows or hides the frame-time readout anywhere.
             if k == amenui::el::Key::F(2) { s.overlay = (s.overlay + 1) % 3; return true; }
-            body::key(s, k) || scenes::key(s, k, shift) || works::key(s, k)
+            body::key(s, k) || scenes::key(s, k, shift) || works::key(s, k) || lab::key(s, k)
         })
         .on_input(|g| scenes::heard(g) | body::heard(g) | works::heard(g))
         .on_pointer(works::pointer)

@@ -18,7 +18,7 @@ pub const SCENES: [(&str, &str, &str, usize); 7] = [
     ("opening", "开场", "满屏的点聚成标题，再散开拼出一页；然后由一台机器一步一步操作这一页。", 1),
     ("reading", "读一篇文章", "图文混排的长文。拖动图片，文字沿着它的真实轮廓重新排开。", 2),
     ("printing", "一张图的印法", "同一张图分成五块，每块一种记号。指针下显出这一块的记号；拖动分界线，或只用一种记号对比原图。", 7),
-    ("morph", "变形", "一个粗重的词散成粒子，拼成一张图；图变成记号，再合成一个能用的小界面。", 1),
+    ("morph", "从词到界面", "一个粗重的词散成粒子，拼成一张图；图变成记号，再合成一个能用的小界面。", 1),
     ("xray", "拆开", "按住空格，界面被拆开：边框、编号和中间图浮出来。松开，合回去。", 5),
     ("sound", "声音", "一段按节拍生成的信号进入场：低频推动整页起伏，频谱散成点，文字仍然可读。", 3),
     ("styles", "九种风格", "同一个界面，在九个风格预设之间切换，变化从按下的地方传开。", 6),
@@ -225,7 +225,7 @@ pub fn set(g: &mut Gallery, scene: usize, i: usize, v: f32) {
 /// Keys no control used, on a scene page. Returns whether the scene used it.
 pub fn key(g: &mut Gallery, k: Key, _shift: bool) -> bool {
     let Page::Scene(i) = g.page else { return false };
-    if k == Key::Escape { super::update(g, Msg::Go(Page::Scenes)); return true; }
+    if k == Key::Escape { super::update(g, Msg::Go(Page::Lab)); return true; }
     match (i, k) {
         (0, Key::Enter | Key::Char(' ')) if g.sc.shown == 0 => { update(g, SMsg::Start); true }
         (3, Key::Right | Key::Char(' ') | Key::Enter) => { update(g, SMsg::NextForm); true }
@@ -955,36 +955,6 @@ fn strip(g: &Gallery, i: usize, pad: f32) -> El<Msg> {
         r = r.child(button_as(format!("scene/{i}/reset"), "重置", Variant::Default, Msg::Scene(SMsg::Reset(i))));
     }
     r
-}
-
-/// `#scenes`: the seven, as cards that open into their scene (the title flies there).
-pub fn list(g: &Gallery) -> El<Msg> {
-    let narrow = g.width < 720.0;
-    let cw = if narrow { g.width - 36.0 } else { ((g.width - 80.0 - 40.0) / 3.0).clamp(240.0, 360.0) };
-    let mut grid = row().key("scenes/grid").gap(20.0).wrap().fill_width();
-    // The first scene: a passage that gathers into a turning body of its own glyphs (`#body`).
-    grid = grid.child(col().key("scenes/body").width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
-        .on_press(Msg::Go(Page::Body))
-        .child(col().key("scenes/tbody/box").width(cw - 36.0).height(110.0).center().child(text_lh("·  ·  ·  ◦  ·\n·  ◦  ○  ◦  ·\n·  ·  ◦  ·  ·", 12.0, 26.0, Paint::ACCENT)))
-        .child(row().gap(10.0).align(AlignItems::BASELINE)
-            .child(text("00", 12.0, Paint::DIM).font(Font::Mono))
-            .child(text(amenui::i18n::tr("nav.body"), 22.0, Paint::INK).font(Font::Display).key("scenes/title-body")))
-        .child(text_lh(amenui::i18n::tr("body.label"), 13.0, 21.0, Paint::DIM)));
-    for (i, (_, title, desc, st)) in SCENES.iter().enumerate() {
-        grid = grid.child(col().key(format!("scenes/card{i}")).width(cw).gap(10.0).pad(18.0, 16.0).radius(10.0).border(1.0, Paint::FAINT)
-            .on_press(Msg::Go(Page::Scene(i as u8)))
-            .child(thumb(i, cw - 36.0))
-            .child(row().gap(10.0).align(AlignItems::BASELINE)
-                .child(text(format!("{:02}", i + 1), 12.0, Paint::DIM).font(Font::Mono))
-                .child(text(*title, 22.0, Paint::INK).font(Font::Display).flow(title_flow(i)).key(format!("scenes/title{i}"))))
-            .child(text_lh(*desc, 13.0, 21.0, Paint::DIM))
-            .child(text(format!("默认风格：{}", styles()[*st].name), 11.0, Paint::DIM).font(Font::Mono)));
-    }
-    col().key("scenes/page").fill_width().gap(18.0)
-        .child(col().key("scenes/head").gap(18.0)
-            .child(text_lh("场景", 34.0, 44.0, Paint::INK).font(Font::Display).heading(1))
-            .child(text_lh("七个用这个框架本身做成的场景。每一个都从安静的页面开始，用指针或键盘操作；Esc 回到这里。", 14.0, 22.0, Paint::DIM)))
-        .child(grid)
 }
 
 /// The ink of "Mountain" in the display face at the heavy weight, in em: its width, and how far it

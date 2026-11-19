@@ -21,9 +21,9 @@ fn routes_and_escape() {
         // The scene's default style is applied.
         assert_eq!(ui.state.style, Some(SCENES[i].3));
         assert!(ui.key(Key::Escape, false));
-        assert_eq!(ui.state.page, Page::Scenes);
+        // Escape goes back to the Lab's index, where the scenes are cells of its path.
+        assert_eq!(ui.state.page, Page::Lab);
     }
-    assert_eq!(Page::from_hash("#scenes"), Some(Page::Scenes));
 }
 
 #[test]
@@ -41,14 +41,13 @@ fn every_control_takes_focus() {
 }
 
 #[test]
-fn list_cards_open_their_scene_with_a_flying_title() {
+fn a_scene_s_cell_on_the_lab_index_opens_it() {
     let mut ui = gallery::new_ui(fonts(), 1280, 800, 1.0);
-    gallery::update(&mut ui.state, Msg::Go(Page::Scenes));
+    gallery::update(&mut ui.state, Msg::Go(Page::Lab));
     ui.relayout();
     run(&mut ui, 1.0);
-    click(&mut ui, "scenes/card2");
-    assert_eq!(ui.state.page, Page::Scene(2));
-    assert!(ui.flowing() > 0, "the title flies");
+    click(&mut ui, "labi/scene-reading");
+    assert_eq!(ui.state.page, Page::Scene(1));
 }
 
 #[test]
@@ -195,9 +194,9 @@ fn sound_is_calm_at_intensity_zero_and_spares_its_controls() {
     run(&mut ui, 3.0);
     assert!(ui.state.sc.playing);
     assert!(!ui.field().fronts.iter().any(|f| f[3] > 0.0 && f[2] > t0 + 0.01), "no beat fronts at intensity 0");
-    // The strip and the play button are calm boxes the fronts pass by.
+    // The Lab's path strip, the scene's strip and the play button are calm boxes the fronts pass by.
     let calm: Vec<_> = ui.field().calm.iter().filter(|r| r[2] > r[0]).copied().collect();
-    assert_eq!(calm.len(), 2);
+    assert_eq!(calm.len(), 3);
     let (x, y) = ui.node("snd/play").unwrap().rect.center();
     assert!(calm.iter().any(|r| x >= r[0] && x < r[2] && y >= r[1] && y < r[3]));
 }

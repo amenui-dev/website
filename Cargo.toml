@@ -19,7 +19,8 @@ crate-type = ["cdylib", "rlib"]
 # `--no-default-features` builds the module a WebGPU browser downloads, without the WebGL2 backend.
 amenui = { git = "https://github.com/amenui-dev/amenui", branch = "main", default-features = false, features = ["gltf", "window", "system-fonts"] }
 wgpu = { version = "30", default-features = false }
-taffy = "0.15"
+# Flexbox only: the site lays out no grid.
+taffy = { version = "0.15", default-features = false, features = ["std"] }
 pollster = "0.4"
 serde_json = "1"
 

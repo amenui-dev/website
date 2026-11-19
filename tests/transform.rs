@@ -58,7 +58,8 @@ fn gallery_flow_page_and_shell() {
     // The path strip steps on to the next page (this page is in the Lab); the strip itself stays put.
     let strip = ui.node("strip").unwrap().rect;
     click(&mut ui, "strip/next");
-    assert_eq!(ui.state.page, Page::Three);
+    // Page change (05.4) is followed by Decode (05.5) on the Lab's path.
+    assert_eq!(ui.state.page, Page::Decode);
     assert_eq!(ui.node("strip").unwrap().rect, strip);
 }
 

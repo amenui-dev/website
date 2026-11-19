@@ -21,12 +21,11 @@ fn works_has_an_index_and_a_page_a_piece_and_the_scenes_live_in_the_lab() {
         assert_eq!(Page::all().contains(&Page::Work(i as u8)), p.page);
         assert!(p.page || !p.built);
     }
-    assert_eq!(Page::Scenes.path(), "lab/scenes/");
-    assert_eq!(Page::Scenes.section(), gallery::Section::Lab);
-    // The old addresses still name the same pages.
-    assert_eq!(Page::from_path("scenes/"), Some(Page::Scenes));
+    // The old addresses lead on: the scenes' own section and the Lab's old levels.
+    assert_eq!(Page::from_path("scenes/"), Some(Page::Lab));
+    assert_eq!(Page::from_path("lab/scenes/reading/"), Some(Page::Scene(1)));
+    assert_eq!(Page::Scene(1).path(), "lab/read-an-article/");
     let moved = gallery::routes::moved();
-    assert!(moved.iter().any(|(path, p)| path == "scenes/" && *p == Page::Scenes), "{moved:?}");
     assert!(moved.iter().all(|(path, p)| Page::from_path(path) == Some(*p)));
 }
 

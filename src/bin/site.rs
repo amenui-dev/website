@@ -9,11 +9,22 @@ use website::showcase::scenes::body;
 fn main() {
     website::install_catalogs();
     let mut g = website::gallery::Gallery::default();
+    let mut g2 = website::gallery::Gallery::default();
     let mut titles = |p: Page| -> Value {
         let mut o = serde_json::Map::new();
         for l in website::LOCALES {
             website::gallery::update(&mut g, Msg::Locale(l));
             o.insert(l.tag().into(), p.name().into());
+        }
+        Value::Object(o)
+    };
+    // Where a Lab page is on the path, for search (`lab · ink`).
+    let mut crumbs = |p: Page| -> Value {
+        let Some((st, _)) = website::gallery::lab::place(p) else { return Value::Null };
+        let mut o = serde_json::Map::new();
+        for l in website::LOCALES {
+            website::gallery::update(&mut g2, Msg::Locale(l));
+            o.insert(l.tag().into(), format!("{} · {}", amenui::i18n::tr("nav.lab"), website::gallery::lab::step_name(st)).into());
         }
         Value::Object(o)
     };
@@ -23,7 +34,7 @@ fn main() {
         if !seen.insert(p.path()) { continue; }
         let tone = |t: u8| ["", "light", "dark"][t as usize];
         let (bar, foot) = (tone(website::gallery::works::tone(p)), tone(website::gallery::works::foot_tone(p)));
-        pages.push(json!({ "path": p.path(), "hash": p.hash(), "section": p.section().name(), "title": titles(p), "tone": bar, "foot": foot }));
+        pages.push(json!({ "path": p.path(), "hash": p.hash(), "section": p.section().name(), "title": titles(p), "crumb": crumbs(p), "tone": bar, "foot": foot }));
     }
     for (path, p) in routes::aliases() {
         pages.push(json!({ "path": path, "hash": p.hash(), "section": p.section().name(), "title": titles(p), "alias": true }));
@@ -32,6 +43,8 @@ fn main() {
     for p in Page::all() { redirects.insert(p.hash(), p.path().into()); }
     for (h, path) in routes::doc_redirects() { redirects.insert(h, path.into()); }
     redirects.insert("gallery".into(), "components/".into());
+    // The scenes' own index, gone into the Lab's path.
+    redirects.insert("scenes".into(), "lab/".into());
     let b = body::Body::default();
     let listing = b.listing();
     let locales: Vec<Value> = website::LOCALES.iter().map(|l| json!({ "tag": l.tag(), "name": l.name() })).collect();

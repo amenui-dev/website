@@ -135,7 +135,7 @@ fn the_labs_index_rests_as_stills_and_runs_the_cell_under_the_pointer() {
     let t = ui.now();
     assert_eq!(run(&mut ui, t + 5.0), 0, "the index at rest draws no frames");
     // The pointer on a cell's piece runs it at full rate, and only it.
-    let r = ui.node("labi/contours").expect("the contours cell").rect;
+    let r = ui.node("labi/lab-contours").expect("the contours cell").rect;
     ui.pointer_move(r.x + r.w * 0.5, r.y + r.h * 0.6);
     let before = ui.state.lab.local;
     let t = ui.now();

@@ -326,10 +326,11 @@ for lang in langs:
             if it: text = it.get('description_en') if lang == 'en' else it.get('description', '')
         if p['path'] in docs_of:
             w, secs = docs_of.pop(p['path'])
-            entries.append([p['path'], title, w['crumb'] if sec == 'components' else names.get(sec, sec), (kw + ' ' + w['keywords']).strip(), 1, secs, w['url']])
+            entries.append([p['path'], title, w['crumb'] if sec == 'components' else (p.get('crumb') or {}).get(lang) or names.get(sec, sec), (kw + ' ' + w['keywords']).strip(), 1, secs, w['url']])
             continue
         if text: text = docs_html.first_sentence(text)[0]
-        entries.append([p['path'], title, names.get(sec, sec), kw, 1, [['', '', text]] if text else []])
+        crumb = (p.get('crumb') or {}).get(lang) or names.get(sec, sec)
+        entries.append([p['path'], title, crumb, kw, 1, [['', '', text]] if text else []])
     # A docs page whose route is not a canvas page here keeps its own entry.
     for w, secs in docs_of.values(): entries.append([w['url'], w['title'], w['crumb'], w['keywords'], 0, secs])
     # Two files: the titles and headings, small enough to answer at once, and the sections' text, which

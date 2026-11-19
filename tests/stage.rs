@@ -103,6 +103,6 @@ fn every_lab_piece_and_every_works_piece_is_a_stage() {
         assert!(ui.stage_state(&key).is_some_and(|s| s.1 > 0), "{key} on {} is not a drawn stage", p.hash());
     };
     for (i, n) in website::gallery::lab::NAMES.iter().enumerate() { on(&mut ui, Page::Experiment(i as u8), format!("lab/{n}/stage")); }
-    on(&mut ui, Page::Lab, format!("labi/{}/stage", website::gallery::lab::NAMES[0]));
+    on(&mut ui, Page::Lab, "labi/lab-flow/stage".to_owned());
     for (i, p) in website::gallery::works::PIECES.iter().enumerate().filter(|(_, p)| p.page) { on(&mut ui, Page::Work(i as u8), format!("work/{}/layer", p.slug)); }
 }

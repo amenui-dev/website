@@ -95,7 +95,8 @@
 取样 = Sampling
 取消 = Cancel
 变体 = Variants
-变形 = Deform
+变形 = Morph
+从词到界面 = Word to interface
 变成 = Becomes
 变换 = Transform
 名称 = Name

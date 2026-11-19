@@ -254,10 +254,12 @@ fn the_look_strip_changes_the_stage_and_a_style_page_the_whole_look() {
     // Reset gives the stage back its material.
     click(&mut ui, "doc/button/look/reset");
     assert_eq!(ui.state.stage_material, amenui::style::Material::Dottr);
-    // A style page changes everything, from the link pressed (the Lab's path strip steps through them).
-    let i = amenui::style::styles().iter().position(|s| s.hash == "bauhaus").expect("bauhaus");
-    go(&mut ui, if i == 0 { Page::Presets } else { Page::Style(i as u8 - 1) });
-    click(&mut ui, "strip/next");
+    // A style page changes everything, from the link pressed (the presets' strip steps through them).
+    let i = amenui::style::styles().iter().position(|s| s.hash == "bauhaus").expect("bauhaus") as u8;
+    let members = website::gallery::lab::family(2);
+    let at = members.iter().position(|&p| p == Page::Style(i)).expect("bauhaus is a preset");
+    go(&mut ui, members[(at + members.len() - 1) % members.len()]);
+    click(&mut ui, "strip/m-next");
     assert!(ui.split().is_some());
     assert_eq!(ui.state.material, amenui::style::Material::Halftonr);
     assert_eq!(ui.state.theme().name, "包豪斯");
@@ -288,10 +290,10 @@ fn every_page_has_a_plain_hash() {
     let forbidden = ["settings", "sidebar", "customize", "upgrade", "downloads"];
     let pages = Page::all();
     // The components, the ten thousand rows, mark sets, materials, the annotation page, styles, morph,
-    // flow and 3D, type and demo, the scene list and the scenes, Body, the Components index; the
+    // flow and 3D, type and demo, the scenes, Body, the Components index; the
     // components without a gallery page of their own; the lab and its experiments, the reader, decode,
     // the field map.
-    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 1 + 7 + 1 + 1 + website::gallery::docs::widget_names().len() + 1 + website::gallery::lab::COUNT + 3 + 1 + website::gallery::works::PIECES.iter().filter(|p| p.page).count());
+    assert_eq!(pages.len(), COMPONENTS.len() + 1 + amenui::style::set::COUNT + amenui::style::MATERIAL_COUNT + 1 + amenui::style::styles().len() + 1 + 4 + 2 + 7 + 1 + 1 + website::gallery::docs::widget_names().len() + 1 + website::gallery::lab::COUNT + 3 + 1 + website::gallery::works::PIECES.iter().filter(|p| p.page).count());
     for p in pages {
         let h = p.hash();
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'), "{h}");

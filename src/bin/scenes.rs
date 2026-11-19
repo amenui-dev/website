@@ -208,15 +208,15 @@ fn main() {
     if only.is_none() {
         let (w, h, px) = sheet(&best, 2);
         save_png(&format!("{out}/scenes.png"), w, h, &px);
-        // The list of scenes, and a card opening into its scene.
+        // The Lab's index, and a scene's cell opening into its scene.
         let mut ui = gallery::new_ui(faces(), W, H, 1.0);
         ui.pointer_leave();
-        gallery::update(&mut ui.state, Msg::Go(Page::Scenes));
+        gallery::update(&mut ui.state, Msg::Go(Page::Lab));
         ui.relayout();
         let mut d = Dir { ui, o: &mut wide, frames: vec![], labels: vec![] };
         d.wait(2.0);
-        d.snap("the list");
-        d.click("scenes/card3");
+        d.snap("the index");
+        d.click("labi/scene-reading");
         d.wait(0.2); d.snap("a card opening: the title flies");
         d.wait(1.5); d.snap("the scene");
         d.ui.key(Key::Escape, false);
