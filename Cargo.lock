@@ -154,7 +154,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "amenui"
 version = "0.0.1"
-source = "git+https://github.com/amenui-dev/amenui?branch=main#587de29c147a303beca192377d478c645b0b58b6"
+source = "git+https://github.com/amenui-dev/amenui?branch=main#5a98ceb7607348ef1b545793647a420bd7ef7326"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -2716,7 +2716,6 @@ checksum = "31f7bd2d97198df05186f93a3a3c306845f40e8b3c22bf9279cdd7e5cf5fea7d"
 dependencies = [
  "serde",
  "slotmap",
- "smallvec",
 ]
 
 [[package]]
