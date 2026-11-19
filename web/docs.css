@@ -4,7 +4,7 @@
 html.doc { color-scheme: dark light; --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
   --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace; scroll-padding-top: 72px; }
 @media (prefers-color-scheme: light) {
-  html.doc { --ground: #e9e8e3; --raised: #dfded8; --hairline: #c4c3bc; --dim: #626466; --text: #2a2b2d; --ink: #17181a; --accent: #db4d14; --second: #1a5cc7; --warn: #8a6500; }
+  html.doc { --ground: #e9e8e3; --raised: #dfded8; --hairline: #c4c3bc; --dim: #626466; --text: #2a2b2d; --ink: #17181a; --accent: #db4d14; --second: #1a5cc7; --warn: #8a6500; --halo: #e4b39d; }
 }
 html.doc, .doc body { height: auto; }
 .doc body { overflow: visible; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
