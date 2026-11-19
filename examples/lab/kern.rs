@@ -94,7 +94,7 @@ fn grouped(n: f32) -> String {
 
 impl Kern {
     /// The page's faces, new or changed: every measure is made again from them.
-    pub fn set_faces(&mut self, f: Faces) { self.faces = Some(f); self.solved = Rc::default(); self.px = 0.0; self.home.clear(); }
+    pub fn set_faces(&mut self, f: Faces) { self.faces = Some(f); self.solved = Rc::default(); self.laid = Rc::default(); self.px = 0.0; self.home.clear(); }
     pub fn chars(&self) -> Vec<char> { self.word.text.chars().collect() }
     fn glyph(&self, c: char, px: f32) -> Option<Rc<Glyph>> { self.faces.as_ref()?.glyph(FACE, c, px) }
     /// `c`'s advance at `px`.
@@ -360,9 +360,11 @@ impl Experiment for Kern {
         let word = text(self.word.text.clone(), px, Paint::INK).font(FACE).nowrap().selectable().key(kf("word"))
             .pose(move |g: GlyphAt| {
                 if g.n == n && g.i < n {
+                    // Kept from the first size the word is drawn at: the rests are found from one set of
+                    // pens, so a size they choose is not chosen again from another's.
                     let mut l = rec.borrow_mut();
-                    if l.0 != said || l.1 != px || l.2.len() != n { *l = (said.clone(), px, vec![f32::NAN; n]); }
-                    l.2[g.i] = g.pen;
+                    if l.0 != said || l.2.len() != n { *l = (said.clone(), px, vec![f32::NAN; n]); }
+                    if l.1 == px { l.2[g.i] = g.pen; }
                 }
                 Pose { dx: pens.get(g.i).map_or(0.0, |p| p - g.pen), ..Pose::default() }
             })
