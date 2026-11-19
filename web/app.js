@@ -382,7 +382,8 @@ function site() {
   // full one, which also draws with WebGL2. If the WebGPU-only one cannot start (no adapter, no device,
   // or anything else), the full one is tried on a fresh canvas before any failure is shown.
   const start = () => mount(stage, {
-    route: A.route === '' ? '/' : A.route,
+    // The Lab's index opened at a step (`/lab/#ink`) takes the step with it.
+    route: A.route === '' ? '/' : A.route === 'lab/' && hash ? 'lab/#' + hash : A.route,
     load: () => ({ module: A.wasm, glue: A.glue, fonts: A.fonts, texts: A.texts }), faces: A.files.faces, texts: A.files,
     // Before the first frame: the stage, and the state from the address (none: the short path).
     started: w => {

@@ -107,6 +107,40 @@ fn a_press_on_the_path_line_brings_its_step_under_it() {
 }
 
 #[test]
+fn a_family_strip_shows_every_member_once() {
+    for w in [1440u32, 1024, 390] {
+        for f in 0..3 {
+            let members = lab::family(f);
+            for at in [0, members.len() / 2, members.len() - 1] {
+                let p = members[at];
+                let mut ui = gallery::new_ui(fonts(), w, 900, 1.0);
+                gallery::update(&mut ui.state, Msg::Go(p));
+                ui.relayout();
+                let mut t = ui.now();
+                for _ in 0..20 { t += 1.0 / 60.0; ui.tick(t); ui.frame_drawn(); }
+                let line = ui.node("strip/members").unwrap_or_else(|| panic!("the members at {w}")).rect;
+                for q in &members {
+                    let r = ui.node(&format!("strip/m/{}", q.hash())).unwrap_or_else(|| panic!("{q:?} in the strip at {w}")).rect;
+                    if w >= 720 { assert!(r.x >= line.x - 0.5 && r.right() <= line.right() + 0.5, "{q:?} cut at {w}: {r:?} in {line:?}"); }
+                    if *q == p { assert!(r.x >= 0.0 && r.right() <= w as f32, "{p:?}, the page's own, in view at {w}: {r:?}"); }
+                }
+                // A run of marks is never broken across lines.
+                if f == 1 && w >= 720 {
+                    for (a, b) in lab::MARK_RUNS.iter().zip(lab::MARK_RUNS.iter().skip(1).chain([&members.len()])) {
+                        let ys: Vec<f32> = members[*a..*b].iter().map(|q| ui.node(&format!("strip/m/{}", q.hash())).unwrap().rect.y).collect();
+                        assert!(ys.iter().all(|y| (y - ys[0]).abs() < 1.0), "a run broken at {w}: {ys:?}");
+                    }
+                }
+                // The strip is the one list of members.
+                assert!(ui.node("strip/m-prev").is_none() && ui.node("strip/m-next").is_none(), "no previous and next of the family's own");
+                assert!(!ui.nodes().iter().any(|n| n.key.contains("/chip")), "no picker of marks under the picture");
+                assert!(ui.focus().is_none(), "nothing keeps the focus at {w}");
+            }
+        }
+    }
+}
+
+#[test]
 #[ignore = "prints the next chain: cargo test --profile quick --test lab_path chain -- --ignored --nocapture"]
 fn chain() {
     let _ui = index(390, 400, amenui::i18n::Locale::En);

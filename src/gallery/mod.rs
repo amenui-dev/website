@@ -560,6 +560,7 @@ impl Gallery {
     /// Opening a page that has a style of its own applies it: a style page its preset, a scene its
     /// default.
     fn enter(&mut self, p: Page) {
+        member_in_view(self, p);
         match p {
             Page::Style(i) => {
                 self.apply_style(i as usize);
@@ -622,6 +623,7 @@ impl Gallery {
                 self.page = p; self.edit = None; self.enter(p);
                 if state == "stage" { self.stage_only = true; }
                 else if p == Page::Body && !state.is_empty() { self.body.open(state, 0); }
+                else if p == Page::Lab && let Some(i) = lab::STEPS.iter().position(|k| *k == state) { lab::at_step(self, i); }
                 true
             }
             None => false,
@@ -837,7 +839,7 @@ fn view_in(s: &Gallery) -> El<Msg> {
         // The Lab: no rail; a page inside it has the path strip under the bar.
         Section::Lab if s.page != Page::Lab => { root = root.child(lab_strip(s)).child(divider(th.hairline).key("strip-rule")).child(main(page)); }
         // The index: the path line stays under the bar while it scrolls.
-        Section::Lab => { root = root.child(lab::path_line(s)).child(divider(th.hairline).key("path-rule")).child(main(page)); }
+        Section::Lab => { root = root.child(lab::path_line(s)).child(main(page)); }
         _ => { root = root.child(main(page)); }
     }
     root
@@ -986,7 +988,15 @@ fn strip_link(key: String, label: String, here: bool, m: Msg) -> El<Msg> {
 fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, Paint::DIM).font(amenui::el::Font::Mono) }
 /// The Lab's path strip (Z.5): `lab / ink / kern` on the left (the step goes to its header on the
 /// index), `← 02.2 take apart · 02.4 weld →` on the right, along the whole path. A family's page has
-/// its members under it, its previous and next inside the family.
+/// all its members under it: on lines that break only between the marks' runs, and below 720 on one
+/// line that scrolls sideways, kept with the page's member in view (`member_in_view`).
+/// A family member's page on a phone: its link in the members' line is scrolled into view (the
+/// focus taken there and given up again, which scrolls the line and leaves nothing focused).
+fn member_in_view(s: &mut Gallery, p: Page) {
+    if s.width >= NARROW || lab::family_of(p).is_none() || p == Page::Presets { return; }
+    s.cmds.push(Cmd::Focus { key: format!("strip/m/{}", p.hash()) });
+    s.cmds.push(Cmd::ClearFocus);
+}
 fn lab_strip(s: &Gallery) -> El<Msg> {
     let tr = amenui::i18n::tr;
     let low = |t: String| t.to_lowercase();
@@ -1007,23 +1017,22 @@ fn lab_strip(s: &Gallery) -> El<Msg> {
     let top = row().key("strip").fill_width().height(36.0).pad(pad, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
         .child(left).child(space(0.0, 0.0).grow(1.0)).child(if narrow { space(0.0, 0.0) } else { right });
     let Some(f) = lab::family_of(s.page) else { return top };
-    // The family's members, the marks in their four runs 16 px apart.
+    // The family's members: the marks in their four runs, 26 px apart, a run never broken across lines.
     let members = lab::family(f);
-    let mut m = row().key("strip/members").gap(10.0).align(AlignItems::CENTER);
-    for (j, p) in members.iter().copied().enumerate() {
-        if f == 1 && j > 0 && lab::MARK_RUNS.contains(&j) { m = m.child(space(6.0, 0.0)); }
-        let here = p == s.page;
-        m = m.child(strip_link(format!("strip/m/{}", p.hash()), if here { format!("[ {} ]", low(lab::page_name(p))) } else { low(lab::page_name(p)) }, here, Msg::Go(p)));
+    let link = |p: Page| { let here = p == s.page; strip_link(format!("strip/m/{}", p.hash()), if here { format!("[ {} ]", low(lab::page_name(p))) } else { low(lab::page_name(p)) }, here, Msg::Go(p)).height(24.0) };
+    let runs: Vec<&[Page]> = if f == 1 { lab::MARK_RUNS.iter().zip(lab::MARK_RUNS.iter().skip(1).chain([&members.len()])).map(|(&a, &b)| &members[a..b]).collect() } else { members.chunks(1).collect() };
+    let mut m = row().key("strip/members").align(AlignItems::CENTER);
+    let between = if f == 1 { 26.0 } else { 10.0 };
+    if narrow { m = m.gap(between).scroll_x().fill_width().min_width(0.0); } else {
+        m = m.wrap().fill_width().min_width(0.0);
+        m.style.gap = taffy::prelude::Size { width: taffy::prelude::length(between), height: taffy::prelude::length(0.0) };
     }
-    let mut row2 = row().key("strip/family").fill_width().height(28.0).pad(pad, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id());
-    row2 = row2.child(m.scroll_x().shrink().min_width(0.0));
-    if let Some(at) = members.iter().position(|&p| p == s.page).filter(|_| !narrow) {
-        let n = members.len();
-        let (p, q) = (members[(at + n - 1) % n], members[(at + 1) % n]);
-        row2 = row2.child(space(0.0, 0.0).grow(1.0))
-            .child(strip_link("strip/m-prev".into(), format!("← {}", low(lab::page_name(p))), false, Msg::Go(p))).child(sep("·"))
-            .child(strip_link("strip/m-next".into(), format!("{} →", low(lab::page_name(q))), false, Msg::Go(q)));
+    for (r, run) in runs.into_iter().enumerate() {
+        let mut g = row().key(format!("strip/run{r}")).gap(10.0).align(AlignItems::CENTER);
+        for &p in run { g = g.child(link(p)); }
+        m = m.child(g);
     }
+    let row2 = row().key("strip/family").fill_width().min_height(28.0).pad(pad, 2.0).align(AlignItems::CENTER).calm().material(Material::Plain.id()).child(m);
     col().key("strip/both").fill_width().child(top).child(row2)
 }
 /// The Components strip on a phone: `components / inputs / button ▾`, which opens the rail as a sheet.

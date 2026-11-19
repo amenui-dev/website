@@ -94,28 +94,33 @@ macro_rules! cells {
             fn ready(&self, i: usize) -> bool { i != 3 || self.grown.mask.is_some() }
             /// Each frame: on the index, bring every piece to its still (`STILL_S` of its own time) once;
             /// then step the one cell that runs (with motion reduced only for `IDLE_S` after input), and
-            /// any piece still settling. Whether the view changed.
-            pub fn step(&mut self, now: f32, page: Option<usize>, index: bool) -> bool {
+            /// any piece still settling. The cells whose view changed: an experiment `i` as itself, family
+            /// `f`'s cell, which went on to its next member, as `COUNT + f`.
+            pub fn step_cells(&mut self, now: f32, page: Option<usize>, index: bool) -> Vec<usize> {
                 let gap = (now - self.last).max(0.0);
                 let dt = gap.min(0.1);
                 self.last = now;
-                let mut c = false;
+                let mut c = vec![];
                 let live = !self.reduced || now < self.until;
                 for f in 0..3 {
                     if !(self.fam_on[f] && live) { continue; }
                     let was = (self.fam_t[f] / FAMILY_S) as usize;
                     self.fam_t[f] += gap.min(FAMILY_S);
-                    c |= (self.fam_t[f] / FAMILY_S) as usize != was;
+                    if (self.fam_t[f] / FAMILY_S) as usize != was { c.push(COUNT + f); }
                 }
-                // Grown's reaction-diffusion costs a few ms a step: its still comes over a second.
-                $( if index && self.ready($i) && self.local[$i] < STILL_S {
-                    let mut n = if $i == 3 { 4 } else { 240 };
-                    while self.local[$i] < STILL_S && n > 0 { self.local[$i] += 1.0 / 60.0; self.$f.step(self.local[$i]); n -= 1; }
-                    c = true;
-                } )*
                 if self.coarse && now - self.seen_t >= SETTLE_S { self.centred = self.middle(); }
-                let run = self.running(page).filter(|_| !self.reduced || now < self.until);
-                $( if run == Some($i) || self.$f.moving() { self.local[$i] += dt; c |= self.$f.step(self.local[$i]); } )*
+                let run = self.running(page).filter(|_| live);
+                $( {
+                    let mut moved = false;
+                    // Grown's reaction-diffusion costs a few ms a step: its still comes over a second.
+                    if index && self.ready($i) && self.local[$i] < STILL_S {
+                        let mut n = if $i == 3 { 4 } else { 240 };
+                        while self.local[$i] < STILL_S && n > 0 { self.local[$i] += 1.0 / 60.0; self.$f.step(self.local[$i]); n -= 1; }
+                        moved = true;
+                    }
+                    if run == Some($i) || self.$f.moving() { self.local[$i] += dt; moved |= self.$f.step(self.local[$i]); }
+                    if moved { c.push($i); }
+                } )*
                 c
             }
             /// When the cells next need a frame.
@@ -153,7 +158,7 @@ pub fn fanned(d: &amenui::widgets::Stack) -> amenui::widgets::Stack {
 pub fn update(s: &mut Gallery, m: LMsg) {
     if let LMsg::GoStep(i) = m {
         super::update(s, Msg::Go(super::Page::Lab));
-        s.cmds.push(amenui::morph::Cmd::ScrollTo { key: format!("labx/{}/head", STEPS[i]) });
+        at_step(s, i);
         return;
     }
     let now = s.clock;
@@ -165,8 +170,42 @@ pub const STILL_S: f32 = 4.0;
 pub const SETTLE_S: f32 = 0.2;
 fn page_cell(s: &Gallery) -> Option<usize> { if let super::Page::Experiment(i) = s.page { Some(i as usize) } else { None } }
 /// Step the one cell that runs (Y.7): on an experiment's page its own; on the index the one under the
-/// pointer, or with no hover the one nearest the window's centre; every other cell is a still.
-pub fn tick(s: &mut Gallery, t: f32) -> bool { let (p, i) = (page_cell(s), s.page == super::Page::Lab); on_lab(s) && s.lab.step(t, p, i) }
+/// pointer, or with no hover the one nearest the window's centre; every other cell is a still. The
+/// stages of the cells that changed (`Ui::on_step`), which `stage_of` makes again on their own.
+pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
+    if !on_lab(s) { return vec![]; }
+    let index = s.page == super::Page::Lab;
+    let changed = s.lab.step_cells(t, page_cell(s), index);
+    let fams = path().into_iter().flatten().filter(|&p| family_of(p).is_some()).collect::<Vec<_>>();
+    changed.into_iter().filter_map(|i| match (i < COUNT, index) {
+        (true, true) => Some(format!("labi/{}/stage", super::Page::Experiment(i as u8).hash())),
+        (true, false) => Some(format!("lab/{}/stage", NAMES[i])),
+        (false, true) => fams.iter().find(|&&p| family_of(p) == Some(i - COUNT)).map(|p| format!("labi/{}/stage", p.hash())),
+        (false, false) => None,
+    }).collect()
+}
+/// A cell's stage alone (`Ui::stage_view`), as its page makes it: `labi/<page>/stage` on the index,
+/// `lab/<name>/stage` on an experiment's page.
+pub fn stage_of(s: &Gallery, key: &str) -> Option<El<Msg>> {
+    use super::Page;
+    let rest = key.strip_suffix("/stage")?;
+    let stage = |c: El<Msg>| c.children.into_iter().nth(1);
+    if let Some(name) = rest.strip_prefix("lab/") {
+        let i = NAMES.iter().position(|n| *n == name)?;
+        let w = if !s.stage_only { page_width(s) } else { (s.width - 32.0).clamp(200.0, 760.0) };
+        return stage(s.lab.cell(i, rest, w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab)));
+    }
+    let hash = rest.strip_prefix("labi/")?;
+    let p = path().into_iter().flatten().find(|p| p.hash() == hash)?;
+    let (cols, width, h) = dims(s);
+    let (st, at) = place(p)?;
+    let w = if at == 0 && cols > 1 && path()[st].len() % cols == 1 { width * 2.0 + 16.0 } else { width };
+    stage(match p {
+        Page::Experiment(e) => s.lab.cell(e as usize, rest, w, h, true).map(Rc::new(Msg::Lab)),
+        other => still_cell(s, rest, other, w, h),
+    })
+}
+pub fn tick(s: &mut Gallery, t: f32) -> bool { !step(s, t).is_empty() }
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if on_lab(s) { s.lab.wake(t, page_cell(s), s.page == super::Page::Lab) } else { None } }
 /// Arriving on a Lab page starts the idle motion of what can be seen.
 pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + amenui::experiment::IDLE_S; }
@@ -278,6 +317,13 @@ pub fn key(s: &mut Gallery, k: amenui::el::Key) -> bool {
     s.cmds.push(amenui::morph::Cmd::ScrollTo { key: format!("labx/{}/head", STEPS[c as usize - '1' as usize]) });
     true
 }
+/// The index opens at step `i` (`/lab/#<step>`, a piece's strip): its header under the path line and
+/// the brackets on it from the first frame, before the sections say what can be seen.
+pub fn at_step(s: &mut Gallery, i: usize) {
+    let Some(k) = STEPS.get(i) else { return };
+    s.lab.steps = std::array::from_fn(|j| j == i);
+    s.cmds.push(amenui::morph::Cmd::ScrollTo { key: format!("labx/{k}/head") });
+}
 /// The step whose section is first in the window (the path line's "you are here").
 pub fn here(s: &Gallery) -> usize { s.lab.steps.iter().position(|&v| v).unwrap_or(0) }
 
@@ -287,7 +333,9 @@ pub fn path_line(s: &Gallery) -> El<Msg> {
     use amenui::el::row;
     let narrow = s.width < super::NARROW;
     let at = here(s);
-    let mut r = row().key("lab/path").fill_width().height(28.0).pad(if narrow { 16.0 } else { 32.0 }, 0.0).gap(24.0).align(taffy::AlignItems::CENTER)
+    // 28 px with its hairline: a header brought to it sits 8 px under its lower edge.
+    let rule = s.theme().hairline;
+    let mut r = row().key("lab/path/row").fill_width().height(28.0 - rule).pad(if narrow { 16.0 } else { 32.0 }, 0.0).gap(24.0).align(taffy::AlignItems::CENTER)
         .fill(Paint::GROUND).calm().material(Material::Plain.id());
     for (i, k) in STEPS.iter().enumerate() {
         let name = step_name(i).to_lowercase();
@@ -295,11 +343,20 @@ pub fn path_line(s: &Gallery) -> El<Msg> {
         r = r.child(row().key(format!("lab/path/{k}")).height(28.0).align(taffy::AlignItems::CENTER).on_press(Msg::Outline(format!("labx/{k}/head"))).role(amenui::el::Role::Link)
             .child(text(label, 11.0, if i == at { Paint::ACCENT } else { Paint::TEXT }).font(Font::Mono)));
     }
-    r
+    col().key("lab/path").fill_width().child(r).child(amenui::widgets::divider(rule).key("path-rule"))
 }
 
 /// The index's columns by the window: four at 1280 and over, three from 1080, two from 720, one below.
 fn columns(w: f32) -> usize { if w >= 1280.0 { 4 } else if w >= 1080.0 { 3 } else if w >= 720.0 { 2 } else { 1 } }
+
+/// The index's columns, a cell's width and its stage's height.
+fn dims(s: &Gallery) -> (usize, f32, f32) {
+    // The index's padding (`main_page`) off the window.
+    let room = s.width - if s.width < super::NARROW { 32.0 } else { 64.0 };
+    let cols = columns(s.width);
+    let width = ((room - 16.0 * (cols as f32 - 1.0)) / cols as f32).floor();
+    (cols, width, ((width - 26.0) * amenui::experiment::STAGE).floor())
+}
 
 /// `/lab/`: the title, one line, then the five steps, each its header with the count, its sentence
 /// and its cells: one card for all 29 (`[ NAME ]`, the hint, the still; under the frame `02.3  Kern →`).
@@ -308,11 +365,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     use super::{Page, index};
     use amenui::el::{row, text_lh};
     let tr = amenui::i18n::tr;
-    // The index's padding (`main_page`) off the window.
-    let room = s.width - if s.width < super::NARROW { 32.0 } else { 64.0 };
-    let cols = columns(s.width);
-    let width = ((room - 16.0 * (cols as f32 - 1.0)) / cols as f32).floor();
-    let stage = ((width - 26.0) * amenui::experiment::STAGE).floor();
+    let (cols, width, stage) = dims(s);
     let mut page = col().key("lab").fill_width().min_width(0.0).gap(48.0)
         .child(col().key("labx/top").fill_width().min_width(0.0).gap(12.0)
             .child(text(tr("nav.lab"), 34.0, Paint::INK).font(Font::Display).heading(1).key("labx/title").flow("page-title"))
@@ -337,7 +390,9 @@ pub fn page(s: &Gallery) -> El<Msg> {
         let head = row().key(format!("labx/{k}/headrow")).fill_width().gap(10.0).align(taffy::AlignItems::CENTER)
             .child(index::header(&format!("labx/{k}/head"), si + 1, &step_name(si)).grow(1.0))
             .child(text(pages.len().to_string(), 11.0, Paint::DIM).font(Font::Mono));
-        page = page.child(col().key(format!("labx/{k}")).fill_width().min_width(0.0).gap(16.0)
+        // The last step reaches the top of the window too (`/lab/#change`).
+        let tall = if si == STEPS.len() - 1 { s.height } else { 0.0 };
+        page = page.child(col().key(format!("labx/{k}")).fill_width().min_width(0.0).min_height(tall).gap(16.0)
             .on_visible(move |v| Some(Msg::Lab(LMsg::Step(si, v))))
             .child(head)
             .child(text_lh(tr(&format!("lab.step.{k}.line")), 14.0, 22.0, Paint::TEXT).key(format!("labx/{k}/line")).selectable())
@@ -415,11 +470,14 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
 /// The reader's still: the start of a page set in one face at one measure.
 const READER_STILL: &str = "The reader sets a page in one face at one measure. Lines break by whole words, never inside one; a long page turns instead of scrolling, and the outline beside it keeps your place.";
 
+/// How wide an experiment's page is.
+fn page_width(s: &Gallery) -> f32 { (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0) }
+
 /// An experiment's page: its documentation, then the cell.
 pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
     let name = NAMES[i.min(COUNT - 1)];
     let src = doc(name, s.locale);
-    let w = (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0);
+    let w = page_width(s);
     let (body, _) = amenui::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
     col().key(format!("lab/{name}/page")).fill_width().min_width(0.0).max_width(w).gap(18.0)
         .child(s.lab.cell(i, &format!("lab/{name}"), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab)))

@@ -518,23 +518,12 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         let t = Target::Pic(k, i);
         nums = nums.child(number(&format!("{h}/p{i}"), prm.name, pic_value(f, i), prm.spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
-    // The comparison: a framed picture, the original left of a divider
-    // with a round handle and the marks right of it, small capital tags in the top corners, and the
-    // sets as a row of plain text chips along the frame's bottom edge, by family.
+    // The comparison: a framed picture, the original left of a divider with a round handle and the
+    // marks right of it, small capital tags in the top corners (the strip above lists the marks).
     let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::side(s) - 120.0 }).clamp(240.0, 820.0);
     let phh = pw * ph as f32 / w as f32;
     let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore).pass(true);
     let hx = pw * s.wipe;
-    let mut chips = row().key(format!("{h}/chips")).wrap().gap(4.0).width(pw - 20.0);
-    for (fi, (fam, sets)) in set::FAMILIES.iter().enumerate() {
-        if fi > 0 { chips = chips.child(space(10.0, 1.0)); }
-        chips = chips.child(text(fam.to_string(), 10.0, Paint::DIM).key(format!("{h}/fam{fi}")));
-        for &j in sets.iter() {
-            let on = j == k;
-            chips = chips.child(col().key(format!("{h}/chip{j}")).pad(7.0, 3.0).fill(if on { Paint::INK } else { Paint::GROUND }).on_press(Msg::Go(Page::Marks(j))).role(amenui::el::Role::Link).focusable(true)
-                .child(text(set::NAMES[j as usize], 11.0, if on { Paint::GROUND } else { Paint::TEXT }).key(format!("{h}/chip{j}/t"))));
-        }
-    }
     // The divider, the handle and the two tags over the picture let the pointer through, so a drag
     // that starts on any of them moves the wipe.
     let frame = col().key(format!("{h}/frame")).width(pw).height(phh)
@@ -552,7 +541,6 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
         .child(row().key(format!("{h}/picture-row")).fill_width().min_width(0.0).scroll_x().child(segmented(&format!("{h}/picture-choice"), &pick_names, at, 30.0, move |i| Msg::Show(pick[i.min(6)]))))
         .child(space(pw, 1.0).fill(Paint::FAINT).key(format!("{h}/rule-top")))
         .child(frame)
-        .child(chips)
         .child(space(pw, 1.0).fill(Paint::FAINT).key(format!("{h}/rule-bottom")))
         .child(number(&format!("{h}/wipe"), "对比线位置", s.wipe, WIPE_SPEC, s.draft(Target::Wipe), |e| Msg::Num(Target::Wipe, e)).width(330.0));
     col().key(format!("{h}/page")).fill_width().max_width(980.0).gap(34.0)

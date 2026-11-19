@@ -259,7 +259,7 @@ fn the_look_strip_changes_the_stage_and_a_style_page_the_whole_look() {
     let members = website::gallery::lab::family(2);
     let at = members.iter().position(|&p| p == Page::Style(i)).expect("bauhaus is a preset");
     go(&mut ui, members[(at + members.len() - 1) % members.len()]);
-    click(&mut ui, "strip/m-next");
+    click(&mut ui, &format!("strip/m/{}", Page::Style(i).hash()));
     assert!(ui.split().is_some());
     assert_eq!(ui.state.material, amenui::style::Material::Halftonr);
     assert_eq!(ui.state.theme().name, "包豪斯");
