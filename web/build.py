@@ -85,9 +85,11 @@ wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
 # about 7 to 12 KB less): with the framework's widget-body cut (amenui 2705fdc) the deploy build measured
 # 2,847,812 at website 09214ddb, and the gate was that plus 5,000; it is never set above 2,860,000.
 # With the layout's grid cut (amenui 5a98ceb) the deploy build measured 2,773,966 at website bab610ba,
-# Weld included, and the gate is that plus 5,000. A new piece adds at most 12,000 to either module;
-# more goes back to design with the table by crate.
-WASM_GATE, WASM_GPU_GATE = 2_778_966, 2_621_440
+# Weld included, and the gate was that plus 5,000. With the stages' scale and the scroll that moves the
+# last frame (amenui ae06c05) the deploy build measures 2,788,569, Kern included, and the gate is that
+# plus 5,000. A new piece adds at most 12,000 to either module; more goes back to design with the table
+# by crate.
+WASM_GATE, WASM_GPU_GATE = 2_793_569, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
