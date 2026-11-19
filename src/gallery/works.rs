@@ -558,6 +558,8 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
 
 // ── Look ───────────────────────────────────────────────────────────────────────────────────────────
 
+/// The finishing pass's fixed grain, and nothing else (M.2).
+fn grain() -> amenui::post::Post { amenui::post::PostSpec { grain: amenui::post::Grain { amount: 0.04, size: 1.0 }, ..amenui::post::PostSpec::default() }.look() }
 pub fn look(s: &Gallery, l: &mut Look) {
     if s.page.section() != Section::Works { return; }
     l.pics[PIC_SLOT as usize] = Markr { pitch: 1.0, ..Markr::default() };
@@ -569,10 +571,14 @@ pub fn look(s: &Gallery, l: &mut Look) {
         Page::Work(i) => {
             l.theme = theme(i as usize);
             (l.theme.ground, l.theme.ground2) = (ink.top, ink.bottom);
-            // The finishing pass's fixed grain, and nothing else (M.2).
-            l.post = amenui::post::PostSpec { grain: amenui::post::Grain { amount: 0.04, size: 1.0 }, ..amenui::post::PostSpec::default() }.look();
+            l.post = grain();
         }
-        _ => { l.theme.second = ACCENT_LIGHT; l.theme.third = SURVEY; }
+        _ => {
+            (l.theme.second, l.theme.third) = (ACCENT_LIGHT, SURVEY);
+            // The index: the same grain, drawn only in the built pieces' windows (`El::grain`), so a
+            // window is its page's picture pixel for pixel (U.3 item 3).
+            l.post = grain();
+        }
     }
 }
 
@@ -1640,7 +1646,7 @@ fn index(s: &Gallery) -> El<Msg> {
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
         let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
         if shown {
-            win = win.on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
+            win = win.grain().on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
                 .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed();
         }
         if live { win = win.child(at(live_frame(&format!("works/w{i}/frame"), ww, hh), 0.0, 0.0)); }
@@ -1743,7 +1749,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
         let mode = if open { Mode::Live } else { Mode::Band };
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, (0.0, y0 / kz, pw, (y0 + bh) / kz)).rekey("works/window"), kz);
         let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().flow(format!("work/{}", p.slug)).child(at(inner, 0.0, -y0));
-        if p.built { band = band.on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed(); }
+        if p.built { band = band.grain().on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed(); }
         if open { band = band.child(at(live_frame(&format!("works/w{i}/frame"), bw, bh), 0.0, 0.0)); }
         bands = bands.child(col().key(format!("works/b{i}")).gap(8.0).child(band)
             .child(row().key(format!("works/w{i}/meta")).height(18.0).gap(16.0).align(AlignItems::BASELINE).flow(format!("work/{}/meta", p.slug))
