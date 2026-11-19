@@ -14,12 +14,15 @@ use amenui::el::{El, Font, Paint, Pose, Response, canvas, col, text};
 
 /// W-04's place in the day.
 pub const NIGHTLY: usize = 3;
-/// The horizon, a share of the picture's height down.
+/// The horizon, a share of the picture's height down; on a phone 74 % down the window, so the title
+/// block lies on the water under it (W.1 item 5).
 const HORIZON: f32 = 0.80;
+pub const PHONE_HORIZON: f32 = 0.74;
 /// Where the line runs, a share of the width.
 const FROM: f32 = 0.06;
 const TO: f32 = 0.94;
-/// The rays on a desktop (V.2 d: 540, 0.88 w / 539 apart), and the spacing a phone keeps (2.35 px).
+/// The rays at 1440 wide and over (V.2 d: 540, 0.88 w / 539 apart), and the spacing kept under that
+/// (2.35 px, W.1 item 6).
 pub const RAYS: usize = 540;
 const SPACING: f32 = 0.88 * 1440.0 / 539.0;
 /// The line of type: 150 cells on a desktop, lowercase, the log repeated; its build number is the seed.
@@ -34,23 +37,30 @@ const DRIFT: f32 = 26.0;
 /// The knots' mean height, and how much of their swell a phone keeps.
 const MEAN: f32 = 413.0;
 const PHONE_FLAT: f32 = 0.4;
-/// The rays' lengths, 60 to 360 px, from a noise that travels along the line at 12 px a second.
-const SHORT: f32 = 60.0;
+/// The rays' lengths, 40 to 360 px, from a noise that travels along the line at 12 px a second: the
+/// short ones between the folds are the gaps (W.1 item 1).
+const SHORT: f32 = 40.0;
 const LONG: f32 = 360.0;
 const TRAVEL: f32 = 12.0;
-/// The colours (M.4): the type, the rays' middle and tip, the stars and notes.
+/// The colours (M.4, W.1 item 3): the ground (the sky's top), the type, the rays' middle, the stars and
+/// notes. The ground is the night's own dark, so nothing pale shows where the picture is not yet drawn.
+pub const GROUND: [f32; 3] = rgb(0x070b16);
 pub const TYPE_C: [f32; 3] = rgb(0xe2fff0);
 pub const MID: [f32; 3] = rgb(0x2fae8c);
-pub const TIP: [f32; 3] = rgb(0x1f5f86);
 pub const INK: [f32; 3] = rgb(0xe2e8f0);
-/// The type is the theme's ground (which the picture covers), so it is drawn as itself; the rays' root,
-/// `#baffd8`, is that ground mixed 0.223 toward the middle hue: (186, 237, 218).
-const TYPE: Paint = Paint { tone: 0.0, accent: 0.0, alpha: 1.0, hue: 1 };
-const ROOT_MIX: f32 = 0.223;
-/// A ray's opacity at its root and middle stop (at 0.3 of its length), and a pulse's brightening.
-const ROOT_A: f32 = 0.62;
-const MID_A: f32 = 0.34;
+/// The type is the third hue; the rays' root, `#baffd8`, is the type's hue at ROOT_MIX over the ground
+/// (a theme has no fourth hue; within W.1 item 1's ± 20 a channel). The ramp is root → middle → gone;
+/// `#1f5f86` at the tip waits for a drawing's own colours (W.2 item 1).
+const TYPE: Paint = Paint::hue(2);
+const ROOT_MIX: f32 = 0.81;
+/// A ray's opacity at its root and middle stop (at MID_AT of its length), and a pulse's brightening.
+const ROOT_A: f32 = 0.95;
+const MID_A: f32 = 0.6;
 const MID_AT: f32 = 0.3;
+/// A tipped ray turns toward the accent (up to 0.8) over its top third, at its neighbours' opacity, and
+/// its last TIP_CLEAR px are gone (W.1 item 2).
+const TIP_FROM: f32 = 2.0 / 3.0;
+const TIP_CLEAR: f32 = 20.0;
 const BRIGHT: f32 = 1.6;
 const LONGER: f32 = 1.2;
 /// A press: the pulse's speed along the line (px a second) and how long a ray stays lit.
@@ -113,25 +123,27 @@ fn noise(x: f32, seed: u32) -> f32 {
     v / n
 }
 
-/// How the piece lies in a `w × h` window: on a desktop as its picture does (`fit`); on a phone the line
-/// spans 6 % to 94 % of the window and heights scale with the window's height.
+/// How the piece lies in a `w × h` window: across, at the window's own size (the line from 6 % to 94 %,
+/// W.1 item 6); down, as its picture does (`fit`) on a desktop, and on a phone with heights scaled by the
+/// window's height and the horizon 74 % down. Under 1440 wide the rays keep 2.35 px and the line as many
+/// cells as fit (`cut`).
 #[derive(Clone, Copy)]
-pub struct Lay { phone: bool, w: f32, h: f32, s: f32, ox: f32, oy: f32 }
+pub struct Lay { phone: bool, cut: bool, w: f32, h: f32, s: f32, oy: f32 }
 /// The layout of W-04's page at `w × h`.
 pub fn lay_for(w: f32, h: f32) -> Lay { Lay::new(w, h, &Fit::new(w, h, super::works::PIECES[NIGHTLY].focus)) }
 impl Lay {
     pub fn new(w: f32, h: f32, fit: &Fit) -> Self {
-        let (ox, oy) = fit.at(0.0, 0.0);
-        if w < NARROW { Self { phone: true, w, h, s: h / 900.0, ox: 0.0, oy: 0.0 } } else { Self { phone: false, w, h, s: fit.s(), ox, oy } }
+        let cut = w < 1440.0;
+        if w < NARROW { Self { phone: true, cut, w, h, s: h / 900.0, oy: 0.0 } } else { Self { phone: false, cut, w, h, s: fit.s(), oy: fit.at(0.0, 0.0).1 } }
     }
     /// A point `u` (0–1) along the line, across.
-    fn x(&self, u: f32) -> f32 { if self.phone { self.w * (FROM + (TO - FROM) * u) } else { self.ox + 1440.0 * (FROM + (TO - FROM) * u) * self.s } }
+    fn x(&self, u: f32) -> f32 { self.w * (FROM + (TO - FROM) * u) }
     /// A height of the 1440 × 900 picture, down the window.
     fn y(&self, y: f32) -> f32 { self.oy + y * self.s }
-    fn hz(&self) -> f32 { self.y(HORIZON * 900.0).floor() }
+    pub fn hz(&self) -> f32 { if self.phone { (PHONE_HORIZON * self.h).floor() } else { self.y(HORIZON * 900.0).floor() } }
     /// The rays: how many, and where each is across.
-    pub fn rays(&self) -> usize { if self.phone { ((self.x(1.0) - self.x(0.0)) / SPACING).floor() as usize + 1 } else { RAYS } }
-    fn ray(&self, i: usize) -> f32 { if self.phone { self.x(0.0) + i as f32 * SPACING } else { self.x(i as f32 / (RAYS - 1) as f32) } }
+    pub fn rays(&self) -> usize { if self.cut { (((self.x(1.0) - self.x(0.0)) / SPACING).floor() as usize + 1).min(RAYS) } else { RAYS } }
+    fn ray(&self, i: usize) -> f32 { if self.cut { self.x(0.0) + i as f32 * SPACING } else { self.x(i as f32 / (RAYS - 1) as f32) } }
     /// Where along the noise a place across is (px of the picture's line, from its start).
     fn along(&self, x: f32) -> f32 { (x - self.x(0.0)) / self.s + FROM * 1440.0 }
 }
@@ -191,12 +203,12 @@ fn lit(n: &Night, s: f32, now: f32) -> f32 {
     p.max(on(now - n.flare))
 }
 
-/// The line's text as drawn at this layout: on a desktop 150 cells; on a phone as many as fit along the
-/// line at rest at the desktop's pitch, cut after the last whole word.
+/// The line's text as drawn at this layout: 150 cells from 1440 wide; under that as many as fit along
+/// the line at rest at the pitch of 1440, cut after the last whole word.
 pub fn line_text(l: &Lay, build: u32) -> String {
     let all: String = log(build).chars().cycle().take(CELLS).collect();
-    if !l.phone { return all; }
-    let wide = Lay { phone: false, w: 1440.0, h: 900.0, s: 1.0, ox: 0.0, oy: 0.0 };
+    if !l.cut { return all; }
+    let wide = WIDE;
     let pitch = curve(&wide, 0.0, build).1.last().copied().unwrap_or(1.0) / CELLS as f32;
     let fit = (curve(l, 0.0, build).1.last().copied().unwrap_or(0.0) / pitch).floor() as usize;
     let cut: Vec<char> = all.chars().take(fit.min(CELLS)).collect();
@@ -212,14 +224,15 @@ pub fn glyphs(l: &Lay, build: u32) -> usize { line_text(l, build).chars().filter
 /// of `#1f3043` on it, the water from `#0a1320` to `#070b14`, the stars (130 at 1440 × 900, as many a
 /// pixel of sky on a phone; 1 or 2 px squares of `#e2e8f0` at 0.25 to 0.8), and the grain.
 pub fn pixels(w: usize, h: usize) -> Vec<u8> {
-    let hz = (HORIZON * h as f32) as usize;
+    let horizon = if (w as f32) < NARROW { PHONE_HORIZON } else { HORIZON };
+    let hz = (horizon * h as f32) as usize;
     let c = |v: u32| [((v >> 16) & 255) as f32, ((v >> 8) & 255) as f32, (v & 255) as f32];
     let mix = |a: [f32; 3], b: [f32; 3], t: f32| -> [f32; 3] { std::array::from_fn(|k| a[k] + (b[k] - a[k]) * t) };
     let (top, mid, low, line, sea, deep, star) = (c(0x070b16), c(0x0c1626), c(0x12233a), c(0x1f3043), c(0x0a1320), c(0x070b14), c(0xe2e8f0));
     let mut px = Vec::with_capacity(w * h * 4);
     for y in 0..h {
         let v = (y as f32 + 0.5) / h as f32;
-        let col = if y < hz { if v < 0.6 { mix(top, mid, v / 0.6) } else { mix(mid, low, (v - 0.6) / 0.2) } } else if y == hz { line } else { mix(sea, deep, (v - HORIZON) / (1.0 - HORIZON)) };
+        let col = if y < hz { if v < 0.75 * horizon { mix(top, mid, v / (0.75 * horizon)) } else { mix(mid, low, (v - 0.75 * horizon) / (0.25 * horizon)) } } else if y == hz { line } else { mix(sea, deep, (v - horizon) / (1.0 - horizon)) };
         for x in 0..w {
             // The hairline is the horizon's own colour; the grain is on everything else.
             let n = if y == hz { 0.0 } else { (hash(x as u32, y as u32, 9) - 0.5) * 0.04 * 255.0 };
@@ -294,7 +307,7 @@ pub fn light_at(l: &Lay) -> [f32; 4] { let (hz, lx) = (l.hz(), (l.w * LIGHT).rou
 /// (it is gone at its tip, so this is not seen): only over a picture does a ramp mix its stops.
 fn rays(l: &Lay, n: &Night, c: &(Vec<(f32, f32)>, Vec<f32>), build: u32, now: f32, view: (f32, f32, f32, f32)) -> El<Msg> {
     let mut d = Drawing::new(l.w, l.hz());
-    let root = Paint { tone: 0.0, accent: ROOT_MIX, alpha: ROOT_A, hue: 1 };
+    let root = Paint { tone: 0.0, accent: ROOT_MIX, alpha: ROOT_A, hue: 2 };
     let mid = Paint { tone: 1.0, accent: 1.0, alpha: MID_A, hue: 1 };
     let top = l.y(16.0);
     for i in 0..l.rays() {
@@ -306,10 +319,24 @@ fn rays(l: &Lay, n: &Night, c: &(Vec<(f32, f32)>, Vec<f32>), build: u32, now: f3
         let h = (len * l.s * (1.0 + (LONGER - 1.0) * b)).min(ry - top);
         let lean = n.lean * (-((rx - n.fold) / 60.0).powi(2)).exp();
         let up = 1.0 + (BRIGHT - 1.0) * b;
-        // The tallest take the accent at their tips, up to 0.8 (V.2 b).
+        let (ra, ma) = ((ROOT_A * up).min(1.0), (MID_A * up).min(1.0));
+        let at = |f: f32| (rx + lean * f, ry - h * f);
+        // The tallest turn toward the accent over their top third, up to 0.8, at the opacity every ray
+        // has there (W.1 item 2): the ray in two strokes that meet at two thirds of its length.
         let tall = ((len - 330.0) / (LONG - 330.0)).clamp(0.0, 1.0).powi(3);
-        let far = if tall > 0.0 { Paint { tone: 1.0, accent: 1.0, alpha: 0.8 * tall, hue: 0 } } else { Paint { tone: 1.0, accent: 1.0, alpha: 0.0, hue: 2 } };
-        d.ramp((rx, ry), (rx + lean, ry - h), 1.0, root.alpha((ROOT_A * up).min(1.0)), Some((mid.alpha((MID_A * up).min(1.0)), MID_AT)), far);
+        if tall > 0.0 {
+            let joint = ma * (1.0 - TIP_FROM) / (1.0 - MID_AT);
+            let end = (1.0 - TIP_CLEAR / h.max(TIP_CLEAR * 3.0)).max(TIP_FROM + 0.05);
+            let tip = Paint { tone: 1.0, accent: 0.8 * tall.powf(1.0 / 3.0), alpha: 0.0, hue: 0 };
+            d.ramp(at(0.0), at(TIP_FROM), 1.0, root.alpha(ra), Some((mid.alpha(ma), MID_AT / TIP_FROM)), mid.alpha(joint));
+            let fade = joint * (1.0 - end) / (1.0 - TIP_FROM);
+            // The hue has turned by a third of the way up the top third; the opacity keeps falling as
+            // every ray's does.
+            let turn = 1.0 / 3.0;
+            d.ramp(at(TIP_FROM), at(end), 1.0, mid.alpha(joint), Some((tip.alpha(joint + (fade - joint) * turn), turn)), tip.alpha(fade));
+        } else {
+            d.ramp(at(0.0), at(1.0), 1.0, root.alpha(ra), Some((mid.alpha(ma), MID_AT)), mid.alpha(0.0));
+        }
     }
     canvas(d).width(l.w).absolute(Some(0.0), Some(0.0), None, None).pass(true)
 }
@@ -340,7 +367,7 @@ pub fn places(l: &Lay) -> Vec<(f32, f32, f32)> { let c = curve(l, 0.0, FIRST_BUI
 fn place_cells(l: &Lay, c: &(Vec<(f32, f32)>, Vec<f32>), cells: usize) -> Vec<(f32, f32, f32)> {
     let (pts, arc) = c;
     let total = arc[arc.len() - 1];
-    let step = if l.phone { total / (curve(l, 0.0, FIRST_BUILD).1.last().copied().unwrap_or(total) / pitch()) } else { total / CELLS as f32 };
+    let step = if l.cut { total / (curve(l, 0.0, FIRST_BUILD).1.last().copied().unwrap_or(total) / pitch()) } else { total / CELLS as f32 };
     (0..cells).map(|c| {
         let s = (c as f32 + 0.5) * step;
         let j = arc.partition_point(|&a| a < s).clamp(1, arc.len() - 1);
@@ -352,10 +379,11 @@ fn place_cells(l: &Lay, c: &(Vec<(f32, f32)>, Vec<f32>), cells: usize) -> Vec<(f
         (a.0 + tx * f + nx * 7.0, a.1 + ty * f + ny * 7.0, ty.atan2(tx))
     }).collect()
 }
+/// The layout at 1440 × 900.
+const WIDE: Lay = Lay { phone: false, cut: false, w: 1440.0, h: 900.0, s: 1.0, oy: 0.0 };
 /// The desktop's pitch of the line's cells (px along it at rest at 1440 × 900).
 fn pitch() -> f32 {
-    let wide = Lay { phone: false, w: 1440.0, h: 900.0, s: 1.0, ox: 0.0, oy: 0.0 };
-    curve(&wide, 0.0, FIRST_BUILD).1.last().copied().unwrap_or(1.0) / CELLS as f32
+    curve(&WIDE, 0.0, FIRST_BUILD).1.last().copied().unwrap_or(1.0) / CELLS as f32
 }
 
 /// Where the reflection runs across (V.2 f): from 24 px right of the title block (in the rows beside it)
@@ -381,8 +409,8 @@ fn reflection(l: &Lay, shift: u32, title: [f32; 4], strip: [f32; 4]) -> El<Msg> 
             let len = ((2.0 + 5.0 * hash(a as u32, row, 5)) * k).min(x1 - x);
             let seg = [x, y - 0.5, x + len, y + 0.5];
             let by_strip = seg[0] < strip[2] && strip[0] < seg[2] && seg[1] < strip[3] && strip[1] < seg[3];
-            if hash(a as u32, row + 40 * shift, 6) < (0.2 + 0.8 * v) * fade * 0.9 && !by_strip && len > 0.5 {
-                d.line((seg[0], y), (seg[2], y), 1.0, Paint { tone: 1.0, accent: 1.0, alpha: 0.12 + 0.3 * v * fade, hue: 1 });
+            if hash(a as u32, row + 40 * shift, 6) < (0.2 + 0.8 * v) * fade * 1.4 && !by_strip && len > 0.5 {
+                d.line((seg[0], y), (seg[2], y), 1.0, Paint { tone: 1.0, accent: 1.0, alpha: 0.2 + 0.3 * v * fade, hue: 1 });
             }
             x += len + (3.0 + 6.0 * hash(a as u32, row, 7)) * k;
         }

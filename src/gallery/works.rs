@@ -115,7 +115,7 @@ pub fn theme(i: usize) -> Theme {
     // accent, so the one it leans to is the ground with no hue (`touch::field`).
     // W-04: the notes' ink, the rays' middle and tip as its second and third hues, and the line's type as
     // its ground (which the picture covers, V.2 a), so the type and a ray's stops are paints of their own.
-    if i == NIGHTLY { return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TIP, ground: nightly::TYPE_C, ground2: nightly::TYPE_C, ..amenui::style::DARK }; }
+    if i == NIGHTLY { return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, ..amenui::style::DARK }; }
     if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
     Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
 }
@@ -888,15 +888,19 @@ fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
 
 /// Where the title block's parts are on a piece's page: the number's, the title's and the small line's
 /// tops, and the small line's wrapping width on a phone.
-struct Block { n: f32, title: f32, small: f32, lines: f32 }
+/// `strip` is the strip's top on a phone.
+struct Block { n: f32, title: f32, small: f32, lines: f32, strip: f32 }
 fn block(s: &Gallery, i: usize, w: f32, h: f32) -> Block { block_with(i, w, h, &micro(s, i)) }
-fn block_with(_i: usize, w: f32, h: f32, small: &str) -> Block {
+fn block_with(i: usize, w: f32, h: f32, small: &str) -> Block {
     if w < NARROW {
         let lines = (small.chars().count() as f32 * ADV / (w - 64.0)).ceil().max(1.0);
         let y_m = h - 120.0 - 14.0 * lines;
-        Block { n: y_m - 76.0, title: y_m - 48.0, small: y_m, lines }
+        // W-04's block lies wholly on the water: its number's ink 25 px under the horizon (W.1 item 5).
+        let drop = if i == NIGHTLY { ((h * nightly::PHONE_HORIZON).floor() + 25.0 - INK_TOP - (y_m - 76.0)).max(0.0) } else { 0.0 };
+        let y_m = y_m + drop;
+        Block { n: y_m - 76.0, title: y_m - 48.0, small: y_m, lines, strip: h - 100.0 + drop }
     } else {
-        Block { n: h - 132.0, title: h - 104.0, small: h - 56.0, lines: 1.0 }
+        Block { n: h - 132.0, title: h - 104.0, small: h - 56.0, lines: 1.0, strip: h - 64.0 }
     }
 }
 /// Where the title's ink starts below its box's top (the serif at 30 px, measured on renders).
@@ -946,7 +950,7 @@ fn frame(s: &Gallery, i: usize, w: f32, h: f32, root: El<Msg>) -> El<Msg> {
         // the small line wrapped to the width, the title, the number. Every place is a whole pixel: type
         // over a picture at a fraction of one would be read as the picture's colours at its edges.
         return root.child(at(title, 32.0, b.title)).child(at(small.width(w - 64.0), 32.0, b.small))
-            .child(at(strip, 32.0, h - 100.0));
+            .child(at(strip, 32.0, b.strip));
     }
     root.child(at(title, 32.0, b.title))
         .child(at(small, 32.0, b.small))

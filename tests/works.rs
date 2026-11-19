@@ -724,7 +724,7 @@ fn press(ui: &mut GalleryUi, x: f32, y: f32, t: f32) {
 }
 fn callout(ui: &GalleryUi) -> String { nodes(ui).into_iter().find(|n| n.key == "work/nightly/callout").and_then(|n| n.text).expect("the callout") }
 
-/// M.4, W-04: 540 rays hang from one line of 150 glyphs, each ray one instance with a ramp, all of them
+/// M.4, W-04: 540 rays hang from one line of 150 glyphs, each ray one instance with a ramp (a tipped one two), all of them
 /// one draw, and every one over the picture (no ramp across hues drawn off one, audit P1 RampHue).
 #[test]
 fn nightly_hangs_540_rays_from_150_glyphs_in_one_draw_over_its_picture() {
@@ -736,7 +736,8 @@ fn nightly_hangs_540_rays_from_150_glyphs_in_one_draw_over_its_picture() {
     let ramp = |i: &amenui::scene::Instance| i.paint[3] == amenui::scene::SHAPE && i.uv[2] <= -0.5;
     let rays = sc.instances.iter().filter(|i| ramp(i)).count();
     let draws = sc.batches.iter().filter(|b| (b.start..b.end).any(|k| ramp(&sc.instances[k as usize]))).count();
-    assert_eq!((rays, draws), (540, 1), "rays and their draws");
+    // A tipped ray is two strokes, meeting where its hue starts to turn (W.1 item 2).
+    assert!((544..=560).contains(&rays) && draws == 1, "{rays} strokes for 540 rays in {draws} draws");
     let n = nodes(&ui);
     let log = n.iter().find(|n| n.key == "work/nightly/log").and_then(|n| n.text.clone()).expect("the line of type");
     assert_eq!(log.chars().count(), 150);
@@ -812,12 +813,13 @@ fn with_reduced_motion_a_press_on_nightly_counts_and_runs_nothing() {
     assert!((3..=10).contains(&frames), "{frames} frames for the 120 ms");
 }
 
-/// V.2 e, j: the small line states the glyphs drawn (the line's cells less its spaces) and the rays as
-/// built; on a phone the line keeps the desktop's pitch from 6 % to 94 %, cut on a word, with rays
-/// 2.35 px apart, and the light and its whole callout are 8 px inside the window.
+/// V.2 e, j and W.1 items 5, 6: the small line states the glyphs drawn (the line's cells less its spaces)
+/// and the rays as built; under 1440 wide the line keeps the pitch of 1440 from 6 % to 94 %, cut on a
+/// word, with rays 2.35 px apart, and the light and its whole callout are 8 px inside the window. On a
+/// phone the horizon is 74 % down, clear of the title block.
 #[test]
 fn nightly_states_its_counts_as_built_and_has_a_phone_layout() {
-    for (w, h) in [(1440u32, 900u32), (390, 844)] {
+    for (w, h) in [(1440u32, 900u32), (1024, 768), (390, 844)] {
         let ui = en(Page::Work(3), w, h);
         let n = nodes(&ui);
         let line = log_text(&ui);
@@ -835,8 +837,25 @@ fn nightly_states_its_counts_as_built_and_has_a_phone_layout() {
         assert!(ci >= 8.0 && li >= 8.0);
         assert!(gx0 >= 0.06 * w as f32 && gx1 <= 0.94 * w as f32);
         if w == 1440 { assert_eq!((line.chars().count(), l.rays()), (150, 540)); } else {
-            assert!((140..=150).contains(&l.rays()), "{}", l.rays());
+            let rays = if w == 1024 { 379..=387 } else { 140..=150 };
+            assert!(rays.contains(&l.rays()), "{}", l.rays());
             assert!(!line.ends_with(' ') && line.chars().count() < 150);
+        }
+        if w == 390 {
+            // W.1 item 5: the horizon 74 % down; the horizon, the light, its leader and the callout 24 px
+            // from the title and the number, 8 px from the small line.
+            let hz = l.hz();
+            assert!((623.0..=627.0).contains(&hz), "the horizon at {hz}");
+            // Each by its ink: the mono's 5 px and the serif's 12 px under its box's top.
+            let rect = |k: &str| { let r = n.iter().find(|n| n.key == k).expect(k).rect; let top = if k.ends_with("title") { 12.0 } else { 5.0 }; [r[0], r[1] + top, r[0] + r[2], r[1] + r[3]] };
+            let gap = |a: [f32; 4], b: [f32; 4]| (b[0] - a[2]).max(a[0] - b[2]).max(b[1] - a[3]).max(a[1] - b[3]);
+            let lead = [call[0].min(light[0]), call[1], light[2].max(call[0] + call[2]), light[3]];
+            let marks = [[0.0, hz, w as f32, hz + 1.0], light, lead, [call[0], call[1], call[0] + call[2], call[1] + call[3]]];
+            for (k, clear) in [("work/nightly/n", 24.0), ("work/nightly/title", 24.0), ("work/nightly/micro", 8.0)] {
+                let near = marks.iter().map(|&m| gap(m, rect(k))).fold(f32::MAX, f32::min);
+                eprintln!("nightly at 390: {k} {near:.0} px from the horizon, the light and the callout");
+                assert!(near >= clear, "{k} {near}");
+            }
         }
     }
 }
