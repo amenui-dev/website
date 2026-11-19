@@ -103,6 +103,7 @@ pub fn moved() -> Vec<(String, Page)> {
         };
         v.push((old, p));
     }
+    for (old, new) in lab::RENAMED { if let Some(i) = lab::NAMES.iter().position(|n| *n == new) { v.push((format!("lab/{old}/"), Page::Experiment(i as u8))); } }
     v.extend(works::PIECES.iter().filter(|p| !p.page).map(|p| (format!("works/{}/", p.slug), Page::Works)));
     v
 }

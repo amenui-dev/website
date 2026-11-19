@@ -107,7 +107,11 @@ impl Page {
     pub fn from_hash(h: &str) -> Option<Page> {
         let h = h.trim_start_matches('#');
         if h.is_empty() || h == "gallery" { return Some(Page::Components); }
-        Page::all().into_iter().find(|p| p.hash() == h)
+        Page::all().into_iter().find(|p| p.hash() == h).or_else(|| {
+            // A Lab piece's hash before it was re-made under a new name.
+            let new = lab::RENAMED.iter().find(|(old, _)| h.strip_prefix("lab-") == Some(*old))?.1;
+            lab::NAMES.iter().position(|n| *n == new).map(|i| Page::Experiment(i as u8))
+        })
     }
     /// The page's name in the current language.
     pub fn name(self) -> String {

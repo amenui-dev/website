@@ -11,14 +11,21 @@ use amenui::style::{LAB, Look, Material};
 use std::rc::Rc;
 
 pub const COUNT: usize = 10;
+/// The pieces Z.3 re-made under a new name: (old name, new name). The old address and hash lead to the new.
+pub const RENAMED: [(&str, &str); 1] = [("mercury", "weld")];
+/// The pieces that move only when the hand moves them (Z.2's calm): running, they ask for no frames
+/// unless they are settling.
+pub const CALM: [bool; COUNT] = [false, false, false, false, true, false, false, false, false, false];
 /// The cells in page order (their files in `examples/lab/` and their pages `#lab-<name>`).
-pub const NAMES: [&str; COUNT] = ["lumen", "contours", "silk", "grown", "mercury", "flow", "loupe", "orbit", "spring", "stack"];
+pub const NAMES: [&str; COUNT] = ["lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "orbit", "spring", "stack"];
 
 macro_rules! cells {
-    (@view $s:ident, lumen, $l:ident, $k:ident) => { $l };
+    (@view $s:ident, lumen, $l:ident, $k:ident) => { $l.0 };
     (@view $s:ident, stack, $l:ident, $k:ident) => { $k };
+    (@view $s:ident, weld, $l:ident, $k:ident) => { (&$s.weld.at_size($l.1)) };
     (@view $s:ident, $f:ident, $l:ident, $k:ident) => { (&$s.$f) };
     // Whether a piece's message says the pointer came onto it (`Some(true)`) or left it.
+    (@over weld, $m:ident) => { None };
     (@over stack, $m:ident) => { match &$m { x::stack::Msg::Deck(amenui::widgets::StackMsg::Hover(h)) => Some(h.is_some()), _ => None } };
     (@over $f:ident, $m:ident) => { match &$m { x::$f::Msg::Point(p) => Some(p.is_some()), _ => None } };
     ($( $i:literal => $f:ident : $t:ty , $v:ident );* $(;)?) => {
@@ -53,7 +60,8 @@ macro_rules! cells {
             pub fn cell(&self, i: usize, key: &str, width: f32, stage: f32, index: bool) -> El<LMsg> {
                 let lumen = x::lumen::Lumen { rows: ((stage / x::lumen::LINE).floor().max(1.0)) as usize, ..self.lumen.clone() };
                 let stack = if index && self.stack.deck.under().is_none() && !self.stack.deck.moving() { x::stack::Stack { deck: fanned(&self.stack.deck), quiet: true, ..self.stack.clone() } } else { self.stack.clone() };
-                let (lumen, stack) = (&lumen, &stack);
+                // The stage the piece fills: the cell less its padding and border.
+                let (lumen, stack) = ((&lumen, (width - 26.0, stage)), &stack);
                 let mut c = match i { $( $i => cells!(@view self, $f, lumen, stack).view(key).map(Rc::new(LMsg::$v)), )* _ => col() };
                 // The piece's box is the cell's stage (`El::stage`): when it is slow to draw it holds its
                 // last image on frames that answer input, so the parameters beside it answer in the frame.
@@ -63,7 +71,7 @@ macro_rules! cells {
                     if let Some(st) = c.children.get_mut(1) { st.style.aspect_ratio = Some((width - 26.0) / stage); }
                 }
                 // A living piece moves on purpose while it runs.
-                if !self.reduced { c = c.ongoing(); }
+                if !self.reduced && !CALM[i] { c = c.ongoing(); }
                 c = c.on_move(move |p| Some(LMsg::Frame(i, p.is_some())));
                 // At least half of it is in the window: a point at the middle of its stage (the cell's
                 // padding, its name's line and the gap above the stage) tells when it is seen.
@@ -128,7 +136,7 @@ macro_rules! cells {
             /// When the cells next need a frame.
             pub fn wake(&self, now: f32, page: Option<usize>, index: bool) -> Option<f32> {
                 let live = !self.reduced || now < self.until;
-                let busy = (live && self.running(page).is_some()) || (index && (0..COUNT).any(|i| self.ready(i) && self.local[i] < STILL_S)) $( || self.$f.moving() )*;
+                let busy = (live && self.running(page).is_some_and(|i| !CALM[i])) || (index && (0..COUNT).any(|i| self.ready(i) && self.local[i] < STILL_S)) $( || self.$f.moving() )*;
                 let fam = (0..3).filter(|&f| self.fam_on[f] && live).map(|f| now + FAMILY_S - self.fam_t[f] % FAMILY_S).reduce(f32::min);
                 if busy { Some(now) } else if let Some(t) = fam { Some(t) } else if self.coarse && self.middle() != self.centred { Some(self.seen_t + SETTLE_S) } else { None }
             }
@@ -140,7 +148,7 @@ cells! {
     1 => contours: x::contours::Contours, Contours;
     2 => silk: x::silk::Silk, Silk;
     3 => grown: x::grown::Grown, Grown;
-    4 => mercury: x::mercury::Mercury, Mercury;
+    4 => weld: x::weld::Weld, Weld;
     5 => flow: x::flow::Flow, Flow;
     6 => loupe: x::loupe::Loupe, Loupe;
     7 => orbit: x::orbit::Orbit, Orbit;
@@ -268,7 +276,7 @@ pub fn family_of(p: super::Page) -> Option<usize> {
     match p { Page::Material(_) => Some(0), Page::Marks(_) => Some(1), Page::Style(_) | Page::Presets => Some(2), _ => None }
 }
 /// The 29 cells, step by step, in teaching order. Until a piece of Z.3 is built its old piece holds
-/// the place: Lumen Gnomon's, Silk Lee's, Mercury Weld's, Flow Trace's, Orbit Kern's, Spring Throw's,
+/// the place: Lumen Gnomon's, Silk Lee's, Flow Trace's, Orbit Kern's, Spring Throw's,
 /// Stack Sheaf's, the sphere (`loupe`) Loupe's.
 pub fn path() -> [Vec<super::Page>; 5] {
     use super::Page::*;

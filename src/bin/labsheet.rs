@@ -183,7 +183,7 @@ fn main() {
             ("contours", cell::<x::contours::Contours>(&mut o, &out, "contours", false, false)),
             ("silk", cell::<x::silk::Silk>(&mut o, &out, "silk", false, false)),
             ("grown", cell::<x::grown::Grown>(&mut o, &out, "grown", true, true)),
-            ("mercury", cell::<x::mercury::Mercury>(&mut o, &out, "mercury", false, false)),
+            ("weld", cell::<x::weld::Weld>(&mut o, &out, "weld", true, false)),
             ("flow", cell::<x::flow::Flow>(&mut o, &out, "flow", false, false)),
             ("loupe", cell::<x::loupe::Loupe>(&mut o, &out, "loupe", true, false)),
             ("orbit", cell::<x::orbit::Orbit>(&mut o, &out, "orbit", false, false)),
