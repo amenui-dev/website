@@ -867,7 +867,6 @@ fn k(slug: &str, part: &str) -> String { format!("work/{slug}/{part}") }
 /// index's live line. The bar, the lead, the keys line, `how this is made ↗`, the status line and the
 /// console follow the locale.
 pub fn english(k: &str) -> bool {
-    let k = k.strip_prefix("works/window/").unwrap_or(k);
     k == "works/title"
         || k.starts_with("work/") && (k.ends_with("/layer") || k.ends_with("/title"))
         || k.starts_with("works/w") && (k.ends_with("/title") || k.ends_with("/live"))
@@ -1204,14 +1203,6 @@ impl Notes {
         self.inks.push(ink);
         true
     }
-    /// A label on its own (a bird's): inside, clear of what hides notes and of every label and box kept.
-    fn keep_label(&mut self, l: R) -> bool {
-        let a = self.inside;
-        if l.0 < a.0 || l.1 < a.1 || l.2 > a.2 || l.3 > a.3 { return false; }
-        if self.hidden.iter().chain(&self.labels).chain(&self.inks).any(|&r| meets(r, l)) { return false; }
-        self.labels.push(l);
-        true
-    }
 }
 
 /// What W-03's survey drew in a view (for the checks): the birds' boxes, the echoes', the cloud's box
@@ -1396,11 +1387,17 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         hidden.push(grow(r, BRACKET / z));
         if let Some((_, plate, _)) = pointer_hole(s, z) { hidden.push(plate); line_hidden.push(plate); }
     }
-    let mut notes = Notes { inside: (view.0 + m, view.1 + m, view.2 - m, view.3 - m), hidden, labels: vec![], inks: vec![] };
+    // One layout wherever the piece is shown (U.2 item 1): what is drawn is decided in the whole piece,
+    // and a window shows it through its clip; a label is shown only while it is clear (`show_clear`).
+    let mut notes = Notes { inside: (m, m, w - m, h - m), hidden, labels: vec![], inks: vec![] };
     let mut d = Drawing::new(w, h);
     let mut labels: Vec<El<Msg>> = vec![];
-    // A label keeps its own size in a window drawn smaller (its top left where the window puts it).
-    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)).own_size(0.0, 0.0), x, y));
+    // A label keeps its own size in a window drawn smaller (its top left where the window puts it), and
+    // is shown only while its box is 8 px inside the view and clear of the labels before it (N.2 item 2).
+    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| {
+        let rank = labels.len() as u8;
+        labels.push(at(mono(t, paint).key(k(slug, key)).own_size(0.0, 0.0).show_clear(INSIDE, rank), x, y));
+    };
     let band = mode == Mode::Band;
     // The one wrong call: the small pale cloud, its box at 45 % and its label at 70 % (O.2 item 3), the
     // label under the box (N.4 (5)). It is placed first: the flight keeps clear of it, not it of the
@@ -1411,7 +1408,8 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         let (lx, ly) = under(r.0, r.3, z);
         (r, (lx, ly), label_ink("BIRD 0.03", lx, ly, z))
     });
-    if let Some((r, (lx, ly), li)) = cloud && notes.keep(r, Some(li)) {
+    if let Some((r, (lx, ly), li)) = cloud && notes.keep(r, None) {
+        notes.labels.push(li);
         rect(&mut d, r, z, faint(0.45));
         let paint = faint(0.70);
         label(&mut labels, "cloud", "BIRD 0.03", paint, (lx, ly));
@@ -1458,7 +1456,9 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
             let Some(t) = BIRD_LABELS[b].filter(|_| !band) else { continue };
             let (lx, ly) = under(r.0, r.3, z);
             let li = label_ink(t, lx, ly, z);
-            if notes.keep_label(li) { label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly)); drawn.labels.push(li); }
+            notes.labels.push(li);
+            label(&mut labels, &format!("bird{b}"), t, INK_FULL, (lx, ly));
+            drawn.labels.push(li);
         }
         if echoes && !band {
             for &(_, _, _, r) in &kept {
@@ -1474,13 +1474,14 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     // over its right end.
     let (_, yl) = fit.at(0.0, SUN.1 as f32);
     let yl = px(yl, z);
-    let (xa, xb) = ((32.0f32).max(view.0 + m), (w - 32.0).min(view.2 - m));
+    let (xa, xb) = (32.0f32.max(m), (w - 32.0).min(w - m));
     if !band {
         let t = "HORIZON 0.0°";
         let lx = (w - 32.0).min(view.2 - m) - (t.chars().count() as f32 * ADV) / z;
         let ly = yl - 16.0 / z;
         let li = label_ink(t, lx, ly, z);
-        if notes.keep(li, None) { notes.labels.push(li); label(&mut labels, "horizon", t, faint(170.0 / 255.0), (lx, ly)); }
+        notes.labels.push(li);
+        label(&mut labels, "horizon", t, faint(170.0 / 255.0), (lx, ly));
     }
     // The dashes: none by the title block or under the pointer's plate, and the scan window cuts the line
     // 8 px outside its rect.
@@ -1517,7 +1518,8 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
         let (lx, ly) = (bx + 6.0, by - up - 4.0);
         let lead = (px(bx, z) - 0.5, by - up, px(bx, z) + 0.5, by - 3.0);
         let li = label_ink(t, lx, ly, z);
-        if !notes.keep(union(lead, li), Some(li)) { continue; }
+        if !notes.keep(lead, None) { continue; }
+        notes.labels.push(li);
         heights += 1;
         d.line((px(bx, z), by - 3.0), (px(bx, z), by - up), lw, faint(170.0 / 255.0));
         label(&mut labels, &format!("height{n}"), t, faint(235.0 / 255.0), (lx, ly));
@@ -1643,8 +1645,9 @@ fn index(s: &Gallery) -> El<Msg> {
         let x0 = (crop_x(s, i, ww, pw, ph) - ww / kz * 0.5).clamp(0.0, (pw - ww / kz).max(0.0));
         let view = (x0, 0.0, x0 + ww / kz, ph);
         let mode = if live { Mode::Live } else { Mode::Still };
-        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
-        let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
+        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view), kz);
+        // The window is the labels' view: one is shown only while it is whole and 8 px inside it.
+        let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().view_scale(1.0).flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
         if shown {
             win = win.grain().on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
                 .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed();
@@ -1747,8 +1750,8 @@ fn index_phone(s: &Gallery) -> El<Msg> {
         } * kz;
         let y0 = (centre - bh * 0.5).clamp(0.0, (ph * kz - bh).max(0.0)).round();
         let mode = if open { Mode::Live } else { Mode::Band };
-        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, (0.0, y0 / kz, pw, (y0 + bh) / kz)).rekey("works/window"), kz);
-        let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().flow(format!("work/{}", p.slug)).child(at(inner, 0.0, -y0));
+        let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, (0.0, y0 / kz, pw, (y0 + bh) / kz)), kz);
+        let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().view_scale(1.0).flow(format!("work/{}", p.slug)).child(at(inner, 0.0, -y0));
         if p.built { band = band.grain().on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed(); }
         if open { band = band.child(at(live_frame(&format!("works/w{i}/frame"), bw, bh), 0.0, 0.0)); }
         bands = bands.child(col().key(format!("works/b{i}")).gap(8.0).child(band)

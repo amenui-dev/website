@@ -192,14 +192,14 @@ fn nightly_is_a_built_piece_on_the_index() {
     ui.relayout();
     let n = nodes(&ui);
     let rect = |k: &str| n.iter().find(|x| x.key == k).unwrap_or_else(|| panic!("{k}")).rect;
-    let (w, log) = (rect("works/w3"), rect("works/window/work/nightly/log"));
+    let (w, log) = (rect("works/w3"), rect("work/nightly/log"));
     assert!(log[0] < w[0] + w[2] && w[0] < log[0] + log[2] && log[1] >= w[1] && log[1] + log[3] <= w[1] + w[3], "the line {log:?} in the window {w:?}");
     let mut ui = at(Page::Works, 390, 844);
     ui.relayout();
     let n = nodes(&ui);
     let rect = |k: &str| n.iter().find(|x| x.key == k).unwrap_or_else(|| panic!("{k}")).rect;
     // The band shows the line's glyphs (posed onto the curve, inside the band; its box lies higher).
-    let (b, _) = (rect("works/w3"), rect("works/window/work/nightly/log"));
+    let (b, _) = (rect("works/w3"), rect("work/nightly/log"));
     assert!(b[3] > 100.0, "the band {b:?}");
     gallery::update(&mut ui.state, Msg::Works(works::WMsg::Tap(3)));
     gallery::update(&mut ui.state, Msg::Works(works::WMsg::Tap(3)));
@@ -263,10 +263,12 @@ fn meets(a: [f32; 4], b: [f32; 4]) -> bool { a[0] < b[2] && b[0] < a[2] && a[1] 
 #[test]
 fn a_note_in_a_window_is_whole_or_not_there() {
     for (w, h) in [(1440, 824), (390, 768)] {
-        let ui = at(Page::Works, w, h);
+        let mut ui = at(Page::Works, w, h);
+        ui.tick(1.0);
         let n = nodes(&ui);
         let win = n.iter().find(|t| t.key == format!("works/w{}", works::GROUND_TRUTH)).expect("window").rect;
-        let labels: Vec<_> = n.iter().filter(|t| t.key.starts_with("works/window/work/ground-truth/") && t.text.is_some()).collect();
+        // A label is shown only while clear (`show_clear`): the ones at opacity 0 are not there.
+        let labels: Vec<_> = n.iter().filter(|t| t.key.starts_with("work/ground-truth/") && t.text.is_some() && ui.clear_opacity(&t.key).unwrap_or(1.0) > 0.5).collect();
         let mut seen: Vec<[f32; 4]> = vec![];
         for l in &labels {
             let r = ink(l.rect);
@@ -704,7 +706,7 @@ fn touch_grass_s_window_crops_its_still_about_the_mast() {
         let n = nodes(&ui);
         let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
         let win = rect("works/w0");
-        let pic = rect("works/window/work/touch-grass/picture");
+        let pic = rect("work/touch-grass/picture");
         let mast = (pic[0] + 1123.5 / 1440.0 * pic[2] - win[0]) / win[2];
         let centre = (pic[0] + 950.0 / 1440.0 * pic[2] - win[0]) / win[2];
         eprintln!("touch grass's window, {} px: the mast {:.1} % across, x 950 at {:.1} %", win[2], mast * 100.0, centre * 100.0);
@@ -734,7 +736,7 @@ fn on_a_phone_touch_grass_s_band_shows_its_phone_page() {
     let ui = at(Page::Works, 390, 772);
     let n = nodes(&ui);
     let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
-    let (band, pic) = (rect("works/w0"), rect("works/window/work/touch-grass/picture"));
+    let (band, pic) = (rect("works/w0"), rect("work/touch-grass/picture"));
     assert!((pic[0] - band[0]).abs() < 0.5 && (pic[2] - band[2]).abs() < 0.5, "{pic:?} in {band:?}");
     assert!((pic[3] - band[2] * 844.0 / 390.0).abs() < 0.5, "the phone page, 390 x 844, at the band's width: {pic:?}");
     let mast = ((0.78f32 * 390.0).round() + 0.5) / 390.0;
@@ -772,7 +774,7 @@ fn ground_truth_s_window_shows_the_page_s_layout_through_one_scale() {
         if let Some(i) = hover { gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(i, Some((400.0, 300.0))))); ui.relayout(); ui.tick(2.0); ui.relayout(); }
         let n = nodes(&ui);
         let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
-        let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("works/window/work/ground-truth/picture"));
+        let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("work/ground-truth/picture"));
         let s = win[3] / 900.0;
         assert!((pic[2] - pp[2] * s).abs() <= 1.0 && (pic[3] - pp[3] * s).abs() <= 1.0, "{pic:?} against the page's {pp:?} at {s}");
         let at = |x: f32| pic[0] + x / 1440.0 * pic[2] - win[0];
@@ -791,7 +793,7 @@ fn ground_truth_s_narrow_window_frames_the_sun_the_cloud_and_the_far_height() {
     let ui = at(Page::Works, 1440, 900);
     let n = nodes(&ui);
     let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
-    let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("works/window/work/ground-truth/picture"));
+    let (win, pic) = (rect(&format!("works/w{}", works::GROUND_TRUTH)), rect("work/ground-truth/picture"));
     assert!(win[2] < 300.0, "03 is narrow: {win:?}");
     let (wx0, wy0, wx1, wy1) = (win[0], win[1], win[0] + win[2], win[1] + win[3]);
     let to = |x: f32, y: f32| (pic[0] + x / 1440.0 * pic[2], pic[1] + y / 900.0 * pic[3]);
@@ -803,7 +805,7 @@ fn ground_truth_s_narrow_window_frames_the_sun_the_cloud_and_the_far_height() {
     let mut figures = vec![("sun".to_owned(), sun_in)];
     figures.push(("cloud's box".to_owned(), inside(cloud_box)));
     for (k, t) in [("cloud", "BIRD 0.03"), ("horizon", "HORIZON 0.0°"), ("height2", "▲ 986")] {
-        let node = n.iter().find(|x| x.key == format!("works/window/work/ground-truth/{k}")).unwrap_or_else(|| panic!("{t} is drawn"));
+        let node = n.iter().find(|x| x.key == format!("work/ground-truth/{k}")).unwrap_or_else(|| panic!("{t} is drawn"));
         assert_eq!(node.text.as_deref(), Some(t));
         figures.push((t.to_owned(), inside(ink(node.rect))));
     }
