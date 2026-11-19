@@ -681,6 +681,11 @@ pub fn phone_chars(radius_px: f32) -> usize {
 pub fn word_units(width: f32) -> f32 { if (0.9 * width / (5.0 * ADVANCE)).floor() >= 9.0 { 3.0 } else { 2.0 } }
 pub fn word_k(width: f32) -> f32 { let n = word_units(width); ((0.9 * width / (5.0 * ADVANCE)).floor() / n).floor().max(1.0) * n }
 pub fn word_pitch(k: f32) -> f32 { if k >= 9.0 { k / 3.0 } else { (k / 2.0).max(1.0) } }
+/// carvr's deepest bite into the word, px: one dot of a three-dot stem, or a quarter of a two-dot one.
+pub fn carve_depth(k: f32) -> f32 { if k >= 9.0 { k / 3.0 } else { k / 4.0 } }
+/// near's ink bands round the word at a pitch: three of half the pitch, or where half is not a whole
+/// pixel two of the next whole number up.
+pub fn near_bands(pitch: f32) -> (f32, f32) { if pitch % 2.0 == 0.0 { (3.0, pitch / 2.0) } else { (2.0, (pitch / 2.0).ceil()) } }
 
 impl Body {
     /// At rest in the listing.
@@ -1069,8 +1074,11 @@ impl Body {
         // Nothing condenses in: what a chapter shows is there at once, at its place (the fold's words, the
         // head lines shown again), so a change of chapter ends on its last frame.
         l.off.close = true;
-        if let Some(m) = l.params.get_mut(Material::Carvr.id() as usize) { m.0[3] = p; }
-        if let Some(m) = l.params.get_mut(Material::Near.id() as usize) { m.0[0] = p; }
+        let k = self.word_box().0;
+        // carvr bites a pitch apart, at most one dot of a stem deep (k / 3; k / 4 where a stem is two dots).
+        if let Some(m) = l.params.get_mut(Material::Carvr.id() as usize) { m.0[1] = carve_depth(k); m.0[3] = p; }
+        // near: ink bands outside the letters, square on their pixel corners.
+        if let Some(m) = l.params.get_mut(Material::Near.id() as usize) { let (n, w) = near_bands(p); m.0[0] = p; m.0[2] = n; m.0[3] = w; }
     }
 
     /// The pose of every glyph of the stone's text: from its place in the listing to its cell on the
@@ -1477,12 +1485,10 @@ impl Body {
             .pose(self.poser((lx, ty), flat.clone())).form(self.form_fx());
         // From the word to the stone the morph lands on `ghost`, the stone's text as it stands, never
         // drawn, outside the piece, and the stone's own text waits unseen until it has: so the piece stays
-        // a stage (a morph's tiles come from the page's own pass, which a stage's content is not drawn
-        // in). From the stone to the word the morph starts from the stone's own text, which must be drawn
-        // where the tiles leave it, so the piece is not a stage until it lands.
-        let in_flight = self.t < self.lands;
-        let to_stone = self.was == 3 && self.at == 4 && in_flight;
-        let from_stone = self.was == 4 && self.at == 3 && in_flight;
+        // a stage (a morph lands its tiles on what the page's own pass draws, which a stage's content is
+        // not). From the stone to the word the morph starts from the stone's own text, where the stage
+        // drew it on the frame before.
+        let to_stone = self.was == 3 && self.at == 4 && self.t < self.lands;
         let code = posed("text").reveal_by(Reveal::Word).hidden_until_morphed(shown == 3 || self.opening_word() || to_stone);
         let ghost = posed("ghost").hidden_until_morphed(true);
         // The listing as it lies flat, never drawn: the end a morph to or from the word takes.
@@ -1515,7 +1521,7 @@ impl Body {
             canvas(if stone { self.front(&marks) } else { empty() }).key(format!("{key}/front")).width(w).absolute(Some(0.0), Some(0.0), None, None).respond(amenui::el::Response::Ignore).pass(true),
         ]).key(format!("{key}/piece")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None)
             .role(Role::Img).label(tr("body.label"));
-        let piece = if from_stone { piece } else { piece.stage() };
+        let piece = piece.stage();
         let piece = if self.turning() { piece.ongoing() } else { piece };
         // The word of 03: the material's name, as large as the listing allows, drawn in that material;
         // a change of material is a commit inside the stage only.
