@@ -47,6 +47,9 @@ macro_rules! cells {
                 let stack = if index && self.stack.deck.under().is_none() && !self.stack.deck.moving() { x::stack::Stack { deck: fanned(&self.stack.deck), quiet: true, ..self.stack.clone() } } else { self.stack.clone() };
                 let (lumen, stack) = (&lumen, &stack);
                 let mut c = match i { $( $i => cells!(@view self, $f, lumen, stack).view(key).map(Rc::new(LMsg::$v)), )* _ => col() };
+                // The piece's box is the cell's stage (`El::stage`): when it is slow to draw it holds its
+                // last image on frames that answer input, so the parameters beside it answer in the frame.
+                if let Some(st) = c.children.get_mut(1) { st.stage = true; }
                 if index { c.children.truncate(2); }
                 // A living piece moves on purpose while it runs.
                 if !self.reduced { c = c.ongoing(); }

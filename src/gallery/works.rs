@@ -880,7 +880,8 @@ pub fn page(s: &Gallery) -> El<Msg> {
 fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
     let (w, h) = (s.width, s.height);
     let p = &PIECES[i];
-    let pic = picture_layer(s, i, w, h, 1.0, Mode::Page, (0.0, 0.0, w, h)).flow(format!("work/{}", p.slug));
+    // The piece is the page's stage: when it is slow to draw it holds its last image on frames that answer input.
+    let pic = picture_layer(s, i, w, h, 1.0, Mode::Page, (0.0, 0.0, w, h)).flow(format!("work/{}", p.slug)).stage();
     // W-01 hears a mouse that moves without making a new view (`pointer`), and a drag (a finger) as
     // the path too.
     let pic = if i == TOUCH_GRASS { pic.on_drag_with(|d| Some(Msg::Works(WMsg::Walk(d.x, d.y)))).unframed() } else { pic.on_point(|p| Some(Msg::Works(WMsg::Point(p)))) };
