@@ -251,7 +251,7 @@ async function mount(stage, opts) {
   // theme and material by name, the language by tag.
   return {
     w, compiled, kick,
-    route: h => { const ok = w.route(h); w.pictures(); after(); return ok; },
+    route: h => { const ok = w.route(h); if (ok) w.reset_stage(); w.pictures(); after(); return ok; },
     look: (theme, material) => { w.set_look(theme || '', material || ''); after(); },
     locale: tag => { w.set_locale(tag || ''); after(); },
     focus: () => canvas.focus({ preventScroll: true }),
@@ -375,7 +375,8 @@ function site() {
     const drawn = api.w.frames()[0], c = api.w.frame_costs();
     const fps = drawn !== lastDrawn && c[3] > 0 ? Math.round(1000 / c[3]) : 0;
     lastDrawn = drawn;
-    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`);
+    const stage = api.w.stage();
+    A.line(`<b>${api.w.backend()}</b> · ` + (fps ? `<b>${fps}</b> ${A.t.fps} · ` : '') + (stage ? `<b>${stage}</b> · ` : '') + `<b>${api.w.glyphs().toLocaleString('en')}</b> ${A.t.glyphs}`);
   };
   const hash = location.hash.startsWith('#look:') ? '' : decodeURIComponent(location.hash.slice(1));
   // The module the shell chose (`A.kind`): the WebGPU-only one where the browser has WebGPU, else the

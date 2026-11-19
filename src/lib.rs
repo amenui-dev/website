@@ -163,6 +163,12 @@ mod site_exports {
     /// The current page's name, for the document's title.
     #[wasm_bindgen]
     pub fn title() -> String { host(|s| s.ui.state.page.name()).unwrap_or_default() }
+    /// The stages' scale while it is below the device's (`stage 1.5x`), empty at the device's own.
+    #[wasm_bindgen]
+    pub fn stage() -> String { host(|s| s.ui.perf().stage_label()).flatten().unwrap_or_default() }
+    /// A new route: the stages' scale steps from the device's own again.
+    #[wasm_bindgen]
+    pub fn reset_stage() { host(|s| s.ui.reset_stage_scale()); }
     /// The graphics backend in use: `webgpu` or `webgl2`.
     #[wasm_bindgen]
     pub fn backend() -> String { host(|s| s.ui.perf().backend.to_lowercase()).unwrap_or_default() }
