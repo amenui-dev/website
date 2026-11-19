@@ -16,6 +16,7 @@ mod styles;
 pub mod three;
 pub mod works;
 mod touch;
+pub mod nightly;
 pub mod particles;
 pub mod presets;
 pub mod routes;

@@ -17,6 +17,7 @@
 use super::{Gallery, Msg, NARROW, Page, Section};
 pub use super::touch::TOUCH_GRASS;
 use super::touch;
+use super::nightly::{self, NIGHTLY};
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
@@ -54,7 +55,7 @@ pub const PIECES: [Piece; COUNT] = [
     Piece { slug: "touch-grass", title: "touch grass", n: "W-01", hour: "12:00", at: 12.0, light: true, bar_light: true, focus: 380.0 / 1440.0, live: "WIND OVER A FIELD OF 1,570 STALKS", page: true, built: true, recipe: "recipes/touch-grass/" },
     Piece { slug: "line-too-long", title: "line too long", n: "W-02", hour: "15:20", at: 15.0 + 20.0 / 60.0, light: false, bar_light: false, focus: 790.0 / 1440.0, live: "ONE STRING, 1,204 PX, ONE KNOT", page: false, built: false, recipe: "concepts/annotation/" },
     Piece { slug: "ground-truth", title: "ground truth", n: "W-03", hour: "18:40", at: 18.0 + 40.0 / 60.0, light: false, bar_light: true, focus: 870.0 / 1440.0, live: "TRACKING 7 BIRDS AND ONE POINTER", page: true, built: true, recipe: "recipes/ground-truth/" },
-    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: false, built: false, recipe: "concepts/annotation/" },
+    Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: true, built: true, recipe: "concepts/annotation/" },
 ];
 pub const GROUND_TRUTH: usize = 2;
 /// The first built piece in the day's order: the wide window with no pointer (N.2 item 1).
@@ -74,6 +75,10 @@ pub const PIC: u32 = 100;
 pub const PIC_PHONE: u32 = PIC + COUNT as u32;
 /// W-01's still in the index's windows: the field at rest (`touch::still_pixels`).
 pub const PIC_STILL: u32 = PIC + COUNT as u32 + 1;
+/// W-04's picture on a phone's page, a pixel of it a pixel at 390 × 844.
+pub const PIC_NIGHT_PHONE: u32 = PIC + COUNT as u32 + 2;
+/// W-01's still on a phone's band: its phone page at rest, a pixel a pixel at 390 × 844 (V.3 item 2).
+pub const PIC_STILL_PHONE: u32 = PIC + COUNT as u32 + 3;
 /// The `Markr` slot a piece's picture is drawn through: the picture as it is.
 pub const PIC_SLOT: u8 = 5;
 
@@ -108,6 +113,9 @@ pub fn theme(i: usize) -> Theme {
     // W-01: the mast's and the notes' ink, the heads as its second hue, the stalk upright as its third
     // and leaning as its ground (which the picture covers): a blade's two paints differ only in tone and
     // accent, so the one it leans to is the ground with no hue (`touch::field`).
+    // W-04: the notes' ink, the rays' middle and tip as its second and third hues, and the line's type as
+    // its ground (which the picture covers, V.2 a), so the type and a ray's stops are paints of their own.
+    if i == NIGHTLY { return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TIP, ground: nightly::TYPE_C, ground2: nightly::TYPE_C, ..amenui::style::DARK }; }
     if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
     Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
 }
@@ -140,10 +148,11 @@ pub struct Works {
     pub t: f32,
     pub ground: Ground,
     pub grass: touch::Grass,
+    pub night: nightly::Night,
 }
 impl Default for Works {
     fn default() -> Self {
-        Self { wide: first_built(), from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default(), grass: touch::Grass::default() }
+        Self { wide: first_built(), from: [-1.0; COUNT], wide_at: -1.0, live: None, tapped: None, last_input: 0.0, fade: (1.0, 1.0, -1.0), resting: false, held: false, t: 0.0, ground: Ground::default(), grass: touch::Grass::default(), night: nightly::Night::default() }
     }
 }
 
@@ -272,14 +281,18 @@ fn reduced(s: &Gallery) -> bool { s.body.reduced }
 
 /// The size a piece is laid out at, once, wherever it is shown (U.2 item 1): the whole window, which the
 /// canvas is on a piece's page and, from 720 px wide, on the index too, so a window of the index and the
-/// Flow's rect show the page's own layout through one scale; a phone's bands show the 16 : 10 piece.
+/// Flow's rect show the page's own layout through one scale. A phone's band shows the page it opens into
+/// (V.3 item 2), whose canvas is the whole window: the index's and the shell's bar (44 px) and status
+/// line (28 px) above and below it.
 fn piece_size(s: &Gallery) -> (f32, f32) {
     match s.page {
         Page::Work(_) => (s.width, s.height),
-        _ if s.width < NARROW => (1440.0, 900.0),
+        _ if s.width < NARROW => (s.width, s.height + PHONE_CHROME),
         _ => (s.width, s.height),
     }
 }
+/// What of a phone's window the shell's bar and status line take from the index's canvas (`web/shell.html`).
+const PHONE_CHROME: f32 = 44.0 + 28.0;
 
 pub fn update(s: &mut Gallery, m: WMsg) {
     let now = s.clock;
@@ -289,6 +302,7 @@ pub fn update(s: &mut Gallery, m: WMsg) {
         WMsg::Hover(i, p) => {
             if p.is_some() { widen(s, i); s.works.live = Some(i); } else if s.works.live == Some(i) { s.works.live = None; }
             if i == GROUND_TRUTH { point(s, p); }
+            if i == NIGHTLY { nightly::point(s, p); }
         }
         WMsg::Tap(i) | WMsg::Open(i) if !PIECES[i].built => {}
         WMsg::Tap(i) => {
@@ -304,6 +318,13 @@ pub fn update(s: &mut Gallery, m: WMsg) {
                 g.pinned = !g.pinned;
             }
             s.works.ground.down = down;
+            if s.page == Page::Work(NIGHTLY as u8) {
+                let (w, h) = piece_size(s);
+                let lay = nightly::Lay::new(w, h, &piece_fit(NIGHTLY, w, h));
+                if down && !s.works.night.down && let Some(p) = p { nightly::press(s, p.x, &lay); }
+                s.works.night.down = down;
+                nightly::point(s, p.map(|p| (p.x, p.y)));
+            }
             if running(s, GROUND_TRUTH) { point(s, p.map(|p| (p.x, p.y))); }
         }
         WMsg::Recipe(i) => s.navigate = Some(format!("docs/{}", PIECES[i].recipe)),
@@ -338,7 +359,7 @@ fn point(s: &mut Gallery, p: Option<(f32, f32)>) {
     let now = s.clock;
     let z = zoom_of(s);
     let (w, h) = piece_size(s);
-    let fit = fit_for(s, w, h);
+    let fit = fit_for(w, h);
     let g = &mut s.works.ground;
     g.pointer = p;
     let Some((x, y)) = p else { g.trail.clear(); return };
@@ -453,6 +474,12 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     if s.page == Page::Works && t - s.works.wide_at <= WIDEN + 0.02 { changed = true; }
     if running(s, GROUND_TRUTH) { changed |= ground_tick(s, t, dt); }
     if touch::on(s.page) { let (w, h) = (s.width, s.height); let fit = Fit::new(w, h, PIECES[TOUCH_GRASS].focus); changed |= touch::tick(s, t, w, &fit); }
+    if s.page == Page::Work(NIGHTLY as u8) {
+        let (w, h) = piece_size(s);
+        let lay = nightly::Lay::new(w, h, &piece_fit(NIGHTLY, w, h));
+        let awake = !s.works.held && !s.works.resting && !reduced(s);
+        changed |= nightly::tick(s, t, dt, &lay, awake);
+    }
     changed
 }
 fn ground_tick(s: &mut Gallery, t: f32, dt: f32) -> bool {
@@ -511,6 +538,7 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> {
     }
     if s.page == Page::Works && w.wide_at >= 0.0 && t - w.wide_at < WIDEN { want(t); }
     if touch::on(s.page) && let Some(v) = touch::wake(s, t) { want(v); }
+    if s.page == Page::Work(NIGHTLY as u8) && let Some(v) = nightly::wake(s, t, !w.held && !w.resting && !reduced(s)) { want(v); }
     if running(s, GROUND_TRUTH) && !reduced(s) {
         let g = &w.ground;
         if g.flight.is_some() { if !w.held { want(paced); } } else if !w.held && !w.resting { want(g.next); }
@@ -562,7 +590,7 @@ fn ink_space(s: &Gallery) -> InkSpace {
     match s.page {
         Page::Work(i) => {
             let th = theme(i as usize);
-            let (top, bottom) = if i as usize == GROUND_TRUTH { sky_ramp(&fit_for(s, s.width, s.height), s.height) } else { (th.ground, th.ground2) };
+            let (top, bottom) = if i as usize == GROUND_TRUTH { sky_ramp(&fit_for(s.width, s.height), s.height) } else { (th.ground, th.ground2) };
             InkSpace { top, bottom, h: s.height, ink: th.ink, hues: [th.accent, th.second, th.third] }
         }
         _ => {
@@ -665,11 +693,11 @@ fn lum(c: [f32; 3]) -> f32 {
 /// Give a renderer every piece's picture (native hosts and offscreen renders; the web makes each when
 /// a page first draws it).
 pub fn set_pictures(r: &mut amenui::render::Renderer) {
-    for i in 0..=COUNT as u32 + 1 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
+    for i in 0..=COUNT as u32 + 3 { if let Some((w, h, px)) = picture_pixels(PIC + i) { r.set_picture(PIC + i, w, h, &px); } }
 }
 /// The size of piece picture `id` (`PIC + i`).
 pub fn picture_size(id: u32) -> Option<(u32, u32)> {
-    match id.checked_sub(PIC)? as usize { i if i <= COUNT + 1 => Some((960, 600)), _ => None }
+    match id.checked_sub(PIC)? as usize { NIGHTLY => Some((1440, 900)), i if i == COUNT + 2 || i == COUNT + 3 => Some((390, 844)), i if i <= COUNT + 1 => Some((960, 600)), _ => None }
 }
 /// W-03's picture, made once (the scan window and the faint shades read its colours).
 fn ground_pixels() -> &'static [u8] {
@@ -725,7 +753,9 @@ pub fn picture_pixels(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = picture_size(id)?;
     let i = (id - PIC) as usize;
     if i == GROUND_TRUTH { return Some((w, h, ground_pixels().to_vec())); }
+    if i == NIGHTLY || id == PIC_NIGHT_PHONE { return Some((w, h, nightly::pixels(w as usize, h as usize))); }
     if id == PIC_STILL { return Some((w, h, touch::still_pixels())); }
+    if id == PIC_STILL_PHONE { return Some((w, h, touch::still_at(390.0, 844.0, 390, 844))); }
     if i == TOUCH_GRASS || id == PIC_PHONE { return Some((w, h, touch::pixels(id == PIC_PHONE))); }
     let stops = stops(i);
     // An unbuilt piece: its colours and the piece's grain (0.04, as the finishing pass's), nothing else.
@@ -848,7 +878,7 @@ fn piece_page(s: &Gallery, i: usize) -> El<Msg> {
     let root = col().key("work/page").width(w).height(h).clip().child(pic);
     let root = if i == TOUCH_GRASS { { let fit = Fit::new(w, h, p.focus); root.child(touch::area(touch::field(s, w, h, &fit), w, h, &fit)) } } else { root.calm() };
     let page = frame(s, i, w, h, root);
-    if i == GROUND_TRUTH { return page.child(scan_and_pointer(s, w, h, &fit_for(s, w, h), 1.0, Mode::Page)); }
+    if i == GROUND_TRUTH { return page.child(scan_and_pointer(s, w, h, &fit_for(w, h), 1.0, Mode::Page)); }
     if i == TOUCH_GRASS {
         let fit = Fit::new(w, h, p.focus);
         return page.child(touch::callout(s, w, &fit));
@@ -980,17 +1010,15 @@ pub fn touch_extents(s: &Gallery) -> Vec<([f32; 4], Option<[f32; 4]>)> {
 /// The title block's number (P.2 item 1): in the accent where the accent measures at least 4.5 : 1
 /// against the median luminance of the picture under the number at this size, otherwise in the foot's
 /// ink where that does, otherwise not drawn.
-fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> { number_paint_at(s, i, w, h, &block(s, i, w, h)) }
-fn number_paint_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> Option<Paint> { number_paint_in(i, &piece_fit(s, i, w, h), b) }
+fn number_paint(s: &Gallery, i: usize, w: f32, h: f32) -> Option<Paint> { number_paint_in(i, &piece_fit(i, w, h), &block(s, i, w, h)) }
 fn number_paint_in(i: usize, fit: &Fit, b: &Block) -> Option<Paint> {
     let (a, ink) = number_contrast_in(i, fit, b);
     if a >= 4.5 { Some(Paint::ACCENT) } else if ink >= 4.5 { Some(Paint::INK) } else { None }
 }
 /// How a piece's picture lies in a `w × h` piece (W-03's own fit; the others about their centre).
-fn piece_fit(s: &Gallery, i: usize, w: f32, h: f32) -> Fit { if i == GROUND_TRUTH { fit_for(s, w, h) } else { Fit::new(w, h, PIECES[i].focus) } }
+fn piece_fit(i: usize, w: f32, h: f32) -> Fit { if i == GROUND_TRUTH { fit_for(w, h) } else { Fit::new(w, h, PIECES[i].focus) } }
 /// The accent's and the foot ink's contrast against the median luminance under the title block's number.
-pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) { number_contrast_at(s, i, w, h, &block(s, i, w, h)) }
-fn number_contrast_at(s: &Gallery, i: usize, w: f32, h: f32, b: &Block) -> (f32, f32) { number_contrast_in(i, &piece_fit(s, i, w, h), b) }
+pub fn number_contrast(s: &Gallery, i: usize, w: f32, h: f32) -> (f32, f32) { number_contrast_in(i, &piece_fit(i, w, h), &block(s, i, w, h)) }
 fn number_contrast_in(i: usize, fit: &Fit, b: &Block) -> (f32, f32) {
     let r = label_ink(PIECES[i].n, 32.0, b.n, 1.0);
     let mut ls: Vec<f32> = vec![];
@@ -1020,6 +1048,7 @@ fn micro(s: &Gallery, i: usize) -> String {
     match i {
         GROUND_TRUTH => format!("{} · {} · 5 RIDGES · {BIRDS} TRACKED · THE BOX FOLLOWS WHAT MOVES", p.n, p.hour),
         TOUCH_GRASS => { let (w, h) = (s.width, s.height); touch::micro(s, w, h, &Fit::new(w, h, p.focus)) }
+        NIGHTLY => { let (w, h) = piece_size(s); nightly::micro(&nightly::Lay::new(w, h, &piece_fit(i, w, h)), s.works.night.build) }
         _ => format!("{} · {}", p.n, p.hour),
     }
 }
@@ -1034,16 +1063,33 @@ enum Mode { Page, Live, Still, Band }
 /// the part of it the window shows (in that space).
 fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view: (f32, f32, f32, f32)) -> El<Msg> {
     let p = &PIECES[i];
-    let fit = fit_for(s, w, h);
-    // W-01 on a phone's page has its horizon lower: a picture of its own; in the index's windows its
-    // still, the field at rest.
+    let fit = if i == NIGHTLY { piece_fit(i, w, h) } else { fit_for(w, h) };
+    let phone = w < NARROW;
+    // W-01 at a phone's size (its page, and a phone's band, which shows that page: V.3 item 2) has its
+    // horizon lower: a picture of its own; in the desktop index's windows its still, the field at rest.
+    // W-04 at a phone's size: its picture a pixel a pixel at 390 × 844, covering the window.
     let id = match (i, mode) {
-        (TOUCH_GRASS, Mode::Page) if w < NARROW => PIC_PHONE,
+        (TOUCH_GRASS, Mode::Page) if phone => PIC_PHONE,
+        (TOUCH_GRASS, _) if phone => PIC_STILL_PHONE,
         (TOUCH_GRASS, Mode::Live | Mode::Still | Mode::Band) => PIC_STILL,
+        (NIGHTLY, _) if phone => PIC_NIGHT_PHONE,
         _ => PIC + i as u32,
     };
-    let pic = picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw);
-    let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(at(pic, fit.ox, fit.oy));
+    let pic = if id == PIC_NIGHT_PHONE || id == PIC_STILL_PHONE {
+        let pw = w.max(h * 390.0 / 844.0);
+        at(picture(id, 844.0 / 390.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(pw), ((w - pw) * 0.5).round(), ((h - pw * 844.0 / 390.0) * 0.5).round())
+    } else { at(picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw), fit.ox, fit.oy) };
+    let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(pic);
+    // W-04 is drawn in colours of its own (its theme's), which the index's theme has no room for: until
+    // a part of a page can carry a theme of its own, its windows and bands show its picture alone.
+    if i == NIGHTLY && mode != Mode::Page { return layer; }
+    if i == NIGHTLY {
+        // Nothing near the title block or the strip.
+        let t = title_box(s, i, w, h);
+        // The strip: bottom right on a desktop; on a phone its two lines from the foot up (`frame`).
+        let strip = if phone { [0.0, h - 108.0, w, h] } else { [w - 560.0, h - 72.0, w, h] };
+        return layer.child(nightly::layer(s, &nightly::Lay::new(w, h, &fit), [t.0, t.1, t.2, t.3], strip, view));
+    }
     if i == GROUND_TRUTH { ground_truth(s, layer, w, h, &fit, z, mode, view).0 } else { layer }
 }
 
@@ -1058,26 +1104,28 @@ impl Fit {
     }
     /// A point of the picture (px of 1440 × 900) in the piece.
     pub(crate) fn at(&self, x: f32, y: f32) -> (f32, f32) { (self.ox + x * self.s, self.oy + y * self.s) }
+    /// The picture's scale.
+    pub(crate) fn s(&self) -> f32 { self.s }
     /// A point of the piece in the picture.
-    fn to_picture(&self, x: f32, y: f32) -> (f32, f32) { ((x - self.ox) / self.s, (y - self.oy) / self.s) }
+    pub(crate) fn to_picture(&self, x: f32, y: f32) -> (f32, f32) { ((x - self.ox) / self.s, (y - self.oy) / self.s) }
 }
 /// W-03's fit: about its centre of interest; on a phone's page about its cloud, 56 % across, so the
 /// cloud's box is whole (N.2 item 7).
-fn fit_for(s: &Gallery, w: f32, h: f32) -> Fit {
+fn fit_for(w: f32, h: f32) -> Fit {
     let mut f = Fit::new(w, h, PIECES[GROUND_TRUTH].focus);
-    if matches!(s.page, Page::Work(_)) && w < NARROW { f.ox = (0.56 * w - CLOUD.0 as f32 * f.s).clamp(w - f.pw, 0.0); }
+    if w < NARROW { f.ox = (0.56 * w - CLOUD.0 as f32 * f.s).clamp(w - f.pw, 0.0); }
     f
 }
 /// Where the scan window rests with no pointer: over the second ridge, 30 % across; on a phone's
 /// page at the left margin, 24 px above the title block (N.2 item 7), as it is with its number: where
 /// the number is not drawn nothing else moves (P.2 item 1).
 fn rest_place(s: &Gallery, w: f32, h: f32) -> (f32, f32) {
-    if matches!(s.page, Page::Work(_)) && w < NARROW {
+    if w < NARROW {
         let (sw, sh) = scan_size(w);
         let top = block(s, GROUND_TRUTH, w, h).n + INK_TOP;
         return (32.0 + sw * 0.5, top - CLEAR - BRACKET - sh * 0.5);
     }
-    fit_for(s, w, h).at(450.0, 565.0)
+    fit_for(w, h).at(450.0, 565.0)
 }
 
 /// A rectangle of four strokes.
@@ -1158,15 +1206,15 @@ pub struct Drawn {
 /// What W-03's survey draws on its page as the state is now.
 pub fn drawn(s: &Gallery) -> Drawn {
     let (w, h) = (s.width, s.height);
-    ground_truth(s, col(), w, h, &fit_for(s, w, h), 1.0, Mode::Page, (0.0, 0.0, w, h)).1
+    ground_truth(s, col(), w, h, &fit_for(w, h), 1.0, Mode::Page, (0.0, 0.0, w, h)).1
 }
 /// The flight's row (the leader's centre) on screen: as built, raised 40 px (60 on a phone's page), and
 /// higher still where that is needed for the bottom of its lowest label to be 24 px above the top of
 /// the cloud's box (O.2 item 1). A phone's band shows no cloud and keeps the row as built.
-fn flight_row(fit: &Fit, w: f32, z: f32, mode: Mode, cloud_top: Option<f32>) -> f32 {
+fn flight_row(fit: &Fit, w: f32, z: f32, cloud_top: Option<f32>) -> f32 {
     let built = fit.at(0.0, 290.0).1;
     let Some(top) = cloud_top else { return built };
-    let lift = if mode == Mode::Page && w < NARROW { 60.0 } else { 40.0 };
+    let lift = if w < NARROW { 60.0 } else { 40.0 };
     // The lowest label's bottom below the row: its bird's offset, its box, the gap and the type
     // (one pixel more for the rounding of the bird's place).
     let lowest = (0..BIRDS).filter(|&b| BIRD_LABELS[b].is_some()).map(|b| {
@@ -1181,7 +1229,7 @@ type Flight = (f32, f32, Vec<(f32, f32)>);
 fn flock_at(s: &Gallery, w: f32, fit: &Fit, z: f32, mode: Mode) -> Option<Flight> {
     let f = s.works.ground.flight?;
     let raw = FLOCK[BIRDS - 1].0 + (BOX.2 - BOX.0);
-    let sx = if mode == Mode::Page && w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
+    let sx = if w < NARROW { (0.7 * w / raw).min(1.0) } else { 1.0 };
     // The flock's centre crosses at an even speed and is at the window's centre halfway (the rest
     // pose: all seven on screen at any width), from 40 px past the right edge to where its last
     // echo is 40 px past the left.
@@ -1191,7 +1239,7 @@ fn flock_at(s: &Gallery, w: f32, fit: &Fit, z: f32, mode: Mode) -> Option<Flight
     let lead = w * 0.5 + reach - f * speed - fw * 0.5;
     // The cloud's box's top, which the flight keeps above (a phone's band shows no cloud).
     let cloud_top = (mode != Mode::Band).then(|| (fit.at(CLOUD.0 as f32, CLOUD.1 as f32).1 - 15.0).round());
-    let y0 = flight_row(fit, w, z, mode, cloud_top);
+    let y0 = flight_row(fit, w, z, cloud_top);
     Some((f, speed, FLOCK.iter().map(|&(dx, dy)| ((lead + dx * sx).round(), (y0 + dy).round())).collect()))
 }
 /// The three birds that carry a label.
@@ -1200,7 +1248,7 @@ const BIRD_LABELS: [Option<&str>; BIRDS] = [Some("BIRD 0.97"), None, None, Some(
 /// W-03's scan window in a view: its rect (x0, y0, x1, y1), its cells' size and how many.
 struct Scan { r: R, cell: f32, n: (usize, usize) }
 fn scan_rect(s: &Gallery, w: f32, h: f32, z: f32, mode: Mode, view: R) -> Scan {
-    let (cw, ch) = scan_size(if mode == Mode::Page { w } else { 1440.0 });
+    let (cw, ch) = scan_size(w);
     // Inside a window drawn smaller, the cells keep their size on screen (as the type does), and the
     // window keeps its size in the piece: fewer cells.
     let cell = CELL / z;
@@ -1323,7 +1371,8 @@ fn ground_truth(s: &Gallery, layer: El<Msg>, w: f32, h: f32, fit: &Fit, z: f32, 
     let mut notes = Notes { inside: (view.0 + m, view.1 + m, view.2 - m, view.3 - m), hidden, labels: vec![], inks: vec![] };
     let mut d = Drawing::new(w, h);
     let mut labels: Vec<El<Msg>> = vec![];
-    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)), x, y));
+    // A label keeps its own size in a window drawn smaller (its top left where the window puts it).
+    let label = |labels: &mut Vec<El<Msg>>, key: &str, t: &str, paint: Paint, (x, y): (f32, f32)| labels.push(at(mono(t, paint).key(k(slug, key)).own_size(0.0, 0.0), x, y));
     let band = mode == Mode::Band;
     // The one wrong call: the small pale cloud, its box at 45 % and its label at 70 % (O.2 item 3), the
     // label under the box (N.4 (5)). It is placed first: the flight keeps clear of it, not it of the
@@ -1532,7 +1581,7 @@ fn scan_and_pointer_in(s: &Gallery, w: f32, h: f32, fit: &Fit, z: f32, mode: Mod
         let k_ink = tone_at(g.label, s.clock);
         for (name, paint, op) in [("survey", INK_FULL, 1.0 - k_ink), ("ink", Paint::INK, k_ink)] {
             if op <= 0.0 { continue; }
-            let t = mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).pass(true);
+            let t = mono(human.clone(), paint).key(k(slug, &format!("human/{name}"))).recompose(false).own_size(0.0, 0.0).pass(true);
             c = c.child(at(if op < 1.0 { t.opacity(op) } else { t }, qx.round() + 22.0 / z, qy.round() - 16.0 / z));
         }
     }
@@ -1636,7 +1685,7 @@ fn crop_x(s: &Gallery, i: usize, ww: f32, pw: f32, ph: f32) -> f32 {
     let total = s.width - 64.0 - 16.0 * (COUNT as f32 - 1.0);
     let narrow = ((total - WIDE) / (COUNT as f32 - 1.0)).max(0.0);
     let k = if WIDE.min(total) > narrow { ((ww - narrow) / (WIDE.min(total) - narrow)).clamp(0.0, 1.0) } else { 1.0 };
-    fit_for(s, pw, ph).at(narrow_at + (wide_at - narrow_at) * k, 0.0).0
+    fit_for(pw, ph).at(narrow_at + (wide_at - narrow_at) * k, 0.0).0
 }
 
 /// The index on a phone: the windows are bands down the page, from x = 32 to the right gutter, 132 px
@@ -1645,7 +1694,7 @@ fn crop_x(s: &Gallery, i: usize, ww: f32, pw: f32, ph: f32) -> f32 {
 fn index_phone(s: &Gallery) -> El<Msg> {
     let w = s.width;
     let bw = w - 48.0;
-    let (pw, ph) = (1440.0, 900.0);
+    let (pw, ph) = piece_size(s);
     let kz = zoom_of(s);
     let heights: [f32; COUNT] = std::array::from_fn(|i| if !PIECES[i].built { 48.0 } else if s.works.tapped == Some(i) { (bw * 10.0 / 16.0).round() } else { 132.0 });
     // A band, the gap under it, its line of number, hour and title; and the gap to the next.
@@ -1659,9 +1708,15 @@ fn index_phone(s: &Gallery) -> El<Msg> {
         let bh = heights[i];
         centres[i] = yb + bh * 0.5;
         yb += bh + META + GAP;
-        // The band covers its width with the picture, cropped about the horizon.
-        let horizon = if i == GROUND_TRUTH { SUN.1 as f32 * kz } else { ph * kz * 0.5 };
-        let y0 = (horizon - bh * 0.5).clamp(0.0, (ph * kz - bh).max(0.0)).round();
+        // The band is the phone page at the band's width, cropped about its centre of interest (V.3 item
+        // 2): W-01 and W-03 on their horizons, W-04 on its line of type.
+        let centre = match i {
+            TOUCH_GRASS => touch::horizon(&Fit::new(pw, ph, p.focus), pw),
+            GROUND_TRUTH => fit_for(pw, ph).at(0.0, SUN.1 as f32).1,
+            NIGHTLY => nightly::centre(&nightly::Lay::new(pw, ph, &piece_fit(i, pw, ph))),
+            _ => ph * 0.5,
+        } * kz;
+        let y0 = (centre - bh * 0.5).clamp(0.0, (ph * kz - bh).max(0.0)).round();
         let mode = if open { Mode::Live } else { Mode::Band };
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, (0.0, y0 / kz, pw, (y0 + bh) / kz)).rekey("works/window"), kz);
         let mut band = col().key(format!("works/w{i}")).width(bw).height(bh).clip().flow(format!("work/{}", p.slug)).child(at(inner, 0.0, -y0));

@@ -158,8 +158,8 @@ fn only_a_built_piece_is_a_window_that_answers() {
     let windows: Vec<_> = n.iter().filter(|t| t.key.starts_with("works/w") && t.key.len() == "works/w0".len() && t.focusable).map(|t| t.key.clone()).collect();
     let built: Vec<_> = works::PIECES.iter().enumerate().filter(|(_, p)| p.built).map(|(i, _)| format!("works/w{i}")).collect();
     assert_eq!(windows, built);
-    assert_eq!(built, vec!["works/w0".to_owned(), format!("works/w{}", works::GROUND_TRUTH)]);
-    // Tab from the heading reaches the two windows, 01 then 03, and no other.
+    assert_eq!(built, vec!["works/w0".to_owned(), format!("works/w{}", works::GROUND_TRUTH), "works/w3".to_owned()]);
+    // Tab from the heading reaches the three windows, 01, 03 and 04, and no other.
     let mut seen = vec![];
     for _ in 0..40 {
         ui.key(amenui::el::Key::Tab, false);
@@ -173,8 +173,8 @@ fn only_a_built_piece_is_a_window_that_answers() {
     assert!(ui.state.route("works/touch-grass/"));
     assert_eq!(ui.state.page, Page::Work(works::TOUCH_GRASS as u8));
     ui.relayout();
-    // The arrows go between the two built pieces, round the day.
-    for (from, to) in [(works::GROUND_TRUTH, works::TOUCH_GRASS), (works::TOUCH_GRASS, works::GROUND_TRUTH)] {
+    // The arrows go between the built pieces, round the day.
+    for (from, to) in [(works::GROUND_TRUTH, 3), (3, works::TOUCH_GRASS), (works::TOUCH_GRASS, works::GROUND_TRUTH)] {
         let mut ui2 = at(Page::Work(from as u8), 1440, 900);
         assert!(works::key(&mut ui2.state, amenui::el::Key::Right));
         assert_eq!(ui2.state.page, Page::Work(to as u8));
@@ -622,19 +622,19 @@ fn touch_grass_s_window_crops_its_still_about_the_mast() {
     }
 }
 
-/// T.6 (a): on a phone the 01 band shows the still's whole width, so the sock (from the mast at x 1,123.5
-/// of 1,440, 22 px long at 11.5° below the horizontal) lies 76 % to 80 % across.
+/// V.3 item 2, T.6 (a): on a phone the 01 band shows the phone page at rest at the band's width (no
+/// zoom), its mast 78 % across.
 #[test]
-fn on_a_phone_touch_grass_s_band_shows_the_whole_still() {
-    let ui = at(Page::Works, 390, 844);
+fn on_a_phone_touch_grass_s_band_shows_its_phone_page() {
+    let ui = at(Page::Works, 390, 772);
     let n = nodes(&ui);
     let rect = |k: &str| n.iter().find(|t| t.key == k).map(|t| t.rect).unwrap_or_else(|| panic!("{k}"));
     let (band, pic) = (rect("works/w0"), rect("works/window/work/touch-grass/picture"));
     assert!((pic[0] - band[0]).abs() < 0.5 && (pic[2] - band[2]).abs() < 0.5, "{pic:?} in {band:?}");
-    let across = |x: f32| (pic[0] + x / 1440.0 * pic[2] - band[0]) / band[2];
-    let (a, b) = (across(1123.5), across(1124.0 + 22.0 * 11.5f32.to_radians().cos()));
-    eprintln!("touch grass's band on a phone: the sock {:.1} % to {:.1} % across", a * 100.0, b * 100.0);
-    assert!(a >= 0.76 && b <= 0.80, "{a} {b}");
+    assert!((pic[3] - band[2] * 844.0 / 390.0).abs() < 0.5, "the phone page, 390 x 844, at the band's width: {pic:?}");
+    let mast = ((0.78f32 * 390.0).round() + 0.5) / 390.0;
+    eprintln!("touch grass's band on a phone: the mast {:.1} % across", mast * 100.0);
+    assert!((mast - 0.78).abs() < 0.005);
 }
 
 /// T.6 (b): above the horizon the still has no pixel of the ink (#2a2b2d) but the mast's: no callout,
@@ -705,4 +705,174 @@ fn ground_truth_s_narrow_window_frames_the_sun_the_cloud_and_the_far_height() {
     eprintln!("ground truth's narrow window: {}", figures.iter().map(|(k, v)| format!("{k} {v:.1} px in")).collect::<Vec<_>>().join(", "));
     assert!(sun_in >= 24.0, "the sun {sun_in} px in");
     for (k, v) in &figures[1..] { assert!(*v >= 8.0, "{k} {v} px in"); }
+}
+
+fn en(p: Page, w: u32, h: u32) -> GalleryUi {
+    let mut ui = gallery::new_ui(fonts(), w, h, 1.0);
+    gallery::update(&mut ui.state, Msg::Locale(amenui::i18n::Locale::En));
+    gallery::update(&mut ui.state, Msg::Go(p));
+    ui.relayout();
+    ui.tick(3.0);
+    ui.settle();
+    ui
+}
+fn press(ui: &mut GalleryUi, x: f32, y: f32, t: f32) {
+    for down in [true, false] {
+        let p = amenui::el::Point { x, y, down, glyph: None, z: 0.0, t };
+        gallery::update(&mut ui.state, Msg::Works(works::WMsg::Point(Some(p))));
+    }
+}
+fn callout(ui: &GalleryUi) -> String { nodes(ui).into_iter().find(|n| n.key == "work/nightly/callout").and_then(|n| n.text).expect("the callout") }
+
+/// M.4, W-04: 540 rays hang from one line of 150 glyphs, each ray one instance with a ramp, all of them
+/// one draw, and every one over the picture (no ramp across hues drawn off one, audit P1 RampHue).
+#[test]
+fn nightly_hangs_540_rays_from_150_glyphs_in_one_draw_over_its_picture() {
+    let ui = en(Page::Work(3), 1440, 900);
+    let p = &works::PIECES[3];
+    assert!(p.page && p.built);
+    assert!(ui.problems().is_empty(), "{:?}", ui.problems());
+    let sc = ui.scene();
+    let ramp = |i: &amenui::scene::Instance| i.paint[3] == amenui::scene::SHAPE && i.uv[2] <= -0.5;
+    let rays = sc.instances.iter().filter(|i| ramp(i)).count();
+    let draws = sc.batches.iter().filter(|b| (b.start..b.end).any(|k| ramp(&sc.instances[k as usize]))).count();
+    assert_eq!((rays, draws), (540, 1), "rays and their draws");
+    let n = nodes(&ui);
+    let log = n.iter().find(|n| n.key == "work/nightly/log").and_then(|n| n.text.clone()).expect("the line of type");
+    assert_eq!(log.chars().count(), 150);
+    assert!(log.starts_with("nightly  ok  ok  ok  build 0412  ok  passing"), "{log}");
+    assert!(n.iter().any(|n| n.text.as_deref() == Some("W-04 · 23:10 · 100 GLYPHS, 540 RAYS · PRESS TO RUN THE NEXT STEP")));
+    assert_eq!(callout(&ui), "KP 5   STEP 3/7");
+    eprintln!("nightly: {} instances at 1440 x 900", sc.instances.len());
+    // On a phone too, and in the index's windows, the picture under every ray drawn.
+    for (p, w, h) in [(Page::Work(3), 390, 844), (Page::Works, 1440, 900), (Page::Works, 390, 844)] {
+        let ui = en(p, w, h);
+        assert!(ui.problems().is_empty(), "{p:?} {w}: {:?}", ui.problems());
+    }
+}
+
+fn log_text(ui: &GalleryUi) -> String { nodes(ui).into_iter().find(|n| n.key == "work/nightly/log").and_then(|n| n.text).expect("the line") }
+
+/// A press runs the next step: the callout counts, the reflection shifts once; after step 7 the
+/// curtain flares and the build passes: the callout says PASSING and the build number, on the line,
+/// rises by one (V.2 i); the press after that is step 1 of the new build.
+#[test]
+fn a_press_on_nightly_runs_the_next_step_and_after_seven_the_build_passes() {
+    let mut ui = en(Page::Work(3), 1440, 900);
+    let mut t = 3.0f32;
+    ui.tick(t);
+    assert!(log_text(&ui).contains("build 0412"));
+    for step in 4..=7 {
+        press(&mut ui, 700.0, 300.0, t);
+        ui.relayout();
+        assert_eq!(callout(&ui), format!("KP 5   STEP {step}/7"));
+        assert_eq!(ui.state.works.night.shift, step - 3);
+        assert!(ui.state.works.night.pulse.is_some());
+        t += 1.5; ui.tick(t);
+    }
+    let flare = ui.state.works.night.flare;
+    assert!(flare > 0.0);
+    while t < flare + 1.0 { t += 1.0 / 30.0; ui.tick(t); }
+    ui.relayout();
+    assert_eq!(callout(&ui), "KP 5   PASSING");
+    let line = log_text(&ui);
+    assert!(line.contains("build 0413") && !line.contains("build 0412"), "{line}");
+    press(&mut ui, 700.0, 300.0, t);
+    ui.relayout();
+    assert_eq!(callout(&ui), "KP 5   STEP 1/7");
+    assert!(log_text(&ui).contains("build 0413"));
+}
+
+/// V.2 h: with reduced motion a press counts the step, recomposes the callout and shifts the reflection
+/// once, with no pulse and no flare; after step 7 the build passes at once and the new curtain comes in
+/// by opacity over 120 ms.
+#[test]
+fn with_reduced_motion_a_press_on_nightly_counts_and_runs_nothing() {
+    let mut ui = en(Page::Work(3), 1440, 900);
+    ui.state.body.reduced = true;
+    let mut t = 3.0f32;
+    for step in 4..=6 {
+        press(&mut ui, 700.0, 300.0, t);
+        ui.relayout();
+        assert_eq!(callout(&ui), format!("KP 5   STEP {step}/7"));
+        let n = &ui.state.works.night;
+        assert!(n.pulse.is_none() && n.flare < 0.0, "no pulse, no flare");
+        assert_eq!(n.shift, step - 3);
+        t += 1.0; ui.tick(t);
+    }
+    press(&mut ui, 700.0, 300.0, t);
+    ui.relayout();
+    assert_eq!(callout(&ui), "KP 5   PASSING");
+    assert!(log_text(&ui).contains("build 0413"));
+    let n = nodes(&ui);
+    assert!(n.iter().any(|n| n.key == "work/nightly/rays/old"), "the old curtain goes by opacity");
+    let (frames, _) = grass_frames(&mut ui, t, t + 0.5);
+    ui.relayout();
+    assert!(nodes(&ui).iter().all(|n| n.key != "work/nightly/rays/old"), "and is gone after 120 ms");
+    assert!((3..=10).contains(&frames), "{frames} frames for the 120 ms");
+}
+
+/// V.2 e, j: the small line states the glyphs drawn (the line's cells less its spaces) and the rays as
+/// built; on a phone the line keeps the desktop's pitch from 6 % to 94 %, cut on a word, with rays
+/// 2.35 px apart, and the light and its whole callout are 8 px inside the window.
+#[test]
+fn nightly_states_its_counts_as_built_and_has_a_phone_layout() {
+    for (w, h) in [(1440u32, 900u32), (390, 844)] {
+        let ui = en(Page::Work(3), w, h);
+        let n = nodes(&ui);
+        let line = log_text(&ui);
+        let glyphs = line.chars().filter(|&c| c != ' ').count();
+        let l = website::gallery::nightly::lay_for(w as f32, h as f32);
+        let small = n.iter().filter_map(|n| n.text.clone()).find(|t| t.starts_with("W-04 ·")).expect("the small line");
+        assert_eq!(small, format!("W-04 · 23:10 · {glyphs} GLYPHS, {} RAYS · PRESS TO RUN THE NEXT STEP", l.rays()));
+        let call = n.iter().find(|n| n.key == "work/nightly/callout").expect("the callout").rect;
+        let light = website::gallery::nightly::light_at(&l);
+        let inside = |r: [f32; 4]| r[0].min(r[1]).min(w as f32 - r[2]).min(h as f32 - r[3]);
+        let (ci, li) = (inside([call[0], call[1], call[0] + call[2], call[1] + call[3]]), inside(light));
+        let places = website::gallery::nightly::places(&l);
+        let (gx0, gx1) = places.iter().fold((f32::MAX, f32::MIN), |m, p| (m.0.min(p.0 - 3.0), m.1.max(p.0 + 3.0)));
+        eprintln!("nightly at {w}: {} cells, {glyphs} glyphs, {} rays; the callout {ci:.0} px inside, the light {li:.0}; the glyphs from {:.1} % to {:.1} %", line.chars().count(), l.rays(), gx0 / w as f32 * 100.0, gx1 / w as f32 * 100.0);
+        assert!(ci >= 8.0 && li >= 8.0);
+        assert!(gx0 >= 0.06 * w as f32 && gx1 <= 0.94 * w as f32);
+        if w == 1440 { assert_eq!((line.chars().count(), l.rays()), (150, 540)); } else {
+            assert!((140..=150).contains(&l.rays()), "{}", l.rays());
+            assert!(!line.ends_with(' ') && line.chars().count() < 150);
+        }
+    }
+}
+
+/// It moves all the time while it is awake, at 30 frames a second; held, resting or with reduced
+/// motion it is the rest pose and draws nothing.
+#[test]
+fn nightly_moves_at_thirty_frames_a_second_and_is_still_with_reduced_motion() {
+    let mut ui = en(Page::Work(3), 1440, 900);
+    ui.ambient_fps(works::ambient_fps(ui.state.page));
+    // Past the chrome's fade (3 s without input), then two seconds.
+    grass_frames(&mut ui, 3.0, 4.5);
+    let (frames, _) = grass_frames(&mut ui, 4.5, 6.5);
+    assert!((56..=64).contains(&frames), "{frames} frames in 2 s");
+    assert!(ui.state.works.night.run > 1.5);
+    let mut ui = en(Page::Work(3), 1440, 900);
+    ui.state.body.reduced = true;
+    let run = ui.state.works.night.run;
+    grass_frames(&mut ui, 3.0, 4.5);
+    let (frames, _) = grass_frames(&mut ui, 4.5, 6.5);
+    assert_eq!(frames, 0, "frames with reduced motion");
+    assert_eq!(ui.state.works.night.run, run);
+}
+
+/// A label in a window drawn smaller keeps its own size (`El::own_size`), at a device pixel ratio of 2
+/// too: W-03's `BIRD 0.94` in its wide window is 69 px wide, as on the page.
+#[test]
+fn ground_truth_s_labels_keep_their_size_in_a_window_at_2x() {
+    let mut ui = gallery::new_ui(fonts(), 1440, 900, 2.0);
+    gallery::update(&mut ui.state, Msg::Locale(amenui::i18n::Locale::En));
+    gallery::update(&mut ui.state, Msg::Go(Page::Works));
+    gallery::update(&mut ui.state, Msg::Works(works::WMsg::Hover(works::GROUND_TRUTH, Some((900.0, 300.0)))));
+    ui.relayout();
+    ui.tick(3.0);
+    ui.settle();
+    let n = nodes(&ui);
+    let bird = n.iter().find(|n| n.text.as_deref() == Some("BIRD 0.94")).expect("BIRD 0.94 in the wide window");
+    assert!((bird.rect[2] - 69.0).abs() <= 0.5, "{:?}", bird.rect);
 }

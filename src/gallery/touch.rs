@@ -489,13 +489,27 @@ pub fn pixels(phone: bool) -> Vec<u8> {
 /// centre 72 % across, the sock at the band's peak), each blade's joints as the framework bends them
 /// (`Blade::shape`) stroked with round ends at two thirds, its colour mixed to the pale side by
 /// `Blade::mix`; a head is a short stroke in its colour where its glyph stands.
-pub fn still_pixels() -> Vec<u8> {
-    let (pw, ph, k) = (1440.0f32, 900.0f32, 600.0 / 900.0);
+pub fn still_pixels() -> Vec<u8> { still_at(1440.0, 900.0, 960, 600) }
+/// The still of the page at `pw × ph` (its field at rest as reduced motion holds it), `wd × hd` pixels
+/// covering the page: on a phone (V.3 item 2), 390 × 844 a pixel a pixel, over the phone's picture.
+pub fn still_at(pw: f32, ph: f32, wd: i32, hd: i32) -> Vec<u8> {
+    let k = wd as f32 / pw;
     let fit = Fit::new(pw, ph, super::works::PIECES[TOUCH_GRASS].focus);
     let hz = horizon(&fit, pw);
     let foot = fit.at(0.0, ph).1;
-    let mut px = pixels(false);
-    let (wd, hd) = (960i32, 600i32);
+    let phone = pw < NARROW;
+    let base = pixels(phone);
+    // The picture as the page lays it (cover, about its centre of interest), sampled at each pixel.
+    let mut px = if !phone { base } else {
+        let mut out = Vec::with_capacity((wd * hd * 4) as usize);
+        for y in 0..hd { for x in 0..wd {
+            let (qx, qy) = fit.to_picture((x as f32 + 0.5) / k, (y as f32 + 0.5) / k);
+            let (i, j) = (((qx / 1.5) as i32).clamp(0, 959), ((qy / 1.5) as i32).clamp(0, 599));
+            let o = ((j * 960 + i) * 4) as usize;
+            out.extend_from_slice(&base[o..o + 4]);
+        } }
+        out
+    };
     // A shape's coverage of each pixel (the most of its strokes'), laid over the picture in `c`.
     let mut lay = |segs: &[([f32; 2], [f32; 2])], width: f32, c: [f32; 3]| {
         let r = width * 0.5;

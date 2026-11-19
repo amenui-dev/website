@@ -17,7 +17,9 @@ fn no_text_is_cut_at_330_px() {
         for i in 1..=20 { ui.tick(t + i as f32 / 30.0); }
         let ns = ui.nodes();
         for n in ns {
-            let Content::Text { s, .. } = &n.content else { continue };
+            let Content::Text { s, pose, .. } = &n.content else { continue };
+            // Text whose glyphs are each posed elsewhere (W-04's line on its curve) is not drawn in its box.
+            if pose.is_some() { continue; }
             if n.hidden || s.trim().is_empty() || n.rect.w <= 0.0 { continue; }
             // Inside a sideways scroller, running past is what scrolling is for.
             let mut a = n.parent;
