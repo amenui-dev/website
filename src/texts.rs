@@ -1,6 +1,7 @@
 //! The texts the site shows that the web module does not carry (site-design R.5): the Lab's Markdown,
-//! the Lab reader's page, the sources the components' pages show (the framework's examples, its widgets
-//! and `src/morph.rs`) and the demos' English (`assets/english.txt`). Natively they are compiled in. On
+//! the page Loupe magnifies (its own source), the Lab reader's page, the sources the components' pages
+//! show (the framework's examples, its widgets and `src/morph.rs`) and the demos' English
+//! (`assets/english.txt`). Natively they are compiled in. On
 //! the web the page fetches those a route's first frame shows beside the module and gives them to it
 //! (`put_text`) before that frame; one the module asks for later it names (`wanted_texts`), the page
 //! fetches it and the view is laid out again. A text is named by its path under the site's `texts/`.
@@ -15,6 +16,7 @@ pub fn get(name: &str) -> Option<&'static str> {
     lab!("lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "kern", "spring", "stack");
     match name {
         "english.txt" => Some(include_str!("../assets/english.txt")),
+        "lab/loupe.rs" => Some(include_str!("../examples/lab/loupe.rs")),
         "en/layout.md" => Some(include_str!("../docs/site/en/layout.md")),
         "morph.rs" => Some(amenui::sources::MORPH),
         _ if name.starts_with("widgets/") => Some(match &name[8..] {

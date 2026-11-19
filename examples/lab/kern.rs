@@ -52,7 +52,7 @@ pub struct Kern {
     pub mode: usize,
     pub dims: bool,
     pub word: TextEdit,
-    /// The page's faces, for the outlines (`Ui::on_faces`).
+    /// The page's faces, for the outlines (`Experiment::faces`).
     pub faces: Option<Faces>,
     /// The stage, px, and the drawn size there.
     pub size: (f32, f32),
@@ -453,4 +453,5 @@ impl Experiment for Kern {
         true
     }
     fn moving(&self) -> bool { self.moving || self.stale() }
+    fn faces(&mut self, f: Faces) { self.set_faces(f); }
 }

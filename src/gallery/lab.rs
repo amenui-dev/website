@@ -15,7 +15,7 @@ pub const COUNT: usize = 10;
 pub const RENAMED: [(&str, &str); 2] = [("mercury", "weld"), ("orbit", "kern")];
 /// The pieces that move only when the hand moves them (Z.2's calm): running, they ask for no frames
 /// unless they are settling.
-pub const CALM: [bool; COUNT] = [false, false, false, false, true, false, false, true, false, false];
+pub const CALM: [bool; COUNT] = [false, false, false, false, true, false, true, true, false, false];
 /// The cells in page order (their files in `examples/lab/` and their pages `#lab-<name>`).
 pub const NAMES: [&str; COUNT] = ["lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "kern", "spring", "stack"];
 
@@ -24,10 +24,12 @@ macro_rules! cells {
     (@view $s:ident, stack, $l:ident, $k:ident) => { $k };
     (@view $s:ident, weld, $l:ident, $k:ident) => { (&$s.weld.at_size($l.1)) };
     (@view $s:ident, kern, $l:ident, $k:ident) => { (&$s.kern.at_size($l.1)) };
+    (@view $s:ident, loupe, $l:ident, $k:ident) => { (&$s.loupe.at_size($l.1)) };
     (@view $s:ident, $f:ident, $l:ident, $k:ident) => { (&$s.$f) };
     // Whether a piece's message says the pointer came onto it (`Some(true)`) or left it.
     (@over weld, $m:ident) => { None };
     (@over kern, $m:ident) => { None };
+    (@over loupe, $m:ident) => { match &$m { x::loupe::Msg::Point(p, _) => Some(p.is_some()), _ => None } };
     (@over stack, $m:ident) => { match &$m { x::stack::Msg::Deck(amenui::widgets::StackMsg::Hover(h)) => Some(h.is_some()), _ => None } };
     (@over $f:ident, $m:ident) => { match &$m { x::$f::Msg::Point(p) => Some(p.is_some()), _ => None } };
     ($( $i:literal => $f:ident : $t:ty , $v:ident );* $(;)?) => {
@@ -138,6 +140,8 @@ macro_rules! cells {
                 } )*
                 c
             }
+            /// The page's faces, new or changed, for every piece that measures outlines (`Experiment::faces`).
+            pub fn faces(&mut self, f: amenui::pair::Faces) { $( self.$f.faces(f.clone()); )* }
             /// When the cells next need a frame.
             pub fn wake(&self, now: f32, page: Option<usize>, index: bool) -> Option<f32> {
                 let live = !self.reduced || now < self.until;
@@ -192,7 +196,9 @@ pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
     if let Some(i) = page_cell(s) {
         if s.lab.step_cells(t, Some(i), false).is_empty() { return vec![]; }
         let k = format!("lab/{}", NAMES[i]);
-        return ["stage", "formula", "label"].iter().map(|p| format!("{k}/{p}")).collect();
+        // A step of Loupe moves its lens alone: the page under it, kept on its plate, is not drawn again.
+        let part = if NAMES[i] == "loupe" { "lens" } else { "stage" };
+        return [part, "formula", "label"].iter().map(|p| format!("{k}/{p}")).collect();
     }
     if s.page != super::Page::Lab { return vec![]; }
     let fams = path().into_iter().flatten().filter(|&p| family_of(p).is_some()).collect::<Vec<_>>();
@@ -292,7 +298,7 @@ pub fn family_of(p: super::Page) -> Option<usize> {
 }
 /// The 29 cells, step by step, in teaching order. Until a piece of Z.3 is built its old piece holds
 /// the place: Lumen Gnomon's, Silk Lee's, Flow Trace's, Spring Throw's,
-/// Stack Sheaf's, the sphere (`loupe`) Loupe's.
+/// Stack Sheaf's.
 pub fn path() -> [Vec<super::Page>; 5] {
     use super::Page::*;
     let e = Experiment;

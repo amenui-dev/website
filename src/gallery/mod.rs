@@ -1070,8 +1070,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
     // The mechanism's meshes (gears, a cam, plates…), after the built-ins, in the order `mechanism`
     // names them.
     for m in mechanism::meshes() { ui.add_mesh(m); }
-    // Kern measures between the outlines of the page's own faces.
-    ui = ui.on_faces(|s, f| s.lab.kern.set_faces(f));
+    // Kern and Loupe measure the outlines of the page's own faces (`Experiment::faces`).
+    ui = ui.on_faces(|s, f| s.lab.faces(f));
     ui.on_resize(|s, w, h| { s.width = w; s.height = h; s.body.resize(w, h); }).on_commands(|s| std::mem::take(&mut s.cmds))
         .on_gaze(|s| s.look().gaze)
         .on_hover(|s, k| {

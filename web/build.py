@@ -93,21 +93,26 @@ wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
 # 01 to 04, and damage kept as boxes (amenui 1704fa1) the deploy build measured 2,817,229 at website
 # eab4174, and with Weld's drag restaged and offsets kept through a view (amenui 8e42221) 2,818,696 at
 # website 2bc03124, and with the intro's words flown whole, the word on its own lattice and the stage kept
-# through the morphs (amenui 0925272) 2,826,743 at website a88b101; the gate is that plus 5,000. A new piece adds at most 12,000 of its own net code to either module (framework code it is the first to use, such as
+# through the morphs (amenui 0925272) 2,826,743 at website a88b101, and with a material pass for each
+# material (amenui f2a5ca1) 2,829,131 at website 6f6676d8. Loupe adds 12,314 on the local toolchain
+# (cached subtrees, cached views and round clips among it, first used here); the gate is the deploy
+# build's measure before it, with that, plus 5,000. A new piece adds at most 12,000 of its own net code to either module (framework code it is the first to use, such as
 # `pair`, is the framework's); more goes back to design with the table by crate.
-WASM_GATE, WASM_GPU_GATE = 2_831_743, 2_621_440
+WASM_GATE, WASM_GPU_GATE = 2_846_445, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
 # The texts the module does not carry (R.5, `src/texts.rs`): the demos' English, the Lab's Markdown,
-# the Lab reader's page and the sources the components' pages show (the framework's examples, its
-# widgets and src/morph.rs), each at `texts/<name>`. A page fetches those its route shows beside the
-# module (`boot`) and any other the module asks for later; `textsV` changes with any of them.
+# the page Loupe magnifies (its own source), the Lab reader's page and the sources the components'
+# pages show (the framework's examples, its widgets and src/morph.rs), each at `texts/<name>`. A page
+# fetches those its route shows beside the module (`boot`) and any other the module asks for later;
+# `textsV` changes with any of them.
 texts = {'english.txt': (root / 'assets/english.txt').read_text(), 'en/layout.md': (root / 'docs/site/en/layout.md').read_text()}
 for p in sorted((root / 'docs/site').glob('*/lab-*.md')): texts[f'{p.parent.name}/{p.name}'] = p.read_text()
 for p in sorted((fw / 'examples/components').glob('*.rs')): texts[f'examples/{p.name}'] = p.read_text()
 for p in sorted((fw / 'src/widgets').glob('*.rs')): texts[f'widgets/{p.name}'] = p.read_text()
 texts['morph.rs'] = (fw / 'src/morph.rs').read_text()
+texts['lab/loupe.rs'] = (root / 'examples/lab/loupe.rs').read_text()
 widget_file = {i['name']: i['files'][0].rsplit('/', 1)[-1] for i in json.loads((fw / 'registry.json').read_text())['items'] if i.get('files')}
 for name, body in texts.items():
     (out / 'texts' / name).parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +124,7 @@ def boot_texts(path, lang):
     names = ['english.txt']
     parts = path.strip('/').split('/')
     if parts[0] == 'lab' and len(parts) == 2: names.append('en/layout.md' if parts[1] == 'reader' else f'{lang}/lab-{parts[1]}.md')
+    if parts == ['lab', 'loupe']: names.append('lab/loupe.rs')
     if parts[0] == 'components' and len(parts) == 2:
         names.append('examples/' + {'scroll-area': 'scroll'}.get(parts[1], parts[1].replace('-', '_')) + '.rs')
         f = widget_file.get(parts[1]) or widget_file.get(parts[1].replace('-', '_'))
