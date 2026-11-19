@@ -63,7 +63,7 @@ fn an_address_with_a_step_opens_at_its_header() {
             println!("cold {step} at {w}: {d:.1} px under the line, brackets on {}", lab::here(&ui.state));
             assert!((0.0..=8.0).contains(&d), "cold {step} at {w}: the header {d} px under the line");
             assert_eq!(lab::here(&ui.state), i, "cold {step} at {w}: the brackets");
-            // From a piece's strip: Orbit's page, then its step's link.
+            // From a piece's strip: Kern's page, then its step's link.
             let mut ui = gallery::new_ui(fonts(), w, 900, 1.0);
             assert!(ui.state.route(&format!("lab/{}/", lab::NAMES[7])));
             ui.relayout();

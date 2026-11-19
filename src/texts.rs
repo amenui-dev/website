@@ -12,7 +12,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         concat!("en/lab-", $n, ".md") => return Some(include_str!(concat!("../docs/site/en/lab-", $n, ".md"))),
         concat!("zh-Hans/lab-", $n, ".md") => return Some(include_str!(concat!("../docs/site/zh-Hans/lab-", $n, ".md"))),
     )* _ => {} } } }
-    lab!("lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "orbit", "spring", "stack");
+    lab!("lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "kern", "spring", "stack");
     match name {
         "english.txt" => Some(include_str!("../assets/english.txt")),
         "en/layout.md" => Some(include_str!("../docs/site/en/layout.md")),
