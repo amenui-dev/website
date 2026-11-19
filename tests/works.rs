@@ -629,6 +629,35 @@ fn touch_grass_costs() {
         gust * 1e3 / n as f64, walk * 1e3 / 240.0, worst.0 * 1e3, worst.1, jump * 1e3 / jumps.max(1) as f64, ui.scene().instances.len());
 }
 
+/// W-04's CPU time a frame at 1440 x 900: at rest (the curtain's 30 frames a second) and through a
+/// pulse (a press, then 1 s), and the first frame. For the recipe page.
+#[test]
+#[ignore = "timings: cargo test --profile quick --test works nightly_costs -- --ignored --nocapture"]
+fn nightly_costs() {
+    use std::time::Instant;
+    let a = Instant::now();
+    let mut ui = en(Page::Work(3), 1440, 900);
+    let first = a.elapsed().as_secs_f64();
+    ui.ambient_fps(works::ambient_fps(ui.state.page));
+    let run = |ui: &mut GalleryUi, from: f32, to: f32| {
+        let (mut t, mut v) = (from, vec![]);
+        while t < to {
+            t += 1.0 / 60.0;
+            let a = Instant::now();
+            ui.tick(t);
+            if ui.needs_frame(t) { ui.settle(); let _ = ui.scene().instances.len(); ui.frame_drawn(); v.push(a.elapsed().as_secs_f64() * 1e3); }
+        }
+        v.sort_by(f64::total_cmp);
+        let mean = v.iter().sum::<f64>() / v.len().max(1) as f64;
+        (v.len(), mean, v[(v.len() * 95 / 100).min(v.len() - 1)], v[v.len() - 1])
+    };
+    let rest = run(&mut ui, 3.0, 13.0);
+    press(&mut ui, 700.0, 300.0, 13.0);
+    let pulse = run(&mut ui, 13.0, 14.0);
+    eprintln!("nightly, CPU at 1440 x 900: the first frame {:.1} ms (with the layout); at rest {} frames in 10 s, mean {:.2} ms, p95 {:.2}, worst {:.2}; a pulse {} frames in 1 s, mean {:.2} ms, p95 {:.2}, worst {:.2}; {} instances",
+        first * 1e3, rest.0, rest.1, rest.2, rest.3, pulse.0, pulse.1, pulse.2, pulse.3, ui.scene().instances.len());
+}
+
 /// R.2 item 7, T.2 item 1: the windsock hangs at 55° with no wind, is level (at most 2°) at the peak of
 /// a strong gust, and with reduced motion holds at the held band's peak, 55° · (1 − 0.79) = 11.5°.
 #[test]
