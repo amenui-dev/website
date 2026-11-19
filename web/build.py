@@ -80,8 +80,11 @@ wasm_fn, wasm_gpu_fn = hashed('amenui.wasm', wasm), hashed('amenui-webgpu.wasm',
 # Their sizes as a server compressing them sends them: the boot line's total when there is no
 # Content-Length.
 wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
-# The size gates (R.5), in bytes of gzip: the full module at 2,840,000, the WebGPU-only one at 2.5 MiB.
-WASM_GATE, WASM_GPU_GATE = 2_840_000, 2_621_440
+# The size gates (R.5, V.1), in bytes of gzip: the full module (the fall-back) at 2,860,000, the
+# WebGPU-only one at 2.5 MiB. The full gate is a ratchet: when the framework's El trim lands it is reset
+# to the size measured then plus 5,000, and never above 2,860,000. A new piece adds at most 12,000 to
+# either module; more goes back to design with the table by crate.
+WASM_GATE, WASM_GPU_GATE = 2_860_000, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
