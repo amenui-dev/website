@@ -176,7 +176,8 @@ fn the_union_is_traced_within_its_budget() {
     let t0 = std::time::Instant::now();
     for _ in 0..20 { std::hint::black_box(w.view("cell")); }
     eprintln!("weld: the union sampled and traced {best:.3} ms; the whole view {:.3} ms", t0.elapsed().as_secs_f64() * 1000.0 / 20.0);
-    assert!(best <= 1.0, "the union took {best:.3} ms");
+    // A bound only in an optimised build: a debug build measures the runner, not the piece.
+    if !cfg!(debug_assertions) { assert!(best <= 1.0, "the union took {best:.3} ms"); }
 }
 
 /// Y.5's line for Weld's main gesture: at 1440 × 900, scale 2, a chip dragged across the stage for 2 s
