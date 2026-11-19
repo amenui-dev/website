@@ -998,10 +998,15 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
                 .around(Around::new(vec![Silhouette::circle(w * 0.5, 50.0, 34.0)], 6.0)))
             .child(space(68.0, 68.0).radius(34.0).fill(Paint::ACCENT).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
         2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).markr(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
-        3 => base.child(row().gap(12.0).align(AlignItems::CENTER).height(h)
-            .child(text("山", 64.0, Paint::INK).font(Font::Display))
-            .child(text("→", 20.0, Paint::DIM))
-            .child(row().height(40.0).pad(18.0, 0.0).radius(20.0).fill(Paint::ACCENT).center().child(text("出发", 15.0, Paint::GROUND)))),
+        // The word is in English ("Mountain"), wider than a small card: the still is drawn smaller in
+        // proportion until it fits (about 390 px across at its full size), never past the card.
+        3 => {
+            let k = (w / 390.0).min(1.0);
+            base.child(row().gap(12.0 * k).align(AlignItems::CENTER).height(h)
+                .child(text("山", 64.0 * k, Paint::INK).font(Font::Display))
+                .child(text("→", 20.0 * k, Paint::DIM))
+                .child(row().height(40.0 * k).pad(18.0 * k, 0.0).radius(20.0 * k).fill(Paint::ACCENT).center().child(text("出发", 15.0 * k, Paint::GROUND))))
+        }
         4 => base.child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::DIM).absolute(Some(10.0), Some(24.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::ACCENT).absolute(Some(w * 0.25), Some(14.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).fill(Paint::tone(0.1)).border(1.0, Paint::INK).absolute(Some(w * 0.45), Some(4.0), None, None)),
