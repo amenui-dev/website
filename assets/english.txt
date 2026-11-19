@@ -17,11 +17,13 @@
 图 = Image
 圆 = Circle
 块 = Block
+墨带 = Ink bands
 大 = Large
 字 = Text
 小 = Small
 山 = Mountain
 左 = Left
+带宽 = Band width
 开 = On
 新 = New
 方 = Square
