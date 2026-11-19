@@ -320,7 +320,9 @@ impl Experiment for Weld {
         let reach = if bands > 0 { BANDS[bands.min(3) - 1] } else { 0.0 } + 2.0 * k + 2.0 * STEP;
         let levels: Vec<f32> = BANDS.iter().take(bands).copied().chain([0.0]).collect();
         for (level, line) in trace(&boxes, r, k, reach, &levels) { d.polyline(&line, 1.0, |_, _| if level > 0.0 { Paint::tone(0.32) } else { Paint::tone(0.9) }); }
-        // The gap from what is held to the nearest chip outside its group, while it is within 2k.
+        // The gap from what is held to the nearest chip outside its group, while it is within 2k. The
+        // number is always there (unseen while there is no gap to print), in figures of one width, so a
+        // drag moves it and changes no measure.
         let mut dims: Vec<El<Msg>> = vec![];
         if let Some(hd) = self.hold.as_ref().filter(|h| h.moved) && let Some((_, _, gp, a, b)) = self.nearest(hd.chip) && gp < 2.0 * k.max(join) && gp > 0.5 {
             let paint = if gp < join { Paint::ACCENT } else { Paint::DIM };
@@ -332,21 +334,27 @@ impl Experiment for Weld {
             let mx = (a.0 + b.0) * 0.5;
             // Above the bands, which the blend lifts by up to k / 2 over the gap.
             let lift = if bands > 0 { BANDS[bands.min(3) - 1] } else { 0.0 } + 0.5 * k + 2.0;
-            let label = format!("{:.0} PX", gp);
+            let label = format!("{:>3.0} PX", gp.min(999.0));
             let x = mx - label.len() as f32 * ADV * 0.5;
             dims.push(mono(label, paint, kf("gap"), x, top - 18.0 - lift));
             d.line((mx, top - 4.0 - lift), (mx, a.1), 1.0, paint.alpha(0.5));
         }
+        if dims.is_empty() { dims.push(mono("  0 PX".to_owned(), Paint::DIM.alpha(0.0), kf("gap"), 0.0, 0.0)); }
         let size = (w, h);
         let mut piece = col().key(kf("piece")).fill_width().fill_height().clip().role(Role::Group).label("chips")
             // A press on the stage is heard, it does not take the focus: the chips take it.
             .focusable(false)
             // Only a press and its drag are heard: a pointer passing over makes no message.
             .on_drag_with(move |d| Some(Msg::Point(Some(Point { x: d.x, y: d.y, down: d.phase != Phase::End, glyph: None, z: 0.0, t: d.t }), size)))
+            // A drag changes only the piece: the stage alone is made again after it.
+            .local_messages()
             .child(at(canvas(d).key(kf("canvas")).width(w), 0.0, 0.0));
-        // The chips: their fills under the outline, their labels over it; a group is one element.
-        for grp in self.groups() {
-            let mut g = at(col().key(kf(&format!("group/{}", self.chips[grp[0]].group))).width(w).height(h), 0.0, 0.0);
+        // The chips: their fills under the outline, their labels over it; a group is one element. Every
+        // group number has its element, empty while no chip is in it, so a join or a part changes where
+        // chips are, not how many elements there are.
+        for gi in 0..self.chips.len() {
+            let grp = self.of(gi);
+            let mut g = at(col().key(kf(&format!("group/{gi}"))).width(w).height(h), 0.0, 0.0);
             if grp.len() > 1 { g = g.role(Role::Group).label(grp.iter().map(|&i| LABELS[i]).collect::<Vec<_>>().join(" + ")); }
             for &i in &grp {
                 let c = &self.chips[i];

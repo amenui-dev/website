@@ -223,7 +223,11 @@ fn weld_y5_line() {
     ui.release(s.0, s.1);
     rest(&mut ui, &mut t, 1);
     let c1 = ui.perf().counters;
+    let before = centre(&ui, "lab/weld/chip/glyph");
     rest(&mut ui, &mut t, 40);
+    // The springs are drawn where they go, restaged or not.
+    let after = centre(&ui, "lab/weld/chip/glyph");
+    assert!((after.0 - before.0).hypot(after.1 - before.1) > 1.0, "the scattered chip was drawn at {before:?} and still at {after:?}");
     let c = &ui.perf().counters;
     eprintln!("Y.5 weld, the springs after a scatter, 40 frames: {} views, {} layouts, {} restages", c.views - c1.views, c.layouts - c1.layouts, c.restages - c1.restages);
     ms.sort_by(f64::total_cmp);

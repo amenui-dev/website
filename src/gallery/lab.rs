@@ -201,7 +201,7 @@ pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
 }
 /// Experiment `i`'s cell on its own page, `width` px wide (the window less its margins, at most 760).
 pub fn on_page(s: &Gallery, i: usize) -> El<Msg> {
-    let w = (s.width - 32.0).clamp(200.0, 760.0);
+    let w = cell_width(s);
     s.lab.cell(i, &format!("lab/{}", NAMES[i]), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab))
 }
 /// An index cell's stage alone (`Ui::stage_view`, `labi/<page>/stage`), as the index makes it.
@@ -503,14 +503,19 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
 /// The reader's still: the start of a page set in one face at one measure.
 const READER_STILL: &str = "The reader sets a page in one face at one measure. Lines break by whole words, never inside one; a long page turns instead of scrolling, and the outline beside it keeps your place.";
 
+/// The width of an experiment's cell on its page: the measure of the page's column, or the box of a
+/// stage shown alone (`stage_only`).
+pub fn cell_width(s: &Gallery) -> f32 {
+    if s.stage_only { (s.width - 32.0).clamp(200.0, 760.0) } else { (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0) }
+}
 /// An experiment's page: its documentation, then the cell.
 pub fn experiment(s: &Gallery, i: usize) -> El<Msg> {
     let name = NAMES[i.min(COUNT - 1)];
     let src = doc(name, s.locale);
-    let w = (s.width - if s.width < super::NARROW { 28.0 } else { 80.0 }).clamp(200.0, 720.0);
+    let w = cell_width(s);
     let (body, _) = amenui::markdown::render(src, &format!("lab/{name}/doc"), w, &|t| super::docs::link(t));
     col().key(format!("lab/{name}/page")).fill_width().min_width(0.0).max_width(w).gap(18.0)
-        .child(s.lab.cell(i, &format!("lab/{name}"), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab)))
+        .child(on_page(s, i))
         .child(body)
 }
 
