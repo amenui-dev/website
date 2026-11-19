@@ -994,7 +994,8 @@ const MOUNTAIN_INK: (f32, f32, f32) = (4.32, 0.068, 0.054);
 pub fn thumb(i: usize, w: f32) -> El<Msg> {
     let h = 110.0;
     let k = |s: &str| format!("scenes/t{i}/{s}");
-    let base = col().key(k("box")).width(w).height(h);
+    // What does not fit is cut at the art box, never drawn smaller.
+    let base = col().key(k("box")).width(w).height(h).clip();
     match i {
         0 => base.center().child(text_lh("● ● ● ● ● ● ●\n● ● 点 ● ● ● ●\n● ● ● ● ● ● ●", 12.0, 26.0, Paint::DIM)),
         1 => base.child(text_lh("文字沿着圆的边缘排开，每一行只占用没有被挡住的部分，留出一条均匀的缝。文字沿着圆的边缘排开，每一行只占用没有被挡住的部分。", 11.0, 18.0, Paint::DIM).fill_width()
