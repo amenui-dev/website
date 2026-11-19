@@ -143,14 +143,14 @@ fn a_family_strip_shows_every_member_once() {
 #[test]
 fn the_keyboard_s_focus_runs_a_cell_and_its_stage_alone_is_made_again() {
     let mut ui = index(1440, 900, amenui::i18n::Locale::En);
-    let orbit = lab::path()[1][2];
-    let key = format!("labi/{}/stage", orbit.hash());
+    let lumen = lab::path()[1][4];
+    let key = format!("labi/{}/stage", lumen.hash());
     // Brought to its still, nothing runs.
     let mut t = ui.now();
     for _ in 0..120 { t += 1.0 / 60.0; ui.tick(t); ui.frame_drawn(); }
     assert!(lab::step(&mut ui.state, t + 1.0 / 60.0).is_empty(), "a still steps no more");
-    ui.focus_key(&format!("labx/{}/name", orbit.hash()));
-    assert_eq!(ui.state.lab.focus, Some(7), "its name has the focus: Orbit runs");
+    ui.focus_key(&format!("labx/{}/name", lumen.hash()));
+    assert_eq!(ui.state.lab.focus, Some(0), "its name has the focus: Lumen runs");
     let stepped = lab::step(&mut ui.state, t + 2.0 / 60.0);
     assert_eq!(stepped, vec![key.clone()], "only its stage changed");
     let st = lab::stage_of(&ui.state, &key).expect("its stage alone");
