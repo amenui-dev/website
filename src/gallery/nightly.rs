@@ -48,13 +48,18 @@ pub const GROUND: [f32; 3] = rgb(0x070b16);
 pub const TYPE_C: [f32; 3] = rgb(0xe2fff0);
 pub const MID: [f32; 3] = rgb(0x2fae8c);
 pub const INK: [f32; 3] = rgb(0xe2e8f0);
-/// The type is the third hue; the rays' root, `#baffd8`, is the type's hue at ROOT_MIX over the ground
-/// (a theme has no fourth hue; within W.1 item 1's ± 20 a channel). The ramp is root → middle → gone;
-/// `#1f5f86` at the tip waits for a drawing's own colours (W.2 item 1).
+/// The type is the theme's third hue. The rays are in colours of their own (`Drawing::palette`), so
+/// they are the same in the index's window and band as on the page: root `#baffd8` → middle `#2fae8c` →
+/// `#1f5f86` as they go (X.2 item 2), the tallest turning toward the accent.
 const TYPE: Paint = Paint::hue(2);
-const ROOT_MIX: f32 = 0.81;
+pub const ROOT: [f32; 3] = rgb(0xbaffd8);
+pub const DEEP: [f32; 3] = rgb(0x1f5f86);
+const ACCENT: [f32; 3] = rgb(0xff6b2b);
+/// A paint of the drawing's own colour `k`.
+const fn own(k: u8) -> Paint { Paint { tone: 1.0, accent: 1.0, alpha: 1.0, hue: 3 + k } }
+fn palette(d: &mut Drawing) { d.palette([ROOT, MID, DEEP, ACCENT]); }
 /// A ray's opacity at its root and middle stop (at MID_AT of its length), and a pulse's brightening.
-const ROOT_A: f32 = 0.95;
+const ROOT_A: f32 = 0.97;
 const MID_A: f32 = 0.6;
 const MID_AT: f32 = 0.3;
 /// A tipped ray turns toward the accent (up to 0.8) over its top third, at its neighbours' opacity, and
@@ -291,7 +296,7 @@ pub fn layer(s: &Gallery, l: &Lay, title: [f32; 4], strip: [f32; 4], view: (f32,
     }
     sky.child(canvas(d).key(key("light")).width(w).absolute(Some(0.0), Some(0.0), None, None).pass(true))
         .child(line_of_type(l, &c, line_text(l, n.build), key("log")))
-        .child(reflection(l, n.shift, title, strip))
+        .child(reflection(l, n.shift, title, strip, view))
         .child(at(mono(call, Paint::INK).key(key("callout")).recompose(false), cx, cy))
 }
 /// Where the callout's box goes (its top left).
@@ -307,8 +312,8 @@ pub fn light_at(l: &Lay) -> [f32; 4] { let (hz, lx) = (l.hz(), (l.w * LIGHT).rou
 /// (it is gone at its tip, so this is not seen): only over a picture does a ramp mix its stops.
 fn rays(l: &Lay, n: &Night, c: &(Vec<(f32, f32)>, Vec<f32>), build: u32, now: f32, view: (f32, f32, f32, f32)) -> El<Msg> {
     let mut d = Drawing::new(l.w, l.hz());
-    let root = Paint { tone: 0.0, accent: ROOT_MIX, alpha: ROOT_A, hue: 2 };
-    let mid = Paint { tone: 1.0, accent: 1.0, alpha: MID_A, hue: 1 };
+    palette(&mut d);
+    let (root, mid, deep) = (own(0), own(1), own(2));
     let top = l.y(16.0);
     for i in 0..l.rays() {
         let rx = l.ray(i);
@@ -322,12 +327,13 @@ fn rays(l: &Lay, n: &Night, c: &(Vec<(f32, f32)>, Vec<f32>), build: u32, now: f3
         let (ra, ma) = ((ROOT_A * up).min(1.0), (MID_A * up).min(1.0));
         let at = |f: f32| (rx + lean * f, ry - h * f);
         // The tallest turn toward the accent over their top third, up to 0.8, at the opacity every ray
-        // has there (W.1 item 2): the ray in two strokes that meet at two thirds of its length.
+        // has there (W.1 item 2): the ray in two strokes that meet at two thirds of its length, from
+        // the middle stop into the accent.
         let tall = ((len - 330.0) / (LONG - 330.0)).clamp(0.0, 1.0).powi(3);
         if tall > 0.0 {
             let joint = ma * (1.0 - TIP_FROM) / (1.0 - MID_AT);
             let end = (1.0 - TIP_CLEAR / h.max(TIP_CLEAR * 3.0)).max(TIP_FROM + 0.05);
-            let tip = Paint { tone: 1.0, accent: 0.8 * tall.powf(1.0 / 3.0), alpha: 0.0, hue: 0 };
+            let tip = Paint { tone: 1.0, accent: 0.8 * tall.powf(1.0 / 3.0), alpha: 0.0, hue: 6 };
             d.ramp(at(0.0), at(TIP_FROM), 1.0, root.alpha(ra), Some((mid.alpha(ma), MID_AT / TIP_FROM)), mid.alpha(joint));
             let fade = joint * (1.0 - end) / (1.0 - TIP_FROM);
             // The hue has turned by a third of the way up the top third; the opacity keeps falling as
@@ -335,7 +341,7 @@ fn rays(l: &Lay, n: &Night, c: &(Vec<(f32, f32)>, Vec<f32>), build: u32, now: f3
             let turn = 1.0 / 3.0;
             d.ramp(at(TIP_FROM), at(end), 1.0, mid.alpha(joint), Some((tip.alpha(joint + (fade - joint) * turn), turn)), tip.alpha(fade));
         } else {
-            d.ramp(at(0.0), at(1.0), 1.0, root.alpha(ra), Some((mid.alpha(ma), MID_AT)), mid.alpha(0.0));
+            d.ramp(at(0.0), at(1.0), 1.0, root.alpha(ra), Some((mid.alpha(ma), MID_AT)), deep.alpha(0.0));
         }
     }
     canvas(d).width(l.w).absolute(Some(0.0), Some(0.0), None, None).pass(true)
@@ -355,12 +361,14 @@ fn line_of_type(l: &Lay, c: &(Vec<(f32, f32)>, Vec<f32>), t: String, key: String
     let cells = t.chars().count().max(1);
     let adv = super::works::ADV;
     let places = place_cells(l, c, cells);
+    // The box lies across the middle of the line, so a band cropped about it keeps it in view.
+    let mid = (places.iter().map(|p| p.1).sum::<f32>() / cells as f32 - 6.0).round();
     text(t, 11.0, TYPE).font(Font::Face(amenui::text::MONO)).tracking(0.06).nowrap().key(key).recompose(false).pass(true)
         .pose(move |g| {
             let (x, y, angle) = places[((g.x / adv) as usize).min(cells - 1)];
-            Pose { dx: x - g.x, dy: y - g.y, angle, ..Pose::default() }
+            Pose { dx: x - g.x, dy: y - mid - g.y, angle, ..Pose::default() }
         })
-        .absolute(Some(0.0), Some(0.0), None, None)
+        .absolute(Some(0.0), Some(mid), None, None)
 }
 /// Where each glyph's centre is at rest, and the line's turn there (for the checks).
 pub fn places(l: &Lay) -> Vec<(f32, f32, f32)> { let c = curve(l, 0.0, FIRST_BUILD); place_cells(l, &c, line_text(l, FIRST_BUILD).chars().count()) }
@@ -394,9 +402,10 @@ pub fn reflection_span(l: &Lay, title: [f32; 4], y: f32) -> (f32, f32) {
 }
 /// The curtain's broken reflection under the horizon: rows of short dashes where the rest pose's rays
 /// stand tallest, fainter further down; each press shifts the rows once. None by the strip.
-fn reflection(l: &Lay, shift: u32, title: [f32; 4], strip: [f32; 4]) -> El<Msg> {
+fn reflection(l: &Lay, shift: u32, title: [f32; 4], strip: [f32; 4], view: (f32, f32, f32, f32)) -> El<Msg> {
     let hz = l.hz();
     let mut d = Drawing::new(l.w, l.h);
+    palette(&mut d);
     let k = l.s;
     for row in 0..20u32 {
         let y = (hz + (30.0 + row as f32 * 4.0) * k).floor() + 0.5;
@@ -408,9 +417,11 @@ fn reflection(l: &Lay, shift: u32, title: [f32; 4], strip: [f32; 4]) -> El<Msg> 
             let v = (length(a, 0.0, FIRST_BUILD) - SHORT) / (LONG - SHORT);
             let len = ((2.0 + 5.0 * hash(a as u32, row, 5)) * k).min(x1 - x);
             let seg = [x, y - 0.5, x + len, y + 0.5];
-            let by_strip = seg[0] < strip[2] && strip[0] < seg[2] && seg[1] < strip[3] && strip[1] < seg[3];
-            if hash(a as u32, row + 40 * shift, 6) < (0.2 + 0.8 * v) * fade * 1.4 && !by_strip && len > 0.5 {
-                d.line((seg[0], y), (seg[2], y), 1.0, Paint { tone: 1.0, accent: 1.0, alpha: 0.2 + 0.3 * v * fade, hue: 1 });
+            // None by the strip, and none across the view's edge (a mark in its own colours lies wholly
+            // over the picture as shown).
+            let out = (seg[0] < strip[2] && strip[0] < seg[2] && seg[1] < strip[3] && strip[1] < seg[3]) || seg[0] < view.0 + 1.0 || seg[2] > view.2 - 1.0;
+            if hash(a as u32, row + 40 * shift, 6) < (0.2 + 0.8 * v) * fade * 1.4 && !out && len > 0.5 {
+                d.line((seg[0], y), (seg[2], y), 1.0, Paint { tone: 1.0, accent: 1.0, alpha: 0.2 + 0.3 * v * fade, hue: 4 });
             }
             x += len + (3.0 + 6.0 * hash(a as u32, row, 7)) * k;
         }

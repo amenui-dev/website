@@ -58,10 +58,8 @@ pub const PIECES: [Piece; COUNT] = [
     Piece { slug: "nightly", title: "nightly", n: "W-04", hour: "23:10", at: 23.0 + 10.0 / 60.0, light: false, bar_light: false, focus: 650.0 / 1440.0, live: "540 RAYS ON ONE LINE OF TYPE", page: true, built: true, recipe: "recipes/nightly/" },
 ];
 pub const GROUND_TRUTH: usize = 2;
-/// Whether the index shows piece `i` as built. W-04 is built, but until the framework gives a drawing
-/// its own colours its window could show only its sky; the index shows it as N.2 item 1 shows an
-/// unbuilt piece, except that its window and band open it (W.1 item 7).
-pub fn on_index(i: usize) -> bool { PIECES[i].built && i != NIGHTLY }
+/// Whether the index shows piece `i` as built.
+pub fn on_index(i: usize) -> bool { PIECES[i].built }
 /// The first piece the index shows as built, in the day's order: the wide window with no pointer (N.2 item 1).
 pub fn first_built() -> usize { (0..COUNT).find(|&i| on_index(i)).unwrap_or(0) }
 /// The nearest built piece from `i` in direction `dir` (±1), round the day; none when `i` is the only one.
@@ -1106,9 +1104,7 @@ fn picture_layer(s: &Gallery, i: usize, w: f32, h: f32, z: f32, mode: Mode, view
         at(picture(id, 844.0 / 390.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(pw), ((w - pw) * 0.5).round(), ((h - pw * 844.0 / 390.0) * 0.5).round())
     } else { at(picture(id, 600.0 / 960.0).key(k(p.slug, "picture")).markr(PIC_SLOT).respond(Response::Ignore).width(fit.pw), fit.ox, fit.oy) };
     let layer = col().key(k(p.slug, "layer")).width(w).height(h).child(pic);
-    // W-04 is drawn in colours of its own (its theme's), which the index's theme has no room for: until
-    // a part of a page can carry a theme of its own, its windows and bands show its picture alone.
-    if i == NIGHTLY && mode != Mode::Page { return layer; }
+    // W-04's rays are in colours of their own (`Drawing::palette`), the same in a window as on its page.
     if i == NIGHTLY {
         // Nothing near the title block or the strip.
         let t = title_box(s, i, w, h);
@@ -1643,9 +1639,7 @@ fn index(s: &Gallery) -> El<Msg> {
         let mode = if live { Mode::Live } else { Mode::Still };
         let inner = super::zoomed(picture_layer(s, i, pw, ph, kz, mode, view).rekey("works/window"), kz);
         let mut win = col().key(format!("works/w{i}")).width(ww).height(hh).clip().flow(format!("work/{}", p.slug)).child(at(inner, (-x0 * kz).round(), 0.0));
-        if !shown && p.built {
-            win = win.on_press(Msg::Works(WMsg::Open(i))).role(Role::Link).label(p.title).unframed();
-        } else if shown {
+        if shown {
             win = win.on_move(move |q| Some(Msg::Works(WMsg::Hover(i, q.map(|(qx, qy)| (x0 + qx / kz, qy / kz))))))
                 .on_press(Msg::Works(WMsg::Tap(i))).role(Role::Link).label(p.title).unframed();
         }
