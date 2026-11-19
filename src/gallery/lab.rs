@@ -12,22 +12,20 @@ use std::rc::Rc;
 
 pub const COUNT: usize = 10;
 /// The pieces Z.3 re-made under a new name: (old name, new name). The old address and hash lead to the new.
-pub const RENAMED: [(&str, &str); 2] = [("mercury", "weld"), ("orbit", "kern")];
+pub const RENAMED: [(&str, &str); 1] = [("mercury", "weld")];
 /// The pieces that move only when the hand moves them (Z.2's calm): running, they ask for no frames
 /// unless they are settling.
-pub const CALM: [bool; COUNT] = [false, false, false, false, true, false, false, true, false, false];
+pub const CALM: [bool; COUNT] = [false, false, false, false, true, false, false, false, false, false];
 /// The cells in page order (their files in `examples/lab/` and their pages `#lab-<name>`).
-pub const NAMES: [&str; COUNT] = ["lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "kern", "spring", "stack"];
+pub const NAMES: [&str; COUNT] = ["lumen", "contours", "silk", "grown", "weld", "flow", "loupe", "orbit", "spring", "stack"];
 
 macro_rules! cells {
     (@view $s:ident, lumen, $l:ident, $k:ident) => { $l.0 };
     (@view $s:ident, stack, $l:ident, $k:ident) => { $k };
     (@view $s:ident, weld, $l:ident, $k:ident) => { (&$s.weld.at_size($l.1)) };
-    (@view $s:ident, kern, $l:ident, $k:ident) => { (&$s.kern.at_size($l.1)) };
     (@view $s:ident, $f:ident, $l:ident, $k:ident) => { (&$s.$f) };
     // Whether a piece's message says the pointer came onto it (`Some(true)`) or left it.
     (@over weld, $m:ident) => { None };
-    (@over kern, $m:ident) => { None };
     (@over stack, $m:ident) => { match &$m { x::stack::Msg::Deck(amenui::widgets::StackMsg::Hover(h)) => Some(h.is_some()), _ => None } };
     (@over $f:ident, $m:ident) => { match &$m { x::$f::Msg::Point(p) => Some(p.is_some()), _ => None } };
     ($( $i:literal => $f:ident : $t:ty , $v:ident );* $(;)?) => {
@@ -156,7 +154,7 @@ cells! {
     4 => weld: x::weld::Weld, Weld;
     5 => flow: x::flow::Flow, Flow;
     6 => loupe: x::loupe::Loupe, Loupe;
-    7 => kern: x::kern::Kern, Kern;
+    7 => orbit: x::orbit::Orbit, Orbit;
     8 => spring: x::spring::Spring, Spring;
     9 => stack: x::stack::Stack, Stack;
 }
@@ -291,7 +289,7 @@ pub fn family_of(p: super::Page) -> Option<usize> {
     match p { Page::Material(_) => Some(0), Page::Marks(_) => Some(1), Page::Style(_) | Page::Presets => Some(2), _ => None }
 }
 /// The 29 cells, step by step, in teaching order. Until a piece of Z.3 is built its old piece holds
-/// the place: Lumen Gnomon's, Silk Lee's, Flow Trace's, Spring Throw's,
+/// the place: Lumen Gnomon's, Silk Lee's, Flow Trace's, Orbit Kern's, Spring Throw's,
 /// Stack Sheaf's, the sphere (`loupe`) Loupe's.
 pub fn path() -> [Vec<super::Page>; 5] {
     use super::Page::*;

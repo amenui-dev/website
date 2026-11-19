@@ -186,7 +186,7 @@ fn main() {
             ("weld", cell::<x::weld::Weld>(&mut o, &out, "weld", true, false)),
             ("flow", cell::<x::flow::Flow>(&mut o, &out, "flow", false, false)),
             ("loupe", cell::<x::loupe::Loupe>(&mut o, &out, "loupe", true, false)),
-            ("kern", cell::<x::kern::Kern>(&mut o, &out, "kern", true, false)),
+            ("orbit", cell::<x::orbit::Orbit>(&mut o, &out, "orbit", false, false)),
             ("spring", cell::<x::spring::Spring>(&mut o, &out, "spring", true, false)),
             ("stack", cell::<x::stack::Stack>(&mut o, &out, "stack", false, false)),
         ];

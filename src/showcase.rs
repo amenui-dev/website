@@ -7,7 +7,7 @@
 #[path = "../examples/lab/weld.rs"] pub mod lab_weld;
 #[path = "../examples/lab/flow.rs"] pub mod lab_flow;
 #[path = "../examples/lab/loupe.rs"] pub mod lab_loupe;
-#[path = "../examples/lab/kern.rs"] pub mod lab_kern;
+#[path = "../examples/lab/orbit.rs"] pub mod lab_orbit;
 #[path = "../examples/lab/spring.rs"] pub mod lab_spring;
 #[path = "../examples/lab/stack.rs"] pub mod lab_stack;
 #[path = "../examples/body.rs"] pub mod scene_body;
@@ -18,7 +18,7 @@ pub mod scenes {
 }
 /// The Lab's experiments (DESIGN.md §5.3), one file each in `examples/lab/`, in page order: name and source.
 pub mod lab {
-    pub use super::{lab_lumen as lumen, lab_contours as contours, lab_silk as silk, lab_grown as grown, lab_weld as weld, lab_flow as flow, lab_loupe as loupe, lab_kern as kern, lab_spring as spring, lab_stack as stack};
+    pub use super::{lab_lumen as lumen, lab_contours as contours, lab_silk as silk, lab_grown as grown, lab_weld as weld, lab_flow as flow, lab_loupe as loupe, lab_orbit as orbit, lab_spring as spring, lab_stack as stack};
     pub const ALL: [(&str, &str); 10] = [
         ("lumen", include_str!("../examples/lab/lumen.rs")),
         ("contours", include_str!("../examples/lab/contours.rs")),
@@ -27,7 +27,7 @@ pub mod lab {
         ("weld", include_str!("../examples/lab/weld.rs")),
         ("flow", include_str!("../examples/lab/flow.rs")),
         ("loupe", include_str!("../examples/lab/loupe.rs")),
-        ("kern", include_str!("../examples/lab/kern.rs")),
+        ("orbit", include_str!("../examples/lab/orbit.rs")),
         ("spring", include_str!("../examples/lab/spring.rs")),
         ("stack", include_str!("../examples/lab/stack.rs")),
     ];
