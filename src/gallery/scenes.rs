@@ -987,6 +987,9 @@ pub fn list(g: &Gallery) -> El<Msg> {
         .child(grid)
 }
 
+/// The ink of "Mountain" in the display face at the heavy weight, in em: its width, and how far it
+/// starts from the text's left edge and sits below the middle of its line.
+const MOUNTAIN_INK: (f32, f32, f32) = (4.32, 0.068, 0.054);
 /// A small still for each card, made of the same parts as its scene.
 pub fn thumb(i: usize, w: f32) -> El<Msg> {
     let h = 110.0;
@@ -998,14 +1001,12 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
                 .around(Around::new(vec![Silhouette::circle(w * 0.5, 50.0, 34.0)], 6.0)))
             .child(space(68.0, 68.0).radius(34.0).fill(Paint::ACCENT).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
         2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).markr(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
-        // The word is in English ("Mountain"), wider than a small card: the still is drawn smaller in
-        // proportion until it fits (about 390 px across at its full size), never past the card.
+        // The word alone (in English, "Mountain"), heavy, at the largest whole size whose ink is no
+        // wider than the art box, its ink flush with the box's left edge and centred on its height.
         3 => {
-            let k = (w / 390.0).min(1.0);
-            base.child(row().gap(12.0 * k).align(AlignItems::CENTER).height(h)
-                .child(text("山", 64.0 * k, Paint::INK).font(Font::Display))
-                .child(text("→", 20.0 * k, Paint::DIM))
-                .child(row().height(40.0 * k).pad(18.0 * k, 0.0).radius(20.0 * k).fill(Paint::ACCENT).center().child(text("出发", 15.0 * k, Paint::GROUND))))
+            let size = (w / MOUNTAIN_INK.0).floor().max(11.0);
+            base.align(AlignItems::START).justify(JustifyContent::CENTER)
+                .child(text("山", size, Paint::INK).font(Font::Display).weight(size * 0.035).shift(-(size * MOUNTAIN_INK.1).round(), -(size * MOUNTAIN_INK.2).round()).key(k("word")))
         }
         4 => base.child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::DIM).absolute(Some(10.0), Some(24.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::ACCENT).absolute(Some(w * 0.25), Some(14.0), None, None))
