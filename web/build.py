@@ -92,9 +92,10 @@ wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
 # deploy build measured 2,807,673 at website 85e3251d. With the intro's console and word, one piece from
 # 01 to 04, and damage kept as boxes (amenui 1704fa1) the deploy build measured 2,817,229 at website
 # eab4174, and with Weld's drag restaged and offsets kept through a view (amenui 8e42221) 2,818,696 at
-# website 2bc03124; the gate is that plus 5,000. A new piece adds at most 12,000 of its own net code to either module (framework code it is the first to use, such as
+# website 2bc03124, and with the intro's words flown whole, the word on its own lattice and the stage kept
+# through the morphs (amenui 0925272) 2,826,743 at website a88b101; the gate is that plus 5,000. A new piece adds at most 12,000 of its own net code to either module (framework code it is the first to use, such as
 # `pair`, is the framework's); more goes back to design with the table by crate.
-WASM_GATE, WASM_GPU_GATE = 2_823_696, 2_621_440
+WASM_GATE, WASM_GPU_GATE = 2_831_743, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
