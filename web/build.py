@@ -80,24 +80,16 @@ wasm_fn, wasm_gpu_fn = hashed('amenui.wasm', wasm), hashed('amenui-webgpu.wasm',
 # Their sizes as a server compressing them sends them: the boot line's total when there is no
 # Content-Length.
 wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
-# The size gates (R.5, V.1), in bytes of gzip: the full module (the fall-back) and the WebGPU-only one
-# at 2.5 MiB. The full gate is a ratchet on the size the deploy build measures (a local toolchain reads
-# about 7 to 12 KB less): with the framework's widget-body cut (amenui 2705fdc) the deploy build measured
-# 2,847,812 at website 09214ddb, and the gate was that plus 5,000; it is never set above 2,860,000.
-# With the layout's grid cut (amenui 5a98ceb) the deploy build measured 2,773,966 at website bab610ba,
-# Weld included, and the gate was that plus 5,000. With the stages' scale and the scroll that moves the
-# last frame (amenui ae06c05) the deploy build measured 2,789,005 at website b898df8d, and with cached
-# subtrees, cached views and round clips (amenui 80782e6) 2,791,608 at website c05e381f; the gate is that
-# plus 5,000. With each glyph's pen told to its pose (amenui e528bf8) and Kern in place of Orbit the
-# deploy build measured 2,807,673 at website 85e3251d. With the intro's console and word, one piece from
-# 01 to 04, and damage kept as boxes (amenui 1704fa1) the deploy build measured 2,817,229 at website
-# eab4174, and with Weld's drag restaged and offsets kept through a view (amenui 8e42221) 2,818,696 at
-# website 2bc03124, and with the intro's words flown whole, the word on its own lattice and the stage kept
-# through the morphs (amenui 0925272) 2,826,743 at website a88b101, and with a material pass for each
-# material (amenui f2a5ca1) 2,829,131 at website 6f6676d8, and with Loupe (cached subtrees, cached
-# views and round clips first used there) 2,841,222 at website aa5777f9; the gate is that plus 5,000. A new piece adds at most 12,000 of its own net code to either module (framework code it is the first to use, such as
-# `pair`, is the framework's); more goes back to design with the table by crate.
-WASM_GATE, WASM_GPU_GATE = 2_846_222, 2_621_440
+# The size gates (R.5, V.1, Z.8), in bytes of gzip. The site's size limit is the module a visitor
+# loads, the WebGPU-only one, at 2.5 MiB; it does not move. The full module is the fall-back, and its
+# gate guards against drift: for the seven pieces of Z.3 still to come it is 2,960,000 (7 x 12,000 and
+# about 16,000 of framework they ask for), and it is not raised again for Z. A piece that would cross it
+# is held and goes back to design with the table by crate. A new piece adds at most 12,000 of its own
+# net code to either module (framework code it is the first to use, such as `pair`, is the framework's).
+# When the last piece of Z.3 lands, the gate becomes the size the deploy build measures (a local
+# toolchain reads about 7 to 12 KB less) plus 5,000; with Loupe that measure was 2,841,222 at website
+# aa5777f9.
+WASM_GATE, WASM_GPU_GATE = 2_960_000, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 

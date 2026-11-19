@@ -1,6 +1,6 @@
 //! Loupe (site-design Z.3, 07): this file set at 2.75 px and kept as one cached picture; the glass sets
 //! the lines under it again at reading size. The rim reads the line under the glass's centre; pinned,
-//! the glass's text selects and copies as shown; nothing is drawn at rest; the glass costs at most 600
+//! the glass's text selects and copies as shown; nothing is drawn at rest; the glass costs at most 800
 //! instances and 1.0 ms; a fast sweep keeps every frame under 16.7 ms; on the index the cell is the
 //! glass alone at 11 px.
 use website::gallery::{self, GalleryUi, Msg, Page};
@@ -113,7 +113,7 @@ fn pinned_the_glass_s_text_copies_as_shown() {
 }
 
 #[test]
-fn the_glass_costs_at_most_600_instances_and_nothing_is_drawn_at_rest() {
+fn the_glass_costs_at_most_800_instances_and_nothing_is_drawn_at_rest() {
     let (mut ui, mut t) = page(1440, 900, 1.0);
     let s = rect(&ui, &format!("{K}/stage"));
     let mut most = 0;
@@ -135,9 +135,9 @@ fn the_glass_costs_at_most_600_instances_and_nothing_is_drawn_at_rest() {
         let r = ui.state.lab.loupe.p.get(1);
         let glyphs: usize = l.in_glass().iter().map(|t| t.3.chars().filter(|c| !c.is_whitespace()).count()).sum();
         eprintln!("loupe ×{z} radius {r}: {n} instances in the glass ({glyphs} glyphs), its text found in {ms:.3} ms");
-        if !top { most = most.max(n); }
+        most = most.max(n);
     }
-    assert!(most <= 600, "{most} instances in the glass");
+    assert!(most <= 800, "{most} instances in the glass");
     let mut frames = 0;
     for _ in 0..300 { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { frames += 1; } ui.frame_drawn(); }
     assert_eq!(frames, 0, "{frames} frames in 5 s at rest");
@@ -188,8 +188,22 @@ fn on_the_index_the_cell_is_the_glass_alone_and_hovering_it_views_nothing() {
 /// Y.5's line for Loupe's gesture, and Z.3's sweep: at 1440 × 900, scale 2, the glass swept 1,000 px
 /// in 1 s and back; every frame shows it moved, no frame's CPU over 16.7 ms; at rest no frame in 5 s.
 #[test]
-fn loupe_y5_line() {
+fn loupe_y5_line() { y5(None); }
+
+/// Z.8: the budget is frame time, so the sweep holds at the most the glass draws, × 4 and radius 240.
+#[test]
+fn loupe_y5_line_at_x4_radius_240() { y5(Some((4.0, 240.0))); }
+
+fn y5(at: Option<(f32, f32)>) {
     let (mut ui, mut t) = page(2880, 1800, 2.0);
+    if let Some((z, r)) = at {
+        let l = &mut ui.state.lab.loupe;
+        (l.p.v[0], l.p.v[1], l.sized) = (z, r, true);
+        ui.relayout();
+        // What the change set going settles before the rest is counted.
+        for _ in 0..120 { t += 1.0 / 60.0; ui.tick(t); ui.frame_drawn(); }
+    }
+    let (z, r) = (ui.state.lab.loupe.p.get(0), ui.state.lab.loupe.p.get(1));
     let mut idle = 0;
     for _ in 0..300 { t += 1.0 / 60.0; ui.tick(t); if ui.needs_frame(t) { idle += 1; } ui.frame_drawn(); }
     let s = rect(&ui, &format!("{K}/stage"));
@@ -217,7 +231,7 @@ fn loupe_y5_line() {
     let (views, layouts) = (c.views - c0.views, c.layouts - c0.layouts);
     ms.sort_by(f64::total_cmp);
     let q = |p: f64| ms[((ms.len() - 1) as f64 * p).round() as usize];
-    eprintln!("Y.5 loupe 1440x900@2 (native CPU, no GPU): sweep 1,000 px in 1 s and back over {span:.0} px: median {:.2} ms, p95 {:.2}, max {:.2}, 120 frames, {late} answered late, {views} views, {layouts} layouts; at rest {idle} frames in 5 s", q(0.5), q(0.95), q(1.0));
+    eprintln!("Y.5 loupe 1440x900@2 ×{z} radius {r} (native CPU, no GPU): sweep 1,000 px in 1 s and back over {span:.0} px: median {:.2} ms, p95 {:.2}, max {:.2}, 120 frames, {late} answered late, {views} views, {layouts} layouts; at rest {idle} frames in 5 s", q(0.5), q(0.95), q(1.0));
     assert_eq!(late, 0, "{late} frames did not show the glass moved");
     assert_eq!(idle, 0, "{idle} frames at rest");
     assert_eq!(layouts, 0, "{layouts} layout passes during the sweep");

@@ -430,9 +430,13 @@ impl Experiment for Loupe {
         }
         piece = piece.child(lens);
         if !index {
+            // The controls' row, on the ground and over the glass: the glass passes under it (Z.8). The
+            // pointer passes through its ground to the lens; the controls take it.
             let mut modes = amenui::el::row().gap(8.0).absolute(Some(12.0), Some(10.0), None, None);
             for (m, name) in MODES.iter().enumerate() { modes = modes.child(button(name, self.mode == m, kf(&format!("mode/{name}")), Msg::Mode(m))); }
-            piece = piece.child(modes).child(button("grid", self.grid, kf("grid"), Msg::Grid).absolute(None, Some(10.0), Some(12.0), None));
+            let bar = col().key(kf("controls")).width(w).height(TOP - 12.0).fill(Paint::GROUND).pass(true).absolute(Some(0.0), Some(0.0), None, None)
+                .child(modes).child(button("grid", self.grid, kf("grid"), Msg::Grid).absolute(None, Some(10.0), Some(12.0), None));
+            piece = piece.child(bar);
         }
         let formula = format!("glass: the page within {:.1} px of its centre, set again at {:.0} × {SMALL} = {:.0} px", r / z, z, SMALL * z);
         // The label's count changes as the glass moves: it changes at once, not glyph by glyph, so a
