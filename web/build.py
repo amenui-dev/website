@@ -82,13 +82,12 @@ wasm_fn, wasm_gpu_fn = hashed('amenui.wasm', wasm), hashed('amenui-webgpu.wasm',
 wasm_gz, wasm_gpu_gz = gz(wasm), gz(wasm_gpu)
 # The size gates (R.5, V.1), in bytes of gzip: the full module (the fall-back) and the WebGPU-only one
 # at 2.5 MiB. The full gate is a ratchet on the size the deploy build measures (a local toolchain reads
-# about 9 to 12 KB less): with the framework's widget-body cut (amenui 2705fdc) the deploy build measured
+# about 7 to 12 KB less): with the framework's widget-body cut (amenui 2705fdc) the deploy build measured
 # 2,847,812 at website 09214ddb, and the gate was that plus 5,000; it is never set above 2,860,000.
-# Framework features since that cut (amenui f029886's dirty regions, 5fc9454's stage that holds its last
-# image) bring the deploy build to about 2,856,800, so the gate sits at the cap until the framework's next
-# cut, then ratchets again to the deploy build's size plus 5,000. A new piece adds at most 12,000 to
-# either module; more goes back to design with the table by crate.
-WASM_GATE, WASM_GPU_GATE = 2_860_000, 2_621_440
+# With the layout's grid cut (amenui 5a98ceb) the deploy build measured 2,773,966 at website bab610ba,
+# Weld included, and the gate is that plus 5,000. A new piece adds at most 12,000 to either module;
+# more goes back to design with the table by crate.
+WASM_GATE, WASM_GPU_GATE = 2_778_966, 2_621_440
 assert wasm_gz <= WASM_GATE, f'the full module is {wasm_gz} bytes gzip, over the gate of {WASM_GATE}'
 assert wasm_gpu_gz <= WASM_GPU_GATE, f'the WebGPU-only module is {wasm_gpu_gz} bytes gzip, over the gate of {WASM_GPU_GATE}'
 
