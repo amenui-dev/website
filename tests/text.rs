@@ -48,7 +48,7 @@ fn pointer_places_the_caret_and_selects() {
     ui.press(wx, r.center().1); ui.release(wx, r.center().1);
     assert_eq!(ui.state.text.selected(), "world");
     // The selection is drawn (halo glyphs under the selected ones) while the field has focus.
-    let halos = ui.scene().instances.iter().filter(|i| i.paint[3] == 0.0 && i.paint[1] == 1.0 && i.paint[2] < 0.5).count();
+    let halos = ui.scene().instances.iter().filter(|i| i.paint[3] == 0.0 && (i.paint[1] - 0.34).abs() < 1e-4 && i.paint[2] == 1.0).count();
     assert_eq!(halos, 5, "one halo per selected glyph");
 }
 
