@@ -872,8 +872,7 @@ fn stage_view(s: &Gallery, narrow: bool) -> El<Msg> {
             let e = craft::live(s, n).map(bare).or(near).or_else(|| still_specimen(s, n)).or_else(|| docs::first_example(n)).unwrap_or_else(|| space(0.0, 0.0));
             col().key(format!("stage/{}", s.page.hash())).material(s.stage_material.id()).child(e)
         }
-        Page::Experiment(i) => { let w = (s.width - 32.0).clamp(200.0, 760.0); col().key(format!("stage/{}", s.page.hash())).width(w)
-            .child(s.lab.cell(i as usize, &format!("lab/{}", lab::NAMES[i as usize]), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab))) }
+        Page::Experiment(i) => col().key(format!("stage/{}", s.page.hash())).width((s.width - 32.0).clamp(200.0, 760.0)).child(lab::on_page(s, i as usize)),
         Page::Scene(i) => col().key(format!("main/{}", s.page.hash())).fill_width().fill_height().child(scenes::page(s, i as usize)),
         _ => col().key(format!("main/{}", s.page.hash())).scroll().fill_width().fill_height().child(main_page(s, narrow)),
     }
@@ -1095,7 +1094,7 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
             // The 3D page's camera coasts after a fast drag.
             let coast = s.page == Page::Three && s.three.mech.step(t);
             let craft = craft::tick(s, t);
-            let lab = lab::tick(s, t) | body::tick(s, t) | works::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
+            let lab = body::tick(s, t) | works::tick(s, t) | (s.page == Page::Decode && decode::tick(s, t)) | (s.page == Page::Stirr && stirr::tick(s, t));
             let thread = matches!(s.page, Page::Style(i) if styles::is_loose_thread(i as usize)) && styles::drawing(s, t);
             // The hosts coalesce input (`Ui::coalesce`): what a tick changes is laid out once, before the frame.
             scenes::tick(s, t) || changed || burst || coast || craft || lab || thread

@@ -66,6 +66,9 @@ macro_rules! cells {
                 // The piece's box is the cell's stage (`El::stage`): when it is slow to draw it holds its
                 // last image on frames that answer input, so the parameters beside it answer in the frame.
                 if let Some(st) = c.children.get_mut(1) { st.stage = true; }
+                // On its page the formula and the label follow the piece: viewed again with its stage
+                // alone (`El::steps`), in place while they measure the same.
+                if !index { for e in c.children.iter_mut().skip(2) { for t in e.children.iter_mut() { if t.key == format!("{key}/formula") || t.key == format!("{key}/label") { t.steps = true; } } } }
                 if index {
                     c.children.truncate(2);
                     if let Some(st) = c.children.get_mut(1) { st.style.aspect_ratio = Some((width - 26.0) / stage); }
@@ -180,22 +183,32 @@ pub const STILL_S: f32 = 4.0;
 pub const SETTLE_S: f32 = 0.2;
 fn page_cell(s: &Gallery) -> Option<usize> { if let super::Page::Experiment(i) = s.page { Some(i as usize) } else { None } }
 /// Step the one cell that runs (Y.7): on an experiment's page its own; on the index the one under the
-/// pointer, or with no hover the one nearest the window's centre; every other cell is a still. The
-/// stages of the cells that changed (`Ui::on_step`), which `stage_of` makes again on their own.
-/// On the index (`Ui::on_step`): the stages that changed. A cell there is its name and its stage, so
-/// only the stage is made again (`stage_of`).
+/// pointer, or with no hover the one nearest the window's centre; every other cell is a still. What
+/// changed (`Ui::on_step`), which `stage_of` makes again on its own: on a page its stage, formula and
+/// label; on the index (a cell there is its name and its stage) the stages.
 pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
+    if let Some(i) = page_cell(s) {
+        if s.lab.step_cells(t, Some(i), false).is_empty() { return vec![]; }
+        let k = format!("lab/{}", NAMES[i]);
+        return ["stage", "formula", "label"].iter().map(|p| format!("{k}/{p}")).collect();
+    }
     if s.page != super::Page::Lab { return vec![]; }
     let fams = path().into_iter().flatten().filter(|&p| family_of(p).is_some()).collect::<Vec<_>>();
     s.lab.step_cells(t, None, true).into_iter().filter_map(|i| if i < COUNT { Some(super::Page::Experiment(i as u8)) } else { fams.iter().copied().find(|&p| family_of(p) == Some(i - COUNT)) })
         .map(|p| format!("labi/{}/stage", p.hash())).collect()
 }
-/// On an experiment's page (`Ui::on_tick`): its formula and its label beside the stage follow the
-/// piece, so the page is laid out again when it changed.
-pub fn tick(s: &mut Gallery, t: f32) -> bool { matches!(s.page, super::Page::Experiment(_)) && !s.lab.step_cells(t, page_cell(s), false).is_empty() }
+/// Experiment `i`'s cell on its own page, `width` px wide (the window less its margins, at most 760).
+pub fn on_page(s: &Gallery, i: usize) -> El<Msg> {
+    let w = (s.width - 32.0).clamp(200.0, 760.0);
+    s.lab.cell(i, &format!("lab/{}", NAMES[i]), w, ((w - 26.0) * amenui::experiment::STAGE).floor(), false).map(Rc::new(Msg::Lab))
+}
 /// An index cell's stage alone (`Ui::stage_view`, `labi/<page>/stage`), as the index makes it.
 pub fn stage_of(s: &Gallery, key: &str) -> Option<El<Msg>> {
     use super::Page;
+    if let Some(i) = page_cell(s) && key.starts_with(&format!("lab/{}/", NAMES[i])) {
+        fn take(e: El<Msg>, key: &str) -> Option<El<Msg>> { if e.key == key { Some(e) } else { e.children.into_iter().find_map(|c| take(c, key)) } }
+        return take(on_page(s, i), key);
+    }
     let rest = key.strip_suffix("/stage")?;
     let stage = |c: El<Msg>| c.children.into_iter().nth(1);
     let hash = rest.strip_prefix("labi/")?;

@@ -196,6 +196,7 @@ fn weld_y5_line() {
     let a = centre(&ui, "lab/weld/chip/glyph");
     ui.press(a.0, a.1);
     rest(&mut ui, &mut t, 1);
+    let c0 = ui.perf().counters;
     let (mut ms, mut late, mut last) = (vec![], 0, a);
     for f in 1..=120 {
         let e = f as f32 / 120.0;
@@ -211,10 +212,22 @@ fn weld_y5_line() {
         if (now.0 - last.0).hypot(now.1 - last.1) < 0.5 { late += 1; }
         last = now;
     }
+    let c = &ui.perf().counters;
+    let (views, layouts, restages) = (c.views - c0.views, c.layouts - c0.layouts, c.restages - c0.restages);
     ui.release(last.0, last.1);
+    // A chip let go next to nothing rests where it is; scattered, the chips spring home with no input.
+    rest(&mut ui, &mut t, 30);
+    let s = centre(&ui, "lab/weld/scatter");
+    ui.press(s.0, s.1);
+    ui.release(s.0, s.1);
+    rest(&mut ui, &mut t, 1);
+    let c1 = ui.perf().counters;
+    rest(&mut ui, &mut t, 40);
+    let c = &ui.perf().counters;
+    eprintln!("Y.5 weld, the springs after a scatter, 40 frames: {} views, {} layouts, {} restages", c.views - c1.views, c.layouts - c1.layouts, c.restages - c1.restages);
     ms.sort_by(f64::total_cmp);
     let q = |p: f64| ms[((ms.len() - 1) as f64 * p).round() as usize];
-    eprintln!("Y.5 weld 1440x900@2 (native CPU, no GPU): drag 2 s: median {:.2} ms, p95 {:.2}, max {:.2}, 120 frames, {late} answered late; at rest {idle} frames in 5 s", q(0.5), q(0.95), q(1.0));
+    eprintln!("Y.5 weld 1440x900@2 (native CPU, no GPU): drag 2 s: median {:.2} ms, p95 {:.2}, max {:.2}, 120 frames, {late} answered late, {views} views, {layouts} layouts, {restages} restages; at rest {idle} frames in 5 s", q(0.5), q(0.95), q(1.0));
     assert_eq!(late, 0, "{late} frames of the drag did not show the chip moved");
     assert_eq!(idle, 0, "{idle} frames at rest");
 }
