@@ -1481,7 +1481,8 @@ impl Body {
         // not). From the stone to the word the morph starts from the stone's own text, where the stage
         // drew it on the frame before.
         let to_stone = self.was == 3 && self.at == 4 && self.t < self.lands;
-        let code = posed("text").reveal_by(Reveal::Word).hidden_until_morphed(shown == 3 || self.opening_word() || to_stone);
+        // The stone's text is what the bloom glows over (`El::bloom`): the console beside it stays at its ink.
+        let code = posed("text").bloom().reveal_by(Reveal::Word).hidden_until_morphed(shown == 3 || self.opening_word() || to_stone);
         let ghost = posed("ghost").hidden_until_morphed(true);
         // The listing as it lies flat, never drawn: the end a morph to or from the word takes.
         let flat_el = txt(s.text.clone(), ink, "flat").absolute(Some(lx), Some(ty), None, None).width(cols as f32 * ADVANCE).height(s.rows as f32 * LINE).hidden_until_morphed(true);
