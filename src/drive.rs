@@ -31,6 +31,10 @@ impl Driven for Gallery {
     fn audit(&mut self, o: &mut Offscreen, look: &Look, px: &[u8]) -> Vec<amenui::audit::Finding> { amenui::drive::Driven::audit(&mut self.0, o, look, px) }
 }
 
+/// Pages opened from here are in the light scheme (paper) rather than the dark one: the renderer's
+/// `--scheme light`, as a browser whose system is in light mode opens them.
+pub static PAPER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Open a site page by its hash or path (the home page's state may follow after `#`: `body#source`), or
 /// a recipe (`recipe-form`, or just `form`), at `w` × `h` device px and
 /// `scale`, with the material and theme given (else the page's).
@@ -62,9 +66,8 @@ pub fn open_in(page: &str, faces: Vec<Face>, (w, h, scale): (u32, u32, f32), (ma
     // The whole page's material (the look strip's material is a component stage's only).
     if let Some(m) = material { (ui.state.material, ui.state.demo.material) = (m, m); }
     if let Some(t) = theme { gallery::update(&mut ui.state, Msg::Theme(t)); }
-    // The proposed palette, for review renders only (AA.9, AA.10): `WEBSITE_PALETTE=dark` or `light`.
-    let palette = match std::env::var("WEBSITE_PALETTE").as_deref() { Ok("dark") => 1, Ok("light") => 2, _ => 0 };
-    (ui.state.palette, ui.state.body.palette) = (palette, palette);
+    // The scheme (AA.10): the dark one unless the renderer was asked for paper (`render --scheme light`).
+    ui.state.set_scheme(PAPER.load(std::sync::atomic::Ordering::Relaxed), None);
     ui.relayout();
     let fps = gallery::works::ambient_fps(ui.state.page);
     ui.ambient_fps(fps);

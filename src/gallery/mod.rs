@@ -379,8 +379,9 @@ pub struct Gallery {
     /// The page around the canvas has the HTML status line, which carries the one-line readout's
     /// numbers: the canvas draws the full readout only (AA.6).
     pub status_line: bool,
-    /// The palette: 0 the site's, 1 and 2 the proposed dark and light (AA.9, AA.10), for review only.
-    pub palette: u8,
+    /// The light scheme (paper and ink) rather than the dark one (AA.10): the host's choice, following
+    /// the system unless the bar's switch says otherwise.
+    pub paper: bool,
     /// The input page's multi-line field.
     pub notes: TextEdit,
     /// The ten thousand rows: the selected one, and which switches were flipped from where they start.
@@ -451,7 +452,7 @@ impl Default for Gallery {
             menu: 0, stage_material: Material::Dottr, mats: MaterialParams::all(), loose: 0.0, style: None, gaze: Gaze::default(), loose_scale: 1.0, style_pic: Markr::default(),
             gaze_page: Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::INDEX | gaze::SIZE, density: 12.0, ..Gaze::default() },
             hovered: None, clock: 0.0, choices: [0, 0, 0, 0, 0, 0, 0, 0], toggles: [true, false, true, false, true, false, false, false],
-            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, status_line: false, palette: 0, long_pick: None, long_on: vec![],
+            slides: [0.35, 0.4, 0.6, 14.0, 0.5, 2.0, 0.0, 0.5], query: TextEdit::new("lay"), sc: Scenes::default(), overlay: 0, quality: 1.0, status_line: false, paper: false, long_pick: None, long_on: vec![],
             rip_scope: 1, legible_cap: amenui::style::LEGIBLE_CAP, loose_max: 1.0, recompose: amenui::morph::Recompose::default(), scroll: amenui::style::Scroll::default(), post: amenui::post::Post::default(), depth_marks: amenui::style::Marks::default(), map: amenui::fieldmap::MapFx::default(), beat: amenui::beat::Beat::default(), rip_count: 1, rip_burst: None, three: three::Three::default(), particles: amenui::morph::Particles::default(), parts: particles::Parts::default(), presets: amenui::preset::presets(), faces: None, press_ms: 350.0, roles: [amenui::el::Response::Nudge, amenui::el::Response::Loosen], transition: Look::default().transition, pre_from: 6, pre_to: 1, pre_json: TextEdit::default(), pre_note: String::new(), craft: craft::Craft::default(), lab: lab::Lab::default(), body: Default::default(), decode: decode::DecodePage::default(), stirr: stirr::StirrPage::default(), works: works::Works::default(), navigate: None, thread_at: None, thread_drawn: None, notes: TextEdit::new("First line\nSecond line, a longer one that wraps at the width of the box."),
         }
     }
@@ -498,9 +499,10 @@ impl Gallery {
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
                           press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat, off: amenui::style::Off::default(), select: amenui::style::Select::default() };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
-        // The proposed palette, behind its switch: the ground, the ink and the one signal.
-        if self.palette > 0 {
-            let (ground, ink, accent, second) = crate::showcase::scenes::body::palette(self.palette);
+        // The site's scheme (AA.9, AA.10) on its own theme: the ground, the ink and the one signal. A
+        // style or a scene keeps the theme it sets, and so does a theme picked by hand.
+        if self.style.is_none() && self.theme == 0 {
+            let (ground, ink, accent, second) = crate::showcase::scenes::body::palette(self.paper);
             l.theme = Theme { ground, ground2: ground, ink, accent, second, ..l.theme };
         }
         scenes::look(self, &mut l);
@@ -510,6 +512,13 @@ impl Gallery {
         // With reduced motion nothing condenses from dots: a page is at rest from its first frame.
         if self.body.reduced { l.fx.enter = 0.0; }
         l
+    }
+    /// Take the scheme (AA.10): from the bar's switch a commit from where it was pressed (the old
+    /// colours ahead of the front, the new behind it), from the system or under reduced motion a cut.
+    pub fn set_scheme(&mut self, paper: bool, from: Option<(f32, f32)>) {
+        if paper == self.paper { return; }
+        (self.paper, self.body.paper) = (paper, paper);
+        if let Some((x, y)) = from && !self.body.reduced { self.cmds.push(Cmd::Commit { x, y, scope: None }); }
     }
     /// The title's flow id on a page: from the Components index, the pressed card's name (so it flies
     /// to the title); otherwise the one id every page title shares (it flies from page to page).
@@ -950,7 +959,7 @@ fn comp_group_of(p: Page) -> Option<usize> {
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
     let on = s.page == p || (p == Page::Comp(pages::LIST) && s.page == Page::LongList);
     let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripplr(amenui::el::Scope::Global)
-        .child(text(p.name(), 14.0, if on { Paint::ACCENT } else { Paint::TEXT }));
+        .child(text(p.name(), 14.0, if on { Paint::INK } else { Paint::TEXT }));
     // The selection is one thing that moves from item to item when the page changes.
     if on { item = item.fill(SELECTED).flow("rail-selection"); }
     item

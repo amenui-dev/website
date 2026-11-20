@@ -46,6 +46,10 @@ async function mount(stage, opts) {
   if (asking) await asking;
   // After start: the pictures the first page draws go to the renderer, which start makes.
   w.pictures();
+  // The page's scheme (AA.10, web/scheme.js sets it on the root before the first paint), before the
+  // first frame; on a page without one (an embedding) the canvas keeps its own.
+  const theme = document.documentElement.dataset.theme ? () => document.documentElement.dataset.theme === 'light' : null;
+  if (theme && w.set_scheme) w.set_scheme(theme(), NaN, NaN);
   if (opts.started) opts.started(w);
   canvas.focus({ preventScroll: true });
   const now = () => performance.now() / 1000;
@@ -167,6 +171,12 @@ async function mount(stage, opts) {
   readout = w.readout();
   const keepReadout = () => { const v = w.readout(); if (v !== readout) { readout = v; try { localStorage.setItem(READOUT, String(v)); } catch (e) {} } };
   const after = () => { sync(); syncText(); axUpdate(); clip(); keepReadout(); if (opts.after) opts.after(); kick(); };
+  // A change of scheme: from the switch it spreads from where it was pressed, from the system it is a cut.
+  if (theme && w.set_scheme) document.addEventListener('amenui:scheme', e => {
+    const c = canvas.getBoundingClientRect(), f = e.detail && e.detail.from;
+    w.set_scheme(theme(), f ? f[0] - c.left : NaN, f ? f[1] - c.top : NaN);
+    after();
+  });
   // Mouse, pen and touch come as pointer events (kind 0, 2, 1); the pointer is captured while it is
   // down, so a drag keeps going outside the canvas.
   const kind = e => e.pointerType === 'touch' ? 1 : e.pointerType === 'pen' ? 2 : 0;
@@ -400,7 +410,6 @@ function site() {
       // renderer (null), for an A/B from the console: `AMENUI.specForce(true)`.
       A.specForce = (v) => { if (api && api.w.spec_force) { api.w.spec_force(v === true ? true : v === false ? false : undefined); api.kick(); } };
       if (w.set_status_line) w.set_status_line(true);
-      if (A.palette && w.set_palette) w.set_palette(A.palette);
       A.line(A.t.starting.replace('{gpu}', navigator.gpu ? 'webgpu' : 'webgl2'));
       // No state in the address: the full walk on a first visit, the short path after (and with reduced
       // motion, which plays no walk).

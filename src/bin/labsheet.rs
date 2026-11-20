@@ -111,7 +111,7 @@ fn body(out: &str) {
     let (w, h) = (1280u32, 800u32);
     let mut o = Offscreen::new(w, h);
     let mut u = body::ui(faces(), w, h, 1.0);
-    let look = body::look(0, 1.0);
+    let look = body::look(false, 1.0);
     let mut t = 0.0f32;
     let mut frames = vec![];
     step(&mut u, &mut t, 60); frames.push(o.render(&mut u, &look));
@@ -140,7 +140,7 @@ fn body(out: &str) {
     let mut lt = 0.0;
     ul.state.look_at(0.18, -0.08);
     step(&mut ul, &mut lt, 420);
-    let px = ol.render(&mut ul, &body::look(0, 1.0));
+    let px = ol.render(&mut ul, &body::look(false, 1.0));
     save_png(&format!("{out}/body-large.png"), lw, lh, &px);
     // The cost of a frame while it turns: one copy of the passage, and three (a taller window, so
     // every glyph is drawn: several thousand).

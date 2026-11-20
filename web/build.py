@@ -187,6 +187,13 @@ listing = data['listing']
 file_lines = [l.rstrip() for l in (root / 'examples/body.rs').read_text().split('\n')]
 assert listing.split('\n') == file_lines[:len(listing.split('\n'))], 'the listing is not the start of examples/body.rs'
 
+# The scheme (AA.10), in every page's head before anything is painted (web/scheme.js, without its
+# comments), and the bar's switch, which shows the name of the choice it is at.
+scheme_js = '<script>' + '\n'.join(l.strip() for l in (root / 'web/scheme.js').read_text().split('\n') if l.strip() and not l.strip().startswith('//')) + '</script>\n'
+def scheme_switch(t):
+    names = ''.join(f'<span class="{k[0]}">{html.escape(t("web.scheme." + k))}</span>' for k in ('auto', 'light', 'dark'))
+    return f'<button type="button" class="scheme" data-label="{html.escape(t("web.scheme"))}">{names}</button>'
+
 def chrome_vars(lang, path):
     prefix = '' if lang == 'en' else lang + '/'
     href = lambda p: BASE + prefix + p
@@ -198,6 +205,7 @@ def chrome_vars(lang, path):
         'href_release': href('docs/release-notes/'), 'href_start': href('docs/start/installation/'), 'version': version, 'lang_switch': lang_switch,
         't_sections': t('web.sections'), 't_docs': t('web.docs'), 't_components': t('web.components'), 't_lab': t('web.lab'), 't_works': t('web.works'), 'tone': '', 'foot': '',
         't_search': t('web.search'), 't_menu': t('web.menu'), 't_skip': t('web.skip'), 't_close': t('web.close'),
+        'scheme_switch': scheme_switch(t),
     }
 
 def fill(s, v): return re.sub(r'\{\{(\w+)\}\}', lambda m: str(v[m.group(1)]), s)
@@ -248,7 +256,7 @@ def doc_frame(lang, path, title, description, main):
     foot = (f'<footer class="foot"><a href="{v["href_release"]}">amenui v{version}</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>')
     return ('<!doctype html>\n'
             f'<html lang="{lang}" class="doc">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-            f'<title>{html.escape(title)}</title>\n<meta name="description" content="{html.escape(description)}">\n<meta name="color-scheme" content="dark light">\n<link rel="icon" href="data:,">\n{alt}\n'
+            f'<title>{html.escape(title)}</title>\n<meta name="description" content="{html.escape(description)}">\n<meta name="color-scheme" content="dark light">\n<link rel="icon" href="data:,">\n{scheme_js}{alt}\n'
             f'<link rel="preload" href="{mono_url}" as="font" type="font/otf" crossorigin>\n'
             f'<style>{faces_css}{chrome_css}{docs_css}</style>\n<script>document.documentElement.classList.add("js")</script>\n</head>\n<body>\n'
             f'{bar}\n{main}\n{foot}\n'
@@ -257,7 +265,8 @@ def doc_frame(lang, path, title, description, main):
 
 # Build-time stills of the live stages (A.6, F.8): each stage's route alone (`<path>#stage`) drawn by
 # the offscreen renderer at the stage's sizes inside its frame (docs.STILLS: the desktop box and a
-# phone's, at scale 2), so its first live frame is the same picture. Made when `RENDER` names the
+# phone's, at scale 2), in each scheme (a light one's kind ends in `-light`), so its first live frame is
+# the same picture. Made when `RENDER` names the
 # render tool (it needs a GPU or Mesa's lavapipe); without it a stage is an empty frame until it is run.
 stills = {}
 render_bin = os.environ.get('RENDER')
@@ -273,14 +282,15 @@ if render_bin:
     focus.write_text(json.dumps([{'at_ms': 800, 'kind': 'key', 'key': 'Tab'}]))
     FOCUSED = {'components/skip-link/'}
     def shoot(job):
-        route, kind = job
+        route, kind, scheme = job
         w, h = docs_html.STILLS[kind]
+        kind += '' if scheme == 'dark' else '-' + scheme
         png = shots / (route.strip('/').replace('/', '-') + '-' + kind + '.png')
         events = ['--events', str(focus)] if route in FOCUSED else []
-        r = subprocess.run([render_bin, '--page', route + '#still', '--size', f'{w * 2}x{h * 2}', '--scale', '2', '--at', '1500', '--locale', 'en', *events, '--out', str(png)], capture_output=True, text=True)
+        r = subprocess.run([render_bin, '--page', route + '#still', '--scheme', scheme, '--size', f'{w * 2}x{h * 2}', '--scale', '2', '--at', '1500', '--locale', 'en', *events, '--out', str(png)], capture_output=True, text=True)
         return route, kind, png if r.returncode == 0 and png.exists() else None
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
-        for route, kind, png in pool.map(shoot, [(r, k) for r in routes for k in docs_html.STILLS]):
+        for route, kind, png in pool.map(shoot, [(r, k, sc) for r in routes for k in docs_html.STILLS for sc in ('dark', 'light')]):
             if not png: print(f'still: {route} ({kind}) could not be drawn'); continue
             try:
                 from PIL import Image
@@ -367,7 +377,7 @@ def page(lang, path, title, section, tone='', foot=''):
     classes = ' '.join(c for c in ['home' if path == '' else '', 'work' if path.startswith('works/') and path != 'works/' else '', 'works' if path.startswith('works/') else ''] if c)
     v = chrome_vars(lang, path) | {
         'classes': classes, 'tone': tone, 'foot': foot, 'title': html.escape(title), 'description': html.escape(t('web.description')),
-        'redirect': redirect, 'wasm_url': BASE + wasm_fn, 'wasm_gpu_url': BASE + wasm_gpu_fn,
+        'scheme': scheme_js, 'redirect': redirect, 'wasm_url': BASE + wasm_fn, 'wasm_gpu_url': BASE + wasm_gpu_fn,
         't_canvas': t('web.canvas'), 't_text_input': t('web.text-input'),
         't_eyebrow': t('web.eyebrow'), 't_lead': t('web.lead'), 't_start': t('web.start'), 't_copy': t('web.copy'), 't_readout': t('web.readout'), 't_quality': t('web.quality'), 't_quality_auto': t('web.quality.auto'),
         'listing': html.escape(listing, quote=False) if path == '' else '', 'mono_url': fonts[lang][2]['url'],

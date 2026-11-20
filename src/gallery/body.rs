@@ -23,10 +23,10 @@ pub fn tick(s: &mut Gallery, t: f32) -> bool {
     changed
 }
 pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if s.page == Page::Body { s.body.wake(t) } else { None } }
-/// The scene's look on its page: the palette's flat ground, a bloom.
+/// The scene's look on its page: the scheme's flat ground, a bloom in the dark one.
 pub fn look(s: &Gallery, l: &mut Look) {
     if s.page != Page::Body { return; }
-    let b = scene::look(s.body.palette, s.body.gather.value);
+    let b = scene::look(s.body.paper, s.body.gather.value);
     l.theme = b.theme;
     l.material = b.material;
     l.post = b.post;
@@ -44,7 +44,7 @@ pub fn page(s: &Gallery) -> El<Msg> { s.body.view_in("body").map(Rc::new(Msg::Bo
 /// A fresh scene, sized to the window, in the stage the host gave the last one.
 pub fn fresh(s: &Gallery) -> Body {
     let mut b = Body::default();
-    (b.reduced, b.stage, b.text_centre, b.seed, b.palette, b.away) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.seed, s.palette, s.body.away);
+    (b.reduced, b.stage, b.text_centre, b.seed, b.paper, b.away) = (s.lab.reduced, s.body.stage, s.body.text_centre, s.body.seed, s.paper, s.body.away);
     b.resize(s.width, s.height);
     b.entered = s.clock;
     b.t = s.clock;

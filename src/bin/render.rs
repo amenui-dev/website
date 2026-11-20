@@ -1,7 +1,7 @@
 //! One deterministic frame of any gallery page or recipe, and its tree (DESIGN.md §1.17). Fixed 60 Hz
 //! clock from 0, fixed seeds: the same arguments give byte-identical PNGs.
 //!
-//! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans]
+//! usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--scheme dark|light] [--locale en|zh-Hans]
 //!               [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n> [--first <ms>]]
 //!        render --page <hash | recipe-name> --frames <from>..<to> [--fps 60] --out dir/%05d.png [...]
 //!
@@ -22,7 +22,7 @@
 use amenui::drive::{RenderSpec, parse_events};
 use website::drive::{audit, render, render_paced};
 
-const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n> [--first <ms>]] [--frames <from>..<to>]";
+const USAGE: &str = "usage: render --page <hash | recipe-name> [--size 1280x800] [--scale 1] [--material <id>] [--theme <id>] [--scheme dark|light] [--locale en|zh-Hans] [--at <ms>] [--events <file.json>] [--out out.png] [--tree out.json] [--audit] [--strict] [--fps <n> [--first <ms>]] [--frames <from>..<to>]";
 
 /// `--out` with the frame's number put in for `%d` or `%0Nd`.
 fn numbered(pattern: &str, n: u32) -> Option<String> {
@@ -62,6 +62,7 @@ fn main() {
             "--material" => spec.material = Some(v),
             "--theme" => spec.theme = Some(v),
             "--locale" => spec.locale = Some(v),
+            "--scheme" => website::drive::PAPER.store(match v.as_str() { "light" => true, "dark" => false, _ => fail(format!("`--scheme {v}`: write dark or light.")) }, std::sync::atomic::Ordering::Relaxed),
             "--at" => { at_given = true; spec.at_ms = v.parse().unwrap_or_else(|_| fail(format!("`--at {v}`: write the time of the frame in ms, e.g. 1000."))) }
             "--frames" => {
                 let bad = format!("`--frames {v}`: write the first frame and one past the last, e.g. `--frames 0..120`.");

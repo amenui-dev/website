@@ -250,10 +250,22 @@ pub fn wake(s: &Gallery, t: f32) -> Option<f32> { if on_lab(s) { s.lab.wake(t, p
 pub fn enter(s: &mut Gallery) { s.lab.until = s.clock + amenui::experiment::IDLE_S; }
 fn on_lab(s: &Gallery) -> bool { matches!(s.page, super::Page::Lab | super::Page::Experiment(_)) }
 
-/// The lab's look on its pages: its theme, plain material, nothing else.
+/// The experiments that are light by nature (a glow over text): they keep the dark scheme on paper,
+/// as a photograph keeps its own tones in a book (AA.10).
+pub const DARK_ONLY: [&str; 1] = ["lumen"];
+/// Whether the page is an experiment that keeps the dark scheme on paper.
+pub fn dark_only(p: super::Page) -> bool { matches!(p, super::Page::Experiment(i) if DARK_ONLY.contains(&NAMES[i as usize])) }
+/// The Lab's one signal in each scheme: its blue, softened on graphite (AA.9), deeper on paper.
+const BLUE: [[f32; 3]; 2] = [[0x6e as f32 / 255.0, 0xa8 as f32 / 255.0, 1.0], [0x1a as f32 / 255.0, 0x5c as f32 / 255.0, 0xc7 as f32 / 255.0]];
+
+/// The lab's look on its pages: its theme in the scheme's ground and ink with its blue, plain
+/// material, nothing else.
 pub fn look(s: &Gallery, l: &mut Look) {
     if !on_lab(s) { return; }
-    l.theme = LAB;
+    let paper = s.paper && !dark_only(s.page);
+    let (ground, ink, _, _) = crate::showcase::scenes::body::palette(paper);
+    let blue = BLUE[paper as usize];
+    l.theme = amenui::style::Theme { ground, ground2: ground, ink, accent: blue, second: blue, third: blue, ..LAB };
     l.material = Material::Plain;
     l.post = Look::default().post;
 }
@@ -380,7 +392,7 @@ pub fn path_line(s: &Gallery) -> El<Msg> {
         let name = step_name(i).to_lowercase();
         let label = if i == at { format!("[ {:02} {name} ]", i + 1) } else if narrow { format!("{:02}", i + 1) } else { format!("{:02} {name}", i + 1) };
         r = r.child(row().key(format!("lab/path/{k}")).height(28.0).align(taffy::AlignItems::CENTER).on_press(Msg::Outline(format!("labx/{k}/head"))).role(amenui::el::Role::Link)
-            .child(text(label, 11.0, if i == at { Paint::ACCENT } else { Paint::TEXT }).font(Font::Mono)));
+            .child(text(label, 11.0, if i == at { Paint::INK } else { Paint::TEXT }).font(Font::Mono)));
     }
     col().key("lab/path").fill_width().child(r).child(amenui::widgets::divider(rule).key("path-rule"))
 }

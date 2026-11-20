@@ -317,8 +317,8 @@ pub struct Body {
     pub text_centre: Option<f32>,
     pub entered: f32,
     pub reduced: bool,
-    /// The palette: 0 the site's, 1 and 2 the proposed dark and light (AA.9, AA.10), for review.
-    pub palette: u8,
+    /// The light scheme (paper and ink) rather than the dark one.
+    pub paper: bool,
     /// The short path or the walk is to play: waiting for the first frame to be presented, then at a time.
     pub intro_pending: bool, pub drawn: bool, pub intro_at: Option<f32>,
     /// The front across the listing on the short path: when, from where (`take_front`), when it started.
@@ -378,7 +378,7 @@ impl Default for Body {
             grab: None, dragged: false, clicked: f32::NEG_INFINITY, samples: vec![], motes: vec![], made: 0,
             hover: None, turned_at: f32::NEG_INFINITY, flash: f32::NEG_INFINITY,
             at, was: at, lands: 0.0, unfold: false, fold: None, drop: None, walk: None, taken: false, cmds: vec![], full: false, seen: false, later: vec![], settle: None,
-            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, palette: 0, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
+            size: (1440.0, 900.0), stage: None, text_centre: None, entered: 0.0, reduced: false, paper: false, intro_pending: false, drawn: false, intro_at: None, front_at: None, front: None, fronted: None, fade: None, changed: 0.0,
             t: 0.0, ready: 1.0, flight: (0, 0.0), cache: Rc::default(),
         }
     }
@@ -559,22 +559,20 @@ pub fn lit(l: [f32; 3], p: [f32; 3], n: [f32; 3]) -> f32 {
     let wrap = 0.5 * lam + 0.5 * lam * lam;
     (0.28 + 2.0 * wrap / (1.0 + 0.6 * d2)).clamp(0.0, 1.0)
 }
-/// The paint of a glyph lit `l`. The site's palette: the accent up to 0.5, then towards the ink. The
-/// proposed one (`neutral`): from dim to ink by the light, the accent only above 0.8 and at most 35 %
-/// of the way to it. The opacity has a high floor and a short range: it keeps the text legible.
-pub fn lit_paint(l: f32, neutral: bool) -> Paint {
-    if neutral { let u = ((l - 0.8) / 0.2).clamp(0.0, 1.0); return Paint { tone: 0.66 + 0.34 * l, accent: 0.35 * u * u * (3.0 - 2.0 * u), alpha: 0.70 + 0.30 * l, hue: 0 }; }
-    let accent = if l <= 0.5 { 1.0 } else { 1.0 - 0.85 * (l - 0.5) / 0.5 };
-    Paint { tone: 1.0, accent, alpha: 0.70 + 0.30 * l, hue: 0 }
+/// The paint of a glyph lit `l`: from dim to ink by the light, the accent only above 0.8 and at most
+/// 35 % of the way to it. The opacity has a high floor and a short range: it keeps the text legible.
+pub fn lit_paint(l: f32) -> Paint {
+    let u = ((l - 0.8) / 0.2).clamp(0.0, 1.0);
+    Paint { tone: 0.66 + 0.34 * l, accent: 0.35 * u * u * (3.0 - 2.0 * u), alpha: 0.70 + 0.30 * l, hue: 0 }
 }
 
 /// How a cell's glyph looks on the stone: its lit paint, how it faces the viewer, its opacity as drawn,
 /// and how much the line's tangent (`run`) and the line's height across it (`gap`) are foreshortened.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CellLook { pub paint: Paint, pub alpha: f32, pub run: f32, pub gap: f32, pub facing: f32 }
-pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint, boost: f32, neutral: bool) -> CellLook {
+pub fn cell_look(v: &View, light: [f32; 3], sp: &SurfacePoint, boost: f32) -> CellLook {
     let (p, n, t) = (v.rot(sp.p), v.rot(sp.n), v.rot(sp.t));
-    let paint = lit_paint((lit(light, p, n) + boost).min(1.0), neutral);
+    let paint = lit_paint((lit(light, p, n) + boost).min(1.0));
     let run = (t[0] * t[0] + t[1] * t[1]).sqrt();
     let b = cross(n, t);
     let gap = ((b[0] * t[1] - b[1] * t[0]) / run.max(1e-4)).abs();
@@ -1003,12 +1001,8 @@ impl Body {
     }
     /// The lamp now (view space).
     pub fn light(&self) -> [f32; 3] { [self.lamp[0].value, self.lamp[1].value, self.lamp[2].value] }
-    /// The proposed palette's neutral stone.
-    fn neutral(&self) -> bool { self.palette > 0 }
-    /// The proposed light scheme: the stone on paper is as firm as the word, the far side not fogged
-    /// toward the ground.
-    fn paper(&self) -> bool { self.palette == 2 }
-    fn form_fx(&self) -> FormFx { if self.paper() { FormFx { fog: 1.0, ..FORM_FX } } else { FORM_FX } }
+    /// On paper the stone is as firm as the word: the far side is not fogged toward the ground.
+    fn form_fx(&self) -> FormFx { if self.paper { FormFx { fog: 1.0, ..FORM_FX } } else { FORM_FX } }
     /// Fill the cache for the current seed, text and console.
     fn ensure(&self) {
         let (chars, head) = (self.chars(), self.console().lines);
@@ -1084,7 +1078,7 @@ impl Body {
     /// The pose of every glyph of the stone's text: from its place in the listing to its cell on the
     /// stone, with its depth and how it faces the viewer for `El::form`.
     fn poser(&self, origin: (f32, f32), shown: Rc<Vec<bool>>) -> impl Fn(GlyphAt) -> Pose + 'static {
-        let (g, v, l, cache, dim, touch, neutral) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light(), self.cache.clone(), self.dim(), self.touch(), self.neutral());
+        let (g, v, l, cache, dim, touch) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light(), self.cache.clone(), self.dim(), self.touch());
         let (_, _, rpx) = self.placement();
         let em_px = em_px(rpx, self.cache.borrow().em);
         move |a: GlyphAt| {
@@ -1100,7 +1094,7 @@ impl Body {
             let sp = &moved;
             let (p, t) = (v.rot(sp.p), v.rot(sp.t));
             let ([sx, sy], k) = v.project(p);
-            let CellLook { paint, gap, .. } = cell_look(&v, l, sp, boost, neutral);
+            let CellLook { paint, gap, .. } = cell_look(&v, l, sp, boost);
             let facing = word_facing(&v, &c, gi);
             let ang = (-t[1]).atan2(t[0]);
             let s = em_px * k / SIZE * sp.k;
@@ -1124,10 +1118,9 @@ impl Body {
         let (g, v, l) = (self.gather.value.clamp(0.0, 1.0), self.view(), self.light());
         let mut d = Drawing::new(w, h);
         if g <= 0.0 { return d; }
-        let neutral = self.neutral();
         let rpx = self.placement().2;
         let cr = self.console().rect();
-        dust(&mut d, &v, &Room { stage: self.stage(), off: [cr[0] - 8.0, cr[1] - 8.0, cr[2] + 8.0, cr[3] + 8.0], near: self.paper().then_some(1.3 * rpx) }, g, if neutral { 0.0 } else { 0.4 }, 80);
+        dust(&mut d, &v, &Room { stage: self.stage(), off: [cr[0] - 8.0, cr[1] - 8.0, cr[2] + 8.0, cr[3] + 8.0], near: self.paper.then_some(1.3 * rpx) }, g, 80);
         let mut c = self.cache.borrow_mut();
         let want = amenui::budget::grant(VOLUME);
         if c.vkey != (self.seed, want) { c.vol = volume(self.seed, want); c.vkey = (self.seed, want); }
@@ -1138,7 +1131,7 @@ impl Body {
             if (inside && p[2] > 0.0) || (!inside && n[2] > 0.0) { continue; }
             let ([x, y], k) = v.project(p);
             // On paper the far shell is the hairline colour.
-            let paint = if self.paper() { HAIR.alpha(g * (0.5 + 0.5 * lit(l, p, n))) } else { Paint { tone: 1.0, accent: if neutral { 0.0 } else { 1.0 }, alpha: 0.20 * g * (0.4 + 0.6 * lit(l, p, n)), hue: 0 } };
+            let paint = if self.paper { HAIR.alpha(g * (0.5 + 0.5 * lit(l, p, n))) } else { Paint::INK.alpha(0.20 * g * (0.4 + 0.6 * lit(l, p, n))) };
             d.dot(x, y, q.size * k * 0.9, paint);
         }
         // Where a cell's glyph has faded out at the rim, the cell is one dot in the colour the light gives it.
@@ -1147,10 +1140,10 @@ impl Body {
         for (gi, &k) in c.text.cell.iter().enumerate() {
             let Some(sp) = c.pts.get(k) else { continue };
             if v.rot(sp.n)[2] < -0.25 { continue; }
-            let look = cell_look(&v, l, sp, 0.0, neutral);
+            let look = cell_look(&v, l, sp, 0.0);
             let ([x, y], s) = v.project(v.rot(sp.p));
             if drawn(em * s / SIZE * sp.k, squeeze(&v, &c, gi, sp, em), look.gap, look.paint.alpha * FORM_FX.facing_alpha(word_facing(&v, &c, gi))) { continue; }
-            d.dot(x, y, dot_r * s, Paint { tone: look.paint.tone, accent: if neutral { 0.0 } else { look.paint.accent }, alpha: if self.paper() { 0.6 } else { 0.30 } * g, hue: 0 });
+            d.dot(x, y, dot_r * s, Paint::tone(look.paint.tone).alpha(if self.paper { 0.6 } else { 0.30 } * g));
         }
         d
     }
@@ -1158,8 +1151,7 @@ impl Body {
     fn front(&self, labels: &[Readout]) -> Drawing {
         let (w, h) = self.size;
         let mut d = Drawing::new(w, h);
-        let accent = if self.neutral() { 0.0 } else { 0.6 };
-        for m in &self.motes { let f = 1.0 - m.age / MOTE_LIFE; d.dot(m.x, m.y, 0.6 + 0.9 * f, Paint { tone: 1.0, accent, alpha: 0.6 * f * self.idle, hue: 0 }); }
+        for m in &self.motes { let f = 1.0 - m.age / MOTE_LIFE; d.dot(m.x, m.y, 0.6 + 0.9 * f, Paint::INK.alpha(0.6 * f * self.idle)); }
         for l in labels {
             if l.alpha <= 0.0 { continue; }
             let p = Paint::DIM.alpha(l.alpha);
@@ -1228,7 +1220,7 @@ pub struct Readout { pub key: &'static str, pub text: String, pub from: (f32, f3
 /// still; in the room's stage only and never in its box `off`, as strong as the gather. On paper (the
 /// room's `near`, px) it is the hairline, 1 px, and only that near the stone.
 struct Room { stage: [f32; 4], off: [f32; 4], near: Option<f32> }
-fn dust(d: &mut Drawing, v: &View, room: &Room, g: f32, accent: f32, n: usize) {
+fn dust(d: &mut Drawing, v: &View, room: &Room, g: f32, n: usize) {
     let (st, off, near_px) = (room.stage, room.off, room.near);
     let n = amenui::budget::grant(n);
     for i in 0..n as u32 {
@@ -1248,7 +1240,7 @@ fn dust(d: &mut Drawing, v: &View, room: &Room, g: f32, accent: f32, n: usize) {
             d.dot(x, y, 0.5, HAIR.alpha(g));
             continue;
         }
-        d.dot(x, y, size, Paint { tone: 0.8, accent, alpha: (0.06 + 0.22 * near) * g, hue: 0 });
+        d.dot(x, y, size, Paint::tone(0.8).alpha((0.06 + 0.22 * near) * g));
     }
 }
 
@@ -1961,29 +1953,25 @@ pub fn ui(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> amenui:
     b.resize(w as f32 / scale, h as f32 / scale);
     amenui::ui::Ui::new(b, view, update, faces, w, h, scale)
         .on_resize(|s, w, h| s.resize(w, h))
-        .on_look(|s| { let mut l = look(s.palette, s.gather.value); s.tune(&mut l); l })
+        .on_look(|s| { let mut l = look(s.paper, s.gather.value); s.tune(&mut l); l })
         .on_tick(|s, t| s.step(t))
         .on_wake(|s, t| s.wake(t))
         .on_commands(|s| std::mem::take(&mut s.cmds))
         .on_input(|s| s.heard())
 }
-/// The palettes (AA.9, AA.10): the site's dark, and the proposed dark and light, as (ground, ink,
-/// accent, second).
-pub fn palette(p: u8) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3]) {
+/// The site's two schemes (AA.9, AA.10), graphite and paper, as (ground, ink, accent, second).
+pub fn palette(paper: bool) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3]) {
     let c = |v: u32| [((v >> 16) & 255) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0];
-    match p {
-        1 => (c(0x1a1b1d), c(0xf2f2ee), c(0xf47a3c), c(0x7db0f7)),
-        2 => (c(0xf1f0eb), c(0x141517), c(0xb23f0d), c(0x1a5cc7)),
-        _ => ([0.047, 0.051, 0.055], [0.886, 0.890, 0.878], [1.0, 0.42, 0.17], [0.30, 0.62, 1.0]),
-    }
+    if paper { (c(0xf1f0eb), c(0x141517), c(0xb23f0d), c(0x1a5cc7)) } else { (c(0x1a1b1d), c(0xf2f2ee), c(0xf47a3c), c(0x7db0f7)) }
 }
-/// The scene's look, `gathered` of the way from the listing to the stone: the palette's flat ground,
-/// the plain material, and a small bloom on the brightest glyphs as the stone gathers (none on paper).
-pub fn look(palette_id: u8, gathered: f32) -> amenui::style::Look {
+/// The scene's look, `gathered` of the way from the listing to the stone: the scheme's flat ground,
+/// the plain material, and a small bloom on the brightest glyphs as the stone gathers (none on paper:
+/// additive light does not exist there).
+pub fn look(paper: bool, gathered: f32) -> amenui::style::Look {
     let g = gathered.clamp(0.0, 1.0);
-    let (ground, ink, accent, second) = palette(palette_id);
+    let (ground, ink, accent, second) = palette(paper);
     let theme = amenui::style::Theme { ground, ground2: ground, ink, accent, second, third: [0.55, 0.88, 1.0], ..amenui::style::LAB };
     let mut l = amenui::style::Look { theme, material: Material::Plain, ..amenui::style::Look::default() };
-    l.post.bloom = amenui::post::Bloom { strength: if palette_id == 2 { 0.0 } else { 0.8 * g }, threshold: 0.8, radius: 6.0 };
+    l.post.bloom = amenui::post::Bloom { strength: if paper { 0.0 } else { 0.8 * g }, threshold: 0.8, radius: 6.0 };
     l
 }

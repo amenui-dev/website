@@ -221,9 +221,13 @@ mod site_exports {
     /// The page has the HTML status line: it carries the one-line readout's numbers (AA.6).
     #[wasm_bindgen]
     pub fn set_status_line(on: bool) { host(|s| s.ui.state.status_line = on); }
-    /// The palette, for review: 0 the site's, 1 the proposed dark, 2 the proposed light (AA.9, AA.10).
+    /// The scheme the page is in (AA.10): paper (light) or graphite (dark). A change made with the bar's
+    /// switch comes with where it was pressed (CSS px on the canvas) and is a commit from there; one
+    /// made by the system (NaN) is a cut. Either way only the look's colours change.
     #[wasm_bindgen]
-    pub fn set_palette(p: u8) { host(|s| { s.ui.state.palette = p.min(2); s.ui.state.body.palette = p.min(2); s.ui.relayout(); }); }
+    pub fn set_scheme(paper: bool, x: f32, y: f32) {
+        host(|s| { let from = (x.is_finite() && y.is_finite()).then_some((x, y)); s.ui.state.set_scheme(paper, from); s.ui.relayout(); });
+    }
     /// The body's circle on the canvas (centre x, y and radius, CSS px), empty while it is the listing:
     /// a touch that starts inside it turns the body instead of scrolling the page.
     #[wasm_bindgen]

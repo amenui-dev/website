@@ -144,7 +144,7 @@ fn outline(s: &Gallery, page: &str, titles: &[(String, String)]) -> El<Msg> {
         .child(text(tr("docs.on-this-page"), 12.0, Paint::DIM).key(format!("doc/{page}/outline/title")));
     for (i, (t, k)) in titles.iter().enumerate() {
         let on = s.outline_at == i;
-        c = c.child(text(t.clone(), 13.0, if on { Paint::ACCENT } else { Paint::TEXT }).key(format!("doc/{page}/outline/{i}"))
+        c = c.child(text(t.clone(), 13.0, if on { Paint::INK } else { Paint::TEXT }).key(format!("doc/{page}/outline/{i}"))
             .on_press(Msg::Outline(k.clone())).focusable(false).role(Role::Link));
     }
     c
@@ -309,7 +309,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
 }
 fn tab(h: &str, i: usize, label: &str, on: bool) -> El<Msg> {
     let mut t = row().key(format!("doc/{h}/tab{i}")).height(30.0).pad(12.0, 0.0).radius(4.0).center().on_press(Msg::DocTab(i)).role(Role::Tab).selected(on)
-        .child(text(label, 13.0, if on { Paint::ACCENT } else { Paint::TEXT }));
+        .child(text(label, 13.0, if on { Paint::INK } else { Paint::TEXT }));
     if on { t = t.fill(SELECTED); }
     t
 }

@@ -392,11 +392,15 @@ STILLS = {'wide': (718, 278), 'narrow': (358, 198)}
 def stage_html(ctx, p, t, href):
     route = p.stage if p.stage is not None else p.canvas
     still = ctx['stills'].get(route, {})
-    img = ''
-    if 'wide' in still:
+    # One still for each scheme; the page shows the one it is in (docs.css), and a browser fetches
+    # only that one (a lazy image that is not displayed is not loaded).
+    def pic(sfx):
+        if 'wide' + sfx not in still: return ''
         w, h = STILLS['wide']
-        img = f'<img src="{attr(ctx["base"] + still["wide"])}" alt="" width="{w}" height="{h}" decoding="async">'
-        if 'narrow' in still: img = f'<picture><source media="(max-width: 719px)" srcset="{attr(ctx["base"] + still["narrow"])}" width="{STILLS["narrow"][0]}" height="{STILLS["narrow"][1]}">{img}</picture>'
+        img = f'<img class="s{sfx or "-dark"}" src="{attr(ctx["base"] + still["wide" + sfx])}" alt="" width="{w}" height="{h}" loading="lazy" decoding="async">'
+        if 'narrow' + sfx in still: img = f'<picture><source media="(max-width: 719px)" srcset="{attr(ctx["base"] + still["narrow" + sfx])}" width="{STILLS["narrow"][0]}" height="{STILLS["narrow"][1]}">{img}</picture>'
+        return img
+    img = pic('') + pic('-light')
     return (f'<figure class="stage" data-route="{attr((route or "") + "#stage")}"><div class="box"><button type="button" class="run" aria-label="{attr(t("web.docs.run"))}">{img}</button></div>'
             f'<figcaption><span class="state" data-idle="{attr(t("web.docs.stage"))}">{esc(t("web.docs.stage-still"))}</span><span class="acts"><a href="{href(route)}">{esc(t("web.docs.open"))}&nbsp;↗</a></span></figcaption></figure>')
 

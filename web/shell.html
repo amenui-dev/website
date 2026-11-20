@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{{title}}</title>
 <meta name="description" content="{{description}}">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:,">
-{{redirect}}<script>{const l=document.createElement('link');l.rel='preload';l.as='fetch';l.crossOrigin='';l.href=navigator.gpu?'{{wasm_gpu_url}}':'{{wasm_url}}';document.head.appendChild(l)}</script>
+{{scheme}}{{redirect}}<script>{const l=document.createElement('link');l.rel='preload';l.as='fetch';l.crossOrigin='';l.href=navigator.gpu?'{{wasm_gpu_url}}':'{{wasm_url}}';document.head.appendChild(l)}</script>
 <link rel="preload" href="{{mono_url}}" as="fetch" crossorigin>
 <style>
 /*chrome*/
@@ -19,20 +19,23 @@
 @keyframes pagein { from { opacity: 0; } }
 .home .hero, .home .rail { animation: pagein 140ms linear 70ms both; }
 @media (prefers-reduced-motion: reduce) { .home .hero, .home .rail { animation: none; } }
-:root { --ground: #0c0d0e; --raised: #131517; --hairline: #24272b; --dim: #868c93; --text: #c9cbc7; --ink: #e2e3e0; --accent: #ff6b2b; --second: #4d9eff; --warn: #facc40; --halo: #5f2d18;
+/* The two schemes (AA.9, AA.10): graphite and paper. The page follows the system unless the bar's
+   switch chose one (`data-theme`, set before the first paint); without the script, the system's.
+   `--halo` is the selection's plate, `--lift` a primary button under the pointer, `--line-n` the
+   listing's line numbers as the canvas draws them (Paint::DIM on the ground). */
+:root { color-scheme: dark; --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; --halo: #f2f2ee; --lift: #ffffff; --line-n: #a9a9a7;
   --mono: "Departure Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif; --m: 32px; }
-/* The proposed palettes (AA.9, AA.10), for review only: `?palette=dark` or `?palette=light`. */
-:root[data-palette="dark"] { --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; }
-:root[data-palette="light"] { --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #e3c9b8; }
+:root[data-theme="light"] { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; } }
 @media (max-width: 1079px) { :root { --m: 24px; } }
 @media (max-width: 719px) { :root { --m: 16px; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--ground); color: var(--text); font: 17px/1.6 var(--serif); overflow: hidden; -webkit-font-smoothing: none; -moz-osx-font-smoothing: unset; }
 a { color: inherit; text-decoration: none; }
-/* Selection (L.1): the halo, each glyph's outline moved out 3 px in one opaque colour, so selected
-   lines never form a lighter band. Selected text is always ink. */
-::selection { background: transparent; color: var(--ink); text-shadow:
+/* Selection (L.1, AA.9): an ink plate with the text in the ground, the plate made as a halo, each
+   glyph's outline moved out 3 px in one opaque colour, so selected lines never form a lighter band. */
+::selection { background: transparent; color: var(--ground); text-shadow:
   3px 0 var(--halo), -3px 0 var(--halo), 0 3px var(--halo), 0 -3px var(--halo),
   2px 2px var(--halo), -2px 2px var(--halo), 2px -2px var(--halo), -2px -2px var(--halo),
   3px 1px var(--halo), -3px 1px var(--halo), 3px -1px var(--halo), -3px -1px var(--halo),
@@ -41,9 +44,9 @@ a { color: inherit; text-decoration: none; }
 .install code { -webkit-user-select: all; user-select: all; }
 input, textarea { caret-color: var(--accent); caret-shape: block; }
 .mono, .bar, .eyebrow, .btn, .install, .status, .sheet, h1 { font-family: var(--mono); font-weight: normal; }
-:focus-visible { outline: 1px solid var(--second); outline-offset: 2px; }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
 /* Past the bar to the page: the first Tab stop, shown only while focused. */
-.skip { position: fixed; z-index: 20; left: 8px; top: 8px; height: 32px; padding: 0 12px; display: flex; align-items: center; background: var(--accent); color: var(--ground);
+.skip { position: fixed; z-index: 20; left: 8px; top: 8px; height: 32px; padding: 0 12px; display: flex; align-items: center; background: var(--ink); color: var(--ground);
   font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; transform: translateY(-200%); }
 .skip:focus { transform: none; }
 
@@ -62,11 +65,16 @@ input, textarea { caret-color: var(--accent); caret-shape: block; }
 @keyframes blink { 50% { opacity: 0; } }
 .nav { display: flex; gap: 12px; }
 .nav a::before { content: "["; color: transparent; } .nav a::after { content: "]"; color: transparent; }
-.nav a[aria-current] { color: var(--accent); } .nav a[aria-current]::before, .nav a[aria-current]::after { color: var(--accent); }
+/* The current section: its label in ink, its brackets the one mark in the accent (AA.9). */
+.nav a[aria-current] { color: var(--ink); } .nav a[aria-current]::before, .nav a[aria-current]::after { color: var(--accent); }
 .nav a:hover::before, .nav a:hover::after { color: var(--dim); }
 .end { margin-left: auto; display: flex; gap: 20px; align-items: center; }
 .lang b { color: var(--ink); font-weight: normal; }
 .lang span { color: var(--dim); padding: 0 6px; }
+/* The scheme's switch: the choice's name, auto · light · dark in turn. With no script it is not there. */
+.scheme span { display: none; }
+:root[data-pick="auto"] .scheme .a, :root[data-pick="light"] .scheme .l, :root[data-pick="dark"] .scheme .d { display: inline; }
+:root:not([data-pick]) .scheme { display: none !important; }
 .menu-btn { display: none !important; margin-left: auto; }
 @media (max-width: 1079px) { .wide { display: none !important; } }
 @media (max-width: 719px) {
@@ -77,7 +85,7 @@ input, textarea { caret-color: var(--accent); caret-shape: block; }
 .sheet.open { display: flex; }
 .sheet a { display: flex; align-items: center; height: 56px; color: var(--text); font-size: 22px; border-bottom: 1px solid var(--hairline); }
 .sheet a small { font-size: 11px; color: var(--dim); width: 40px; }
-.sheet a[aria-current] { color: var(--accent); }
+.sheet a[aria-current] { color: var(--ink); } .sheet a[aria-current] small { color: var(--accent); }
 .sheet .row { display: flex; gap: 24px; padding-top: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .sheet .row a, .sheet .row button { height: 44px; font-size: 11px; border: 0; background: none; color: var(--text); font-family: inherit; text-transform: inherit; letter-spacing: inherit; padding: 0; }
 
@@ -126,7 +134,7 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--hairline); color: var(--ink); }
 .btn:hover { border-color: var(--ink); }
 .btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { background: var(--lift); border-color: var(--lift); }
 @media (max-width: 719px) { .actions { flex-direction: column; } .btn { height: 48px; justify-content: center; } .actions { margin-bottom: 16px; } }
 .install { display: flex; align-items: center; gap: 16px; font-size: 11px; line-height: 14px; color: var(--ink); max-width: 100%; }
 .install code { font: inherit; white-space: pre; min-width: 0; }
@@ -148,7 +156,7 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
    share of its bytes that has arrived; the canvas then draws the same lines at the same pixels. */
 .listing { position: absolute; z-index: 1; margin: 0; font: 11px/14px "Departure Mono", monospace; color: var(--ink); white-space: pre; pointer-events: none; display: none; }
 .home .listing { display: block; }
-.listing .n { color: #999a98; } /* Paint::DIM as the canvas draws it on this ground: the two listings are the same pixels */
+.listing .n { color: var(--line-n); } /* the two listings are the same pixels */
 .listing .caret { animation: blink 1s steps(1) infinite; }
 .listing.gone { opacity: 0; transition: opacity 120ms linear; }
 .failed .listing .caret { display: none; }
@@ -159,7 +167,7 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .home .rail { display: flex; }
 .rail button, .rail a { display: inline-flex; align-items: center; height: 44px; padding: 0; border: 0; background: none; color: var(--dim); font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .rail button:hover, .rail a:hover { color: var(--ink); }
-.rail .st[aria-pressed="true"] { color: var(--accent); } .rail .st[aria-pressed="true"] i { color: var(--ink); }
+.rail .st[aria-pressed="true"] { color: var(--ink); } .rail .st[aria-pressed="true"] i { color: var(--accent); }
 .rail .st i { font-style: normal; margin-right: 8px; }
 /* On a phone only the current state has its name. */
 @media (max-width: 719px) { .rail .st:not([aria-pressed="true"]) span { display: none; } }
@@ -205,8 +213,8 @@ html.work #stage { top: 0; bottom: 0; }
 html.work .bar, html.work .status { background: transparent; border-color: transparent; }
 .work .status { transition: opacity .15s, color .12s; }
 .work.idle .status { opacity: 0; }
-[data-tone="light"] { --ink: #17181a; --text: rgba(23, 24, 26, .59); --dim: rgba(23, 24, 26, .59); --accent: #db4d14; }
-[data-tone="dark"] { --ink: #e2e3e0; --text: rgba(226, 227, 224, .59); --dim: rgba(226, 227, 224, .59); }
+[data-tone="light"] { --ink: #141517; --text: rgba(20, 21, 23, .59); --dim: rgba(20, 21, 23, .59); --accent: #b23f0d; }
+[data-tone="dark"] { --ink: #f2f2ee; --text: rgba(242, 242, 238, .59); --dim: rgba(242, 242, 238, .59); --accent: #f47a3c; }
 .work .bar a, .work .bar button, .work .bar a::before, .work .bar a::after { transition: color .12s linear; }
 /* Over a piece every item of the bar is in the tone's ink at full strength, the current one bracketed
    in ink: the only accent in the bar is the wordmark's block; the accent is the piece's (N.2 item 6). */
@@ -229,6 +237,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   <div class="end">
     <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / {{t_search}} ]</button>
     <span class="lang">{{lang_switch}}</span>
+    {{scheme_switch}}
     <a class="wide" href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a>
     <a class="wide" href="{{href_release}}" data-route="docs/release-notes/">v{{version}}</a>
   </div>
@@ -239,7 +248,7 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
   <a href="{{href_components}}" data-route="components/" data-section="components"><small>02</small>{{t_components}}</a>
   <a href="{{href_lab}}" data-route="lab/" data-section="lab"><small>03</small>{{t_lab}}</a>
   <a href="{{href_works}}" data-route="works/" data-section="works"><small>04</small>{{t_works}}</a>
-  <div class="row"><button type="button" class="search">/ {{t_search}}</button><span class="lang">{{lang_switch}}</span><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
+  <div class="row"><button type="button" class="search">/ {{t_search}}</button><span class="lang">{{lang_switch}}</span>{{scheme_switch}}<a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
   <a class="close" href="#" aria-label="{{t_close}}">×</a>
 </div><!--/bar-->
 <div id="stage">
@@ -275,8 +284,6 @@ html.work .bar, html.work .status { background: transparent; border-color: trans
 (() => {
   const A = window.AMENUI = {{config}};
   const D = document, root = D.documentElement;
-  // The proposed palette, for review only (AA.9, AA.10).
-  { const p = new URLSearchParams(location.search).get('palette'); if (p === 'dark' || p === 'light') { root.dataset.palette = p; A.palette = p === 'dark' ? 1 : 2; } }
   const status = D.querySelector('.status');
   // One run of text (in a flex box, the spaces round a bare <b> would be dropped).
   const line = status.querySelector('.line');
