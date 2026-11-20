@@ -128,8 +128,6 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
             (d.count, d.angle0, d.falloff) = (3, 10.0, 2.0);
             card_stack(&k("cs"), &super::lab::fanned(&d), 150.0, 96.0, |_| Msg::Nothing)
         }
-        // The examples' badges with the main one an ink plate in place of the accent one.
-        "badge" => row().gap(8.0).child(badge(&k("bd1"), "新", Variant::Primary)).child(badge(&k("bd2"), "草稿", Variant::Default)).child(badge(&k("bd3"), "12", Variant::Quiet)),
         // Three people told apart in greys: the ink and dim shades with ground-coloured initials, and a
         // raised disc in a dim outline with ink initials (no shade of the widget's draws that).
         "avatar" => {
