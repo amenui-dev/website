@@ -214,7 +214,7 @@ impl Mech {
         let paint_of = |p: usize, base: Paint| if hot == Some(p) && only.is_none() { Paint::ACCENT } else { base };
         let mut push = |p: usize, mesh: MeshId, t: Vec<Mat4>, paint: Paint| {
             if only.is_some_and(|o| o != p) || leave == Some(p) { return; }
-            items.push(MeshInstances { mesh, transforms: t, paint: paint_of(p, paint), id: p as u32 + 1 });
+            items.push({ let mut m = MeshInstances::one(mesh, Mat4::IDENTITY, paint_of(p, paint), p as u32 + 1); m.transforms = t; m });
         };
         // Housing: the back plate behind the gears, the base under everything.
         push(0, id(3), vec![Mat4::translate(0.0, 0.18, -0.24 - 0.5 * e).mul(&Mat4::scale(2.3, 1.7, 0.08))], Paint::tone(0.42));

@@ -109,7 +109,7 @@ pub fn field(t: &Three) -> Scene3d {
         all.push(Mat4::translate(x, y, z).mul(&Mat4::rotate_y(k as f32 * 37.0)).mul(&Mat4::uniform(0.2)));
     }
     let hot = t.hover.filter(|h| h.object == 1 && (h.instance as usize) < all.len()).map(|h| h.instance as usize);
-    let mut items = vec![MeshInstances { mesh: MeshId::ICO[0], transforms: all.clone(), paint: Paint::INK, id: 1 }];
+    let mut items = vec![{ let mut m = MeshInstances::one(MeshId::ICO[0], Mat4::IDENTITY, Paint::INK, 1); m.transforms = all.clone(); m }];
     if let Some(h) = hot { items[0].transforms[h] = Mat4::scale(0.0, 0.0, 0.0); items.push(MeshInstances::one(MeshId::ICO[0], all[h], Paint::ACCENT, 2)); }
     let camera = Camera { projection: Projection::Perspective { fov: 30.0 }, yaw: 20.0, pitch: t.field_pitch, distance: 17.0, target: [0.0; 3], near: 0.5, far: 60.0 };
     Scene3d { items, camera, light: light(t), spec: t.spec, picture: None }
