@@ -260,8 +260,6 @@ pub const STACK_LOOKS: [&str; 4] = ["craft.stack.auto", "craft.stack.plain", "cr
 /// The stack as the page shows it: its look from the material unless one is forced.
 pub fn stack_now(s: &Gallery) -> Stack {
     let mut st = s.craft.stack.clone();
-    // The cards in the greys the avatars take, so the stack rests without the accent.
-    st.paints = (0..st.count).map(|i| SHADES[i % 3]).collect();
     st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == amenui::style::Material::Charr { s.material } else { amenui::style::Material::Dottr }), _ => StackLook::of(s.material) };
     st
 }
