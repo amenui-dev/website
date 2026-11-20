@@ -121,7 +121,7 @@ pub fn theme(i: usize) -> Theme {
     // its ground (which the picture covers, V.2 a), so the type and a ray's stops are paints of their own.
     if i == NIGHTLY {
         let greys = Greys::mixed_dim(nightly::GROUND, nightly::INK, 4.5);
-        return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, greys, ..amenui::style::DARK };
+        return Theme { ink: nightly::INK, accent: nightly::TAG, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, greys, ..amenui::style::DARK };
     }
     if i == TOUCH_GRASS {
         let greys = Greys::mixed_dim(touch::STALK_LEAN, touch::INK, 4.5);

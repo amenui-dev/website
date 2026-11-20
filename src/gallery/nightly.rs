@@ -48,6 +48,8 @@ pub const GROUND: [f32; 3] = rgb(0x070b16);
 pub const TYPE_C: [f32; 3] = rgb(0xe2fff0);
 pub const MID: [f32; 3] = rgb(0x2fae8c);
 pub const INK: [f32; 3] = rgb(0xe2e8f0);
+/// The piece's own warm signal: its number in the title block and the pointer's box over the night.
+pub const TAG: [f32; 3] = rgb(0xff6b2b);
 /// The type is the theme's third hue. The rays are in colours of their own (`Drawing::palette`), so
 /// they are the same in the index's window and band as on the page: root `#baffd8` → middle `#2fae8c` →
 /// `#1f5f86` as they go (X.2 item 2), the tallest turning toward the accent.

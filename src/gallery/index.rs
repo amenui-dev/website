@@ -122,11 +122,23 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
     let k = |n: &str| format!("{key}/{n}");
     Some(match name.replace('-', "_").as_str() {
         "orbit" => orbit(&k("o"), Scene3d::single(MeshId::CUBE), &Orbit::default(), |_| Msg::Nothing).width(150.0).height(100.0),
-        // Three cards, the two under the top one turned out a little, settled.
+        // Three cards, the two under the top one turned out a little, settled; the top one in ink, so the
+        // index shows no accent at rest (AA.9).
         "card_stack" => {
             let mut d = Stack::default();
             (d.count, d.angle0, d.falloff) = (3, 10.0, 2.0);
+            d.paints[0] = Paint::INK;
             card_stack(&k("cs"), &super::lab::fanned(&d), 150.0, 96.0, |_| Msg::Nothing)
+        }
+        // The examples' badges with the main one an ink plate in place of the accent one.
+        "badge" => row().gap(8.0).child(badge(&k("bd1"), "新", Variant::Primary)).child(badge(&k("bd2"), "草稿", Variant::Default)).child(badge(&k("bd3"), "12", Variant::Quiet)),
+        // Three people told apart by greys: the ink, the text grey and dim, each under ground-coloured initials.
+        "avatar" => row().gap(8.0).child(avatar(&k("av1"), "Lin Mo", 36.0, 0).fill(Paint::INK)).child(avatar(&k("av2"), "林墨", 36.0, 0).fill(Paint::DIM)).child(avatar(&k("av3"), "Ada", 36.0, 0).fill(Paint::TEXT)),
+        // The example's field with no range picked: a picked range is drawn in the accent.
+        "dot_chart" => {
+            let mut c = DotChart::default();
+            (c.cols, c.rows, c.pitch, c.range) = (28, 10, 7.0, (0.0, 0.0));
+            dot_chart(&k("dc"), &c, |_| Msg::Nothing)
         }
         // The tip and the toast are placed by insets from their boxes' far edges; here from the near
         // ones, so they stay in the card at any width.
@@ -184,7 +196,7 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
         }
         // One small rectangle and the formula line under it, without its number controls.
         "caption" => col().gap(8.0)
-            .child(space(72.0, 36.0).key(k("rect")).radius(6.0).fill(Paint::ACCENT))
+            .child(space(72.0, 36.0).key(k("rect")).radius(6.0).fill(Paint::RAISED).border(1.0, Paint::HAIRLINE))
             .child(caption(&k("cap"), "rect(w=72, r=6)", &[], |_, _| Msg::Nothing)),
         "skip_link" => row().key(k("sl")).height(32.0).pad(12.0, 0.0).radius(amenui::widgets::RADIUS).center().fill(Paint::INK)
             .child(text("Skip to content", amenui::widgets::LABEL, Paint::GROUND)),

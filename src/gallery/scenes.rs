@@ -275,7 +275,7 @@ pub fn look(g: &Gallery, l: &mut Look) {
             l.gaze = Gaze { mode: GazeMode::All, kinds: gaze::FRAME | gaze::KIND, density: 2.0, draw_ms: 300.0, colour: l.theme.accent, only_marked: true, ..Gaze::default() };
         }
         2 => {
-            for (k, f) in print_strips(q(0), q(1), l.theme.accent).into_iter().enumerate() { l.pics[k] = f; }
+            for (k, f) in print_strips(q(0), q(1), l.theme.ink).into_iter().enumerate() { l.pics[k] = f; }
             l.pics[PR_ONE as usize] = print_one(q(4), q(0), q(1), q(5));
             // Inside the lens the strip's own marks, fully: a hard edge, no half-loose ring around it.
             l.fx.lens = q(2);
@@ -306,8 +306,8 @@ pub fn look(g: &Gallery, l: &mut Look) {
 /// The `Markr` slot of the one-strip mode (the five strips use 0–4).
 const PR_ONE: u8 = 5;
 /// The five strips at base pitch `pitch` and `levels` brightness levels: characters, limited-colour
-/// pixels, strokes along the forms, glow, bricks in relief.
-pub fn print_strips(pitch: f32, levels: f32, accent: [f32; 3]) -> [Markr; 5] {
+/// pixels, strokes along the forms, glow tinted `tint`, bricks in relief.
+pub fn print_strips(pitch: f32, levels: f32, tint: [f32; 3]) -> [Markr; 5] {
     let base = Markr { pitch, levels, ground: 0.1, ..Markr::default() };
     [
         // Characters read on a dark ground: never below pitch 9, sixteen glyphs, their own colours,
@@ -315,7 +315,7 @@ pub fn print_strips(pitch: f32, levels: f32, accent: [f32; 3]) -> [Markr; 5] {
         Markr { pitch: (pitch + 1.0).max(9.0), levels: 16.0, gamma: 0.7, ground: 0.0, colour: colour::ORIGINAL as f32, ..Markr { set: set::CHARS as f32, ..base } },
         Markr { palette: 3.0, colours: 4.0, spread: 0.6, pitch: (pitch * 0.6).max(3.0), ..Markr { set: set::PIXEL as f32, ..base } },
         Markr { follow: 1.0, colour: colour::TWO as f32, tint_a: [0.05, 0.05, 0.07], tint_b: [0.95, 0.92, 0.84], ..Markr { set: set::STROKE as f32, ..base } },
-        Markr { glow: 1.2, gamma: 0.8, ground: 0.0, colour: colour::GIVEN as f32, tint_a: accent, ..Markr { set: set::GLOW as f32, ..base } },
+        Markr { glow: 1.2, gamma: 0.8, ground: 0.0, colour: colour::GIVEN as f32, tint_a: tint, ..Markr { set: set::GLOW as f32, ..base } },
         Markr { relief: 1.4, ground: 0.25, pitch: pitch * 1.3, ..Markr { set: set::BRICK as f32, ..base } },
     ]
 }
@@ -423,7 +423,7 @@ fn opening(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let grid = (0..rows).map(|_| line.clone()).collect::<Vec<_>>().join("\n");
     let dots = text_lh(grid, 9.0, 22.0, Paint::HAIRLINE).key("op/dots").hidden_until_morphed(sc.shown != 0);
     let title = col().key("op/title").gap(14.0).align(AlignItems::CENTER).hidden_until_morphed(sc.shown != 1)
-        .child(text_lh("同一种机制", (w / 6.0).clamp(44.0, 128.0), (w / 6.0).clamp(44.0, 128.0) * 1.15, Paint::ACCENT).font(Font::Display).weight(2.5))
+        .child(text_lh("同一种机制", (w / 6.0).clamp(44.0, 128.0), (w / 6.0).clamp(44.0, 128.0) * 1.15, Paint::INK).font(Font::Display).weight(2.5))
         .child(text_lh("字、图和控件都按自己的轮廓松开、飞行、合拢", 16.0, 26.0, Paint::DIM));
     let page = op_page(g, w).hidden_until_morphed(sc.shown != 2);
     let mut stage = col().key("op/stage").width(w).height(h).center()
@@ -561,7 +561,7 @@ fn reading(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
     }
     if sc.obstacle != 0 {
         obstacles.push(Silhouette::circle(dx + disc * 0.5, dy + disc * 0.5, disc * 0.5));
-        body = body.child(space(disc, disc).radius(disc * 0.5).fill(Paint::ACCENT).key("read/disc").absolute(Some(dx), Some(dy), None, None).on_drag_with(drag(1, dx, dy)).on_key(nudge(1, dx, dy)));
+        body = body.child(space(disc, disc).radius(disc * 0.5).fill(Paint::INK).fill_held(Paint::ACCENT).key("read/disc").absolute(Some(dx), Some(dy), None, None).on_drag_with(drag(1, dx, dy)).on_key(nudge(1, dx, dy)));
     }
     let mut around = Around::new(obstacles, q(0));
     around.min = (q(2) * 3.0).max(40.0);
@@ -611,8 +611,8 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
             .child(col().key("pr/compare").width(28.0).height(24.0).absolute(Some(x - 14.0), Some(top + wh), None, None).align(AlignItems::CENTER)
                 .on_drag_with(move |d| Some(Msg::Scene(SMsg::Compare((x + d.dx) / w)))).cursor(Cursor::ColResize)
                 .on_key(move |k, shift| { let s = if shift { 0.1 } else { 0.02 }; let f = x / w; match k { Key::Left => Some(Msg::Scene(SMsg::Compare(f - s))), Key::Right => Some(Msg::Scene(SMsg::Compare(f + s))), _ => None } })
-                .child(space(2.0, 8.0).fill(Paint::ACCENT))
-                .child(space(14.0, 14.0).radius(7.0).fill(Paint::ACCENT)));
+                .child(space(2.0, 8.0).fill(Paint::INK).fill_held(Paint::ACCENT))
+                .child(space(14.0, 14.0).radius(7.0).fill(Paint::INK).fill_held(Paint::ACCENT)));
     } else {
         let edges = [0.0, sc.seams[0], sc.seams[1], sc.seams[2], sc.seams[3], 1.0];
         let strips = print_strips(q(0), q(1), [0.0; 3]);
@@ -633,8 +633,8 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
                 .cursor(Cursor::ColResize)
                 .on_drag_with(move |d| Some(Msg::Scene(SMsg::Seam(i, f0 + d.dx / w))))
                 .on_key(move |k, shift| { let s = if shift { 0.1 } else { 0.02 }; match k { Key::Left => Some(Msg::Scene(SMsg::Seam(i, f0 - s))), Key::Right => Some(Msg::Scene(SMsg::Seam(i, f0 + s))), _ => None } })
-                .child(space(1.0, wh).fill(Paint::ACCENT.alpha(0.7)))
-                .child(space(14.0, 14.0).radius(7.0).fill(Paint::ACCENT).absolute(Some(5.0), Some(wh + 6.0), None, None));
+                .child(space(1.0, wh).fill(Paint::INK.alpha(0.7)).fill_held(Paint::ACCENT.alpha(0.7)))
+                .child(space(14.0, 14.0).radius(7.0).fill(Paint::INK).fill_held(Paint::ACCENT).absolute(Some(5.0), Some(wh + 6.0), None, None));
             wall = wall.child(seam);
         }
     }
@@ -700,16 +700,20 @@ fn morph(g: &Gallery, w: f32, h: f32) -> El<Msg> {
         mo_card(g, cw),
     ];
     let stage = stack(forms.into_iter().enumerate().map(|(i, e)| col().key(form_key(i)).hidden_until_morphed(i != f).child(e))).key("mo/stack");
-    // The steps: one row, the current one lit; press one to go there, or ← → with the row focused.
+    // The steps: one row; the current one's number an ink plate and its name ink, the steps done in the
+    // text grey and those to come dim; press one to go there, or ← → with the row focused.
     let mut steps = row().key("mo/steps").gap(0.0).align(AlignItems::CENTER).focusable(true)
         .on_key(|k, _| match k { Key::Left => Some(Msg::Scene(SMsg::PrevForm)), Key::Right => Some(Msg::Scene(SMsg::NextForm)), _ => None });
     for (i, name) in FORMS.iter().enumerate() {
         let on = i == f;
-        if i > 0 { steps = steps.child(space(36.0, 1.5).fill(if i <= f { Paint::ACCENT } else { Paint::HAIRLINE })); }
+        let (num, label) = if on { (Paint::GROUND, Paint::INK) } else if i < f { (Paint::TEXT, Paint::TEXT) } else { (Paint::DIM, Paint::DIM) };
+        if i > 0 { steps = steps.child(space(36.0, 1.5).fill(if i <= f { Paint::TEXT } else { Paint::HAIRLINE })); }
+        // Every number keeps the plate's box, so the row does not move when the step changes.
+        let mut plate = row().key(format!("mo/step:{i}/n")).pad(4.0, 1.0).radius(2.0).child(text(format!("{:02}", i + 1), 11.0, num).font(Font::Mono));
+        if on { plate = plate.fill(Paint::INK); }
         steps = steps.child(col().key(format!("mo/step:{i}")).gap(4.0).pad(10.0, 6.0).align(AlignItems::CENTER).on_press(Msg::Scene(SMsg::Form(i))).focusable(false)
-            .child(text(format!("{:02}", i + 1), 11.0, if on { Paint::ACCENT } else { Paint::DIM }).font(Font::Mono))
-            .child(text(*name, 16.0, if on { Paint::ACCENT } else { Paint::TEXT }))
-            .child(space(if on { 22.0 } else { 0.0 }, 2.0).fill(Paint::ACCENT)));
+            .child(plate)
+            .child(text(*name, 16.0, label)));
     }
     // The stage is pressable only while it is not the interface (whose own controls take presses).
     let mut st = col().key("mo/stage").width(w).height(sh).center().child(stage);
@@ -747,7 +751,7 @@ fn xr_app(layer: &str, w: f32, filled: bool, notes: bool) -> El<Msg> {
             })), "列表"))
         .child(row().fill_width().gap(10.0).align(AlignItems::CENTER)
             .child(space(0.0, 0.0).grow(1.0))
-            .child(note(row().key(k("remind")).height(32.0).pad(16.0, 0.0).radius(16.0).fill(Paint::ACCENT).center().child(text("提醒我", 14.0, Paint::GROUND)), "按钮")))
+            .child(note(row().key(k("remind")).height(32.0).pad(16.0, 0.0).radius(16.0).fill(Paint::INK).center().child(text("提醒我", 14.0, Paint::GROUND)), "按钮")))
 }
 fn xray(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let sc = &g.sc;
@@ -773,11 +777,14 @@ fn xray(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     if !sc.apart {
         stage = stage.child(text("按住空格，或按住下面的按钮", 12.0, Paint::DIM).absolute(Some(cx), Some(cy + 480.0), None, None));
     }
-    let hold = row().key("xr/hold").height(36.0).pad(18.0, 0.0).radius(18.0).border(1.0, Paint::ACCENT).center()
-        .fill(if sc.apart { Paint::ACCENT.alpha(0.18) } else { Paint::GROUND })
+    // At rest a dim outline, ink under the pointer; while it (or Space) is held, the accent.
+    let held = sc.apart && !sc.keep;
+    let hold = row().key("xr/hold").height(36.0).pad(18.0, 0.0).radius(18.0).center()
+        .border(1.0, if held { Paint::ACCENT } else { Paint::DIM }).border_hover(if held { Paint::ACCENT } else { Paint::INK })
+        .fill(if held { Paint::ACCENT.alpha(0.18) } else { Paint::GROUND })
         .on_drag_with(|d| match d.phase { Phase::Start => Some(Msg::Scene(SMsg::Apart(true))), Phase::End => Some(Msg::Scene(SMsg::Apart(false))), Phase::Move => None })
         .on_key(|k, _| matches!(k, Key::Enter).then_some(Msg::Scene(SMsg::KeepApart)))
-        .child(text("按住拆开", 14.0, Paint::ACCENT));
+        .child(text("按住拆开", 14.0, if held { Paint::INK } else { Paint::TEXT }));
     col().key("xr/page").width(w).gap(10.0)
         .child(stage)
         .child(row().gap(16.0).align(AlignItems::CENTER).justify(JustifyContent::CENTER).fill_width().wrap()
@@ -843,7 +850,7 @@ fn sound(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     for (i, v) in sc.levels.iter().enumerate() {
         let hgt = (v * bh).max(3.0).round();
         // A loud band loosens: under the dot material it breaks into dots, then holds again.
-        spec = spec.child(space((bw - 4.0).max(2.0), hgt).fill(if i < 5 { Paint::ACCENT } else if i < 20 { Paint::hue(1) } else { Paint::INK }).loose((v - 0.55).max(0.0) * 1.4).key(format!("snd/bar{i}")));
+        spec = spec.child(space((bw - 4.0).max(2.0), hgt).fill(if i < 5 { Paint::INK } else if i < 20 { Paint::hue(1) } else { Paint::INK }).loose((v - 0.55).max(0.0) * 1.4).key(format!("snd/bar{i}")));
         spec = spec.child(space(4.0, 1.0));
     }
     let mm = (st / 60.0).floor() as u32;
@@ -853,7 +860,7 @@ fn sound(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     col().key("snd/page").width(w).height(h).align(AlignItems::CENTER).justify(JustifyContent::SPACE_BETWEEN)
         .child(col().key("snd/head").align(AlignItems::CENTER).gap(10.0).fill_width()
             .child(row().gap(18.0).align(AlignItems::CENTER)
-                .child(space(pulse * 0.25, pulse * 0.25).radius(pulse * 0.125).fill(Paint::ACCENT).key("snd/pulse"))
+                .child(space(pulse * 0.25, pulse * 0.25).radius(pulse * 0.125).fill(Paint::INK).key("snd/pulse"))
                 .child(text(format!("{bpm:.0} BPM · {mm:02}:{ss:02}"), 14.0, Paint::DIM).font(Font::Mono).key("snd/time")))
             // The headline is decoration that the beat loosens; the lyrics are read, so they stay legible.
             .child(text_lh("夜行", size, size * 1.2, Paint::INK).font(Font::Display).weight(2.0).key("snd/title").respond(amenui::el::Response::Loosen).legible(false))
@@ -970,7 +977,7 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
         0 => base.center().child(text_lh("● ● ● ● ● ● ●\n● ● 点 ● ● ● ●\n● ● ● ● ● ● ●", 12.0, 26.0, Paint::DIM)),
         1 => base.child(text_lh("文字沿着圆的边缘排开，每一行只占用没有被挡住的部分，留出一条均匀的缝。文字沿着圆的边缘排开，每一行只占用没有被挡住的部分。", 11.0, 18.0, Paint::DIM).fill_width()
                 .around(Around::new(vec![Silhouette::circle(w * 0.5, 50.0, 34.0)], 6.0)))
-            .child(space(68.0, 68.0).radius(34.0).fill(Paint::ACCENT).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
+            .child(space(68.0, 68.0).radius(34.0).fill(Paint::INK).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
         2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).markr(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
         // The word alone (in English, "Mountain"), heavy, at the largest whole size whose ink is no
         // wider than the art box, its ink flush with the box's left edge and centred on its height.
@@ -980,11 +987,11 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
                 .child(text("山", size, Paint::INK).font(Font::Display).weight(size * 0.035).shift(-(size * MOUNTAIN_INK.1).round(), -(size * MOUNTAIN_INK.2).round()).key(k("word")))
         }
         4 => base.child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::DIM).absolute(Some(10.0), Some(24.0), None, None))
-            .child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::ACCENT).absolute(Some(w * 0.25), Some(14.0), None, None))
+            .child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::INK).absolute(Some(w * 0.25), Some(14.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).fill(Paint::tone(0.1)).border(1.0, Paint::INK).absolute(Some(w * 0.45), Some(4.0), None, None)),
         5 => (0..16).fold(row().key(k("bars")).height(h).align(AlignItems::END).gap(4.0), |r, b| {
                 let v = 0.2 + 0.75 * (((b as f32) * 1.3).sin() * 0.5 + 0.5) * (1.0 - b as f32 / 20.0);
-                r.child(space(((w - 64.0) / 16.0).max(2.0), (v * h).round()).fill(if b < 3 { Paint::ACCENT } else { Paint::DIM }))
+                r.child(space(((w - 64.0) / 16.0).max(2.0), (v * h).round()).fill(if b < 3 { Paint::INK } else { Paint::DIM }))
             }),
         _ => (0..12).fold(row().key(k("sw")).wrap().gap(6.0).width(w), |r, b| r.child(space(((w - 30.0) / 6.0).max(4.0), 46.0).radius(4.0).fill(Paint::hue((b % 3) as u8).alpha(0.35 + 0.05 * (b / 3) as f32)))),
     }
