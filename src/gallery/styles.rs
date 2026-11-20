@@ -5,8 +5,7 @@ use super::{Gallery, Msg, STYLE_SLOT, Target};
 use crate::demo::{SKY, SPHERE, TERRAIN, TREE};
 use amenui::el::{El, Font, Paint, Scope, Stirr, col, picture, row, space, text, text_lh};
 use amenui::style::styles;
-use super::segmented;
-use amenui::widgets::{Spec, Variant, button_as, card, choice, input, number, switch};
+use amenui::widgets::{Spec, Variant, button_as, card, choice, input, number, switch, segmented};
 use taffy::{AlignItems, JustifyContent};
 
 pub const STYLE_DESC: [&str; 10] = [
@@ -41,8 +40,8 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
     col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(if s.width < super::NARROW { 18.0 } else { 48.0 }, 36.0).ripplr_scope().ripplr(Scope::Container(None))
         .child(row().key(format!("{h}/caption")).fill_width().gap(14.0).align(AlignItems::BASELINE).wrap()
-            .child(text(st.name, 13.0, crate::tokens::DIM).font(Font::Mono).key(format!("{h}/name")))
-            .child(text(STYLE_DESC[i], 13.0, crate::tokens::DIM).key(format!("{h}/desc")).grow(1.0)))
+            .child(text(st.name, 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/name")))
+            .child(text(STYLE_DESC[i], 13.0, Paint::DIM).key(format!("{h}/desc")).grow(1.0)))
         // A composition is drawn at its own size: a narrow window scrolls it sideways.
         .child(if s.width < super::NARROW { col().key(format!("{h}/pan")).fill_width().min_width(0.0).scroll_x().child(body) } else { body })
 }
@@ -67,13 +66,13 @@ fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
         feed = feed.child(col().key(format!("{h}/item{i}")).width(250.0).gap(8.0).on_press(Msg::Row(i)).focusable(false)
             .child(pic(h, &format!("p{i}"), *id, 250.0))
             .child(row().justify(JustifyContent::SPACE_BETWEEN).fill_width()
-                .child(text(*file, 12.0, crate::tokens::TEXT).font(Font::Mono))
+                .child(text(*file, 12.0, Paint::TEXT).font(Font::Mono))
                 .child(text(format!("{tag} {conf:.2}"), 12.0, Paint::ACCENT).font(Font::Mono))));
     }
     col().key(format!("{h}/comp")).fill_width().gap(24.0).gaze_scope()
         .child(row().key(format!("{h}/head")).fill_width().align(AlignItems::END).justify(JustifyContent::SPACE_BETWEEN).wrap().gap(16.0)
             .child(col().gap(4.0)
-                .child(text("FIELD 07 / 观察记录", 12.0, crate::tokens::DIM).font(Font::Mono))
+                .child(text("FIELD 07 / 观察记录", 12.0, Paint::DIM).font(Font::Mono))
                 .child(text_lh("视野里的一切都被看见", 34.0, 44.0, Paint::INK).font(Font::Display)))
             .child(segmented(&format!("{h}/filter"), &names, filter, 30.0, |i| Msg::Choose(0, i))))
         .child(feed)
@@ -90,10 +89,10 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
         [("08:47", "北京 南", "2"), ("08:55", "广州 南", "6"), ("09:03", "成都 东", "4"), ("09:12", "西安 北", "1"), ("09:26", "武汉", "7")]
     };
     let tick = s.clock.floor() as usize;
-    let mut board = col().key(format!("{h}/board")).width(760.0).gap(2.0).pad(22.0, 18.0).radius(4.0).border(2.0, crate::tokens::HAIRLINE);
+    let mut board = col().key(format!("{h}/board")).width(760.0).gap(2.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE);
     board = board.child(row().key(format!("{h}/cols")).fill_width().gap(18.0).pad(0.0, 6.0)
-        .child(text("时间", 12.0, crate::tokens::DIM).width(90.0)).child(text("目的地", 12.0, crate::tokens::DIM).grow(1.0))
-        .child(text("站台", 12.0, crate::tokens::DIM).width(60.0)).child(text("状态", 12.0, crate::tokens::DIM).width(120.0)));
+        .child(text("时间", 12.0, Paint::DIM).width(90.0)).child(text("目的地", 12.0, Paint::DIM).grow(1.0))
+        .child(text("站台", 12.0, Paint::DIM).width(60.0)).child(text("状态", 12.0, Paint::DIM).width(120.0)));
     for (i, (time, dest, plat)) in rows.iter().enumerate() {
         // The status of one row changes every few seconds, as boards do.
         let late = (tick / 4 + i).is_multiple_of(5);
@@ -113,9 +112,9 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
         .child(row().key(format!("{h}/controls")).gap(12.0).align(AlignItems::CENTER).wrap()
             .child(segmented(&format!("{h}/mode"), &["出发", "到达"], s.choices[1].min(1), 30.0, |i| Msg::Choose(1, i)))
             .child(button_as(format!("{h}/refresh"), "刷新", Variant::Default, Msg::Press))
-            .child(text("站台", 12.0, crate::tokens::DIM))
+            .child(text("站台", 12.0, Paint::DIM))
             .child(number(&format!("{h}/platform"), "", s.slides[5], Spec { min: 1.0, max: 9.0, step: 1.0, decimals: 0, unit: "" }, s.draft(Target::StyleNum(5)), |e| Msg::Num(Target::StyleNum(5), e)).width(130.0))
-            .child(text("时差", 12.0, crate::tokens::DIM))
+            .child(text("时差", 12.0, Paint::DIM))
             .child(number(&format!("{h}/offset"), "", s.slides[6], Spec { min: -720.0, max: 720.0, step: 1.0, decimals: 0, unit: "分" }, s.draft(Target::StyleNum(6)), |e| Msg::Num(Target::StyleNum(6), e)).width(150.0)))
 }
 
@@ -129,14 +128,14 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
     // The ticker moves a character's width every second: the text is the view, the clock moves it.
     let step = (s.clock.floor() as usize) % 40;
     let shown: String = msg.chars().chain(msg.chars()).skip(step).take(60).collect();
-    col().key(format!("{h}/panel2")).width(760.0).gap(10.0).pad(22.0, 18.0).radius(4.0).border(2.0, crate::tokens::HAIRLINE)
+    col().key(format!("{h}/panel2")).width(760.0).gap(10.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE)
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN)
-            .child(text(format!("{plat} 站台　·　本站时间"), 12.0, crate::tokens::DIM))
-            .child(text("NEXT 08:47", 12.0, crate::tokens::DIM).font(Font::Mono)))
+            .child(text(format!("{plat} 站台　·　本站时间"), 12.0, Paint::DIM))
+            .child(text("NEXT 08:47", 12.0, Paint::DIM).font(Font::Mono)))
         .child(row().gap(10.0).align(AlignItems::END)
             .child(text_lh(big, 150.0, 156.0, Paint::ACCENT).font(Font::Mono).print(7.0).key(format!("{h}/bigclock")))
             .child(text_lh(secs, 56.0, 64.0, Paint::hue(1)).font(Font::Mono).print(4.0).key(format!("{h}/secs"))))
-        .child(space(1.0, 2.0).fill_width().fill(crate::tokens::HAIRLINE))
+        .child(space(1.0, 2.0).fill_width().fill(Paint::HAIRLINE))
         // The ticker: one long line, clipped to the panel, moved one character a second.
         .child(col().key(format!("{h}/ticker")).fill_width().height(40.0).clip()
             .child(text_lh(shown, 24.0, 36.0, Paint::ACCENT).width(3000.0).key(format!("{h}/ticker-text")).absolute(Some(0.0), Some(2.0), None, None)))
@@ -146,7 +145,7 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
 fn print_zine(s: &Gallery, h: &str) -> El<Msg> {
     let issue = s.choices[2].min(2);
     let issues = ["第 5 期", "第 6 期", "第 7 期"];
-    let para = |k: &str, t: &str| text_lh(t, 15.0, 27.0, crate::tokens::TEXT).key(format!("{h}/{k}"));
+    let para = |k: &str, t: &str| text_lh(t, 15.0, 27.0, Paint::TEXT).key(format!("{h}/{k}"));
     col().key(format!("{h}/comp")).width(900.0).gap(0.0)
         .child(row().key(format!("{h}/mast")).fill_width().height(44.0).pad(18.0, 0.0).fill(Paint::INK).align(AlignItems::CENTER).justify(JustifyContent::SPACE_BETWEEN)
             .child(text("慢 读 · LO-FI ZINE", 15.0, Paint::GROUND).font(Font::Mono))
@@ -154,17 +153,17 @@ fn print_zine(s: &Gallery, h: &str) -> El<Msg> {
         .child(row().key(format!("{h}/spread")).fill_width().gap(36.0).pad(0.0, 30.0).align(AlignItems::START)
             .child(col().key(format!("{h}/left")).width(470.0).gap(18.0)
                 .child(text_lh("复印机里的春天", 64.0, 72.0, Paint::ACCENT).font(Font::Display).weight(1.5).key(format!("{h}/headline")))
-                .child(text("文 / 编辑部　图 / 读者来稿", 13.0, crate::tokens::DIM))
+                .child(text("文 / 编辑部　图 / 读者来稿", 13.0, Paint::DIM))
                 .child(para("p1", "这一期收的是读者寄来的照片和短文。我们把它们放大、复印、再复印，直到颗粒和墨点都成了画面的一部分。"))
                 .child(para("p2", "纸张偏黄，粉色的专色和黑色分两次印，所以总有一点对不准。那一点错位，是手工的证明。"))
                 .child(row().gap(12.0).align(AlignItems::CENTER).wrap()
-                    .child(button_as(format!("{h}/subscribe"), "订阅", Variant::Accent, Msg::Press))
+                    .child(button_as(format!("{h}/subscribe"), "订阅", Variant::Primary, Msg::Press))
                     .child(segmented(&format!("{h}/issue"), &issues, issue, 30.0, |i| Msg::Choose(2, i)))))
             .child(col().key(format!("{h}/right")).width(390.0).gap(12.0)
                 .child(pic_at(h, "photo", if issue == 1 { SKY } else { TREE }, 390.0, 1.0))
                 .child(row().gap(10.0).align(AlignItems::CENTER)
                     .child(space(28.0, 28.0).radius(14.0).fill(Paint::ACCENT))
-                    .child(text_lh("图注：孤树，复印三次。", 13.0, 20.0, crate::tokens::DIM)))))
+                    .child(text_lh("图注：孤树，复印三次。", 13.0, 20.0, Paint::DIM)))))
         .child(space(1.0, 3.0).fill_width().fill(Paint::INK))
 }
 
@@ -175,14 +174,14 @@ fn glitch(s: &Gallery, h: &str) -> El<Msg> {
             .child(text("ERR 0x3F　连接已中断", 14.0, Paint::hue(1)).font(Font::Mono))
             // Pressable, so the pointer coming onto it fires a burst over it.
             .child(text_lh("信号中断", 120.0, 132.0, Paint::INK).font(Font::Display).weight(3.0).key(format!("{h}/title")).on_press(Msg::Press).focusable(false))
-            .child(text_lh("画面会在你经过时短暂地错位。静止时，它就是一张干净的页面。", 16.0, 28.0, crate::tokens::DIM)))
+            .child(text_lh("画面会在你经过时短暂地错位。静止时，它就是一张干净的页面。", 16.0, 28.0, Paint::DIM)))
         .child(row().key(format!("{h}/bar")).fill_width().height(2.0).fill(Paint::ACCENT))
         .child(row().key(format!("{h}/controls")).gap(12.0).align(AlignItems::CENTER).wrap()
-            .child(button_as(format!("{h}/retry"), "重新连接", Variant::Accent, Msg::Press))
+            .child(button_as(format!("{h}/retry"), "重新连接", Variant::Primary, Msg::Press))
             .child(button_as(format!("{h}/skip"), "跳过", Variant::Default, Msg::Press))
             .child(button_as(format!("{h}/report"), "发送报告", Variant::Quiet, Msg::Press))
             .child(switch(format!("{h}/auto"), "自动重试", s.toggles[3], None, Msg::Toggle(3)).width(200.0))
-            .child(text(format!("已重试 {} 次", s.presses), 13.0, crate::tokens::DIM).font(Font::Mono).key(format!("{h}/count"))))
+            .child(text(format!("已重试 {} 次", s.presses), 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/count"))))
         .child(glitch_monitor(s, h))
 }
 
@@ -195,12 +194,12 @@ fn glitch_monitor(s: &Gallery, h: &str) -> El<Msg> {
         let lost = *level == 0.0 && s.presses == 0;
         let bars = (0..12).fold(row().gap(3.0).align(AlignItems::END).height(22.0), |r, b| {
             let on = (b as f32) < level * 12.0 || (!lost && *level == 0.0 && b < 9);
-            r.child(space(6.0, 6.0 + b as f32 * 1.4).fill(if on { Paint::ACCENT } else { crate::tokens::HAIRLINE }))
+            r.child(space(6.0, 6.0 + b as f32 * 1.4).fill(if on { Paint::ACCENT } else { Paint::HAIRLINE }))
         });
         r = r.child(col().key(format!("{h}/ch{i}")).width(260.0).gap(8.0).on_press(Msg::Press).focusable(false)
             .child(pic(h, &format!("ch{i}-pic"), *id, 260.0))
             .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::CENTER)
-                .child(text(*name, 12.0, crate::tokens::TEXT).font(Font::Mono))
+                .child(text(*name, 12.0, Paint::TEXT).font(Font::Mono))
                 .child(text(if lost { "无信号" } else { "已连接" }, 12.0, if lost { Paint::hue(0) } else { Paint::hue(1) }))
                 .child(bars)));
     }
@@ -216,14 +215,14 @@ fn linocut(s: &Gallery, h: &str) -> El<Msg> {
                 .child(space(190.0, 190.0).radius(95.0).fill(Paint::ACCENT).loose(0.6).key(format!("{h}/sun")).absolute(Some(320.0), Some(0.0), None, None))
                 .child(text_lh("刀与木", 140.0, 150.0, Paint::INK).font(Font::Display).weight(3.0).loose(0.45).key(format!("{h}/headline")).absolute(Some(0.0), Some(130.0), None, None)))
             .child(text_lh("每一道线都是从板上挖掉的。留下的才是墨。", 18.0, 30.0, Paint::INK))
-            .child(text_lh("版画展　十一月二十日至十二月十日　每天九点至五点", 14.0, 24.0, crate::tokens::DIM))
+            .child(text_lh("版画展　十一月二十日至十二月十日　每天九点至五点", 14.0, 24.0, Paint::DIM))
             .child(row().gap(12.0).align(AlignItems::CENTER)
-                .child(button_as(format!("{h}/next"), "换一张", Variant::Accent, Msg::Choose(3, (s.choices[3] + 1) % 3)))
-                .child(text(format!("第 {} 张，共 3 张", s.choices[3] % 3 + 1), 13.0, crate::tokens::DIM))))
+                .child(button_as(format!("{h}/next"), "换一张", Variant::Primary, Msg::Choose(3, (s.choices[3] + 1) % 3)))
+                .child(text(format!("第 {} 张，共 3 张", s.choices[3] % 3 + 1), 13.0, Paint::DIM))))
         .child(col().key(format!("{h}/right")).width(380.0).gap(10.0)
             // The print itself is held loose: cut in strokes that follow the form.
             .child(col().key(format!("{h}/print-box")).width(380.0).child(picture(shown, ratio(shown)).key(format!("{h}/print")).markr(STYLE_SLOT).loose(1.0)))
-            .child(text("木版　34 × 28 厘米", 12.0, crate::tokens::DIM)))
+            .child(text("木版　34 × 28 厘米", 12.0, Paint::DIM)))
 }
 
 // ── 6 Tech-Manual: an exploded diagram and its parts list ───────────────────────────────────────────
@@ -240,45 +239,45 @@ fn manual(s: &Gallery, h: &str) -> El<Msg> {
         .child(part(0, 210.0, 40.0, 240.0, 46.0, 8.0))
         .child(part(1, 230.0, 120.0, 200.0, 70.0, 4.0))
         .child(part(2, 270.0, 215.0, 36.0, 36.0, 18.0))
-        .child(space(1.0, 300.0).fill(crate::tokens::DIM).absolute(Some(330.0), Some(70.0), None, None))
+        .child(space(1.0, 300.0).fill(Paint::DIM).absolute(Some(330.0), Some(70.0), None, None))
         .child(part(3, 220.0, 280.0, 220.0, 54.0, 2.0))
         .child(part(4, 250.0, 360.0, 160.0, 44.0, 6.0))
         .child(part(5, 190.0, 440.0, 280.0, 40.0, 10.0));
     let mut list = col().key(format!("{h}/parts")).width(300.0).gap(0.0)
-        .child(row().fill_width().pad(10.0, 8.0).child(text("零件表", 15.0, Paint::INK).font(Font::Display).grow(1.0)).child(text("数量", 12.0, crate::tokens::DIM)))
+        .child(row().fill_width().pad(10.0, 8.0).child(text("零件表", 15.0, Paint::INK).font(Font::Display).grow(1.0)).child(text("数量", 12.0, Paint::DIM)))
         .child(space(1.0, 2.0).fill_width().fill(Paint::INK));
     for (i, (name, n)) in PARTS.iter().enumerate() {
         let on = hot(i);
         let mut r = row().key(format!("{h}/row{i}")).fill_width().height(34.0).pad(10.0, 0.0).gap(12.0).align(AlignItems::CENTER).on_press(Msg::Row(i)).focusable(false)
-            .child(text(format!("{:02}", i + 1), 12.0, if on { Paint::GROUND } else { crate::tokens::DIM }).font(Font::Mono))
-            .child(text(*name, 14.0, if on { Paint::GROUND } else { crate::tokens::TEXT }).grow(1.0))
-            .child(text(format!("×{n}"), 12.0, if on { Paint::GROUND } else { crate::tokens::DIM }).font(Font::Mono));
+            .child(text(format!("{:02}", i + 1), 12.0, if on { Paint::GROUND } else { Paint::DIM }).font(Font::Mono))
+            .child(text(*name, 14.0, if on { Paint::GROUND } else { Paint::TEXT }).grow(1.0))
+            .child(text(format!("×{n}"), 12.0, if on { Paint::GROUND } else { Paint::DIM }).font(Font::Mono));
         if on { r = r.fill(Paint::ACCENT); }
-        list = list.child(r).child(space(1.0, 1.0).fill_width().fill(crate::tokens::HAIRLINE));
+        list = list.child(r).child(space(1.0, 1.0).fill_width().fill(Paint::HAIRLINE));
     }
-    list = list.child(text_lh("把指针移到一行上，图上对应的部件会标出来；反过来也一样。", 12.0, 20.0, crate::tokens::DIM).key(format!("{h}/hint")));
+    list = list.child(text_lh("把指针移到一行上，图上对应的部件会标出来；反过来也一样。", 12.0, 20.0, Paint::DIM).key(format!("{h}/hint")));
     row().key(format!("{h}/comp")).gap(40.0).align(AlignItems::START).wrap()
-        .child(col().gap(8.0).child(text("图 3　分解图（单位：毫米）", 12.0, crate::tokens::DIM).font(Font::Mono)).child(diagram))
+        .child(col().gap(8.0).child(text("图 3　分解图（单位：毫米）", 12.0, Paint::DIM).font(Font::Mono)).child(diagram))
         .child(list)
 }
 
 // ── 7 Normcore: a plain settings form ────────────────────────────────────────────────────────────────
 fn normcore(s: &Gallery, h: &str) -> El<Msg> {
-    let field = |label: &str, el: El<Msg>| row().fill_width().gap(16.0).align(AlignItems::CENTER).child(row().width(120.0).child(text(label, 14.0, crate::tokens::TEXT))).child(el);
+    let field = |label: &str, el: El<Msg>| row().fill_width().gap(16.0).align(AlignItems::CENTER).child(row().width(120.0).child(text(label, 14.0, Paint::TEXT))).child(el);
     col().key(format!("{h}/comp")).width(560.0).gap(16.0)
         .child(text("设置", 26.0, Paint::INK).font(Font::Display))
-        .child(text("通用", 12.0, crate::tokens::DIM))
+        .child(text("通用", 12.0, Paint::DIM))
         .child(card(format!("{h}/general"), None, col().gap(12.0).fill_width()
             .child(field("名称", input(&format!("{h}/name"), &s.text, "我的电脑", 300.0, 40, Msg::Text)))
             .child(field("外观", segmented(&format!("{h}/look"), &["自动", "浅色", "深色"], s.choices[4].min(2), 28.0, |i| Msg::Choose(4, i))))
             .child(field("字号", number(&format!("{h}/size"), "", s.slides[3], Spec { min: 10.0, max: 22.0, step: 1.0, decimals: 0, unit: "pt" }, s.draft(Target::StyleNum(3)), |e| Msg::Num(Target::StyleNum(3), e)).width(300.0)))).width(560.0))
-        .child(text("通知", 12.0, crate::tokens::DIM))
+        .child(text("通知", 12.0, Paint::DIM))
         .child(card(format!("{h}/notes"), None, col().gap(8.0).fill_width()
             .child(switch(format!("{h}/updates"), "自动检查更新", s.toggles[4], None, Msg::Toggle(4)).fill_width())
             .child(switch(format!("{h}/alerts"), "显示通知", s.toggles[5], None, Msg::Toggle(5)).fill_width())).width(560.0))
         .child(row().fill_width().gap(10.0).justify(JustifyContent::END)
             .child(button_as(format!("{h}/cancel"), "取消", Variant::Default, Msg::Press))
-            .child(button_as(format!("{h}/save"), "存储", Variant::Accent, Msg::Press)))
+            .child(button_as(format!("{h}/save"), "存储", Variant::Primary, Msg::Press)))
 }
 
 // ── 8 Cyberminimalism: one command line ──────────────────────────────────────────────────────────────
@@ -297,16 +296,16 @@ fn cyber(s: &Gallery, h: &str) -> El<Msg> {
         results = results.child(row().key(format!("{h}/hit{i}")).fill_width().height(34.0).pad(12.0, 0.0).gap(16.0).align(AlignItems::CENTER).on_press(Msg::Row(i)).focusable(false)
             .child(text(if on { "›" } else { " " }, 13.0, Paint::ACCENT).font(Font::Mono).width(10.0))
             .child(text(*c, 13.0, if on { Paint::ACCENT } else { Paint::INK }).font(Font::Mono).width(150.0))
-            .child(text(*d, 13.0, crate::tokens::DIM).grow(1.0)));
+            .child(text(*d, 13.0, Paint::DIM).grow(1.0)));
     }
-    if hits.is_empty() { results = results.child(row().fill_width().height(34.0).pad(34.0, 0.0).align(AlignItems::CENTER).child(text("没有匹配的命令", 13.0, crate::tokens::DIM))); }
+    if hits.is_empty() { results = results.child(row().fill_width().height(34.0).pad(34.0, 0.0).align(AlignItems::CENTER).child(text("没有匹配的命令", 13.0, Paint::DIM))); }
     // Fixed height for the list, so the line above stays put while results come and go.
     let list = col().key(format!("{h}/list")).width(w).height(8.0 * 34.0).child(results);
     let picked = hits.get(sel).map_or("—".to_owned(), |(c, _)| (*c).to_owned());
     let height = (s.height - 210.0).max(560.0);
     col().key(format!("{h}/comp")).fill_width().height(height).align(AlignItems::CENTER).justify(JustifyContent::CENTER).gap(0.0).gaze_scope()
-        .child(text("SESSION 2A · 本地", 11.0, crate::tokens::DIM).font(Font::Mono).absolute(Some(0.0), Some(0.0), None, None))
-        .child(text("23:58", 11.0, crate::tokens::DIM).font(Font::Mono).absolute(None, Some(0.0), Some(0.0), None))
+        .child(text("SESSION 2A · 本地", 11.0, Paint::DIM).font(Font::Mono).absolute(Some(0.0), Some(0.0), None, None))
+        .child(text("23:58", 11.0, Paint::DIM).font(Font::Mono).absolute(None, Some(0.0), Some(0.0), None))
         .child(row().key(format!("{h}/line")).width(w).gap(12.0).align(AlignItems::CENTER)
             .child(text("›", 18.0, Paint::ACCENT).font(Font::Mono))
             .child(input(&format!("{h}/query"), &s.query, "输入命令", w - 30.0, 40, Msg::Query).border(0.0, Paint::GROUND)))
@@ -314,7 +313,7 @@ fn cyber(s: &Gallery, h: &str) -> El<Msg> {
         .child(space(1.0, 10.0))
         .child(list)
         .child(row().key(format!("{h}/status")).fill_width().justify(JustifyContent::SPACE_BETWEEN).absolute(Some(0.0), None, Some(0.0), Some(0.0))
-            .child(text(format!("{} 条结果　·　↑↓ 选择　·　回车执行", hits.len()), 11.0, crate::tokens::DIM).font(Font::Mono))
+            .child(text(format!("{} 条结果　·　↑↓ 选择　·　回车执行", hits.len()), 11.0, Paint::DIM).font(Font::Mono))
             .child(text(format!("已选 {picked}"), 11.0, Paint::ACCENT).font(Font::Mono).key(format!("{h}/picked"))))
 }
 
@@ -334,10 +333,10 @@ fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
         .child(poster)
         .child(col().key(format!("{h}/side")).width(260.0).gap(18.0)
             .child(text_lh("形式追随功能。", 24.0, 34.0, Paint::INK).font(Font::Display))
-            .child(text_lh("选一个形状，它会变大。三种颜色、三种形状和一道粗网格，就是这张海报的全部。", 15.0, 26.0, crate::tokens::TEXT))
+            .child(text_lh("选一个形状，它会变大。三种颜色、三种形状和一道粗网格，就是这张海报的全部。", 15.0, 26.0, Paint::TEXT))
             .child(segmented(&format!("{h}/shape"), &["圆", "方", "条"], pick, 32.0, |i| Msg::Choose(5, i)))
             .child(choice(&format!("{h}/weight"), "网格", &["细", "粗"], s.choices[6].min(1), |i| Msg::Choose(6, i)))
-            .child(button_as(format!("{h}/print"), "印一张", Variant::Accent, Msg::Press)))
+            .child(button_as(format!("{h}/print"), "印一张", Variant::Primary, Msg::Press)))
 }
 
 // ── 10 Loose Thread: a quiet page that frays where the pointer passes ──────────────────────────────
@@ -386,7 +385,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     if let Some(st) = stylus { comp = comp.child(st); }
     let paper = s.theme == theme_index(THREAD_PAPER.name);
     // The footer's controls: small quiet type, the one that is on in the accent; no boxes.
-    let word = |t: String, on: bool| text(t, 12.0, if on { Paint::ACCENT } else { crate::tokens::TEXT }).whisper();
+    let word = |t: String, on: bool| text(t, 12.0, if on { Paint::ACCENT } else { Paint::TEXT }).whisper();
     let grounds = [THREAD.name, THREAD_PAPER.name];
     let pick = usize::from(paper);
     let keys = move |k: amenui::el::Key, _: bool| -> Option<Msg> {
@@ -396,7 +395,7 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
     };
     let ground = row().key(format!("{h}/ground")).gap(8.0).align(AlignItems::BASELINE).on_key(keys).role(Role::RadioGroup).label(en("thread.ground"))
         .child(row().key(format!("{h}/ground:0")).on_press(Msg::Theme(theme_index(THREAD.name))).focusable(false).role(Role::Radio).selected(!paper).label(en("thread.black")).child(word(en("thread.black"), !paper)))
-        .child(text("·", 12.0, crate::tokens::TEXT).whisper())
+        .child(text("·", 12.0, Paint::TEXT).whisper())
         .child(row().key(format!("{h}/ground:1")).on_press(Msg::Theme(theme_index(THREAD_PAPER.name))).focusable(false).role(Role::Radio).selected(paper).label(en("thread.paper")).child(word(en("thread.paper"), paper)));
     let flag = |k: &str, label: String, on: bool, f: u8| row().key(format!("{h}/{k}")).on_press(Msg::PostFlag(f)).role(Role::Switch).checked(on).label(label.clone()).child(word(label, on));
     let footer = row().key(format!("{h}/footer")).width(w).gap(28.0).align(AlignItems::BASELINE).justify(JustifyContent::END).absolute(Some(0.0), Some(height - 22.0), None, None)
@@ -404,15 +403,15 @@ fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
         .child(flag("binary", en("thread.binary"), s.post.binary, 0))
         .child(flag("invert", en("thread.invert"), s.post.invert, 1));
     comp
-        .child(text(en("thread.kicker"), 11.0, crate::tokens::TEXT).whisper().key(format!("{h}/kicker")))
+        .child(text(en("thread.kicker"), 11.0, Paint::TEXT).whisper().key(format!("{h}/kicker")))
         .child(space(1.0, 22.0))
         .child(text_lh(en("thread.title"), 30.0, 40.0, Paint::INK).font(Font::Whisper).tracking(0.3).key(format!("{h}/title")).respond(amenui::el::Response::Loosen).legible(false))
         .child(space(1.0, 34.0))
         .child(row().key(format!("{h}/spread")).width(w).gap(if narrow { 24.0 } else { w - pic_w - side_w }).align(AlignItems::START).wrap()
             .child(col().key(format!("{h}/fig")).gap(10.0)
                 .child(pic(h, "pic", SPHERE, pic_w))
-                .child(text(en("thread.caption"), 11.0, crate::tokens::TEXT).whisper().key(format!("{h}/caption"))))
+                .child(text(en("thread.caption"), 11.0, Paint::TEXT).whisper().key(format!("{h}/caption"))))
             .child(col().key(format!("{h}/side")).width(side_w).pad(0.0, 6.0)
-                .child(text_lh(en("thread.body"), 14.0, 24.0, crate::tokens::TEXT).key(format!("{h}/body")))))
+                .child(text_lh(en("thread.body"), 14.0, 24.0, Paint::TEXT).key(format!("{h}/body")))))
         .child(footer)
 }

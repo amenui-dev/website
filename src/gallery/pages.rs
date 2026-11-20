@@ -1,13 +1,13 @@
 //! The pages of the gallery: one per component, one per mark set, and the type. Every component page
 //! has the same parts, top to bottom: title, one sentence, 预览, 变体, 参数, 源码.
-use super::{Gallery, IMAGE_SLOT, MARK_SLOT, Msg, Page, Target, WIPE_SPEC, segmented};
+use super::{Gallery, IMAGE_SLOT, MARK_SLOT, Msg, Page, Target, WIPE_SPEC};
 use crate::demo::{self, PICTURE_SIZES, SKY, SPHERE, TERRAIN, TREE};
 use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, stack, text, text_lh};
 use amenui::morph::{Ease, FlowSpec, MorphSpec};
 use amenui::style::set;
 use amenui::text::{MONO, PIXEL, SANS};
 use amenui::widgets::{
-    Edit, Spec, TextEdit, Variant, button_as, card, choice, dialog, divider, image, input, list, list_virtual, number, scroll_area,
+    Edit, Spec, TextEdit, Variant, button_as, card, choice, dialog, divider, image, input, list, list_virtual, number, scroll_area, segmented,
     slider, switch, switch_sized, tabs, textarea, vdivider,
 };
 use taffy::{AlignItems, JustifyContent};
@@ -103,13 +103,13 @@ pub(crate) fn header(s: &Gallery, h: &str, title: &str, ident: &str, desc: &str)
         .child(row().key(format!("{h}/title-row")).wrap().gap(16.0).align(AlignItems::BASELINE)
             // The title is the same thing on every page: it flows when the page changes.
             .child(text_lh(title, sz.display, (sz.display * 1.3).round(), Paint::INK).font(Font::Display).key(format!("{h}/title")).flow("page-title").heading(1))
-            .child(text(ident, 13.0, crate::tokens::DIM).font(Font::Mono)))
-        .child(text_lh(desc, sz.body, (sz.body * 1.7).round(), crate::tokens::DIM).key(format!("{h}/desc")))
+            .child(text(ident, 13.0, Paint::DIM).font(Font::Mono)))
+        .child(text_lh(desc, sz.body, (sz.body * 1.7).round(), Paint::DIM).key(format!("{h}/desc")))
 }
 
 pub(crate) fn section(h: &str, name: &str, body: El<Msg>) -> El<Msg> {
     col().key(format!("{h}/{name}")).gap(12.0).fill_width().min_width(0.0)
-        .child(text(name, 13.0, crate::tokens::DIM).heading(2))
+        .child(text(name, 13.0, Paint::DIM).heading(2))
         .child(body)
 }
 
@@ -118,9 +118,9 @@ pub(crate) fn section(h: &str, name: &str, body: El<Msg>) -> El<Msg> {
 fn variants(h: &str, items: Vec<(&str, El<Msg>)>) -> El<Msg> {
     let mut g = row().key(format!("{h}/variants")).fill_width().wrap().gap(14.0).align(AlignItems::STRETCH);
     for (i, (cap, el)) in items.into_iter().enumerate() {
-        g = g.child(col().key(format!("{h}/v{i}")).gap(12.0).pad(16.0, 14.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).justify(JustifyContent::SPACE_BETWEEN)
+        g = g.child(col().key(format!("{h}/v{i}")).gap(12.0).pad(16.0, 14.0).radius(6.0).border(1.0, Paint::HAIRLINE).justify(JustifyContent::SPACE_BETWEEN)
             .child(el)
-            .child(text(cap, 12.0, crate::tokens::DIM)));
+            .child(text(cap, 12.0, Paint::DIM)));
     }
     g
 }
@@ -141,11 +141,11 @@ pub(super) fn source(h: &str, file: &str, src: &str) -> El<Msg> {
     let mut lines = col().key(format!("{h}/lines")).fill_width();
     for (i, l) in src.lines().enumerate() {
         lines = lines.child(row().gap(14.0).align(AlignItems::START)
-            .child(row().width(30.0).justify(JustifyContent::END).child(text_lh((i + 1).to_string(), 12.0, 18.0, crate::tokens::DIM).font(Font::Mono)))
-            .child(text_lh(if l.is_empty() { " " } else { l }, 12.0, 18.0, crate::tokens::TEXT).font(Font::Mono).grow(1.0).selectable().key(format!("{h}/src{i}"))));
+            .child(row().width(30.0).justify(JustifyContent::END).child(text_lh((i + 1).to_string(), 12.0, 18.0, Paint::DIM).font(Font::Mono)))
+            .child(text_lh(if l.is_empty() { " " } else { l }, 12.0, 18.0, Paint::TEXT).font(Font::Mono).grow(1.0).selectable().key(format!("{h}/src{i}"))));
     }
     col().key(format!("{h}/source")).fill_width().gap(8.0)
-        .child(text(file, 12.0, crate::tokens::DIM).font(Font::Mono))
+        .child(text(file, 12.0, Paint::DIM).font(Font::Mono))
         .child(scroll_area(&format!("{h}/code"), 380.0, lines).fill_width())
 }
 
@@ -158,14 +158,14 @@ fn long_page(s: &Gallery) -> El<Msg> {
         let flipped = on.get(i).copied().unwrap_or(false);
         let state = (i % 3 == 0) != flipped;
         row().gap(12.0).grow(1.0).align(AlignItems::CENTER)
-            .child(text(format!("{:05}", i + 1), 12.0, crate::tokens::DIM).font(Font::Mono).width(48.0))
-            .child(text(format!("第 {} 行 · 只有看得见的行在树里", i + 1), 14.0, crate::tokens::TEXT).grow(1.0))
+            .child(text(format!("{:05}", i + 1), 12.0, Paint::DIM).font(Font::Mono).width(48.0))
+            .child(text(format!("第 {} 行 · 只有看得见的行在树里", i + 1), 14.0, Paint::TEXT).grow(1.0))
             .child(switch_sized(format!("long/sw{i}"), "", state, None, 14.0, Msg::LongToggle(i)).width(44.0))
     });
     col().key(format!("{h}/page")).fill_width().max_width(980.0).gap(24.0)
         .child(header(s, h, "一万行", "list_virtual", "一万行，每行一段文字和一个小开关。只有看得见的行（和上下各几行）在界面树里；滚动只移动它们，不重新布局；方向键、Page Up / Page Down、Home、End 换选中的行，选中的行滚进视野。"))
         .child(rows.fill_width())
-        .child(text(format!("选中：{}", s.long_pick.map_or("—".to_owned(), |i| format!("第 {} 行", i + 1))), 13.0, crate::tokens::DIM).key("long/picked"))
+        .child(text(format!("选中：{}", s.long_pick.map_or("—".to_owned(), |i| format!("第 {} 行", i + 1))), 13.0, Paint::DIM).key("long/picked"))
 }
 
 fn comp_page(s: &Gallery, c: usize) -> El<Msg> {
@@ -222,12 +222,12 @@ fn scrolling(s: &Gallery) -> El<Msg> {
         nums = nums.child(number(&format!("{h}/p{i}"), name, *scroll_slot(&mut sc, i), *spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
     let lines = (0..60).fold(col().key(format!("{h}/lines")).gap(6.0).fill_width(), |c, i| {
-        c.child(text(format!("{:03}  慢慢滚动时，字是一张被整像素移动的图：清楚、稳定；快了，每种材质留下自己的痕迹。", i + 1), 14.0, crate::tokens::TEXT).key(format!("{h}/line{i}")))
+        c.child(text(format!("{:03}  慢慢滚动时，字是一张被整像素移动的图：清楚、稳定；快了，每种材质留下自己的痕迹。", i + 1), 14.0, Paint::TEXT).key(format!("{h}/line{i}")))
     });
     col().key(format!("{h}/body")).fill_width().gap(14.0)
-        .child(col().key(format!("{h}/try")).fill_width().height(280.0).scroll().bar().pad(20.0, 16.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).child(lines))
+        .child(col().key(format!("{h}/try")).fill_width().height(280.0).scroll().bar().pad(20.0, 16.0).radius(6.0).border(1.0, Paint::HAIRLINE).child(lines))
         .child(nums)
-        .child(text("低于平静速度时，滚动只是整像素的移动，材质的点阵跟着内容走；高于它，痕迹按速度渐强（平静速度到满速），停下后在“收住”的时间里消失。plain 只有一点拖尾；dot 一行一行地落在点阵上，留下荧光的点；halftone 和 print 的第二色错开；ascii 落在字格上，留下浅的字；glitch 偶尔整带错开。正文从不因此松开。", 13.0, crate::tokens::DIM))
+        .child(text("低于平静速度时，滚动只是整像素的移动，材质的点阵跟着内容走；高于它，痕迹按速度渐强（平静速度到满速），停下后在“收住”的时间里消失。plain 只有一点拖尾；dot 一行一行地落在点阵上，留下荧光的点；halftone 和 print 的第二色错开；ascii 落在字格上，留下浅的字；glitch 偶尔整带错开。正文从不因此松开。", 13.0, Paint::DIM))
 }
 
 /// The scope choices of the counter: its own subtree, the row it is in, the whole window.
@@ -245,8 +245,8 @@ fn ripple(s: &Gallery) -> El<Msg> {
     let h = "ripple";
     let neighbour = |i: usize, r: Response, name: &str| col().key(format!("{h}/n{i}")).gap(8.0).align(AlignItems::CENTER).respond(r)
         .child(row().key(format!("{h}/n{i}/shape")).width(64.0).height(40.0).radius(6.0).fill(Paint::hue((i % 3) as u8)))
-        .child(text(name, 13.0, crate::tokens::TEXT).key(format!("{h}/n{i}/label")));
-    let area = row().key(format!("{h}/area")).ripplr_scope().fill_width().wrap().gap(28.0).pad(28.0, 24.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).align(AlignItems::CENTER)
+        .child(text(name, 13.0, Paint::TEXT).key(format!("{h}/n{i}/label")));
+    let area = row().key(format!("{h}/area")).ripplr_scope().fill_width().wrap().gap(28.0).pad(28.0, 24.0).radius(6.0).fill(Paint::RAISED).border(1.0, Paint::HAIRLINE).align(AlignItems::CENTER)
         .child(button_as(format!("{h}/counter"), "计数", Variant::Default, Msg::RipCount).ripplr(ripple_scope(s.rip_scope)))
         .child(text(s.rip_count.to_string(), 28.0, Paint::INK).font(Font::Display).key(format!("{h}/count")).width(80.0))
         .child(neighbour(0, Response::Ignore, "忽略"))
@@ -260,11 +260,11 @@ fn ripple(s: &Gallery) -> El<Msg> {
     col().key(format!("{h}/body")).fill_width().gap(14.0)
         .child(area)
         .child(row().key(format!("{h}/controls")).wrap().gap(14.0).align(AlignItems::CENTER)
-            .child(text("范围", 13.0, crate::tokens::DIM))
+            .child(text("范围", 13.0, Paint::DIM))
             .child(segmented(&format!("{h}/scope"), &RIPPLE_SCOPES, s.rip_scope, 30.0, Msg::RipScope))
             .child(button_as(format!("{h}/burst"), "连点 10 次", Variant::Default, Msg::RipBurst)))
         .child(nums)
-        .child(text("按“计数”：数字的像素重新组合成新的数字；波前只到范围里的东西。“忽略”不动，“轻推”只被推一下，“松开”散开；正文和控件最多松开到可读上限。", 13.0, crate::tokens::DIM))
+        .child(text("按“计数”：数字的像素重新组合成新的数字；波前只到范围里的东西。“忽略”不动，“轻推”只被推一下，“松开”散开；正文和控件最多松开到可读上限。", 13.0, Paint::DIM))
 }
 
 /// The live preview of a component and its variants.
@@ -279,22 +279,22 @@ pub fn index_preview(s: &Gallery, c: usize) -> El<Msg> {
     match c {
         BUTTON => row().gap(12.0).align(AlignItems::CENTER)
             .child(button_as(k("live"), "Press", Variant::Default, Msg::Press))
-            .child(button_as(k("live-accent"), "Save", Variant::Accent, Msg::Press)),
+            .child(button_as(k("live-accent"), "Save", Variant::Primary, Msg::Press)),
         NUMBER => number(&k("live"), "", s.value, number_spec(s), s.draft(Target::Value), |e| Msg::Num(Target::Value, e)),
         INPUT => input(&k("live"), &s.text, "Type some text", 200.0, s.param(INPUT, 1) as usize, Msg::Text),
         SWITCH => switch_sized(k("live"), "", s.on, None, 22.0, Msg::Switch),
         SLIDER => slider(&k("live"), s.level, slider_spec(s), 200.0, Msg::Level).label("Value"),
-        TABS => tabs(&k("live"), &["All", "Images", "Text"], s.tab.min(2), 14.0, 2.0, Msg::Tab, text("Content", 13.0, crate::tokens::DIM).key(k("panel"))).width(200.0),
+        TABS => tabs(&k("live"), &["All", "Images", "Text"], s.tab.min(2), 14.0, 2.0, Msg::Tab, text("Content", 13.0, Paint::DIM).key(k("panel"))).width(200.0),
         CHOICE => segmented(&k("live"), &["Small", "Medium", "Large"], s.pick, 30.0, Msg::Pick),
         LIST => list(&k("live"), &[("Photo", "JPG"), ("Notes", "MD"), ("Voice", "M4A")], s.row, 28.0, 90.0, Msg::Row).width(200.0),
-        CARD => card(k("live"), Some("Title"), text("Related content, together.", 13.0, crate::tokens::TEXT)).width(200.0),
+        CARD => card(k("live"), Some("Title"), text("Related content, together.", 13.0, Paint::TEXT)).width(200.0),
         DIALOG => button_as(k("open"), "Rename…", Variant::Default, Msg::Dialog(1)),
         // Inset by the card's padding inside the preview's height too: 16 px above and below.
         IMAGE => col().width(((super::index::PREVIEW_H - 32.0) / ratio(TREE)).min(200.0)).child(picture(TREE, ratio(TREE)).key(k("live")).markr(IMAGE_SLOT)),
-        DIVIDER => col().width(200.0).gap(10.0).child(text("Above", 13.0, crate::tokens::TEXT)).child(divider(1.0)).child(text("Below", 13.0, crate::tokens::TEXT)),
+        DIVIDER => col().width(200.0).gap(10.0).child(text("Above", 13.0, Paint::TEXT)).child(divider(1.0)).child(text("Below", 13.0, Paint::TEXT)),
         SCROLL => {
             let mut c = col().key(k("lines")).gap(6.0);
-            for i in 0..3 { c = c.child(text(format!("Line {} of the area.", i + 1), 13.0, crate::tokens::TEXT)); }
+            for i in 0..3 { c = c.child(text(format!("Line {} of the area.", i + 1), 13.0, Paint::TEXT)); }
             scroll_area(&k("live"), 92.0, c).width(200.0)
         }
         _ => live(s, c),
@@ -309,11 +309,12 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         BUTTON => {
             let live = row().gap(16.0).wrap().align(AlignItems::CENTER)
                 .child(button_as(k("live"), "按下", Variant::Default, Msg::Press).height(pr(0)).pad(pr(1), 0.0).radius(pr(2)))
-                .child(button_as(k("live-accent"), "保存", Variant::Accent, Msg::Press).height(pr(0)).pad(pr(1), 0.0).radius(pr(2)))
-                .child(text(format!("按下了 {} 次", s.presses), sz.body, crate::tokens::DIM).key(k("count")));
+                .child(button_as(k("live-accent"), "保存", Variant::Primary, Msg::Press).height(pr(0)).pad(pr(1), 0.0).radius(pr(2)))
+                .child(text(format!("按下了 {} 次", s.presses), sz.body, Paint::DIM).key(k("count")));
             (live, vec![
                 ("默认", button_as(k("a"), "默认", Variant::Default, Msg::Press)),
                 ("安静", button_as(k("b"), "安静", Variant::Quiet, Msg::Press)),
+                ("主要", button_as(k("p"), "主要", Variant::Primary, Msg::Press)),
                 ("强调", button_as(k("c"), "强调", Variant::Accent, Msg::Press)),
                 ("不可用", button_as(k("d"), "不可用", Variant::Default, Msg::Press).disabled(true)),
                 ("强调，不可用", button_as(k("e"), "强调", Variant::Accent, Msg::Press).disabled(true)),
@@ -334,7 +335,7 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         INPUT => {
             let live = col().gap(10.0)
                 .child(input(&k("live"), &s.text, "输入一些文字", pr(0), pr(1) as usize, Msg::Text))
-                .child(text(format!("{} 个字", s.text.text.chars().count()), sz.small, crate::tokens::DIM).key(k("count")))
+                .child(text(format!("{} 个字", s.text.text.chars().count()), sz.small, Paint::DIM).key(k("count")))
                 .child(textarea(&k("notes"), &s.notes, "多行：回车换行，上下方向键按行移动", pr(0), 4, 2000, Msg::Notes));
             (live, vec![
                 ("空，显示占位文字", input(&k("a"), &TextEdit::default(), "名称", 220.0, 40, |_| Msg::Nothing)),
@@ -355,7 +356,7 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
             let spec = slider_spec(s);
             let live = row().gap(16.0).align(AlignItems::CENTER)
                 .child(slider(&k("live"), s.level, spec, pr(3), Msg::Level).label("数值"))
-                .child(text(spec.show(s.level), sz.body, crate::tokens::TEXT).font(Font::Mono).key(k("value")));
+                .child(text(spec.show(s.level), sz.body, Paint::TEXT).font(Font::Mono).key(k("value")));
             let v = Spec { min: 0.0, max: 100.0, step: 1.0, decimals: 0, unit: "" };
             (live, vec![
                 ("最小", slider(&k("a"), 0.0, v, 180.0, |_| Msg::Nothing)),
@@ -367,8 +368,8 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         TABS => {
             const PANELS: [&str; 3] = ["概览：这一组内容的摘要。", "参数：可以调整的数值都在这里。", "记录：最近的操作按时间排列。"];
             let live = tabs(&k("live"), &["概览", "参数", "记录"], s.tab, pr(0), pr(1), Msg::Tab,
-                text(PANELS[s.tab.min(2)], sz.body, crate::tokens::TEXT).key(k(&format!("panel{}", s.tab))));
-            let small = |key: &str, cur: usize| tabs(&k(key), &["全部", "图片", "文字"], cur, 14.0, 2.0, |_| Msg::Nothing, text("内容", 13.0, crate::tokens::DIM));
+                text(PANELS[s.tab.min(2)], sz.body, Paint::TEXT).key(k(&format!("panel{}", s.tab))));
+            let small = |key: &str, cur: usize| tabs(&k(key), &["全部", "图片", "文字"], cur, 14.0, 2.0, |_| Msg::Nothing, text("内容", 13.0, Paint::DIM));
             (live.width(420.0), vec![("选中第一个", small("a", 0)), ("选中第二个", small("b", 1))])
         }
         CHOICE => {
@@ -394,27 +395,27 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
             ])
         }
         CARD => {
-            let body = text_lh("卡片把一组相关的内容放在一起。它只是一个带边框的区域，里面可以放任何东西。", sz.body, (sz.body * 1.7).round(), crate::tokens::TEXT);
-            let live = card(k("live"), Some("卡片标题"), body).pad(pr(0), pr(0)).radius(pr(1)).border(pr(2), crate::tokens::HAIRLINE).width(440.0);
+            let body = text_lh("卡片把一组相关的内容放在一起。它只是一个带边框的区域，里面可以放任何东西。", sz.body, (sz.body * 1.7).round(), Paint::TEXT);
+            let live = card(k("live"), Some("卡片标题"), body).pad(pr(0), pr(0)).radius(pr(1)).border(pr(2), Paint::HAIRLINE).width(440.0);
             (live, vec![
-                ("带标题", card(k("a"), Some("标题"), text("内容", 13.0, crate::tokens::TEXT)).width(220.0)),
-                ("不带标题", card(k("b"), None, text("内容", 13.0, crate::tokens::TEXT)).width(220.0)),
+                ("带标题", card(k("a"), Some("标题"), text("内容", 13.0, Paint::TEXT)).width(220.0)),
+                ("不带标题", card(k("b"), None, text("内容", 13.0, Paint::TEXT)).width(220.0)),
             ])
         }
         DIALOG => {
             let (w, beneath) = (pr(0), pr(1));
             let form = col().gap(14.0)
-                .child(text_lh("给这一组设置换一个名称。", sz.body, (sz.body * 1.7).round(), crate::tokens::TEXT))
+                .child(text_lh("给这一组设置换一个名称。", sz.body, (sz.body * 1.7).round(), Paint::TEXT))
                 .child(input(&k("name"), &s.dialog_text, "名称", w - 44.0, 40, Msg::DialogText))
                 .child(row().gap(10.0).justify(JustifyContent::END)
                     .child(button_as(k("cancel"), "取消", Variant::Default, Msg::Dialog(0)))
-                    .child(button_as(k("ok"), "确定", Variant::Accent, Msg::Dialog(0))));
+                    .child(button_as(k("ok"), "确定", Variant::Primary, Msg::Dialog(0))));
             let note = col().gap(14.0)
-                .child(text_lh("这个操作不能撤销。", sz.body, (sz.body * 1.7).round(), crate::tokens::TEXT))
-                .child(row().gap(10.0).justify(JustifyContent::END).child(button_as(k("ok2"), "好", Variant::Accent, Msg::Dialog(0))));
+                .child(text_lh("这个操作不能撤销。", sz.body, (sz.body * 1.7).round(), Paint::TEXT))
+                .child(row().gap(10.0).justify(JustifyContent::END).child(button_as(k("ok2"), "好", Variant::Primary, Msg::Dialog(0))));
             let live = row().gap(16.0).align(AlignItems::CENTER)
                 .child(button_as(k("open"), "打开对话框", Variant::Default, Msg::Dialog(1)))
-                .child(text(if s.dialog == 0 { "对话框已关闭" } else { "对话框已打开" }, sz.body, crate::tokens::DIM).key(k("state")))
+                .child(text(if s.dialog == 0 { "对话框已关闭" } else { "对话框已打开" }, sz.body, Paint::DIM).key(k("state")))
                 .child(dialog(&k("dialog"), s.dialog == 1, "重命名", w, beneath, Msg::Dialog(0), form))
                 .child(dialog(&k("dialog2"), s.dialog == 2, "删除", w, beneath, Msg::Dialog(0), note));
             (live, vec![
@@ -435,22 +436,22 @@ fn component(s: &Gallery, c: usize) -> (El<Msg>, Vec<(&'static str, El<Msg>)>) {
         DIVIDER => {
             let gap = pr(1);
             let live = col().width(440.0).gap(gap)
-                .child(text("上面一组", sz.body, crate::tokens::TEXT))
+                .child(text("上面一组", sz.body, Paint::TEXT))
                 .child(divider(pr(0)))
-                .child(text("下面一组", sz.body, crate::tokens::TEXT));
+                .child(text("下面一组", sz.body, Paint::TEXT));
             let side = row().height(40.0).gap(14.0).align(AlignItems::STRETCH)
-                .child(row().align(AlignItems::CENTER).child(text("左", 13.0, crate::tokens::TEXT))).child(vdivider(1.0))
-                .child(row().align(AlignItems::CENTER).child(text("右", 13.0, crate::tokens::TEXT)));
+                .child(row().align(AlignItems::CENTER).child(text("左", 13.0, Paint::TEXT))).child(vdivider(1.0))
+                .child(row().align(AlignItems::CENTER).child(text("右", 13.0, Paint::TEXT)));
             (live, vec![
-                ("横向", col().width(180.0).gap(10.0).child(text("上面", 13.0, crate::tokens::TEXT)).child(divider(1.0)).child(text("下面", 13.0, crate::tokens::TEXT))),
+                ("横向", col().width(180.0).gap(10.0).child(text("上面", 13.0, Paint::TEXT)).child(divider(1.0)).child(text("下面", 13.0, Paint::TEXT))),
                 ("竖向", side),
-                ("粗", col().width(180.0).gap(10.0).child(text("上面", 13.0, crate::tokens::TEXT)).child(divider(3.0)).child(text("下面", 13.0, crate::tokens::TEXT))),
+                ("粗", col().width(180.0).gap(10.0).child(text("上面", 13.0, Paint::TEXT)).child(divider(3.0)).child(text("下面", 13.0, Paint::TEXT))),
             ])
         }
         SCROLL => {
             let lines = |n: usize, key: &str| {
                 let mut c = col().key(k(key)).gap(6.0);
-                for i in 0..n { c = c.child(text(format!("第 {} 行：滚动区里的一行文字。", i + 1), 14.0, crate::tokens::TEXT)); }
+                for i in 0..n { c = c.child(text(format!("第 {} 行：滚动区里的一行文字。", i + 1), 14.0, Paint::TEXT)); }
                 c
             };
             (scroll_area(&k("live"), pr(0), lines(pr(1) as usize, "live-lines")).width(440.0), vec![
@@ -522,7 +523,7 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     // marks right of it, small capital tags in the top corners (the strip above lists the marks).
     let pw = (if s.width < super::NARROW { s.width - 36.0 } else { s.width - super::side(s) - 120.0 }).clamp(240.0, 820.0);
     let phh = pw * ph as f32 / w as f32;
-    let tag = |t: &str, k: &str| text(t, 11.0, crate::tokens::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore).pass(true);
+    let tag = |t: &str, k: &str| text(t, 11.0, Paint::DIM).font(Font::Mono).key(format!("{h}/{k}")).respond(Response::Ignore).pass(true);
     let hx = pw * s.wipe;
     // The divider, the handle and the two tags over the picture let the pointer through, so a drag
     // that starts on any of them moves the wipe.
@@ -539,9 +540,9 @@ fn marks_page(s: &Gallery, k: u8) -> El<Msg> {
     // In English the names are longer: on a phone the choice scrolls sideways.
     let view = col().fill_width().min_width(0.0).gap(14.0)
         .child(row().key(format!("{h}/picture-row")).fill_width().min_width(0.0).scroll_x().child(segmented(&format!("{h}/picture-choice"), &pick_names, at, 30.0, move |i| Msg::Show(pick[i.min(6)]))))
-        .child(space(pw, 1.0).fill(crate::tokens::HAIRLINE).key(format!("{h}/rule-top")))
+        .child(space(pw, 1.0).fill(Paint::HAIRLINE).key(format!("{h}/rule-top")))
         .child(frame)
-        .child(space(pw, 1.0).fill(crate::tokens::HAIRLINE).key(format!("{h}/rule-bottom")))
+        .child(space(pw, 1.0).fill(Paint::HAIRLINE).key(format!("{h}/rule-bottom")))
         .child(number(&format!("{h}/wipe"), "对比线位置", s.wipe, WIPE_SPEC, s.draft(Target::Wipe), |e| Msg::Num(Target::Wipe, e)).width(330.0));
     col().key(format!("{h}/page")).fill_width().max_width(980.0).gap(34.0)
         .child(header(s, h, set::NAMES[k as usize], &format!("set::{}", super::MARK_HASH[k as usize].to_uppercase()), MARK_DESC[k as usize]))
@@ -557,7 +558,7 @@ fn type_page(s: &Gallery) -> El<Msg> {
     let sz = s.theme().sizes;
     // Departure Mono has no CJK, so it gets a Latin sample (anything else would be set in the fallback).
     let line = |key: String, label: String, size: f32, face: u8| row().key(key).gap(20.0).align(AlignItems::BASELINE)
-        .child(row().width(150.0).child(text(label, 12.0, crate::tokens::DIM).font(Font::Face(MONO))))
+        .child(row().width(150.0).child(text(label, 12.0, Paint::DIM).font(Font::Face(MONO))))
         .child(text_lh(if face == MONO { "Departure Mono 0123 ABC abc" } else { "Type 0123 Aa" }, size, (size * 1.4).round(), Paint::INK).font(Font::Face(face)).grow(1.0));
     let mut sans = col().key("type/sans").gap(10.0).fill_width();
     for (name, size) in [("显示", sz.display), ("标题", sz.title), ("正文", sz.body), ("小字", sz.small)] {
@@ -576,7 +577,7 @@ fn type_page(s: &Gallery) -> El<Msg> {
     for (i, name) in amenui::text::GEIST_NAMES.iter().enumerate() {
         let face = amenui::text::GEIST_PIXEL[i];
         geist = geist.child(row().key(format!("type/geist/{name}")).gap(20.0).align(AlignItems::BASELINE)
-            .child(row().width(150.0).child(text(format!("Geist Pixel {name}"), 12.0, crate::tokens::DIM).font(Font::Face(MONO))))
+            .child(row().width(150.0).child(text(format!("Geist Pixel {name}"), 12.0, Paint::DIM).font(Font::Face(MONO))))
             .child(text("Interface as material 0123", 28.0, Paint::INK).font(Font::Face(face)).grow(1.0)));
     }
     col().key("type/page").fill_width().max_width(980.0).gap(34.0)
@@ -621,21 +622,21 @@ fn shape(s: &Gallery, i: usize) -> El<Msg> {
     let k = Gallery::shape_key(i);
     let el = match i {
         0 => { let z = if s.width < super::NARROW { 0.4 } else { 1.0 }; text_lh("Morph", 120.0 * z, 150.0 * z, Paint::INK).font(Font::Display).key(k) }
-        1 => col().key(k).width(460.0f32.min(s.width - 60.0)).child(text_lh(PARAGRAPH, 17.0, 30.0, crate::tokens::TEXT)),
+        1 => col().key(k).width(460.0f32.min(s.width - 60.0)).child(text_lh(PARAGRAPH, 17.0, 30.0, Paint::TEXT)),
         2 => col().key(k).width(460.0).child(picture(SPHERE, 0.5).key("morph/picture").markr(IMAGE_SLOT)),
         3 => space(220.0, 220.0).key(k).radius(110.0).fill(Paint::ACCENT),
         4 => space(220.0, 220.0).key(k).radius(110.0).border(18.0, Paint::INK),
-        5 => button_as(k, "开始", Variant::Accent, Msg::Press).height(56.0).pad(40.0, 0.0).radius(8.0),
-        _ => card(k, Some("一张卡片"), text_lh("卡片里可以放任何东西：文字、图片和控件。", 15.0, 26.0, crate::tokens::TEXT)).width(340.0),
+        5 => button_as(k, "开始", Variant::Primary, Msg::Press).height(56.0).pad(40.0, 0.0).radius(8.0),
+        _ => card(k, Some("一张卡片"), text_lh("卡片里可以放任何东西：文字、图片和控件。", 15.0, 26.0, Paint::TEXT)).width(340.0),
     };
     el.hidden_until_morphed(i != s.shape)
 }
 
 fn morph_page(s: &Gallery) -> El<Msg> {
     let h = "morph";
-    let stage = stack((0..MORPH_NAMES.len()).map(|i| shape(s, i))).key("morph/stage").fill_width().height(400.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE);
+    let stage = stack((0..MORPH_NAMES.len()).map(|i| shape(s, i))).key("morph/stage").fill_width().height(400.0).radius(6.0).border(1.0, Paint::HAIRLINE);
     let controls = row().key("morph/controls").wrap().gap(12.0).min_width(0.0).align(AlignItems::CENTER)
-        .child(text("变成", 13.0, crate::tokens::DIM))
+        .child(text("变成", 13.0, Paint::DIM))
         .child(segmented("morph/targets", &MORPH_NAMES, s.shape, 30.0, Msg::MorphTo))
         .child(button_as("morph/back", "反向", Variant::Default, Msg::MorphBack).disabled(s.shape_before.is_none()));
     let mut nums = row().key("morph/params").fill_width().wrap().gap(10.0);
@@ -645,7 +646,7 @@ fn morph_page(s: &Gallery) -> El<Msg> {
         nums = nums.child(number(&format!("morph/p{i}"), d.name, v, d.spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
     let ease = row().key("morph/ease-row").gap(12.0).align(AlignItems::CENTER)
-        .child(text("缓动", 14.0, crate::tokens::DIM))
+        .child(text("缓动", 14.0, Paint::DIM))
         .child(segmented("morph/ease", &Ease::NAMES, s.morph.ease.index(), 30.0, Msg::Ease));
     col().key("morph/page").fill_width().max_width(980.0).gap(34.0)
         .child(header(s, h, "变形", "Ui::morph / Cmd::Morph", "把一样东西按材质的点阵散成粒子，飞过去拼成另一样东西：先松开，粒子接手，飞行，再由目标接手、合拢。飞行途中按“反向”，粒子从当前位置原路返回。"))
@@ -673,10 +674,10 @@ fn flow_page(s: &Gallery) -> El<Msg> {
         None => {
             let mut g = row().key("flow/list").fill_width().wrap().gap(16.0);
             for (i, (title, sub, id)) in FLOW_ITEMS.iter().enumerate() {
-                g = g.child(col().key(format!("flow/card{i}")).width(270.0).gap(10.0).pad(12.0, 12.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).on_press(Msg::Open(Some(i)))
+                g = g.child(col().key(format!("flow/card{i}")).width(270.0).gap(10.0).pad(12.0, 12.0).radius(6.0).border(1.0, Paint::HAIRLINE).on_press(Msg::Open(Some(i)))
                     .child(col().flow(format!("flow/pic{i}")).child(picture(*id, ratio(*id)).key(format!("flow/card{i}/picture")).markr(IMAGE_SLOT)))
                     .child(text(*title, 17.0, Paint::INK).font(Font::Display).key(format!("flow/card{i}/title")).flow(format!("flow/title{i}")))
-                    .child(text(*sub, 12.0, crate::tokens::DIM)));
+                    .child(text(*sub, 12.0, Paint::DIM)));
             }
             g
         }
@@ -686,7 +687,7 @@ fn flow_page(s: &Gallery) -> El<Msg> {
                 .child(button_as("flow/back", "返回", Variant::Default, Msg::Open(None)))
                 .child(text_lh(title, 40.0, 52.0, Paint::INK).font(Font::Display).key("flow/detail/title").flow(format!("flow/title{i}")))
                 .child(col().width(720.0).flow(format!("flow/pic{i}")).child(picture(id, ratio(id)).key("flow/detail/picture").markr(IMAGE_SLOT)))
-                .child(text_lh(sub, sz.body, (sz.body * 1.7).round(), crate::tokens::TEXT).key("flow/detail/text"))
+                .child(text_lh(sub, sz.body, (sz.body * 1.7).round(), Paint::TEXT).key("flow/detail/text"))
         }
     };
     let mut nums = row().key("flow/params").fill_width().wrap().gap(10.0);

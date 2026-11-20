@@ -499,12 +499,9 @@ impl Gallery {
                           legible_cap: self.legible_cap, loose_max: self.loose_max, recompose: self.recompose, particles: self.particles,
                           press_ms: self.press_ms, roles: self.roles, transition: self.transition, scroll: self.scroll, post: self.post, marks: self.depth_marks, map: self.map, beat: self.beat, off: amenui::style::Off::default(), select: amenui::style::Select::default() };
         if let Some(f) = self.faces { l.theme = Theme { display: f[0], body: f[1], mono: f[2], ..l.theme }; }
-        // The site's scheme (AA.9, AA.10) on its own theme: the ground, the ink and the one signal. A
-        // style or a scene keeps the theme it sets, and so does a theme picked by hand.
-        if self.style.is_none() && self.theme == 0 {
-            let (ground, ink, accent, second) = crate::showcase::scenes::body::palette(self.paper);
-            l.theme = Theme { ground, ground2: ground, ink, accent, second, ..l.theme };
-        }
+        // The site's scheme (AA.9, AA.10): the framework's dark or light colours. A style or a scene
+        // keeps the theme it sets, and so does a theme picked by hand.
+        if self.style.is_none() && self.theme == 0 { l.theme = crate::showcase::scenes::body::in_scheme(l.theme, self.paper); }
         scenes::look(self, &mut l);
         lab::look(self, &mut l);
         body::look(self, &mut l);
@@ -959,25 +956,11 @@ fn comp_group_of(p: Page) -> Option<usize> {
 fn rail_item(s: &Gallery, p: Page, h: f32) -> El<Msg> {
     let on = s.page == p || (p == Page::Comp(pages::LIST) && s.page == Page::LongList);
     let mut item = row().key(format!("nav/{}", p.hash())).height(h).pad(12.0, 0.0).radius(4.0).align(AlignItems::CENTER).on_press(Msg::Go(p)).ripplr(amenui::el::Scope::Global)
-        .child(text(p.name(), 14.0, if on { Paint::INK } else { crate::tokens::TEXT }));
+        .child(text(p.name(), 14.0, if on { Paint::INK } else { Paint::TEXT }));
     // The current row has no plate: its label is ink and a 6 × 6 accent square stands at the row's left
     // edge on the label's x-height (AA.9, use 1), one square that moves from row to row with the page.
     if on { item = item.child(space(6.0, 6.0).fill(Paint::ACCENT).absolute(Some(0.0), Some((h * 0.5 - 1.0).round()), None, None).flow("rail-selection")); }
     item
-}
-/// amenui's segmented choice as the site draws it (AA.9): the chosen segment an ink plate with its
-/// label in the ground colour, the others `text` on no plate, the group's frame a hairline.
-pub fn segmented<M: Clone + 'static>(key: &str, options: &[&str], current: usize, height: f32, msg: impl Fn(usize) -> M + 'static) -> El<M> {
-    let mut m = amenui::widgets::segmented(key, options, current, height, msg);
-    if let Some((w, _)) = m.border { m.border = Some((w, crate::tokens::HAIRLINE)); }
-    for (i, seg) in m.children.iter_mut().enumerate() {
-        let on = i == current;
-        seg.fill = on.then_some(Paint::INK);
-        for c in seg.children.iter_mut() {
-            if let amenui::el::Content::Text { paint, .. } = &mut c.content { *paint = if on { Paint::GROUND } else { crate::tokens::TEXT }; }
-        }
-    }
-    m
 }
 /// The rail's groups into `r`: each group's name, which opens or closes it; only one is open, the
 /// current page's unless another was opened.
@@ -987,9 +970,9 @@ fn rail_items(s: &Gallery, mut r: El<Msg>) -> El<Msg> {
         let is = open == Some(gi);
         r = r.child(row().key(format!("rail/group/{gi}")).height(30.0).pad(12.0, 0.0).gap(8.0).align(AlignItems::CENTER).radius(4.0)
             .on_press(Msg::RailGroup(gi)).role(amenui::el::Role::Button)
-            .child(text(name, 12.0, if is { Paint::INK } else { crate::tokens::DIM }).font(amenui::el::Font::Mono))
+            .child(text(name, 12.0, if is { Paint::INK } else { Paint::DIM }).font(amenui::el::Font::Mono))
             .child(space(0.0, 0.0).grow(1.0))
-            .child(text(format!("{}", pages.len()), 11.0, crate::tokens::DIM).font(amenui::el::Font::Mono)));
+            .child(text(format!("{}", pages.len()), 11.0, Paint::DIM).font(amenui::el::Font::Mono)));
         if is { for p in pages { r = r.child(rail_item(s, p, 30.0)); } }
     }
     r
@@ -1003,10 +986,10 @@ fn strip_link(key: String, label: String, here: bool, m: Msg) -> El<Msg> {
     // A style page changes the whole look: the change spreads from the link pressed.
     let commit = matches!(m, Msg::Go(Page::Style(_) | Page::Scene(_)));
     let l = row().key(key).height(36.0).align(AlignItems::CENTER).on_press(m).role(amenui::el::Role::Link)
-        .child(text(label, 11.0, if here { Paint::INK } else { crate::tokens::TEXT }).font(amenui::el::Font::Mono));
+        .child(text(label, 11.0, if here { Paint::INK } else { Paint::TEXT }).font(amenui::el::Font::Mono));
     if commit { l.commit() } else { l }
 }
-fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, crate::tokens::DIM).font(amenui::el::Font::Mono) }
+fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, Paint::DIM).font(amenui::el::Font::Mono) }
 /// The Lab's path strip (Z.5): `lab / ink / kern` on the left (the step goes to its header on the
 /// index), `← 02.2 take apart · 02.4 weld →` on the right, along the whole path. A family's page has
 /// all its members under it: on lines that break only between the marks' runs, and below 720 on one
@@ -1062,7 +1045,7 @@ fn comp_strip(s: &Gallery) -> El<Msg> {
     let low = |t: String| t.to_lowercase();
     let mut path = row().key("strip/path").gap(8.0).align(AlignItems::CENTER)
         .child(strip_link("strip/components".into(), low(tr("nav.components")), s.page == Page::Components, Msg::Go(Page::Components)));
-    if let Some(g) = comp_group_of(s.page) { path = path.child(sep("/")).child(text(low(comp_groups()[g].0.clone()), 11.0, crate::tokens::TEXT).font(amenui::el::Font::Mono)); }
+    if let Some(g) = comp_group_of(s.page) { path = path.child(sep("/")).child(text(low(comp_groups()[g].0.clone()), 11.0, Paint::TEXT).font(amenui::el::Font::Mono)); }
     if s.page != Page::Components { path = path.child(sep("/")).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here")); }
     row().key("strip").fill_width().height(36.0).pad(16.0, 0.0).gap(8.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
         .child(path).child(space(0.0, 0.0).grow(1.0))

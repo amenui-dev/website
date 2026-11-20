@@ -21,7 +21,7 @@ use super::nightly::{self, NIGHTLY};
 use amenui::draw::Drawing;
 use amenui::el::{El, Font, Paint, Point, Pose, Response, Role, canvas, col, picture, row, space, text};
 use amenui::morph::FlowSpec;
-use amenui::style::{Look, Markr, Material, Theme};
+use amenui::style::{Greys, Look, Markr, Material, Theme};
 use std::sync::OnceLock;
 use taffy::AlignItems;
 
@@ -119,9 +119,30 @@ pub fn theme(i: usize) -> Theme {
     // accent, so the one it leans to is the ground with no hue (`touch::field`).
     // W-04: the notes' ink, the rays' middle and tip as its second and third hues, and the line's type as
     // its ground (which the picture covers, V.2 a), so the type and a ray's stops are paints of their own.
-    if i == NIGHTLY { return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, ..amenui::style::DARK }; }
-    if i == TOUCH_GRASS { return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, ..amenui::style::DARK }; }
-    Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, ..amenui::style::DARK }
+    if i == NIGHTLY {
+        let greys = legible_greys(nightly::GROUND, nightly::INK);
+        return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, greys, ..amenui::style::DARK };
+    }
+    if i == TOUCH_GRASS {
+        let greys = legible_greys(touch::STALK_LEAN, touch::INK);
+        return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, greys, ..amenui::style::DARK };
+    }
+    let ground = amenui::style::DARK.ground;
+    Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, greys: Greys::mixed(ground, ink), ..amenui::style::DARK }
+}
+/// A piece's greys from its own ground and ink: their plain mixes, lifted toward the ink together until
+/// `dim` stands at 4.5:1 or more on that ground.
+fn legible_greys(ground: [f32; 3], ink: [f32; 3]) -> Greys {
+    let lifted = |k: f32| {
+        let at = |p: Paint| { let t = p.tone + (1.0 - p.tone) * k; std::array::from_fn(|c| ground[c] + (ink[c] - ground[c]) * t) };
+        Greys { raised: at(Paint::RAISED), hairline: at(Paint::HAIRLINE), dim: at(Paint::DIM), text: at(Paint::TEXT) }
+    };
+    let ok = |g: &Greys| amenui::style::contrast(g.dim, ground) >= 4.5;
+    if ok(&lifted(0.0)) { return Greys::mixed(ground, ink); }
+    // The least lift that reads, found by halves.
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    for _ in 0..24 { let m = 0.5 * (lo + hi); if ok(&lifted(m)) { hi = m; } else { lo = m; } }
+    lifted(hi)
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
 pub fn tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].bar_light { 1 } else { 2 }, _ => 0 } }
@@ -571,6 +592,8 @@ pub fn look(s: &Gallery, l: &mut Look) {
         Page::Work(i) => {
             l.theme = theme(i as usize);
             (l.theme.ground, l.theme.ground2) = (ink.top, ink.bottom);
+            // The greys are mixes of the ground at the top of the window and the ink.
+            if !matches!(i as usize, NIGHTLY | TOUCH_GRASS) { l.theme.greys = Greys::mixed(ink.top, l.theme.ink); }
             l.post = grain();
         }
         _ => {
@@ -1634,8 +1657,8 @@ fn index(s: &Gallery) -> El<Msg> {
     let widths = widths(s, s.clock);
     let mut root = col().key("works/index").width(w).height(s.height).clip()
         .child(at(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1), 32.0, 98.0))
-        .child(at(mono(amenui::i18n::tr("works.lead"), crate::tokens::DIM).key("works/lead"), 32.0, 150.0))
-        .child(at_right(mono(amenui::i18n::tr("works.keys"), crate::tokens::DIM).key("works/keys"), 32.0, 150.0));
+        .child(at(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead"), 32.0, 150.0))
+        .child(at_right(mono(amenui::i18n::tr("works.keys"), Paint::DIM).key("works/keys"), 32.0, 150.0));
     let mut x: f32 = 32.0;
     for (i, p) in PIECES.iter().enumerate() {
         let ww = widths[i];
@@ -1656,10 +1679,10 @@ fn index(s: &Gallery) -> El<Msg> {
         if live { win = win.child(at(live_frame(&format!("works/w{i}/frame"), ww, hh), 0.0, 0.0)); }
         root = root.child(at(win, x.round(), top.round()));
         let yb = top + hh + 18.0;
-        let title = if !shown { unbuilt() } else if wide { Paint::INK } else { crate::tokens::TEXT };
+        let title = if !shown { unbuilt() } else if wide { Paint::INK } else { Paint::TEXT };
         root = root.child(at(row().key(format!("works/w{i}/meta")).gap(16.0).flow(format!("work/{}/meta", p.slug))
-                .child(mono(format!("{:02}", i + 1), if wide && shown { Paint::INK } else { crate::tokens::DIM }))
-                .child(mono(p.hour, if wide && shown { Paint::INK } else { crate::tokens::DIM })), x, yb))
+                .child(mono(format!("{:02}", i + 1), if wide && shown { Paint::INK } else { Paint::DIM }))
+                .child(mono(p.hour, if wide && shown { Paint::INK } else { Paint::DIM })), x, yb))
             .child(at(serif(p.title, if wide { 22.0 } else { 16.0 }, if wide { 0.3 } else { 0.22 }, title)
                 .key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)), x, yb + 24.0));
         if live && wide {
@@ -1691,15 +1714,15 @@ fn square(key: String, i: usize, on: bool) -> El<Msg> {
 fn ruler(s: &Gallery, w: f32, yr: f32) -> El<Msg> {
     let len = w - 64.0;
     let mut d = Drawing::new(len, 12.0);
-    d.line((0.0, 0.5), (len, 0.5), 1.0, crate::tokens::HAIRLINE);
+    d.line((0.0, 0.5), (len, 0.5), 1.0, Paint::HAIRLINE);
     for hr in 0..=24 {
         let x = (len * hr as f32 / 24.0).clamp(0.25, len - 0.25);
-        d.line((x, 0.5), (x, if hr % 6 == 0 { 8.5 } else { 4.5 }), 0.5, crate::tokens::DIM);
+        d.line((x, 0.5), (x, if hr % 6 == 0 { 8.5 } else { 4.5 }), 0.5, Paint::DIM);
     }
     let mut r = col().key("works/ruler").width(w).height(40.0).child(at(canvas(d).key("works/ruler/line").width(len).pass(true), 32.0, 0.0));
     for hr in [0, 6, 12, 18, 24] {
         let x = 32.0 + len * hr as f32 / 24.0;
-        let t = mono(format!("{hr:02}"), crate::tokens::DIM).key(format!("works/ruler/{hr}"));
+        let t = mono(format!("{hr:02}"), Paint::DIM).key(format!("works/ruler/{hr}"));
         r = r.child(match hr { 0 => at(t, x, 14.0), 24 => at_right(t, 32.0, 14.0), _ => at(t, x - 7.0, 14.0) });
     }
     for (i, p) in PIECES.iter().enumerate() {
@@ -1757,14 +1780,14 @@ fn index_phone(s: &Gallery) -> El<Msg> {
         if open { band = band.child(at(live_frame(&format!("works/w{i}/frame"), bw, bh), 0.0, 0.0)); }
         bands = bands.child(col().key(format!("works/b{i}")).gap(8.0).child(band)
             .child(row().key(format!("works/w{i}/meta")).height(18.0).gap(16.0).align(AlignItems::BASELINE).flow(format!("work/{}/meta", p.slug))
-                .child(mono(format!("{:02}", i + 1), if open { Paint::INK } else { crate::tokens::DIM }))
-                .child(mono(p.hour, if open { Paint::INK } else { crate::tokens::DIM }))
-                .child(serif(p.title, 16.0, 0.22, if !on_index(i) { unbuilt() } else if open { Paint::INK } else { crate::tokens::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
+                .child(mono(format!("{:02}", i + 1), if open { Paint::INK } else { Paint::DIM }))
+                .child(mono(p.hour, if open { Paint::INK } else { Paint::DIM }))
+                .child(serif(p.title, 16.0, 0.22, if !on_index(i) { unbuilt() } else if open { Paint::INK } else { Paint::TEXT }).key(format!("works/w{i}/title")).flow(format!("work/{}/title", p.slug)))));
     }
     let len = centres[COUNT - 1] + heights[COUNT - 1] * 0.5;
     let c = col().key("works/index").fill_width().pad(16.0, 24.0).gap(16.0)
         .child(serif("works", 30.0, 0.3, Paint::INK).key("works/title").heading(1))
-        .child(mono(amenui::i18n::tr("works.lead"), crate::tokens::DIM).key("works/lead").width(w - 32.0))
+        .child(mono(amenui::i18n::tr("works.lead"), Paint::DIM).key("works/lead").width(w - 32.0))
         .child(row().key("works/rows").child(ruler_down(s, len, &centres)).child(bands));
     col().key("works/scroll").fill_width().fill_height().scroll().child(c)
 }
@@ -1775,7 +1798,7 @@ fn index_phone(s: &Gallery) -> El<Msg> {
 fn ruler_down(s: &Gallery, len: f32, centres: &[f32; COUNT]) -> El<Msg> {
     let width = 16.0;
     let mut d = Drawing::new(width, len);
-    d.line((0.5, 0.0), (0.5, len), 1.0, crate::tokens::HAIRLINE);
+    d.line((0.5, 0.0), (0.5, len), 1.0, Paint::HAIRLINE);
     let mut r = col().key("works/ruler").width(width).height(len).child(at(canvas(d).key("works/ruler/line").width(width).pass(true), 0.0, 0.0));
     for (i, &cy) in centres.iter().enumerate() {
         let on = s.works.tapped.unwrap_or(s.works.wide) == i;

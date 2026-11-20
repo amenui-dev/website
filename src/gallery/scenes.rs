@@ -7,8 +7,7 @@ use crate::demo::{CUTOUT, SKY, SPHERE, TERRAIN, TREE, cutout_alpha};
 use amenui::el::{Cursor, Drag, El, Font, Key, Paint, Phase, col, picture, row, space, stack, text, text_lh};
 use amenui::morph::{Cmd, FlowSpec, MorphSpec};
 use amenui::style::{Gaze, GazeMode, Look, Material, Markr, colour, gaze, set, styles};
-use super::segmented;
-use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch, tabs};
+use amenui::widgets::{Edit, Spec, TextEdit, Variant, button_as, input, number, switch, tabs, segmented};
 use amenui::wrap::{Around, Silhouette};
 use std::sync::OnceLock;
 use taffy::{AlignItems, JustifyContent};
@@ -422,15 +421,15 @@ fn opening(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let (cols, rows) = (((w - 20.0) / 22.0).floor().max(4.0) as usize, ((h - 40.0) / 22.0).floor().max(4.0) as usize);
     let line: String = (0..cols).map(|_| "●").collect::<Vec<_>>().join(" ");
     let grid = (0..rows).map(|_| line.clone()).collect::<Vec<_>>().join("\n");
-    let dots = text_lh(grid, 9.0, 22.0, crate::tokens::HAIRLINE).key("op/dots").hidden_until_morphed(sc.shown != 0);
+    let dots = text_lh(grid, 9.0, 22.0, Paint::HAIRLINE).key("op/dots").hidden_until_morphed(sc.shown != 0);
     let title = col().key("op/title").gap(14.0).align(AlignItems::CENTER).hidden_until_morphed(sc.shown != 1)
         .child(text_lh("同一种机制", (w / 6.0).clamp(44.0, 128.0), (w / 6.0).clamp(44.0, 128.0) * 1.15, Paint::ACCENT).font(Font::Display).weight(2.5))
-        .child(text_lh("字、图和控件都按自己的轮廓松开、飞行、合拢", 16.0, 26.0, crate::tokens::DIM));
+        .child(text_lh("字、图和控件都按自己的轮廓松开、飞行、合拢", 16.0, 26.0, Paint::DIM));
     let page = op_page(g, w).hidden_until_morphed(sc.shown != 2);
     let mut stage = col().key("op/stage").width(w).height(h).center()
         .child(stack([dots, title, page]).key("op/stack"));
     if sc.shown == 0 {
-        stage = stage.child(button_as("op/start", "开始", Variant::Accent, Msg::Scene(SMsg::Start)).height(44.0).pad(28.0, 0.0).absolute(Some(w * 0.5 - 50.0), Some(h * 0.5 - 22.0), None, None));
+        stage = stage.child(button_as("op/start", "开始", Variant::Primary, Msg::Scene(SMsg::Start)).height(44.0).pad(28.0, 0.0).absolute(Some(w * 0.5 - 50.0), Some(h * 0.5 - 22.0), None, None));
     }
     // One line at the bottom: what the operator is doing, or that the page is yours now.
     if sc.shown == 2 {
@@ -445,8 +444,8 @@ fn opening(g: &Gallery, w: f32, h: f32) -> El<Msg> {
             (format!("{:02} / {:02}　{}", n, OPS.len(), OPS[n - 1].1), None)
         };
         let mut line = row().key("op/caption").width(w).gap(14.0).align(AlignItems::CENTER).justify(JustifyContent::CENTER)
-            .child(space(10.0, 10.0).radius(5.0).fill(if sc.running { Paint::ACCENT } else { crate::tokens::DIM }))
-            .child(text(say, 15.0, crate::tokens::TEXT).key(format!("op/say{}-{}", sc.op, sc.taken)));
+            .child(space(10.0, 10.0).radius(5.0).fill(if sc.running { Paint::ACCENT } else { Paint::DIM }))
+            .child(text(say, 15.0, Paint::TEXT).key(format!("op/say{}-{}", sc.op, sc.taken)));
         if let Some(a) = act { line = line.child(a); }
         stage = stage.child(line.absolute(Some(0.0), Some(h - 34.0), None, None));
     }
@@ -498,7 +497,7 @@ fn op_page(g: &Gallery, w: f32) -> El<Msg> {
     let cw = if narrow { w - 8.0 } else { (w * 0.82).min(900.0) };
     let card = |i: usize, id: u32, t: &str| col().key(format!("op/card{i}")).width(if narrow { cw } else { (cw - 32.0) / 3.0 }).gap(8.0)
         .child(picture(id, ratio(id)).key(format!("op/card{i}/pic")))
-        .child(text(t, 14.0, crate::tokens::TEXT));
+        .child(text(t, 14.0, Paint::TEXT));
     let mut cards = row().key("op/cards").gap(16.0).fill_width();
     if narrow { cards = cards.wrap(); }
     for (i, (id, t)) in [(SKY, "傍晚"), (TERRAIN, "地形"), (TREE, "孤树")].into_iter().enumerate() {
@@ -514,8 +513,8 @@ fn op_page(g: &Gallery, w: f32) -> El<Msg> {
         .child(row().key("op/controls").gap(22.0).wrap().align(AlignItems::CENTER)
             .child(op_at(g, "op/switch", switch("op/switch", "显示网格", sc.op_switch, None, Msg::Scene(SMsg::OpSwitch)).width(170.0)))
             .child(op_at(g, "op/num", number("op/num", "间距", sc.op_value, Spec { min: 0.0, max: 64.0, step: 1.0, decimals: 0, unit: "px" }, g.draft(Target::OpValue), |e| Msg::Num(Target::OpValue, e))))
-            .child(op_at(g, "op/publish", button_as("op/publish", &format!("发布 · {}", sc.op_count), Variant::Accent, Msg::Scene(SMsg::OpPress)))))
-        .child(op_at(g, "op/tabs", tabs("op/tabs", &["点", "线", "面"], sc.op_tab, 18.0, 2.0, |i| Msg::Scene(SMsg::OpTab(i)), text_lh(panels[sc.op_tab.min(2)], 15.0, 24.0, crate::tokens::TEXT).key(format!("op/panel{}", sc.op_tab)))))
+            .child(op_at(g, "op/publish", button_as("op/publish", &format!("发布 · {}", sc.op_count), Variant::Primary, Msg::Scene(SMsg::OpPress)))))
+        .child(op_at(g, "op/tabs", tabs("op/tabs", &["点", "线", "面"], sc.op_tab, 18.0, 2.0, |i| Msg::Scene(SMsg::OpTab(i)), text_lh(panels[sc.op_tab.min(2)], 15.0, 24.0, Paint::TEXT).key(format!("op/panel{}", sc.op_tab)))))
 }
 
 // ── Reading ──────────────────────────────────────────────────────────────────────────────────────
@@ -566,15 +565,15 @@ fn reading(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
     }
     let mut around = Around::new(obstacles, q(0));
     around.min = (q(2) * 3.0).max(40.0);
-    body.children[0] = text_lh(ARTICLE, q(2), q(3), crate::tokens::TEXT).key("read/text").fill_width().around(around).selectable();
+    body.children[0] = text_lh(ARTICLE, q(2), q(3), Paint::TEXT).key("read/text").fill_width().around(around).selectable();
 
     col().key("read/page").width(cw).gap(14.0)
-        .child(text("长文 · 第 3 期", 12.0, crate::tokens::DIM).font(Font::Mono))
+        .child(text("长文 · 第 3 期", 12.0, Paint::DIM).font(Font::Mono))
         .child(text_lh("沿着轮廓排字", (cw / 14.0).clamp(28.0, 46.0), (cw / 14.0).clamp(28.0, 46.0) * 1.25, Paint::INK).font(Font::Display).weight(1.5))
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::END).wrap().gap(10.0)
-            .child(text("文 / 编辑部　约 900 字", 13.0, crate::tokens::DIM))
+            .child(text("文 / 编辑部　约 900 字", 13.0, Paint::DIM))
             .child(segmented("read/which", &["孤树", "圆", "两个"], sc.obstacle, 28.0, |i| Msg::Scene(SMsg::Obstacle(i)))))
-        .child(space(1.0, 1.0).fill_width().fill(crate::tokens::HAIRLINE))
+        .child(space(1.0, 1.0).fill_width().fill(Paint::HAIRLINE))
         .child(body)
 }
 
@@ -593,7 +592,7 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let ph = (pw * r_).round();
     let (ox, oy) = (((w - pw) * 0.5).round(), ((wh - ph) * 0.5).round());
     let loose = q(3);
-    let label = |t: String, x: f32| text(t, 14.0, crate::tokens::TEXT).font(Font::Mono).absolute(Some(x), Some(0.0), None, None);
+    let label = |t: String, x: f32| text(t, 14.0, Paint::TEXT).font(Font::Mono).absolute(Some(x), Some(0.0), None, None);
     // Labels above the picture, seams and handles in the gaps and below it: nothing is drawn over the
     // picture itself, so every one of its pixels is the picture's own.
     let mut wall = col().key("pr/wall").width(w).height(wh + top + 24.0).gaze_scope();
@@ -645,7 +644,7 @@ fn printing(g: &Gallery, w: f32, h: f32) -> El<Msg> {
         .child(row().key("pr/bar").width(w).gap(12.0).align(AlignItems::CENTER).wrap()
             .child(segmented("pr/mode", &["五种记号", "一种记号"], sc.pr_mode, 28.0, |i| Msg::Scene(SMsg::PrMode(i))))
             .child(segmented("pr/which", &["天空", "地形", "孤树"], sc.pic, 28.0, |i| Msg::Scene(SMsg::Picture(i))))
-            .child(text(hint, 12.0, crate::tokens::DIM).shrink()))
+            .child(text(hint, 12.0, Paint::DIM).shrink()))
         .child(wall)
 }
 
@@ -675,17 +674,17 @@ fn tick_morph(g: &mut Gallery, t: f32) -> bool {
 /// The fourth form: a small interface that works once it has landed.
 fn mo_card(g: &Gallery, cw: f32) -> El<Msg> {
     let sc = &g.sc;
-    col().key("mo/ui").width(cw).gap(14.0).pad(22.0, 20.0).radius(14.0).fill(Paint::tone(0.06)).border(1.5, crate::tokens::DIM)
+    col().key("mo/ui").width(cw).gap(14.0).pad(22.0, 20.0).radius(14.0).fill(Paint::tone(0.06)).border(1.5, Paint::DIM)
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::BASELINE)
             .child(text("山与水", 30.0, Paint::INK).font(Font::Display).weight(1.0))
-            .child(text(format!("已出发 {} 次", sc.mo_sent), 13.0, crate::tokens::DIM).font(Font::Mono).key("mo/ui/sent")))
+            .child(text(format!("已出发 {} 次", sc.mo_sent), 13.0, Paint::DIM).font(Font::Mono).key("mo/ui/sent")))
         .child(picture(SKY, ratio(SKY)).key("mo/ui/pic").markr(super::STYLE_SLOT))
-        .child(text_lh("傍晚的山和水。选好份数，按“出发”，界面又变回那个字。", 14.0, 22.0, crate::tokens::TEXT))
+        .child(text_lh("傍晚的山和水。选好份数，按“出发”，界面又变回那个字。", 14.0, 22.0, Paint::TEXT))
         .child(row().fill_width().gap(14.0).align(AlignItems::CENTER).wrap()
             .child(switch("mo/ui/fav", "收藏", sc.mo_on, None, Msg::Scene(SMsg::MoSwitch)).width(130.0))
             .child(number("mo/ui/n", "份数", sc.mo_n, MO_SPEC, sc.mo_draft.as_deref(), |e| Msg::Scene(SMsg::MoNum(e))))
             .child(space(0.0, 0.0).grow(1.0))
-            .child(button_as("mo/ui/go", "出发", Variant::Accent, Msg::Scene(SMsg::MoGo)).height(38.0).pad(22.0, 0.0)))
+            .child(button_as("mo/ui/go", "出发", Variant::Primary, Msg::Scene(SMsg::MoGo)).height(38.0).pad(22.0, 0.0)))
 }
 fn morph(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let f = g.sc.form;
@@ -706,10 +705,10 @@ fn morph(g: &Gallery, w: f32, h: f32) -> El<Msg> {
         .on_key(|k, _| match k { Key::Left => Some(Msg::Scene(SMsg::PrevForm)), Key::Right => Some(Msg::Scene(SMsg::NextForm)), _ => None });
     for (i, name) in FORMS.iter().enumerate() {
         let on = i == f;
-        if i > 0 { steps = steps.child(space(36.0, 1.5).fill(if i <= f { Paint::ACCENT } else { crate::tokens::HAIRLINE })); }
+        if i > 0 { steps = steps.child(space(36.0, 1.5).fill(if i <= f { Paint::ACCENT } else { Paint::HAIRLINE })); }
         steps = steps.child(col().key(format!("mo/step:{i}")).gap(4.0).pad(10.0, 6.0).align(AlignItems::CENTER).on_press(Msg::Scene(SMsg::Form(i))).focusable(false)
-            .child(text(format!("{:02}", i + 1), 11.0, if on { Paint::ACCENT } else { crate::tokens::DIM }).font(Font::Mono))
-            .child(text(*name, 16.0, if on { Paint::ACCENT } else { crate::tokens::TEXT }))
+            .child(text(format!("{:02}", i + 1), 11.0, if on { Paint::ACCENT } else { Paint::DIM }).font(Font::Mono))
+            .child(text(*name, 16.0, if on { Paint::ACCENT } else { Paint::TEXT }))
             .child(space(if on { 22.0 } else { 0.0 }, 2.0).fill(Paint::ACCENT)));
     }
     // The stage is pressable only while it is not the interface (whose own controls take presses).
@@ -736,15 +735,15 @@ fn apart(g: &mut Gallery, a: bool) {
 fn xr_app(layer: &str, w: f32, filled: bool, notes: bool) -> El<Msg> {
     let k = |s: &str| format!("xr/{layer}/{s}");
     let note = |e: El<Msg>, n: &str| if notes { e.annotate(n) } else { e };
-    let mut app = col().key(k("app")).width(w).gap(12.0).pad(20.0, 18.0).radius(16.0).border(1.0, crate::tokens::DIM);
+    let mut app = col().key(k("app")).width(w).gap(12.0).pad(20.0, 18.0).radius(16.0).border(1.0, Paint::DIM);
     if filled { app = app.fill(Paint::tone(0.04)); }
     app.child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::CENTER)
             .child(note(text("今晚", 22.0, Paint::INK).font(Font::Display).key(k("title")), "标题"))
-            .child(text("21:40", 13.0, crate::tokens::DIM).font(Font::Mono)))
+            .child(text("21:40", 13.0, Paint::DIM).font(Font::Mono)))
         .child(note(col().key(k("pic")).fill_width().child(picture(SPHERE, ratio(SPHERE)).key(k("picture"))), "图片"))
         .child(note(col().key(k("rows")).gap(0.0).fill_width()
             .children(["月亮升起　20:56", "气温　14 °C", "风　东北 2 级"].iter().enumerate().map(|(i, t)| {
-                row().key(k(&format!("row{i}"))).fill_width().height(34.0).align(AlignItems::CENTER).child(text(*t, 14.0, crate::tokens::TEXT))
+                row().key(k(&format!("row{i}"))).fill_width().height(34.0).align(AlignItems::CENTER).child(text(*t, 14.0, Paint::TEXT))
             })), "列表"))
         .child(row().fill_width().gap(10.0).align(AlignItems::CENTER)
             .child(space(0.0, 0.0).grow(1.0))
@@ -760,7 +759,7 @@ fn xray(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let sh = if narrow && sc.apart { 3.0 * 460.0 } else { h - 60.0 };
     let mut stage = col().key("xr/stage").width(w).height(sh).gaze_scope();
     let offs = if narrow { [(0.0, 920.0), (0.0, 460.0), (0.0, 0.0)] } else { [(-d, 0.0), (0.0, 0.0), (d, 0.0)] };
-    let label = |t: &str, x: f32, y: f32| text(t, 12.0, crate::tokens::DIM).font(Font::Mono).absolute(Some(x), Some(y - 24.0), None, None);
+    let label = |t: &str, x: f32, y: f32| text(t, 12.0, Paint::DIM).font(Font::Mono).absolute(Some(x), Some(y - 24.0), None, None);
     if sc.apart {
         stage = stage
             .child(label("03  中间图：离墨的远近", cx + offs[0].0, cy + offs[0].1))
@@ -772,7 +771,7 @@ fn xray(g: &Gallery, w: f32, h: f32) -> El<Msg> {
     let (ox, oy) = if sc.apart { offs[2] } else { (0.0, 0.0) };
     stage = stage.child(col().key(format!("xr/top-{}", sc.apart)).flow("xr-top").absolute(Some(cx + ox), Some(cy + oy), None, None).child(xr_app(if sc.apart { "top-a" } else { "top" }, aw, true, true)));
     if !sc.apart {
-        stage = stage.child(text("按住空格，或按住下面的按钮", 12.0, crate::tokens::DIM).absolute(Some(cx), Some(cy + 480.0), None, None));
+        stage = stage.child(text("按住空格，或按住下面的按钮", 12.0, Paint::DIM).absolute(Some(cx), Some(cy + 480.0), None, None));
     }
     let hold = row().key("xr/hold").height(36.0).pad(18.0, 0.0).radius(18.0).border(1.0, Paint::ACCENT).center()
         .fill(if sc.apart { Paint::ACCENT.alpha(0.18) } else { Paint::GROUND })
@@ -855,18 +854,18 @@ fn sound(g: &Gallery, w: f32, h: f32) -> El<Msg> {
         .child(col().key("snd/head").align(AlignItems::CENTER).gap(10.0).fill_width()
             .child(row().gap(18.0).align(AlignItems::CENTER)
                 .child(space(pulse * 0.25, pulse * 0.25).radius(pulse * 0.125).fill(Paint::ACCENT).key("snd/pulse"))
-                .child(text(format!("{bpm:.0} BPM · {mm:02}:{ss:02}"), 14.0, crate::tokens::DIM).font(Font::Mono).key("snd/time")))
+                .child(text(format!("{bpm:.0} BPM · {mm:02}:{ss:02}"), 14.0, Paint::DIM).font(Font::Mono).key("snd/time")))
             // The headline is decoration that the beat loosens; the lyrics are read, so they stay legible.
             .child(text_lh("夜行", size, size * 1.2, Paint::INK).font(Font::Display).weight(2.0).key("snd/title").respond(amenui::el::Response::Loosen).legible(false))
             .child(LYRICS.iter().enumerate().fold(col().key("snd/lyrics").gap(6.0).align(AlignItems::CENTER).pad(0.0, 10.0), |c, (k, l)| {
                 let on = k == bars % LYRICS.len() && (sc.playing || st > 0.0);
-                c.child(text_lh(*l, if on { 22.0 } else { 16.0 }, if on { 32.0 } else { 26.0 }, if on { Paint::INK } else { crate::tokens::DIM }).key(format!("snd/lyric{k}-{on}")))
+                c.child(text_lh(*l, if on { 22.0 } else { 16.0 }, if on { 32.0 } else { 26.0 }, if on { Paint::INK } else { Paint::DIM }).key(format!("snd/lyric{k}-{on}")))
             })))
         .child(col().key("snd/lower").align(AlignItems::CENTER).gap(14.0)
             .child(spec)
             .child(row().key("snd/controls").gap(12.0).align(AlignItems::CENTER).calm()
-                .child(button_as("snd/play", if sc.playing { "暂停" } else { "播放" }, Variant::Accent, Msg::Scene(SMsg::Play)).width(96.0))
-                .child(text("空格：播放 / 暂停", 12.0, crate::tokens::DIM))))
+                .child(button_as("snd/play", if sc.playing { "暂停" } else { "播放" }, Variant::Primary, Msg::Scene(SMsg::Play)).width(96.0))
+                .child(text("空格：播放 / 暂停", 12.0, Paint::DIM))))
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────────────────────────
@@ -878,33 +877,33 @@ fn styles_scene(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
     for (i, st) in all.iter().enumerate() {
         let on = g.style == Some(i);
         let mut b = row().key(format!("st/s{i}")).height(34.0).width(if narrow { (w - 16.0) / 3.0 } else { 146.0 }).pad(10.0, 0.0).radius(4.0).align(AlignItems::CENTER)
-            .border(1.0, if on { Paint::ACCENT } else { crate::tokens::HAIRLINE }).on_press(Msg::Scene(SMsg::Look(i))).commit()
-            .child(text(st.name, 12.0, if on { Paint::ACCENT } else { crate::tokens::TEXT }));
+            .border(1.0, if on { Paint::ACCENT } else { Paint::HAIRLINE }).on_press(Msg::Scene(SMsg::Look(i))).commit()
+            .child(text(st.name, 12.0, if on { Paint::ACCENT } else { Paint::TEXT }));
         if on { b = b.fill(Paint::ACCENT.alpha(0.12)); }
         grid = grid.child(b);
     }
     let cw = if narrow { w } else { (w - 340.0).min(860.0) };
     let card = col().key("st/card").width(cw).gap(16.0)
-        .child(text("星期五　·　11 月 14 日", 13.0, crate::tokens::DIM).font(Font::Mono))
+        .child(text("星期五　·　11 月 14 日", 13.0, Paint::DIM).font(Font::Mono))
         .child(text_lh("今天，晴", if narrow { 56.0 } else { 96.0 }, if narrow { 64.0 } else { 108.0 }, Paint::INK).font(Font::Display).weight(2.0).key("st/headline"))
         .child(row().gap(18.0).fill_width().align(AlignItems::START).wrap()
             .child(col().width(if narrow { cw } else { cw * 0.55 }).child(picture(SKY, ratio(SKY)).key("st/pic").markr(super::STYLE_SLOT)))
             .child(col().grow(1.0).gap(10.0).min_width(180.0)
-                .child(text_lh("傍晚六点日落。风从东北来，夜里降到九度。适合散步，记得带一件外套。", 15.0, 25.0, crate::tokens::TEXT))
+                .child(text_lh("傍晚六点日落。风从东北来，夜里降到九度。适合散步，记得带一件外套。", 15.0, 25.0, Paint::TEXT))
                 .child(row().gap(10.0).wrap()
-                    .child(button_as("st/remind", "提醒我", Variant::Accent, Msg::Press))
+                    .child(button_as("st/remind", "提醒我", Variant::Primary, Msg::Press))
                     .child(button_as("st/share", "分享", Variant::Default, Msg::Press)))
                 .child(switch("st/rain", "下雨时通知", g.toggles[6], None, Msg::Toggle(6)).width(200.0))))
         .child(row().key("st/days").gap(12.0).wrap().fill_width()
             .children([("六", "晴", 18, 0u8), ("日", "多云", 15, 1), ("一", "小雨", 11, 2), ("二", "晴", 16, 0)].iter().map(|(d, wx, t, hue)| {
-                col().key(format!("st/day{d}")).width(if narrow { (cw - 12.0) / 2.0 } else { (cw - 36.0) / 4.0 }).gap(8.0).pad(14.0, 12.0).radius(8.0).border(1.0, crate::tokens::HAIRLINE)
-                    .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).child(text(format!("星期{d}"), 13.0, crate::tokens::DIM)).child(space(14.0, 14.0).radius(7.0).fill(Paint::hue(*hue))))
+                col().key(format!("st/day{d}")).width(if narrow { (cw - 12.0) / 2.0 } else { (cw - 36.0) / 4.0 }).gap(8.0).pad(14.0, 12.0).radius(8.0).border(1.0, Paint::HAIRLINE)
+                    .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).child(text(format!("星期{d}"), 13.0, Paint::DIM)).child(space(14.0, 14.0).radius(7.0).fill(Paint::hue(*hue))))
                     .child(text(format!("{t}°"), 30.0, Paint::INK).font(Font::Display))
-                    .child(text(*wx, 13.0, crate::tokens::TEXT))
+                    .child(text(*wx, 13.0, Paint::TEXT))
             })));
     let mut r = row().key("st/page").gap(28.0).align(AlignItems::START).width(w);
     if narrow { r = col().key("st/page").gap(20.0).width(w); }
-    r.child(card).child(col().gap(10.0).child(text("风格（← → 切换）", 12.0, crate::tokens::DIM)).child(grid))
+    r.child(card).child(col().gap(10.0).child(text("风格（← → 切换）", 12.0, Paint::DIM)).child(grid))
 }
 
 // ── The page around each scene, and the list ─────────────────────────────────────────────────────
@@ -931,9 +930,9 @@ pub fn page(g: &Gallery, i: usize) -> El<Msg> {
     if i == 1 || narrow { body = body.scroll().bar().shrink(); }
     col().key(format!("scene/{i}")).fill_width().fill_height().gap(0.0)
         .child(row().key(format!("scene/{i}/head")).fill_width().pad(pad, 14.0).gap(14.0).align(AlignItems::BASELINE).wrap()
-            .child(text(format!("{:02}", i + 1), 13.0, crate::tokens::DIM).font(Font::Mono))
+            .child(text(format!("{:02}", i + 1), 13.0, Paint::DIM).font(Font::Mono))
             .child(text(title, 22.0, Paint::INK).font(Font::Display).flow(title_flow(i)).key(format!("scene/{i}/title")))
-            .child(text(desc, 13.0, crate::tokens::DIM).grow(1.0).shrink()))
+            .child(text(desc, 13.0, Paint::DIM).grow(1.0).shrink()))
         .child(body.child(stage))
         .child(strip(g, i, pad))
 }
@@ -968,8 +967,8 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
     // What does not fit is cut at the art box, never drawn smaller.
     let base = col().key(k("box")).width(w).height(h).clip();
     match i {
-        0 => base.center().child(text_lh("● ● ● ● ● ● ●\n● ● 点 ● ● ● ●\n● ● ● ● ● ● ●", 12.0, 26.0, crate::tokens::DIM)),
-        1 => base.child(text_lh("文字沿着圆的边缘排开，每一行只占用没有被挡住的部分，留出一条均匀的缝。文字沿着圆的边缘排开，每一行只占用没有被挡住的部分。", 11.0, 18.0, crate::tokens::DIM).fill_width()
+        0 => base.center().child(text_lh("● ● ● ● ● ● ●\n● ● 点 ● ● ● ●\n● ● ● ● ● ● ●", 12.0, 26.0, Paint::DIM)),
+        1 => base.child(text_lh("文字沿着圆的边缘排开，每一行只占用没有被挡住的部分，留出一条均匀的缝。文字沿着圆的边缘排开，每一行只占用没有被挡住的部分。", 11.0, 18.0, Paint::DIM).fill_width()
                 .around(Around::new(vec![Silhouette::circle(w * 0.5, 50.0, 34.0)], 6.0)))
             .child(space(68.0, 68.0).radius(34.0).fill(Paint::ACCENT).absolute(Some(w * 0.5 - 34.0), Some(16.0), None, None)),
         2 => base.child(picture(SKY, ratio(SKY)).key(k("pic")).markr(super::STYLE_SLOT).loose(1.0).width(w).height(h)),
@@ -980,12 +979,12 @@ pub fn thumb(i: usize, w: f32) -> El<Msg> {
             base.align(AlignItems::START).justify(JustifyContent::CENTER)
                 .child(text("山", size, Paint::INK).font(Font::Display).weight(size * 0.035).shift(-(size * MOUNTAIN_INK.1).round(), -(size * MOUNTAIN_INK.2).round()).key(k("word")))
         }
-        4 => base.child(space(w * 0.5, 80.0).radius(8.0).border(1.0, crate::tokens::DIM).absolute(Some(10.0), Some(24.0), None, None))
+        4 => base.child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::DIM).absolute(Some(10.0), Some(24.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).border(1.0, Paint::ACCENT).absolute(Some(w * 0.25), Some(14.0), None, None))
             .child(space(w * 0.5, 80.0).radius(8.0).fill(Paint::tone(0.1)).border(1.0, Paint::INK).absolute(Some(w * 0.45), Some(4.0), None, None)),
         5 => (0..16).fold(row().key(k("bars")).height(h).align(AlignItems::END).gap(4.0), |r, b| {
                 let v = 0.2 + 0.75 * (((b as f32) * 1.3).sin() * 0.5 + 0.5) * (1.0 - b as f32 / 20.0);
-                r.child(space(((w - 64.0) / 16.0).max(2.0), (v * h).round()).fill(if b < 3 { Paint::ACCENT } else { crate::tokens::DIM }))
+                r.child(space(((w - 64.0) / 16.0).max(2.0), (v * h).round()).fill(if b < 3 { Paint::ACCENT } else { Paint::DIM }))
             }),
         _ => (0..12).fold(row().key(k("sw")).wrap().gap(6.0).width(w), |r, b| r.child(space(((w - 30.0) / 6.0).max(4.0), 46.0).radius(4.0).fill(Paint::hue((b % 3) as u8).alpha(0.35 + 0.05 * (b / 3) as f32)))),
     }

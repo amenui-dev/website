@@ -139,6 +139,7 @@
 弧度 = Curvature
 强度 = Strength
 强调 = Accent
+主要 = Primary
 录音 = Recording
 形状 = Shape
 循环 = Loop

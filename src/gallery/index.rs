@@ -7,10 +7,10 @@ use taffy::AlignItems;
 
 /// A section header (D.4): a hairline across the width with an index and a name set into it.
 pub fn header(key: &str, n: usize, name: &str) -> El<Msg> {
-    let rule = |k: &str, w: Option<f32>| { let r = space(0.0, 1.0).fill(crate::tokens::HAIRLINE).key(format!("{key}/{k}")); match w { Some(w) => r.width(w), None => r.grow(1.0) } };
+    let rule = |k: &str, w: Option<f32>| { let r = space(0.0, 1.0).fill(Paint::HAIRLINE).key(format!("{key}/{k}")); match w { Some(w) => r.width(w), None => r.grow(1.0) } };
     row().key(key.to_owned()).fill_width().gap(10.0).align(AlignItems::CENTER)
         .child(rule("a", Some(16.0)))
-        .child(text(format!("{n:02}"), 11.0, crate::tokens::DIM).font(Font::Mono))
+        .child(text(format!("{n:02}"), 11.0, Paint::DIM).font(Font::Mono))
         .child(rule("b", Some(16.0)))
         .child(text(name.to_uppercase(), 11.0, Paint::INK).font(Font::Mono).heading(2))
         .child(rule("c", None))
@@ -53,14 +53,14 @@ pub const PREVIEW_H: f32 = 112.0;
 /// size), its index and name, one line under them; pressing it opens the page. A card is opaque and
 /// plain: the ambient dots are not drawn under it.
 pub fn card(key: &str, n: usize, name: String, line: String, preview: Option<El<Msg>>, to: Page) -> El<Msg> {
-    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).gap(10.0).pad(16.0, 14.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE)
+    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).gap(10.0).pad(16.0, 14.0).radius(6.0).border(1.0, Paint::HAIRLINE)
         .fill(Paint::GROUND).material(Material::Plain.id())
         .on_press(Msg::Go(to)).role(Role::Link).label(&name);
     if let Some(e) = preview { c = c.child(col().key(format!("{key}/preview")).fill_width().min_width(0.0).height(PREVIEW_H).align(AlignItems::START).justify(taffy::JustifyContent::CENTER).child(e)); }
     c.child(row().key(format!("{key}/name")).gap(10.0).align(AlignItems::BASELINE)
-            .child(text(format!("{n:02}"), 11.0, crate::tokens::DIM).font(Font::Mono))
+            .child(text(format!("{n:02}"), 11.0, Paint::DIM).font(Font::Mono))
             .child(text(name, 16.0, Paint::INK).flow(format!("card-name-{}", to.hash()))))
-        .child(text_lh(line, 12.0, 19.0, crate::tokens::DIM).key(format!("{key}/line")))
+        .child(text_lh(line, 12.0, 19.0, Paint::DIM).key(format!("{key}/line")))
 }
 
 /// A description's first sentence, kept to two lines of a card's text `width`: a sentence that runs
@@ -91,7 +91,7 @@ pub fn components(s: &Gallery) -> El<Msg> {
     let mut page = col().key("index/components").fill_width().min_width(0.0).gap(28.0)
         .child(col().key("index/components/head").gap(10.0).fill_width().min_width(0.0)
             .child(text(amenui::i18n::tr("nav.components"), 34.0, Paint::INK).font(Font::Display).heading(1).key("index/components/title").flow("page-title"))
-            .child(text_lh(amenui::i18n::tr("index.components.lead"), 14.0, 22.0, crate::tokens::DIM).key("index/components/lead").fill(Paint::GROUND).material(Material::Plain.id())));
+            .child(text_lh(amenui::i18n::tr("index.components.lead"), 14.0, 22.0, Paint::DIM).key("index/components/lead").fill(Paint::GROUND).material(Material::Plain.id())));
     let (room, cols) = (room(s), columns(room(s), 240.0));
     let text_w = (room - 16.0 * (cols as f32 - 1.0)) / cols as f32 - 32.0;
     let mut n = 0;
@@ -143,7 +143,7 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
             // The sheet rests 8 px inside the frame, so both their borders are whole.
             let sheet = amenui::el::layers([col().fill_width().fill_height(), bottom_sheet(&k("bs"), &Sheet::resting(PREVIEW_H - 16.0, 1), "Share to", body, |_| Msg::Nothing)])
                 .fill_width().fill_height().clip();
-            col().width(160.0).height(PREVIEW_H).pad(8.0, 8.0).radius(12.0).border(1.0, crate::tokens::HAIRLINE).child(sheet)
+            col().width(160.0).height(PREVIEW_H).pad(8.0, 8.0).radius(12.0).border(1.0, Paint::HAIRLINE).child(sheet)
         }
         "pagination" => pagination(&k("pg"), 2, 5, |_| Msg::Nothing),
         // One match under the query; the query field as wide as the card allows.
@@ -158,23 +158,23 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
             m.update(MenuMsg::Press(0, 0), 0.0);
             nested_menu(&k("nm"), &m, |_| Msg::Nothing)
         }
-        "accordion" => accordion(&k("a"), vec![("What is a material", text("The second pass.", 13.0, crate::tokens::TEXT)), ("What is a preset", text("A set of numbers.", 13.0, crate::tokens::TEXT))], &[false, false], |_| Msg::Nothing).width(200.0),
+        "accordion" => accordion(&k("a"), vec![("What is a material", text("The second pass.", 13.0, Paint::TEXT)), ("What is a preset", text("A set of numbers.", 13.0, Paint::TEXT))], &[false, false], |_| Msg::Nothing).width(200.0),
         "floating" => {
             let mut f = Floating::default();
             f.area = (160.0, 100.0);
             f.size = (88.0, 44.0);
             f.place(3);
-            let label = row().fill_width().fill_height().center().child(text("00:42", 13.0, crate::tokens::TEXT).font(Font::Mono).key(k("t")));
+            let label = row().fill_width().fill_height().center().child(text("00:42", 13.0, Paint::TEXT).font(Font::Mono).key(k("t")));
             amenui::el::layers([floating(&k("fl"), &f, label, |_| Msg::Nothing)])
-                .width(160.0).height(100.0).radius(8.0).border(1.0, crate::tokens::HAIRLINE).clip()
+                .width(160.0).height(100.0).radius(8.0).border(1.0, Paint::HAIRLINE).clip()
         }
         // The open sheet's panel and the open context menu, without the modal layer each puts over
         // the page; the skip link as it shows when it has focus.
         "sheet" => {
-            let open = sheet(&k("sh"), true, "Filter", 150.0, Msg::Nothing, text("Conditions", 13.0, crate::tokens::TEXT));
+            let open = sheet(&k("sh"), true, "Filter", 150.0, Msg::Nothing, text("Conditions", 13.0, Paint::TEXT));
             // The panel 8 px inside the frame, so both their borders are whole.
             let panel = open.children.into_iter().nth(1)?;
-            row().width(200.0).height(PREVIEW_H).pad(8.0, 6.0).radius(8.0).border(1.0, crate::tokens::HAIRLINE).justify(taffy::JustifyContent::END).child(panel)
+            row().width(200.0).height(PREVIEW_H).pad(8.0, 6.0).radius(8.0).border(1.0, Paint::HAIRLINE).justify(taffy::JustifyContent::END).child(panel)
         }
         "context_menu" => {
             let open = context_menu(&k("cm"), Some((0.0, 0.0)), &["Open", "Rename"], 0, |_| Msg::Nothing, |_| Msg::Nothing, Msg::Nothing);

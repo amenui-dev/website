@@ -7,8 +7,7 @@ use crate::demo::SKY;
 use amenui::el::{El, Font, Paint, Scope, col, picture, row, scene3d, stack, text, text_lh};
 use amenui::mesh::{Mat4, MeshId, Scene3d};
 use amenui::morph::{Cmd, MorphSpec, Particles};
-use super::segmented;
-use amenui::widgets::{Variant, button_as, number};
+use amenui::widgets::{Variant, button_as, number, segmented};
 use taffy::AlignItems;
 
 pub const FORMS: [&str; 4] = ["网格", "文字", "图片", "另一个网格"];
@@ -79,10 +78,10 @@ fn form(s: &Gallery, i: usize) -> El<Msg> {
 
 pub fn page(s: &Gallery) -> El<Msg> {
     let h = "parts";
-    let stage = stack((0..FORMS.len()).map(|i| form(s, i))).key("parts/stage").width(STAGE.0).height(STAGE.1).radius(6.0).border(1.0, crate::tokens::HAIRLINE)
+    let stage = stack((0..FORMS.len()).map(|i| form(s, i))).key("parts/stage").width(STAGE.0).height(STAGE.1).radius(6.0).border(1.0, Paint::HAIRLINE)
         .ripplr_scope().ripplr(Scope::Container(None));
     let controls = row().key("parts/controls").wrap().gap(12.0).align(AlignItems::CENTER)
-        .child(button_as("parts/next", "下一步", Variant::Accent, Msg::Parts(PMsg::Next)))
+        .child(button_as("parts/next", "下一步", Variant::Primary, Msg::Parts(PMsg::Next)))
         .child(segmented("parts/forms", &FORMS, s.parts.shape, 30.0, |i| Msg::Parts(PMsg::To(i))));
     let mut nums = row().key("parts/params").fill_width().wrap().gap(10.0);
     for (i, d) in PARAMS.iter().enumerate() {
@@ -93,7 +92,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     col().key("parts/page").fill_width().max_width(1000.0).gap(30.0)
         .child(header(s, h, "粒子", "MorphSpec · Particles", "网格、文字、图片之间来回变：每一格是源在那一格画的东西，落下时是目标在那一格画的东西。格子多于“GPU 起点”时，粒子在显卡上模拟（旋度噪声、指针、波前），只有起点和终点由路径决定，所以交接那一帧和落地那一帧不变。指针推开粒子，按舞台放出一道波前。"))
         .child(section(h, "舞台", col().fill_width().gap(14.0).child(stage).child(controls)
-            .child(text("读数（F2）里写着粒子数和它们在哪里模拟。", 13.0, crate::tokens::DIM))))
+            .child(text("读数（F2）里写着粒子数和它们在哪里模拟。", 13.0, Paint::DIM))))
         .child(section(h, "参数", nums))
         .child(amenui::el::space(1.0, 24.0))
 }

@@ -4,8 +4,7 @@
 //! from the same fields it reads.
 use super::{Gallery, Msg, Target};
 use amenui::el::{El, Font, Paint, col, layers, row, space, text};
-use super::segmented;
-use amenui::widgets::{ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch};
+use amenui::widgets::{ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch, segmented};
 use taffy::AlignItems;
 
 /// The previews' state.
@@ -150,18 +149,18 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
     for i in 0..5 {
         page = page.child(row().key(format!("craft/sheet/row{i}")).gap(12.0).align(AlignItems::CENTER)
             .child(space(44.0, 44.0).radius(6.0).fill(Paint::hue((i % 3) as u8).alpha(0.7)))
-            .child(text(if zh { format!("第 {} 卷", i + 1) } else { format!("Roll {}", i + 1) }, 15.0, crate::tokens::TEXT)));
+            .child(text(if zh { format!("第 {} 卷", i + 1) } else { format!("Roll {}", i + 1) }, 15.0, Paint::TEXT)));
     }
-    page = page.child(button_as("craft/sheet/open", if zh { "分享…" } else { "Share…" }, Variant::Accent, Msg::Craft(CMsg::SheetOpen)));
+    page = page.child(button_as("craft/sheet/open", if zh { "分享…" } else { "Share…" }, Variant::Primary, Msg::Craft(CMsg::SheetOpen)));
     let mut body = col().key("craft/sheet/list").fill_width().gap(2.0);
     for i in 0..16 {
         body = body.child(row().key(format!("craft/sheet/item{i}")).fill_width().height(40.0).gap(12.0).align(AlignItems::CENTER)
             .child(space(28.0, 28.0).radius(14.0).fill(Paint::hue((i % 3) as u8)))
-            .child(text(if zh { format!("联系人 {}", i + 1) } else { format!("Contact {}", i + 1) }, 14.0, crate::tokens::TEXT)));
+            .child(text(if zh { format!("联系人 {}", i + 1) } else { format!("Contact {}", i + 1) }, 14.0, Paint::TEXT)));
     }
     let title = if zh { "分享到" } else { "Share to" };
     let frame = layers([page, bottom_sheet("craft/sheet", &c.sheet, title, body, |m| Msg::Craft(CMsg::Sheet(m)))])
-        .key("craft/sheet/frame").width(PHONE.0).height(PHONE.1).radius(22.0).border(1.0, crate::tokens::DIM).clip();
+        .key("craft/sheet/frame").width(PHONE.0).height(PHONE.1).radius(22.0).border(1.0, Paint::DIM).clip();
     let sh = &c.sheet;
     let formula = format!("rest = nearest(detents·H, x + v/1000·{d:.4}/(1−{d:.4}))  ·  dismiss if end < {lo:.0}/2 or (end < {lo:.0} and −v ≥ {dv:.0})  ·  past top: x' = top + (1 − 1/(d·{rc:.2}/{h:.0} + 1))·{h:.0}  ·  spring k={k:.0} c={c:.0} m={m:.0} (ζ={z:.2})",
         d = sh.projection_decel, lo = sh.detent(0), dv = sh.dismiss_velocity, rc = sh.rubber.coeff, h = sh.height, k = sh.spring.stiffness, c = sh.spring.damping, m = sh.spring.mass, z = sh.spring.ratio());
@@ -171,16 +170,16 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
 fn pip_page(s: &Gallery) -> El<Msg> {
     let f = &s.craft.pip;
     let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).fill(Paint::hue(1).alpha(0.22)).respond(amenui::el::Response::Nudge)
-        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::ACCENT)).child(text("00:42", 11.0, crate::tokens::TEXT).font(Font::Mono)))
+        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::ACCENT)).child(text("00:42", 11.0, Paint::TEXT).font(Font::Mono)))
         .child(space(0.0, 0.0).grow(1.0))
         .child(row().fill_width().height(3.0).child(space(0.0, 3.0).width_frac(0.4).fill(Paint::ACCENT)));
     // The four corners it can rest in, faint, then the box.
     let mut parts: Vec<El<Msg>> = (0..4).map(|i| {
         let (x, y) = f.corner_at(i);
-        space(f.size.0, f.size.1).key(format!("craft/pip/corner{i}")).shift(x, y).radius(8.0).border(1.0, if i == f.corner() { crate::tokens::DIM } else { crate::tokens::HAIRLINE })
+        space(f.size.0, f.size.1).key(format!("craft/pip/corner{i}")).shift(x, y).radius(8.0).border(1.0, if i == f.corner() { Paint::DIM } else { Paint::HAIRLINE })
     }).collect();
     parts.push(floating("craft/pip/box", f, player, |m| Msg::Craft(CMsg::Pip(m))));
-    let area = layers(parts).key("craft/pip/area").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, crate::tokens::HAIRLINE).clip();
+    let area = layers(parts).key("craft/pip/area").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, Paint::HAIRLINE).clip();
     let formula = format!("end = at + v/1000·{d:.4}/(1−{d:.4})  ·  corner = nearest(end), inset {i:.0}  ·  spring k={k:.0} c={c:.0} (ζ={z:.2})  ·  past an edge: (1 − 1/(d·{rc:.2}/dim + 1))·dim",
         d = f.projection_decel, i = f.corner_inset, k = f.spring.stiffness, c = f.spring.damping, z = f.spring.ratio(), rc = f.rubber.coeff);
     cap(s, 1, "craft/pip/cap", formula, area)
@@ -196,10 +195,10 @@ fn menu_page(s: &Gallery) -> El<Msg> {
         names.join(" › ")
     };
     let menu = nested_menu("craft/menu", m, |x| Msg::Craft(CMsg::Menu(x)));
-    let area = col().key("craft/menu/area").width(560.0).height(330.0).pad(16.0, 16.0).radius(8.0).border(1.0, crate::tokens::HAIRLINE).child(menu);
+    let area = col().key("craft/menu/area").width(560.0).height(330.0).pad(16.0, 16.0).radius(8.0).border(1.0, Paint::HAIRLINE).child(menu);
     let controls = row().key("craft/menu/controls").gap(16.0).align(AlignItems::CENTER)
         .child(switch("craft/menu/zone", &tr("craft.menu.show-zone"), m.show_safe_zone, None, Msg::Craft(CMsg::SafeZone)))
-        .child(text(format!("{}: {picked}", tr("craft.menu.picked")), 13.0, crate::tokens::DIM).key("craft/menu/picked"));
+        .child(text(format!("{}: {picked}", tr("craft.menu.picked")), 13.0, Paint::DIM).key("craft/menu/picked"));
     let formula = format!("switch row after {sd:.0} ms; inside △(prev pointer, submenu near corners) wait {cd:.0} ms, re-armed by each move  ·  rows {rh:.0} px, menus {w:.0} px",
         sd = m.submenu_delay_ms, cd = m.close_delay_ms, rh = m.row_h, w = m.width);
     cap(s, 2, "craft/menu/cap", formula, col().key("craft/menu/demo").gap(12.0).child(area).child(controls))
@@ -211,7 +210,7 @@ fn load_row(k: &str, i: usize) -> El<Msg> {
     let titles = ["craft.load.r0", "craft.load.r1", "craft.load.r2", "craft.load.r3"];
     row().key(format!("{k}/row{i}")).gap(10.0).height(44.0).align(AlignItems::CENTER)
         .child(space(34.0, 34.0).radius(6.0).fill(Paint::hue((i % 3) as u8)).key(format!("{k}/row{i}/pic")))
-        .child(col().gap(3.0).child(text(tr(titles[i % 4]), 13.5, crate::tokens::TEXT).key(format!("{k}/row{i}/t"))).child(text(tr("craft.load.meta"), 11.0, crate::tokens::DIM).key(format!("{k}/row{i}/m"))))
+        .child(col().gap(3.0).child(text(tr(titles[i % 4]), 13.5, Paint::TEXT).key(format!("{k}/row{i}/t"))).child(text(tr("craft.load.meta"), 11.0, Paint::DIM).key(format!("{k}/row{i}/m"))))
 }
 fn load_page(s: &Gallery) -> El<Msg> {
     let c = &s.craft;
@@ -219,8 +218,8 @@ fn load_page(s: &Gallery) -> El<Msg> {
     let now = c.now;
     let (st, arrived) = (c.load.started(), c.load.arrived());
     let waiting = st.is_some() && arrived.is_none();
-    let panel = |k: &str, name: String, body: El<Msg>| col().key(format!("craft/load/{k}")).width(250.0).height(300.0).pad(14.0, 12.0).gap(8.0).radius(8.0).border(1.0, crate::tokens::HAIRLINE).clip()
-        .child(text(name, 13.0, crate::tokens::DIM).key(format!("craft/load/{k}/name"))).child(body);
+    let panel = |k: &str, name: String, body: El<Msg>| col().key(format!("craft/load/{k}")).width(250.0).height(300.0).pad(14.0, 12.0).gap(8.0).radius(8.0).border(1.0, Paint::HAIRLINE).clip()
+        .child(text(name, 13.0, Paint::DIM).key(format!("craft/load/{k}/name"))).child(body);
     let rows = |k: &str, show: &dyn Fn(usize) -> Show| (0..4).fold(col().key(format!("craft/load/{k}/rows")).gap(6.0), |c, i| c.child(match show(i) {
         Show::Content => load_row(k, i), Show::Skeleton => load_row(k, i).skeleton(), Show::Nothing => load_row(k, i).hidden_until_morphed(true),
     }));
@@ -229,7 +228,7 @@ fn load_page(s: &Gallery) -> El<Msg> {
         let lit = ((now - st.unwrap_or(0.0)) * 10.0).floor() as usize % 8;
         let dots: Vec<El<Msg>> = (0..8).map(|d| {
             let a = d as f32 / 8.0 * std::f32::consts::TAU;
-            space(6.0, 6.0).radius(3.0).fill(if d == lit { Paint::ACCENT } else { crate::tokens::HAIRLINE }).shift(15.0 + 14.0 * a.cos(), 15.0 + 14.0 * a.sin()).key(format!("craft/load/spin/d{d}"))
+            space(6.0, 6.0).radius(3.0).fill(if d == lit { Paint::ACCENT } else { Paint::HAIRLINE }).shift(15.0 + 14.0 * a.cos(), 15.0 + 14.0 * a.sin()).key(format!("craft/load/spin/d{d}"))
         }).collect();
         let ring = layers(dots).key("craft/load/spin/ring").width(36.0).height(36.0);
         col().key("craft/load/spin/wait").fill_width().height(220.0).center().child(ring)
@@ -245,11 +244,11 @@ fn load_page(s: &Gallery) -> El<Msg> {
     // (Drawn faint the way a subtree that takes no input is, until the answer comes.)
     let opt = (0..4).fold(col().key("craft/load/opt/rows").gap(6.0), |c, i| c.child(load_row("opt", i).disabled(i == 3 && waiting)));
     let opt = col().key("craft/load/opt/col").gap(4.0).child(opt)
-        .child(text(if waiting { tr("craft.load.sending") } else { tr("craft.load.sent") }, 11.0, if waiting { crate::tokens::DIM } else { Paint::ACCENT }).key("craft/load/opt/state"));
+        .child(text(if waiting { tr("craft.load.sending") } else { tr("craft.load.sent") }, 11.0, if waiting { Paint::DIM } else { Paint::ACCENT }).key("craft/load/opt/state"));
     let grid = row().key("craft/load/grid").wrap().gap(12.0)
         .child(panel("spin", tr("craft.load.spinner"), spin)).child(panel("skel", tr("craft.load.skeleton"), skel))
         .child(panel("prog", tr("craft.load.progress"), prog)).child(panel("opt", tr("craft.load.optimistic"), opt));
-    let demo = col().key("craft/load/demo").gap(12.0).child(button_as("craft/load/reload", &tr("craft.load.reload"), Variant::Accent, Msg::Craft(CMsg::Reload))).child(grid);
+    let demo = col().key("craft/load/demo").gap(12.0).child(button_as("craft/load/reload", &tr("craft.load.reload"), Variant::Primary, Msg::Craft(CMsg::Reload))).child(grid);
     let l = &c.load;
     let formula = format!("t < {a:.0} ms: static parts only  ·  t ≥ {a:.0} ms and no data: row.skeleton()  ·  data at {lat:.0} ms: row i at data + i·{st:.0} ms, same boxes",
         a = l.skeleton_after_ms, st = l.swap_stagger_ms, lat = c.latency_ms);
