@@ -196,9 +196,7 @@ pub fn step(s: &mut Gallery, t: f32) -> Vec<String> {
     if let Some(i) = page_cell(s) {
         if s.lab.step_cells(t, Some(i), false).is_empty() { return vec![]; }
         let k = format!("lab/{}", NAMES[i]);
-        // A step of Loupe moves its lens alone: the page under it, kept on its plate, is not drawn again.
-        let part = if NAMES[i] == "loupe" { "lens" } else { "stage" };
-        return [part, "formula", "label"].iter().map(|p| format!("{k}/{p}")).collect();
+        return ["stage", "formula", "label"].iter().map(|p| format!("{k}/{p}")).collect();
     }
     if s.page != super::Page::Lab { return vec![]; }
     let fams = path().into_iter().flatten().filter(|&p| family_of(p).is_some()).collect::<Vec<_>>();

@@ -339,11 +339,12 @@ impl Experiment for Loupe {
             piece = piece.child(page.cached());
         }
         // The lens: the glass and its rim over the page, the size of the stage. The pointer's messages
-        // change it alone: it is made and drawn again by itself, the kept page left as it was (Z.7).
+        // change it alone: it is made, viewed and drawn again by itself (`El::steps`), the kept page left as
+        // it was (Z.7).
         // Free, it hears the pointer over the whole stage and the glass follows. Pinned, only the page
         // around the glass does: a press on the glass's text selects it, a press beside it frees it.
         // A slot or the rim taking a new row changes its text at once, not glyph by glyph.
-        let mut lens = col().key(kf("lens")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None).recompose(false);
+        let mut lens = col().key(kf("lens")).width(w).height(h).absolute(Some(0.0), Some(0.0), None, None).recompose(false).steps();
         if !index {
             lens = lens.local_messages();
             // Pinned, the pointer passes through it to the page; the glass's text still takes it.
