@@ -240,3 +240,47 @@ fn y5(at: Option<(f32, f32)>) {
         assert!(q(1.0) <= 16.7, "a frame took {:.2} ms", q(1.0));
     }
 }
+
+/// Review 2: over the plates' limit the page has no kept image and the glass is its rim alone: no
+/// fill, no lines, the page seen through it at its own size and the rim reading ×1, with no warning.
+/// Back under the limit the glass fills again at once.
+#[test]
+fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
+    use amenui::experiment::Experiment;
+    fn find<'a, M>(e: &'a amenui::el::El<M>, key: &str) -> Option<&'a amenui::el::El<M>> {
+        if e.props.key == key { return Some(e); }
+        e.children.iter().find_map(|c| find(c, key))
+    }
+    let lines = |ui: &GalleryUi| ui.nodes().iter().filter(|n| n.key.starts_with(&format!("{K}/glass/line/"))).count();
+    // The piece's texts other than the page and the glass's lines: no warning comes among them.
+    let text_keys = |ui: &GalleryUi| -> Vec<String> {
+        ui.nodes().iter().filter(|n| n.key.starts_with(&format!("{K}/")) && !n.key.starts_with(&format!("{K}/sheet")) && !n.key.starts_with(&format!("{K}/glass/line/")))
+            .filter(|n| matches!(n.content, amenui::el::Content::Text { .. })).map(|n| n.key.clone()).collect()
+    };
+    let (mut ui, mut t) = page(1440, 900, 1.0);
+    let sheet = format!("{K}/sheet");
+    assert_eq!(ui.kept_image(&sheet), Some(true), "the page is a cached element with its kept image");
+    let filled = (lines(&ui), text_of(&ui, &format!("{K}/rim")).expect("rim"), text_keys(&ui));
+    assert!(filled.0 > 0 && filled.1.starts_with("×8 "), "{filled:?}");
+
+    // Over the limit: what `Ui::on_kept` tells the state.
+    gallery::kept(&mut ui.state, &sheet, false);
+    ui.relayout();
+    rest(&mut ui, &mut t, 2);
+    assert_eq!(lines(&ui), 0, "the glass still sets lines it cannot show over");
+    let rim = text_of(&ui, &format!("{K}/rim")).expect("rim");
+    assert!(rim.starts_with("×1 · LINE"), "the rim reads {rim:?}");
+    let l = shown(&ui);
+    let v = l.view(K);
+    let glass = find(&v, &format!("{K}/glass")).expect("glass");
+    assert!(glass.props.fill.is_none(), "the glass is filled over the limit");
+    assert!(glass.props.border.is_some(), "the glass has no rim");
+    assert_eq!(text_keys(&ui), filled.2, "the glass says more than its rim over the limit");
+
+    // Back under: filled again by a cut, the zoom on the rim.
+    gallery::kept(&mut ui.state, &sheet, true);
+    ui.relayout();
+    rest(&mut ui, &mut t, 1);
+    assert_eq!((lines(&ui), text_of(&ui, &format!("{K}/rim")).expect("rim"), text_keys(&ui)), filled, "the glass did not come back as it was");
+    assert!(find(&shown(&ui).view(K), &format!("{K}/glass")).expect("glass").props.fill.is_some());
+}

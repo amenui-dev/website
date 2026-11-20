@@ -71,12 +71,15 @@ pub struct Loupe {
     pub faces: Option<Faces>,
     /// Whether the hand set `radius` (the rim, the number); until then it follows the stage (Z.7).
     pub sized: bool,
+    /// Whether the page has its kept image (`Ui::on_kept`): over the plates' limit it has none, and the
+    /// glass is its rim alone, the page seen through it at its own size.
+    pub kept: bool,
     hold: Option<Hold>,
     wrapped: Wrapped,
 }
 impl Default for Loupe {
     fn default() -> Self {
-        Self { p: Params::new(&DEFS, &[8.0, 132.0, 8.0]), mode: 0, grid: true, size: (480.0, 360.0), at: (240.0, 180.0), v: (0.0, 0.0), to: (240.0, 180.0), moving: false, pinned: false, t: 0.0, faces: None, sized: false, hold: None, wrapped: Rc::default() }
+        Self { p: Params::new(&DEFS, &[8.0, 132.0, 8.0]), mode: 0, grid: true, size: (480.0, 360.0), at: (240.0, 180.0), v: (0.0, 0.0), to: (240.0, 180.0), moving: false, pinned: false, t: 0.0, faces: None, sized: false, kept: true, hold: None, wrapped: Rc::default() }
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -141,6 +144,8 @@ impl Scalar for Dist<'_> {
 }
 
 impl Loupe {
+    /// A cached element's kept image came or went (`Ui::on_kept`): the page's is the one that counts.
+    pub fn set_kept(&mut self, key: &str, kept: bool) { if key.ends_with("loupe/sheet") { self.kept = kept; } }
     /// The page's layout on the stage.
     pub fn sheet(&self) -> Sheet {
         let cols = self.p.get(2) as usize;
@@ -353,8 +358,12 @@ impl Experiment for Loupe {
         // The glass.
         let (gx, gy) = me.at;
         let shown = me.in_glass();
-        let mut glass = col().key(kf("glass")).width(2.0 * r).height(2.0 * r).radius(r).clip_round(r).fill(Paint::GROUND).border(1.0, Paint::INK)
+        // With no kept image the glass has nothing to magnify: it is its rim alone, unfilled, and the
+        // page shows through it at its own size (review 2). Back under the limit it fills by a cut.
+        let bare = !index && !me.kept;
+        let mut glass = col().key(kf("glass")).width(2.0 * r).height(2.0 * r).radius(r).clip_round(r).border(1.0, Paint::INK)
             .absolute(Some(gx - r), Some(gy - r), None, None);
+        if !bare { glass = glass.fill(Paint::GROUND); }
         // Pinned, the glass holds exactly the text it shows, and it selects. Free, it holds its line
         // slots (Z.7): whole rows of the page, padded to the column's width, each glyph outside the
         // circle left out by its pose, so a moving glass moves its slots and changes no measure.
@@ -386,7 +395,8 @@ impl Experiment for Loupe {
         };
         let mut d = Drawing::new(2.0 * r, 2.0 * r);
         let mut over: Vec<El<Msg>> = vec![];
-        match if index { 0 } else { me.mode } {
+        match if bare { 3 } else if index { 0 } else { me.mode } {
+            3 => {}
             1 => {
                 let rr = r / z;
                 glass = glass.child(cached_view(kf("sheet"), [gx - rr, gy - rr, 2.0 * rr, 2.0 * rr], Paint::INK).width(2.0 * r).height(2.0 * r).absolute(Some(0.0), Some(0.0), None, None));
@@ -419,7 +429,7 @@ impl Experiment for Loupe {
             let (l, c) = me.reading().unwrap_or((0, 0));
             // On a plate of the ground, 4 px round it, in figures of one width; near the stage's right
             // or lower edge it goes to the rim's other side (Z.7).
-            let rim = format!("×{z:.0} · LINE {l:>4} · COL {c:>3}");
+            let rim = format!("×{:.0} · LINE {l:>4} · COL {c:>3}", if bare { 1.0 } else { z });
             let (pw, ph) = (rim.chars().count() as f32 * 7.0 + 8.0, 26.0);
             let mut rx = gx + r * 0.71 + 6.0;
             if rx + pw > w - 8.0 { rx = gx - r * 0.71 - 6.0 - pw; }

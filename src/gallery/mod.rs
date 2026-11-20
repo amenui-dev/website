@@ -1067,6 +1067,9 @@ fn burst_step(s: &mut Gallery, t: f32) -> bool {
     n > done
 }
 
+/// A cached element's kept image came or went (`Ui::on_kept`).
+pub fn kept(s: &mut Gallery, key: &str, kept: bool) { s.lab.loupe.set_kept(key, kept); }
+
 pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
     crate::install_catalogs();
     let state = Gallery { width: w as f32 / scale, height: h as f32 / scale, ..Gallery::default() };
@@ -1079,6 +1082,8 @@ pub fn new_ui(faces: Vec<Face>, w: u32, h: u32, scale: f32) -> GalleryUi {
     for m in mechanism::meshes() { ui.add_mesh(m); }
     // Kern and Loupe measure the outlines of the page's own faces (`Experiment::faces`).
     ui = ui.on_faces(|s, f| s.lab.faces(f));
+    // Loupe's page is the one cached element: over the plates' limit its glass is the rim alone.
+    ui = ui.on_kept(kept);
     ui.on_resize(|s, w, h| { s.width = w; s.height = h; s.body.resize(w, h); }).on_commands(|s| std::mem::take(&mut s.cmds))
         .on_gaze(|s| s.look().gaze)
         .on_hover(|s, k| {
