@@ -1,8 +1,9 @@
 # Builds the web version on every push to main, twice: for the path GitHub Pages serves it under
 # (`/website/`, or the repository variable SITE_BASE) on the `gh-pages` branch (Settings → Pages → Deploy
 # from a branch → gh-pages, / (root)), and for the root of its own domain on the `cloudflare-pages`
-# branch, which Cloudflare Pages serves as it is (production branch cloudflare-pages, no build command,
-# output directory /). Neither host builds anything.
+# branch, which Cloudflare deploys as it is (a Worker with static assets: production branch
+# cloudflare-pages, no build command, deploy command `npx wrangler deploy`, path /). Neither host builds
+# anything.
 name: deploy
 
 on:
@@ -66,7 +67,10 @@ jobs:
         run: |
           mv dist/site out
           python3 web/build.py
-          mv dist/site out-root
+          # Cloudflare deploys it as a Worker's static assets (`npx wrangler deploy`): the files in
+          # public/, the config beside them.
+          mkdir out-root && mv dist/site out-root/public
+          cp web/wrangler.jsonc out-root/
       - name: Push to gh-pages and cloudflare-pages
         run: |
           publish() {
