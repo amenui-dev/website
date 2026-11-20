@@ -122,13 +122,25 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
     let k = |n: &str| format!("{key}/{n}");
     Some(match name.replace('-', "_").as_str() {
         "orbit" => orbit(&k("o"), Scene3d::single(MeshId::CUBE), &Orbit::default(), |_| Msg::Nothing).width(150.0).height(100.0),
-        // Three cards, the two under the top one turned out a little, settled; the top one in ink, so the
-        // index shows no accent at rest (AA.9).
+        // Three cards, the two under the top one turned out a little, settled, as the widget lays them
+        // out in a 150 x 96 box: each on the raised grey, the top one framed in ink and those under it in
+        // the hairline (the widget's own outline is one colour for every card).
         "card_stack" => {
             let mut d = Stack::default();
             (d.count, d.angle0, d.falloff) = (3, 10.0, 2.0);
-            d.paints[0] = Paint::INK;
-            card_stack(&k("cs"), &super::lab::fanned(&d), 150.0, 96.0, |_| Msg::Nothing)
+            let (bw, bh) = (150.0, 96.0);
+            let px = bh / 1.25;
+            let (w, h) = d.card;
+            let cards = (0..d.count).rev().map(|i| {
+                let a = if i == 0 { 0.0 } else { d.angle(i - 1).to_radians() };
+                let (sn, cs) = a.sin_cos();
+                // The card's centre: its bottom-left corner at the pivot, turned about it.
+                let (cx, cy) = (-w * 0.4 + 0.5 * (w * cs - h * sn), -h * 0.7 + 0.5 * (w * sn + h * cs));
+                let (cw, ch) = (w * px, h * px);
+                space(cw, ch).key(k(&format!("cs/card{i}"))).fill(Paint::RAISED).border(1.0, if i == 0 { Paint::INK } else { Paint::HAIRLINE })
+                    .absolute(Some(bw * 0.5 + cx * px - cw * 0.5), Some(bh * 0.5 - cy * px - ch * 0.5), None, None).turn(-a)
+            });
+            amenui::el::layers(cards).key(k("cs")).width(bw).height(bh).role(Role::Img).label(amenui::i18n::tr("widget.stack.label"))
         }
         // The examples' badges with the main one an ink plate in place of the accent one.
         "badge" => row().gap(8.0).child(badge(&k("bd1"), "新", Variant::Primary)).child(badge(&k("bd2"), "草稿", Variant::Default)).child(badge(&k("bd3"), "12", Variant::Quiet)),
