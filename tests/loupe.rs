@@ -242,7 +242,8 @@ fn y5(at: Option<(f32, f32)>) {
 }
 
 /// Review 2: over the plates' limit the page has no kept image and the glass is its rim alone: no
-/// fill, no lines, the page seen through it at its own size and the rim reading ×1, with no warning.
+/// fill, no lines, the page seen through it at its own size and the rim reading ×1 in the dim grey, with
+/// no warning.
 /// Back under the limit the glass fills again at once.
 #[test]
 fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
@@ -251,6 +252,11 @@ fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
         if e.props.key == key { return Some(e); }
         e.children.iter().find_map(|c| find(c, key))
     }
+    // The rim's paint as the view sets it.
+    let rim_paint = |ui: &GalleryUi| match &find(&shown(ui).view(K), &format!("{K}/rim")).expect("rim").props.content {
+        amenui::el::Content::Text { paint, .. } => *paint,
+        _ => panic!("the rim is not a text"),
+    };
     let lines = |ui: &GalleryUi| ui.nodes().iter().filter(|n| n.key.starts_with(&format!("{K}/glass/line/"))).count();
     // The piece's texts other than the page and the glass's lines: no warning comes among them.
     let text_keys = |ui: &GalleryUi| -> Vec<String> {
@@ -262,6 +268,7 @@ fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
     assert_eq!(ui.kept_image(&sheet), Some(true), "the page is a cached element with its kept image");
     let filled = (lines(&ui), text_of(&ui, &format!("{K}/rim")).expect("rim"), text_keys(&ui));
     assert!(filled.0 > 0 && filled.1.starts_with("×8 "), "{filled:?}");
+    assert_eq!(rim_paint(&ui), amenui::el::Paint::ACCENT, "filled, the rim reads in the Lab's accent");
 
     // Over the limit: what `Ui::on_kept` tells the state.
     gallery::kept(&mut ui.state, &sheet, false);
@@ -270,6 +277,7 @@ fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
     assert_eq!(lines(&ui), 0, "the glass still sets lines it cannot show over");
     let rim = text_of(&ui, &format!("{K}/rim")).expect("rim");
     assert!(rim.starts_with("×1 · LINE"), "the rim reads {rim:?}");
+    assert_eq!(rim_paint(&ui), amenui::el::Paint::DIM, "over the limit the rim is dim");
     let l = shown(&ui);
     let v = l.view(K);
     let glass = find(&v, &format!("{K}/glass")).expect("glass");
@@ -283,4 +291,5 @@ fn over_the_kept_image_limit_the_glass_is_its_rim_alone_and_reads_x1() {
     rest(&mut ui, &mut t, 1);
     assert_eq!((lines(&ui), text_of(&ui, &format!("{K}/rim")).expect("rim"), text_keys(&ui)), filled, "the glass did not come back as it was");
     assert!(find(&shown(&ui).view(K), &format!("{K}/glass")).expect("glass").props.fill.is_some());
+    assert_eq!(rim_paint(&ui), amenui::el::Paint::ACCENT);
 }

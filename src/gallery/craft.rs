@@ -169,8 +169,10 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
 
 fn pip_page(s: &Gallery) -> El<Msg> {
     let f = &s.craft.pip;
-    let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).fill(Paint::hue(1).alpha(0.22)).respond(amenui::el::Response::Nudge)
-        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::INK)).child(text("00:42", 11.0, Paint::TEXT).font(Font::Mono)))
+    // The box is the ground on the raised stage, in a dim outline that is the accent only while it is
+    // held; its dot, time and bar are ink.
+    let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).respond(amenui::el::Response::Nudge)
+        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::INK)).child(text("00:42", 11.0, Paint::INK).font(Font::Mono)))
         .child(space(0.0, 0.0).grow(1.0))
         .child(row().fill_width().height(3.0).child(space(0.0, 3.0).width_frac(0.4).fill(Paint::INK)));
     // The four corners it can rest in, faint, then the box.
@@ -178,7 +180,7 @@ fn pip_page(s: &Gallery) -> El<Msg> {
         let (x, y) = f.corner_at(i);
         space(f.size.0, f.size.1).key(format!("craft/pip/corner{i}")).shift(x, y).radius(8.0).border(1.0, if i == f.corner() { Paint::DIM } else { Paint::HAIRLINE })
     }).collect();
-    parts.push(floating("craft/pip/box", f, player, |m| Msg::Craft(CMsg::Pip(m))));
+    parts.push(floating("craft/pip/box", f, player, |m| Msg::Craft(CMsg::Pip(m))).fill(Paint::GROUND).border(1.0, if f.dragging() { Paint::ACCENT } else { Paint::DIM }));
     let area = layers(parts).key("craft/pip/area").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, Paint::HAIRLINE).clip();
     let formula = format!("end = at + v/1000·{d:.4}/(1−{d:.4})  ·  corner = nearest(end), inset {i:.0}  ·  spring k={k:.0} c={c:.0} (ζ={z:.2})  ·  past an edge: (1 − 1/(d·{rc:.2}/dim + 1))·dim",
         d = f.projection_decel, i = f.corner_inset, k = f.spring.stiffness, c = f.spring.damping, z = f.spring.ratio(), rc = f.rubber.coeff);

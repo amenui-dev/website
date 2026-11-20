@@ -425,7 +425,8 @@ impl Experiment for Loupe {
         for e in over { glass = glass.child(e); }
         lens = lens.child(glass);
         if !index {
-            // On the rim: the zoom, and the line and column under the centre, in the accent.
+            // On the rim: the zoom, and the line and column under the centre, in the accent; dim while
+            // the glass is its rim alone.
             let (l, c) = me.reading().unwrap_or((0, 0));
             // On a plate of the ground, 4 px round it, in figures of one width; near the stage's right
             // or lower edge it goes to the rim's other side (Z.7).
@@ -436,7 +437,7 @@ impl Experiment for Loupe {
             let mut ry = gy + r * 0.71 + 2.0;
             if ry + ph > h - 8.0 { ry = gy - r * 0.71 - 2.0 - ph; }
             let (rx, ry) = (rx.clamp(8.0, (w - pw - 8.0).max(8.0)), ry.clamp(8.0, (h - ph - 8.0).max(8.0)));
-            let rim = text(rim, 11.0, Paint::ACCENT).font(Font::Mono).key(kf("rim"));
+            let rim = text(rim, 11.0, if bare { Paint::DIM } else { Paint::ACCENT }).font(Font::Mono).key(kf("rim"));
             lens = lens.child(col().key(kf("rim/plate")).pass(true).pad(4.0, 4.0).fill(Paint::GROUND).child(rim).absolute(Some(rx), Some(ry), None, None));
         }
         piece = piece.child(lens);
