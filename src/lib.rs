@@ -110,13 +110,12 @@ mod site_exports {
 
     /// Make the pictures the page's scene draws that the renderer does not have yet, each once. The
     /// page calls it after a route and after every frame; when it made one it returns true and the
-    /// page draws that frame again at once, whole, so no picture is ever seen blank.
+    /// page draws that frame again at once, each new picture where it is, so no picture is ever seen
+    /// blank.
     #[wasm_bindgen]
     pub fn pictures() -> bool {
         thread_local! { static MADE: std::cell::RefCell<Vec<u32>> = const { std::cell::RefCell::new(Vec::new()) }; }
         host(|s| {
-            // A frame drawn whole for a new picture has been drawn: frames draw only what changed again.
-            s.r.partial = true;
             let mut want: Vec<u32> = s.ui.scene().instances.iter().filter(|i| i.paint[3] == amenui::scene::PICTURE).map(|i| i.extra[1] as u32).collect();
             want.sort_unstable();
             want.dedup();
@@ -129,8 +128,7 @@ mod site_exports {
                 }
             });
             if want.is_empty() { return false; }
-            // The next frame is drawn whole: what changed in the scene is not where the new picture is.
-            s.r.partial = false;
+            // The next frame draws each new picture again where it is (`Renderer::set_picture`).
             s.ui.invalidate();
             true
         }).unwrap_or(false)
