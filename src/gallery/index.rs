@@ -144,18 +144,12 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
         }
         // The examples' badges with the main one an ink plate in place of the accent one.
         "badge" => row().gap(8.0).child(badge(&k("bd1"), "新", Variant::Primary)).child(badge(&k("bd2"), "草稿", Variant::Default)).child(badge(&k("bd3"), "12", Variant::Quiet)),
-        // Three people told apart in greys: an ink disc and a dim one with ground-coloured initials, and a
-        // raised one in a dim outline with ink initials.
+        // Three people told apart in greys: the ink and dim shades with ground-coloured initials, and a
+        // raised disc in a dim outline with ink initials (no shade of the widget's draws that).
         "avatar" => {
             let ada = row().key(k("av3")).width(36.0).height(36.0).radius(18.0).fill(Paint::RAISED).border(1.0, Paint::DIM).center().role(Role::Img).label("Ada")
                 .child(text(initials("Ada"), 36.0 * 0.4, Paint::INK).font(Font::Display));
-            row().gap(8.0).child(avatar(&k("av1"), "Lin Mo", 36.0, 0).fill(Paint::INK)).child(avatar(&k("av2"), "林墨", 36.0, 0).fill(Paint::DIM)).child(ada)
-        }
-        // The example's field with no range picked: a picked range is drawn in the accent.
-        "dot_chart" => {
-            let mut c = DotChart::default();
-            (c.cols, c.rows, c.pitch, c.range) = (28, 10, 7.0, (0.0, 0.0));
-            dot_chart(&k("dc"), &c, |_| Msg::Nothing)
+            row().gap(8.0).child(avatar(&k("av1"), "Lin Mo", 36.0, 0)).child(avatar(&k("av2"), "林墨", 36.0, 1)).child(ada)
         }
         // The tip and the toast are placed by insets from their boxes' far edges; here from the near
         // ones, so they stay in the card at any width.

@@ -4,7 +4,7 @@
 //! from the same fields it reads.
 use super::{Gallery, Msg, Target};
 use amenui::el::{El, Font, Paint, col, layers, row, space, text};
-use amenui::widgets::{ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch, segmented};
+use amenui::widgets::{SHADES, ChartMsg, DotChart, dot_chart, Stack, StackLook, StackMsg, card_stack, Loading, Show, progress, CaptionParam, Edit, FloatMsg, Floating, Menu, MenuItem, MenuMsg, Sheet, SheetMsg, Spec, Variant, bottom_sheet, button_as, floating, nested_menu, switch, segmented};
 use taffy::AlignItems;
 
 /// The previews' state.
@@ -148,14 +148,14 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
         .child(text(if zh { "相册" } else { "Album" }, 22.0, Paint::INK).font(Font::Display));
     for i in 0..5 {
         page = page.child(row().key(format!("craft/sheet/row{i}")).gap(12.0).align(AlignItems::CENTER)
-            .child(space(44.0, 44.0).radius(6.0).fill(Paint::hue((i % 3) as u8).alpha(0.7)))
+            .child(space(44.0, 44.0).radius(6.0).fill(SHADES[i % 3].alpha(0.7)))
             .child(text(if zh { format!("第 {} 卷", i + 1) } else { format!("Roll {}", i + 1) }, 15.0, Paint::TEXT)));
     }
     page = page.child(button_as("craft/sheet/open", if zh { "分享…" } else { "Share…" }, Variant::Primary, Msg::Craft(CMsg::SheetOpen)));
     let mut body = col().key("craft/sheet/list").fill_width().gap(2.0);
     for i in 0..16 {
         body = body.child(row().key(format!("craft/sheet/item{i}")).fill_width().height(40.0).gap(12.0).align(AlignItems::CENTER)
-            .child(space(28.0, 28.0).radius(14.0).fill(Paint::hue((i % 3) as u8)))
+            .child(space(28.0, 28.0).radius(14.0).fill(SHADES[i % 3]))
             .child(text(if zh { format!("联系人 {}", i + 1) } else { format!("Contact {}", i + 1) }, 14.0, Paint::TEXT)));
     }
     let title = if zh { "分享到" } else { "Share to" };
@@ -170,9 +170,9 @@ fn sheet_page(s: &Gallery) -> El<Msg> {
 fn pip_page(s: &Gallery) -> El<Msg> {
     let f = &s.craft.pip;
     let player = col().key("craft/pip/player").fill_width().fill_height().pad(10.0, 8.0).gap(6.0).fill(Paint::hue(1).alpha(0.22)).respond(amenui::el::Response::Nudge)
-        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::ACCENT)).child(text("00:42", 11.0, Paint::TEXT).font(Font::Mono)))
+        .child(row().gap(6.0).align(AlignItems::CENTER).child(space(10.0, 10.0).radius(5.0).fill(Paint::INK)).child(text("00:42", 11.0, Paint::TEXT).font(Font::Mono)))
         .child(space(0.0, 0.0).grow(1.0))
-        .child(row().fill_width().height(3.0).child(space(0.0, 3.0).width_frac(0.4).fill(Paint::ACCENT)));
+        .child(row().fill_width().height(3.0).child(space(0.0, 3.0).width_frac(0.4).fill(Paint::INK)));
     // The four corners it can rest in, faint, then the box.
     let mut parts: Vec<El<Msg>> = (0..4).map(|i| {
         let (x, y) = f.corner_at(i);
@@ -209,7 +209,7 @@ fn load_row(k: &str, i: usize) -> El<Msg> {
     let tr = amenui::i18n::tr;
     let titles = ["craft.load.r0", "craft.load.r1", "craft.load.r2", "craft.load.r3"];
     row().key(format!("{k}/row{i}")).gap(10.0).height(44.0).align(AlignItems::CENTER)
-        .child(space(34.0, 34.0).radius(6.0).fill(Paint::hue((i % 3) as u8)).key(format!("{k}/row{i}/pic")))
+        .child(space(34.0, 34.0).radius(6.0).fill(SHADES[i % 3]).key(format!("{k}/row{i}/pic")))
         .child(col().gap(3.0).child(text(tr(titles[i % 4]), 13.5, Paint::TEXT).key(format!("{k}/row{i}/t"))).child(text(tr("craft.load.meta"), 11.0, Paint::DIM).key(format!("{k}/row{i}/m"))))
 }
 fn load_page(s: &Gallery) -> El<Msg> {
@@ -228,7 +228,7 @@ fn load_page(s: &Gallery) -> El<Msg> {
         let lit = ((now - st.unwrap_or(0.0)) * 10.0).floor() as usize % 8;
         let dots: Vec<El<Msg>> = (0..8).map(|d| {
             let a = d as f32 / 8.0 * std::f32::consts::TAU;
-            space(6.0, 6.0).radius(3.0).fill(if d == lit { Paint::ACCENT } else { Paint::HAIRLINE }).shift(15.0 + 14.0 * a.cos(), 15.0 + 14.0 * a.sin()).key(format!("craft/load/spin/d{d}"))
+            space(6.0, 6.0).radius(3.0).fill(if d == lit { Paint::INK } else { Paint::HAIRLINE }).shift(15.0 + 14.0 * a.cos(), 15.0 + 14.0 * a.sin()).key(format!("craft/load/spin/d{d}"))
         }).collect();
         let ring = layers(dots).key("craft/load/spin/ring").width(36.0).height(36.0);
         col().key("craft/load/spin/wait").fill_width().height(220.0).center().child(ring)
@@ -244,7 +244,7 @@ fn load_page(s: &Gallery) -> El<Msg> {
     // (Drawn faint the way a subtree that takes no input is, until the answer comes.)
     let opt = (0..4).fold(col().key("craft/load/opt/rows").gap(6.0), |c, i| c.child(load_row("opt", i).disabled(i == 3 && waiting)));
     let opt = col().key("craft/load/opt/col").gap(4.0).child(opt)
-        .child(text(if waiting { tr("craft.load.sending") } else { tr("craft.load.sent") }, 11.0, if waiting { Paint::DIM } else { Paint::ACCENT }).key("craft/load/opt/state"));
+        .child(text(if waiting { tr("craft.load.sending") } else { tr("craft.load.sent") }, 11.0, if waiting { Paint::DIM } else { Paint::INK }).key("craft/load/opt/state"));
     let grid = row().key("craft/load/grid").wrap().gap(12.0)
         .child(panel("spin", tr("craft.load.spinner"), spin)).child(panel("skel", tr("craft.load.skeleton"), skel))
         .child(panel("prog", tr("craft.load.progress"), prog)).child(panel("opt", tr("craft.load.optimistic"), opt));
@@ -260,6 +260,8 @@ pub const STACK_LOOKS: [&str; 4] = ["craft.stack.auto", "craft.stack.plain", "cr
 /// The stack as the page shows it: its look from the material unless one is forced.
 pub fn stack_now(s: &Gallery) -> Stack {
     let mut st = s.craft.stack.clone();
+    // The cards in the greys the avatars take, so the stack rests without the accent.
+    st.paints = (0..st.count).map(|i| SHADES[i % 3]).collect();
     st.look = match s.craft.stack_look { 1 => StackLook::Plain, 2 => StackLook::Thick, 3 => StackLook::Marks(if s.material == amenui::style::Material::Charr { s.material } else { amenui::style::Material::Dottr }), _ => StackLook::of(s.material) };
     st
 }
