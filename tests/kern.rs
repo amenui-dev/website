@@ -102,6 +102,48 @@ fn apart(a: &[(f32, f32)], b: &[(f32, f32)]) -> f32 {
     } }
     best
 }
+/// One glyph as drawn: its number, its drawn box, and its covered rows (y, first, one past the last).
+type Drawn = (usize, amenui::ui::Rect, Vec<(i32, f32, f32)>);
+/// Each glyph of the word as drawn, any coverage (Z.6's form owed once amenui gives each glyph as
+/// drawn, `Ui::glyphs_drawn`): its number, the box its raster covers (logical px, window coordinates;
+/// at scale 1 a device px), and for each row it covers, the first covered pixel and one past the last.
+fn drawn(ui: &GalleryUi) -> Vec<Drawn> {
+    let key = format!("{K}/word");
+    let j = ui.nodes().iter().position(|n| n.key == key).expect("the word");
+    let (atlas, insts) = (ui.atlas(), &ui.scene().instances);
+    let a = amenui::text::ATLAS as f32;
+    let boxes = ui.glyphs_drawn(&key);
+    let log: Vec<_> = ui.glyphs().log.iter().filter(|g| g.node == j).collect();
+    assert_eq!(boxes.len(), log.len(), "glyphs_drawn and the glyph log differ");
+    let mut out: Vec<_> = boxes.iter().zip(log).map(|(b, g)| {
+        assert_eq!(b.i, g.i);
+        let ins = &insts[g.inst];
+        let (u0, v0) = ((ins.uv[0] * a).round() as usize, (ins.uv[1] * a).round() as usize);
+        let (w, h) = (ins.rect[2] as usize, ins.rect[3] as usize);
+        let cov = |x: usize, y: usize| atlas[((v0 + y) * amenui::text::ATLAS as usize + u0 + x) * 2];
+        let rows: Vec<(i32, f32, f32)> = (0..h).filter_map(|y| {
+            let first = (0..w).find(|&x| cov(x, y) > 0)?;
+            let last = (0..w).rev().find(|&x| cov(x, y) > 0)?;
+            Some(((ins.rect[1] + y as f32).round() as i32, ins.rect[0] + first as f32, ins.rect[0] + last as f32 + 1.0))
+        }).collect();
+        // Every covered pixel is in the box the framework says the glyph covers.
+        let r = b.rect;
+        for &(y, l, e) in &rows { assert!(l >= r.x - 0.01 && e <= r.x + r.w + 0.01 && y as f32 >= r.y - 0.01 && (y + 1) as f32 <= r.y + r.h + 0.01, "glyph {}: coverage at {l}..{e}, row {y}, outside its drawn box {r:?}", b.i); }
+        (b.i, r, rows)
+    }).collect();
+    out.sort_by_key(|g| g.0);
+    out
+}
+/// How far two neighbouring glyphs' coverage runs into each other, px, at any coverage: in each row
+/// both cover, the left one's end past the right one's start. Touching (Z.6) is at most 1: faint edges
+/// sharing a pixel.
+fn into(a: &[(i32, f32, f32)], b: &[(i32, f32, f32)]) -> f32 {
+    a.iter().filter_map(|p| b.iter().find(|q| q.0 == p.0).map(|q| p.2 - q.1)).fold(f32::NEG_INFINITY, f32::max)
+}
+/// The word's drawn boxes, left and right, logical px.
+fn drawn_span(g: &[Drawn]) -> (f32, f32) {
+    (g.iter().map(|q| q.1.x).fold(f32::MAX, f32::min), g.iter().map(|q| q.1.x + q.1.w).fold(f32::MIN, f32::max))
+}
 fn figures(ui: &GalleryUi, n: usize) -> Vec<f32> { (0..n).map(|k| text_of(ui, &format!("{K}/gap/{k}")).expect("a gap figure").parse().expect("a number")).collect() }
 
 #[test]
@@ -146,7 +188,7 @@ fn a_dragged_letter_pushes_its_neighbours_without_overlap_and_settles() {
     let (x0, y0) = { let p = &g[2].1; (p.iter().map(|q| q.0).sum::<f32>() / p.len() as f32, p.iter().map(|q| q.1).sum::<f32>() / p.len() as f32) };
     ui.press(x0, y0);
     rest(&mut ui, &mut t, 1);
-    let mut worst = f32::INFINITY;
+    let (mut worst, mut deepest) = (f32::INFINITY, f32::NEG_INFINITY);
     for f in 1..=90 {
         // 200 px right into `age`, then 400 px left into `Vo`, then back.
         let e = f as f32 / 90.0;
@@ -158,8 +200,9 @@ fn a_dragged_letter_pushes_its_neighbours_without_overlap_and_settles() {
         ui.frame_drawn();
         let g = inked(&ui);
         for w in g.windows(2) { let d = apart(&w[0].1, &w[1].1); worst = worst.min(d); assert!(d >= 0.0, "frame {f}: a pixel has coverage ≥ 0.5 from glyphs {} and {}", w[0].0, w[1].0); }
+        for w in drawn(&ui).windows(2) { let d = into(&w[0].2, &w[1].2); deepest = deepest.max(d); assert!(d <= 1.0 + 1e-3, "frame {f}: glyphs {} and {} run {d:.2} px into each other at any coverage", w[0].0, w[1].0); }
     }
-    eprintln!("kern drag: the closest two glyphs came {worst:.2} px");
+    eprintln!("kern drag: the closest two glyphs came {worst:.2} px at half coverage; at any coverage they ran {deepest:.2} px into each other");
     let r = (x0, y0);
     ui.release(r.0, r.1);
     let mut settled = None;
@@ -193,7 +236,9 @@ fn set_target(ui: &mut GalleryUi, t: &mut f32, v: f32) {
 /// equal and `gap` moves at least one letter by 2 px or more against its neighbour; the drawn size is
 /// at least 44 and the `metric` word at most 80 % of the stage; at `target`'s ceiling in `gap`, and in
 /// `area`, every glyph is 16 px inside the stage; in a drag to either edge no pixel has coverage ≥ 0.5 from
-/// two glyphs, and none ≥ 0.5 outside the stage; no printed figure overlaps another or a control.
+/// two glyphs, and none ≥ 0.5 outside the stage, and at any coverage (`Ui::glyphs_drawn`) no glyph's box
+/// leaves the stage and no two run more than 1 px into each other; no printed figure overlaps another or
+/// a control.
 #[test]
 fn the_word_fits_the_stage_at_every_width() {
     for w in [1440u32, 1024, 390, 320] {
@@ -227,6 +272,8 @@ fn the_word_fits_the_stage_at_every_width() {
         inside(&ui, "area");
         // Drag the middle letter to each edge and past it.
         press(&mut ui, &mut t, &format!("{K}/mode/metric"));
+        // How near the drawn boxes came to the stage's edges: left (≥ 0 inside) and right (≤ 0 inside).
+        let (mut lo, mut hi) = (f32::INFINITY, f32::NEG_INFINITY);
         for to in [stage.x - 40.0, stage.x + stage.w + 40.0] {
             let g = inked(&ui);
             let (x0, y0) = { let p = &g[2].1; (p.iter().map(|q| q.0).sum::<f32>() / p.len() as f32, p.iter().map(|q| q.1).sum::<f32>() / p.len() as f32) };
@@ -242,10 +289,17 @@ fn the_word_fits_the_stage_at_every_width() {
                 let (l, r) = ink_span(&g);
                 assert!(l >= stage.x && r <= stage.x + stage.w, "{w}: frame {f} of a drag to {to}: coverage ≥ 0.5 at {l}..{r}, outside the stage");
                 for p in g.windows(2) { assert!(apart(&p[0].1, &p[1].1) >= 0.0, "{w}: frame {f}: a pixel has coverage ≥ 0.5 from glyphs {} and {}", p[0].0, p[1].0); }
+                // Any coverage, by the glyphs as drawn: no glyph's box leaves the stage, and neighbours touch at most.
+                let d = drawn(&ui);
+                let (dl, dr) = drawn_span(&d);
+                (lo, hi) = (lo.min(dl - stage.x), hi.max(dr - (stage.x + stage.w)));
+                assert!(dl >= stage.x - 1e-3 && dr <= stage.x + stage.w + 1e-3, "{w}: frame {f} of a drag to {to}: glyphs drawn at {dl:.2}..{dr:.2}, the stage {:.2}..{:.2}", stage.x, stage.x + stage.w);
+                for p in d.windows(2) { let k = into(&p[0].2, &p[1].2); assert!(k <= 1.0 + 1e-3, "{w}: frame {f}: glyphs {} and {} run {k:.2} px into each other at any coverage", p[0].0, p[1].0); }
             }
             ui.release(to, y0);
             rest(&mut ui, &mut t, 60);
         }
+        eprintln!("kern at {w}, dragged to the edges: glyphs drawn {lo:.2} px inside the left edge, {:.2} px inside the right", -hi);
     }
 }
 

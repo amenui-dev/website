@@ -38,9 +38,9 @@ static DEFS: [(&str, Spec); 4] = [("target", spec(0.0, 40.0, 1.0, 0, "px")), ("s
 
 /// Pair solutions already found: (left, right, size bits, kind, target bits) and pen to pen, px.
 type Solved = Rc<RefCell<Vec<((char, char, u32, u8, u32), f32)>>>;
-/// The pens the layout set for the word last drawn, as its pose is told them (`GlyphAt::pen`): the
-/// word, its size, and each glyph's pen.
-type Laid = Rc<RefCell<(String, f32, Vec<f32>)>>;
+/// The pens the layout set for the word last drawn (`El::on_pens`): the word, its size, and each
+/// glyph's pen.
+type Laid = (String, f32, Rc<Vec<f32>>);
 
 /// A letter held: which, and where on it (px from its pen).
 #[derive(Clone, Debug, PartialEq)]
@@ -73,11 +73,11 @@ pub struct Kern {
 }
 impl Default for Kern {
     fn default() -> Self {
-        Self { p: Params::new(&DEFS, &[8.0, 176.0, 600.0, 44.0]), mode: 0, dims: true, word: TextEdit::new("Voyage"), faces: None, size: (480.0, 360.0), px: 0.0, x: vec![], v: vec![], home: vec![], moving: false, ceiling: 40.0, t: 0.0, hold: None, solved: Rc::default(), laid: Rc::default(), basis: vec![] }
+        Self { p: Params::new(&DEFS, &[8.0, 176.0, 600.0, 44.0]), mode: 0, dims: true, word: TextEdit::new("Voyage"), faces: None, size: (480.0, 360.0), px: 0.0, x: vec![], v: vec![], home: vec![], moving: false, ceiling: 40.0, t: 0.0, hold: None, solved: Rc::default(), laid: Laid::default(), basis: vec![] }
     }
 }
 #[derive(Clone, Debug, PartialEq)]
-pub enum Msg { Point(Option<Point>, (f32, f32)), Mode(usize, (f32, f32)), Dims, Word(TextEdit, (f32, f32)), Num(usize, Edit) }
+pub enum Msg { Point(Option<Point>, (f32, f32)), Mode(usize, (f32, f32)), Dims, Word(TextEdit, (f32, f32)), Num(usize, Edit), Pens(String, f32, Rc<Vec<f32>>) }
 
 /// One pair, measured: its gap (px), its white area (px²), and where its boundary is (px from the
 /// stage's centre, between the end of the left ink and the start of the right).
@@ -94,7 +94,7 @@ fn grouped(n: f32) -> String {
 
 impl Kern {
     /// The page's faces, new or changed: every measure is made again from them.
-    pub fn set_faces(&mut self, f: Faces) { self.faces = Some(f); self.solved = Rc::default(); self.laid = Rc::default(); self.px = 0.0; self.home.clear(); }
+    pub fn set_faces(&mut self, f: Faces) { self.faces = Some(f); self.solved = Rc::default(); self.laid = Laid::default(); self.px = 0.0; self.home.clear(); }
     pub fn chars(&self) -> Vec<char> { self.word.text.chars().collect() }
     fn glyph(&self, c: char, px: f32) -> Option<Rc<Glyph>> { self.faces.as_ref()?.glyph(FACE, c, px) }
     /// `c`'s advance at `px`.
@@ -102,8 +102,7 @@ impl Kern {
     /// The shaper's pens for `cs` (the word or its start), em from the first, once a pose was told them.
     fn laid_em(&self, cs: &[char]) -> Option<Vec<f32>> {
         let s: String = cs.iter().collect();
-        let l = self.laid.borrow();
-        let (w, lpx, v) = &*l;
+        let (w, lpx, v) = &self.laid;
         (w.starts_with(&s) && v.len() >= cs.len() && v.len() == w.chars().count() && v.iter().all(|p| p.is_finite())).then(|| v[..cs.len()].iter().map(|p| (p - v[0]) / lpx).collect())
     }
     /// Where the shaper sets each letter's pen, px from the first: the face's advances, kerning
@@ -351,23 +350,15 @@ impl Experiment for Kern {
         }
         piece = piece.child(canvas(d).key(kf("canvas")).width(w).absolute(Some(0.0), Some(0.0), None, None));
         // The word, one text: each glyph moved from its pen as laid out to its letter's pen; the pens
-        // laid out are kept, for `metric` and the measures (`shaped`).
-        let (rec, said, n) = (self.laid.clone(), self.word.text.clone(), cs.len());
+        // laid out come back (`El::on_pens`) and are kept, for `metric` and the measures (`shaped`).
+        let said = self.word.text.clone();
         let line = (px * 1.6).round();
         let left = cx + self.x.first().copied().unwrap_or(0.0);
         let top = by - ((line - (ASC + DESC) * px) * 0.5 + ASC * px);
         let pens: Rc<Vec<f32>> = Rc::new(self.x.iter().map(|x| cx + x - left).collect());
         let word = text(self.word.text.clone(), px, Paint::INK).font(FACE).nowrap().selectable().key(kf("word"))
-            .pose(move |g: GlyphAt| {
-                if g.n == n && g.i < n {
-                    // Kept from the first size the word is drawn at: the rests are found from one set of
-                    // pens, so a size they choose is not chosen again from another's.
-                    let mut l = rec.borrow_mut();
-                    if l.0 != said || l.2.len() != n { *l = (said.clone(), px, vec![f32::NAN; n]); }
-                    if l.1 == px { l.2[g.i] = g.pen; }
-                }
-                Pose { dx: pens.get(g.i).map_or(0.0, |p| p - g.pen), ..Pose::default() }
-            })
+            .pose(move |g: GlyphAt| Pose { dx: pens.get(g.i).map_or(0.0, |p| p - g.pen), ..Pose::default() })
+            .on_pens(move |p| Some(Msg::Pens(said.clone(), px, p)))
             .absolute(Some(left), Some(top), None, None);
         piece = piece.child(word);
         for l in labels { piece = piece.child(l); }
@@ -413,6 +404,13 @@ impl Experiment for Kern {
                 let changed = e.text != self.word.text;
                 self.word = e;
                 if changed { self.hold = None; self.resize(size, true); }
+            }
+            Msg::Pens(w, px, p) => {
+                // Kept from the first size the word is drawn at: the rests are found from one set of
+                // pens, so a size they choose is not chosen again from another's.
+                let n = w.chars().count();
+                if p.len() != n || w != self.word.text { return; }
+                if self.laid.0 != w || self.laid.2.len() != n { self.laid = (w, px, p); } else if self.laid.1 == px { self.laid.2 = p; }
             }
             Msg::Num(i, e) => {
                 self.p.edit(i, e);
