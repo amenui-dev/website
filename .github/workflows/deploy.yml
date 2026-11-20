@@ -1,7 +1,8 @@
-# Builds the web version on every push to main and puts it on the `gh-pages` branch, which GitHub Pages
-# serves (Settings → Pages → Deploy from a branch → gh-pages, / (root)). Any static host can serve that
-# branch as it is: no build step there. The site is built for the path it is served under: `/website/`
-# by default, or the repository variable SITE_BASE (`/` on its own domain).
+# Builds the web version on every push to main, twice: for the path GitHub Pages serves it under
+# (`/website/`, or the repository variable SITE_BASE) on the `gh-pages` branch (Settings → Pages → Deploy
+# from a branch → gh-pages, / (root)), and for the root of its own domain on the `cloudflare-pages`
+# branch, which Cloudflare Pages serves as it is (production branch cloudflare-pages, no build command,
+# output directory /). Neither host builds anything.
 name: deploy
 
 on:
@@ -57,14 +58,25 @@ jobs:
           cargo build --release --lib --target wasm32-unknown-unknown --no-default-features
           wasm-bindgen --target no-modules --no-typescript --remove-name-section --out-dir dist/pkg-gpu target/wasm32-unknown-unknown/release/website.wasm
           python3 web/build.py
-      - name: The site's files
-        run: cp -r dist/site out
-      - name: Push to gh-pages
+      - name: The site again for its own domain (base `/`), for Cloudflare Pages
+        env:
+          BASE: /
+          SITE_PROFILE: quick
+          RENDER: target/quick/render
         run: |
-          cd out
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "site: build of ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          mv dist/site out
+          python3 web/build.py
+          mv dist/site out-root
+      - name: Push to gh-pages and cloudflare-pages
+        run: |
+          publish() {
+            ( cd "$1"
+              git init -q -b "$2"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add -A
+              git commit -q -m "site: build of ${GITHUB_SHA::7}"
+              git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "$2" )
+          }
+          publish out gh-pages
+          publish out-root cloudflare-pages
