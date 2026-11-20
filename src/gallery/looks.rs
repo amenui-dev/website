@@ -5,7 +5,8 @@ use super::{Gallery, IMAGE_SLOT, Msg, Page, Target};
 use crate::demo::{SKY, TERRAIN};
 use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, text, text_lh};
 use amenui::style::{GAZE_MODES, MAT_PARAMS, Material, gaze};
-use amenui::widgets::{SELECTED, Spec, Variant, button_as, card, number, segmented, switch};
+use super::segmented;
+use amenui::widgets::{SELECTED, Spec, Variant, button_as, card, number, switch};
 use taffy::{AlignItems, JustifyContent};
 
 pub fn page(s: &Gallery) -> El<Msg> {
@@ -36,7 +37,7 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
     let left = col().key(format!("{h}/left")).width(fit(430.0)).gap(18.0)
         .child(text_lh("松开与合拢", 52.0, 64.0, Paint::INK).font(Font::Display).key(format!("{h}/headline")))
         .child(text_lh("材质决定松开时画什么。静止时，页面是一张干净、可读的页面；波前经过时，文字、形状和图片按各自的轮廓松开，再合拢回来。",
-            sz.body, (sz.body * 1.7).round(), Paint::TEXT).key(format!("{h}/body")))
+            sz.body, (sz.body * 1.7).round(), crate::tokens::TEXT).key(format!("{h}/body")))
         .child(row().key(format!("{h}/controls")).gap(10.0).wrap().align(AlignItems::CENTER)
             .child(button_as(format!("{h}/cancel"), "取消", Variant::Default, Msg::Press))
             .child(button_as(format!("{h}/save"), "保存", Variant::Accent, Msg::Press))
@@ -44,13 +45,13 @@ pub fn specimen(s: &Gallery, m: u8, h: &str) -> El<Msg> {
         .child(switch(format!("{h}/switch"), "显示网格", s.on, None, Msg::Switch).width(260.0));
     let right = col().key(format!("{h}/right")).width(fit(360.0)).gap(16.0)
         .child(col().key(format!("{h}/picture-box")).child(picture(SKY, ratio(SKY)).key(format!("{h}/picture")).markr(IMAGE_SLOT)))
-        .child(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, Paint::TEXT)).width(fit(360.0)))
+        .child(card(format!("{h}/card"), Some("卡片"), text_lh("一张卡片：边框、标题和一段文字。", 14.0, 24.0, crate::tokens::TEXT)).width(fit(360.0)))
         .child(row().key(format!("{h}/shapes")).gap(14.0).align(AlignItems::CENTER)
             .child(space(84.0, 84.0).radius(42.0).fill(Paint::ACCENT).key(format!("{h}/disc")))
             .child(space(84.0, 84.0).radius(42.0).fill(Paint::hue(1)).key(format!("{h}/disc2")))
             .child(space(110.0, 64.0).radius(8.0).fill(Paint::INK).key(format!("{h}/slab"))));
     // The specimen shows how the material loosens everything, text included: it answers fronts fully.
-    row().key(format!("{h}/specimen")).respond(Response::Loosen).legible(false).material(m).loosen(s.loose).fill_width().wrap().gap(40.0).pad(36.0, 32.0).radius(6.0).border(1.0, Paint::FAINT)
+    row().key(format!("{h}/specimen")).respond(Response::Loosen).legible(false).material(m).loosen(s.loose).fill_width().wrap().gap(40.0).pad(36.0, 32.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE)
         .align(AlignItems::START).child(left).child(right)
 }
 
@@ -64,11 +65,11 @@ fn material_page(s: &Gallery, m: u8) -> El<Msg> {
         let spec = Spec { min: p.min, max: p.max, step: p.step, decimals: p.decimals, unit: p.unit };
         nums = nums.child(number(&format!("{h}/p{i}"), p.name, s.mats[m as usize].0[i], spec, s.draft(t), move |e| Msg::Num(t, e)).width(330.0));
     }
-    if MAT_PARAMS[m as usize].is_empty() { nums = nums.child(text("这个材质没有自己的参数；点阵的点距在骨架演示页里设置。", 13.0, Paint::DIM)); }
+    if MAT_PARAMS[m as usize].is_empty() { nums = nums.child(text("这个材质没有自己的参数；点阵的点距在骨架演示页里设置。", 13.0, crate::tokens::DIM)); }
     let live = row().key(format!("{h}/live")).gap(12.0).wrap().align(AlignItems::CENTER)
         .child(number(&format!("{h}/loose"), "松开度", s.loose, LOOSE_SPEC, s.draft(Target::Loose), |e| Msg::Num(Target::Loose, e)).width(330.0))
         .child(button_as(format!("{h}/ripple"), "涟漪", Variant::Default, Msg::Nothing).ripplr(Scope::Container(Some(format!("{h}/specimen")))))
-        .child(text("按“涟漪”从按钮处放出一道波前；松开度把整个样张固定在一个松开的程度。", 13.0, Paint::DIM));
+        .child(text("按“涟漪”从按钮处放出一道波前；松开度把整个样张固定在一个松开的程度。", 13.0, crate::tokens::DIM));
     col().key(format!("{h}/page")).fill_width().max_width(1000.0).gap(34.0)
         .child(header(s, h, mat.name(), &format!("Material::{:?}", mat), MATERIAL_DESC[m as usize]))
         .child(section(h, "样张", col().fill_width().gap(14.0).child(specimen(s, m, h)).child(live)))
@@ -78,16 +79,16 @@ fn material_page(s: &Gallery, m: u8) -> El<Msg> {
 
 /// A small layout for the annotation layer to look at: a header, three figures, a picture and a list.
 fn sample(_s: &Gallery) -> El<Msg> {
-    let figure = |k: &str, name: &str, v: &str, label: &str| col().key(format!("gaze/fig-{k}")).width(170.0).gap(6.0).pad(14.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).annotate(label)
-        .child(text(name, 12.0, Paint::DIM))
+    let figure = |k: &str, name: &str, v: &str, label: &str| col().key(format!("gaze/fig-{k}")).width(170.0).gap(6.0).pad(14.0, 12.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).annotate(label)
+        .child(text(name, 12.0, crate::tokens::DIM))
         .child(text(v, 26.0, Paint::INK).font(Font::Mono));
     let rows = ["上传 1,204 张图片", "整理 38 个相册", "导出 6 份报告"];
     let mut list = col().key("gaze/list").width(250.0).gap(2.0).annotate("最近");
     for (i, r) in rows.iter().enumerate() {
         list = list.child(row().key(format!("gaze/row{i}")).height(30.0).pad(10.0, 0.0).align(AlignItems::CENTER).radius(4.0).on_press(Msg::Row(i))
-            .child(text(*r, 13.0, Paint::TEXT)));
+            .child(text(*r, 13.0, crate::tokens::TEXT)));
     }
-    col().key("gaze/sample").gaze_scope().fill_width().gap(18.0).pad(40.0, 36.0).radius(6.0).border(1.0, Paint::FAINT)
+    col().key("gaze/sample").gaze_scope().fill_width().gap(18.0).pad(40.0, 36.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE)
         .child(row().key("gaze/head").fill_width().align(AlignItems::CENTER).justify(JustifyContent::SPACE_BETWEEN).annotate("标题栏")
             .child(text("本周", 24.0, Paint::INK).font(Font::Display))
             .child(button_as("gaze/export", "导出", Variant::Accent, Msg::Press).annotate("导出按钮")))
@@ -110,12 +111,12 @@ fn gaze_page(s: &Gallery) -> El<Msg> {
         let bit = 1u16 << i;
         let on = g.has(bit);
         chips = chips.child(row().key(format!("gaze/kind:{i}")).height(26.0).pad(10.0, 0.0).radius(4.0).align(AlignItems::CENTER)
-            .fill(if on { SELECTED } else { Paint::GROUND }).border(1.0, if on { Paint::ACCENT } else { Paint::FAINT }).on_press(Msg::GazeKind(bit))
-            .child(text(*name, 13.0, if on { Paint::ACCENT } else { Paint::TEXT })));
+            .fill(if on { SELECTED } else { Paint::GROUND }).border(1.0, if on { Paint::ACCENT } else { crate::tokens::HAIRLINE }).on_press(Msg::GazeKind(bit))
+            .child(text(*name, 13.0, if on { Paint::ACCENT } else { crate::tokens::TEXT })));
     }
     let controls = col().key("gaze/controls").fill_width().gap(14.0)
-        .child(row().gap(12.0).align(AlignItems::CENTER).child(text("模式", 13.0, Paint::DIM)).child(segmented("gaze/mode", &names, mode, 30.0, Msg::GazeMode)))
-        .child(row().gap(12.0).align(AlignItems::START).child(row().height(26.0).align(AlignItems::CENTER).child(text("画什么", 13.0, Paint::DIM))).child(chips))
+        .child(row().gap(12.0).align(AlignItems::CENTER).child(text("模式", 13.0, crate::tokens::DIM)).child(segmented("gaze/mode", &names, mode, 30.0, Msg::GazeMode)))
+        .child(row().gap(12.0).align(AlignItems::START).child(row().height(26.0).align(AlignItems::CENTER).child(text("画什么", 13.0, crate::tokens::DIM))).child(chips))
         .child(row().gap(10.0).wrap()
             .child(number("gaze/density", "最多几个", g.density, Spec { min: 0.0, max: 60.0, step: 1.0, decimals: 0, unit: "" }, s.draft(Target::Density), |e| Msg::Num(Target::Density, e)).width(330.0))
             .child(number("gaze/draw", "画出时长", g.draw_ms, Spec { min: 0.0, max: 3000.0, step: 20.0, decimals: 0, unit: "ms" }, s.draft(Target::DrawMs), |e| Msg::Num(Target::DrawMs, e)).width(330.0))

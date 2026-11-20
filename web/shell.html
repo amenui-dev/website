@@ -167,7 +167,10 @@ h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
 .home .rail { display: flex; }
 .rail button, .rail a { display: inline-flex; align-items: center; height: 44px; padding: 0; border: 0; background: none; color: var(--dim); font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .rail button:hover, .rail a:hover { color: var(--ink); }
-.rail .st[aria-pressed="true"] { color: var(--ink); } .rail .st[aria-pressed="true"] i { color: var(--accent); }
+.rail .st[aria-pressed="true"] { color: var(--ink); }
+/* The current chapter's mark: a 6 x 6 accent square 8 px before its number, which is ink (AA.9, use 1). */
+.rail .st { position: relative; }
+.rail .st[aria-pressed="true"]::before { content: ""; position: absolute; left: -14px; top: calc(50% - 3px); width: 6px; height: 6px; background: var(--accent); }
 .rail .st i { font-style: normal; margin-right: 8px; }
 /* On a phone only the current state has its name. */
 @media (max-width: 719px) { .rail .st:not([aria-pressed="true"]) span { display: none; } }

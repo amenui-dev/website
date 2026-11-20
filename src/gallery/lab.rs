@@ -392,7 +392,7 @@ pub fn path_line(s: &Gallery) -> El<Msg> {
         let name = step_name(i).to_lowercase();
         let label = if i == at { format!("[ {:02} {name} ]", i + 1) } else if narrow { format!("{:02}", i + 1) } else { format!("{:02} {name}", i + 1) };
         r = r.child(row().key(format!("lab/path/{k}")).height(28.0).align(taffy::AlignItems::CENTER).on_press(Msg::Outline(format!("labx/{k}/head"))).role(amenui::el::Role::Link)
-            .child(text(label, 11.0, if i == at { Paint::INK } else { Paint::TEXT }).font(Font::Mono)));
+            .child(text(label, 11.0, if i == at { Paint::INK } else { crate::tokens::TEXT }).font(Font::Mono)));
     }
     col().key("lab/path").fill_width().child(r).child(amenui::widgets::divider(rule).key("path-rule"))
 }
@@ -420,7 +420,7 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let mut page = col().key("lab").fill_width().min_width(0.0).gap(48.0)
         .child(col().key("labx/top").fill_width().min_width(0.0).gap(12.0)
             .child(text(tr("nav.lab"), 34.0, Paint::INK).font(Font::Display).heading(1).key("labx/title").flow("page-title"))
-            .child(text_lh(tr("lab.path.intro"), 14.0, 22.0, Paint::TEXT).key("labx/intro").selectable()));
+            .child(text_lh(tr("lab.path.intro"), 14.0, 22.0, crate::tokens::TEXT).key("labx/intro").selectable()));
     for (si, pages) in path().into_iter().enumerate() {
         let k = STEPS[si];
         let mut cells = vec![];
@@ -432,21 +432,21 @@ pub fn page(s: &Gallery) -> El<Msg> {
                 other => still_cell(s, &format!("labi/{}", other.hash()), other, w, stage),
             };
             let name = row().key(format!("labx/{}/name", p.hash())).gap(10.0).on_press(Msg::Go(p)).role(amenui::el::Role::Link)
-                .child(text(number(si, i), 11.0, Paint::DIM).font(Font::Mono))
-                .child(text(format!("{} →", cell_name(p)), 11.0, Paint::TEXT).font(Font::Mono));
+                .child(text(number(si, i), 11.0, crate::tokens::DIM).font(Font::Mono))
+                .child(text(format!("{} →", cell_name(p)), 11.0, crate::tokens::TEXT).font(Font::Mono));
             let c = col().key(format!("labx/{}", p.hash())).fill_width().min_width(0.0).gap(8.0).child(piece).child(name);
             cells.push((c, if wide && i == 0 { 2 } else { 1 }));
         }
         let grid = index::rows(&format!("labx/{k}/grid"), cols, cells);
         let head = row().key(format!("labx/{k}/headrow")).fill_width().gap(10.0).align(taffy::AlignItems::CENTER)
             .child(index::header(&format!("labx/{k}/head"), si + 1, &step_name(si)).grow(1.0))
-            .child(text(pages.len().to_string(), 11.0, Paint::DIM).font(Font::Mono));
+            .child(text(pages.len().to_string(), 11.0, crate::tokens::DIM).font(Font::Mono));
         // The last step reaches the top of the window too (`/lab/#change`).
         let tall = if si == STEPS.len() - 1 { s.height } else { 0.0 };
         page = page.child(col().key(format!("labx/{k}")).fill_width().min_width(0.0).min_height(tall).gap(16.0)
             .on_visible(move |v| Some(Msg::Lab(LMsg::Step(si, v))))
             .child(head)
-            .child(text_lh(tr(&format!("lab.step.{k}.line")), 14.0, 22.0, Paint::TEXT).key(format!("labx/{k}/line")).selectable())
+            .child(text_lh(tr(&format!("lab.step.{k}.line")), 14.0, 22.0, crate::tokens::TEXT).key(format!("labx/{k}/line")).selectable())
             .child(grid));
     }
     page
@@ -487,7 +487,7 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
         .child(row().gap(14.0).align(taffy::AlignItems::CENTER).respond(amenui::el::Response::Loosen).legible(false).material(m).loosen(s.loose.max(0.35))
             .child(text("Aa", 44.0, Paint::INK).font(Font::Display).weight(1.5))
             .child(picture(crate::demo::SKY, super::pages::ratio(crate::demo::SKY)).markr(super::IMAGE_SLOT).width(120.0)))
-        .child(text(name, 11.0, Paint::DIM).font(Font::Mono));
+        .child(text(name, 11.0, crate::tokens::DIM).font(Font::Mono));
     let piece = match p {
         Page::Stirr => {
             let mut d = Drawing::new(w, h);
@@ -495,13 +495,13 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
             d.dots(&f, 7.0, |v| (0.4 + 2.6 * v).clamp(0.0, 2.8), |_, _, _| Paint::INK);
             canvas(d).width(w)
         }
-        Page::Reader => text_lh(READER_STILL, 11.0, 18.0, Paint::TEXT).font(Font::Mono).width(w.min(420.0)).height(((h / 18.0).floor() * 18.0).min(18.0 * 6.0)),
+        Page::Reader => text_lh(READER_STILL, 11.0, 18.0, crate::tokens::TEXT).font(Font::Mono).width(w.min(420.0)).height(((h / 18.0).floor() * 18.0).min(18.0 * 6.0)),
         Page::Scene(i) => super::scenes::thumb(i as usize, 200.0),
         Page::Material(_) => { let Page::Material(m) = member(0) else { return space(0.0, 0.0) }; specimen(m, Material::from_id(m).name().to_owned()) }
         Page::Presets => { let Page::Style(i) = member(2) else { return space(0.0, 0.0) }; let st = &amenui::style::styles()[i as usize]; specimen(st.material.id(), st.name.to_owned()) }
         Page::Marks(_) => { let Page::Marks(k) = member(1) else { return space(0.0, 0.0) };
             col().gap(8.0).child(picture(crate::demo::SKY, super::pages::ratio(crate::demo::SKY)).markr(super::MARK_SLOT).loose(1.0).width(w.min(240.0)))
-                .child(text(super::MARK_HASH[k as usize], 11.0, Paint::DIM).font(Font::Mono)) }
+                .child(text(super::MARK_HASH[k as usize], 11.0, crate::tokens::DIM).font(Font::Mono)) }
         other => still(other).unwrap_or_else(|| space(0.0, 0.0)),
     };
     // A hint that would not fit beside the name on a narrow cell is left out (11 px mono: about 6.6 px a Latin character, 11 a CJK one).
@@ -509,11 +509,11 @@ fn still_cell(s: &Gallery, key: &str, p: super::Page, width: f32, stage: f32) ->
     let wide = |t: &str| t.chars().map(|c| if (c as u32) >= 0x2E80 { 11.0 } else { 6.6 }).sum::<f32>();
     let hint = Some(hint(p)).filter(|h| wide(&name) + wide(h) + 8.0 <= w);
     let stage_el = col().key(format!("{key}/stage")).stage().fill_width().min_width(0.0).height(h).clip().center().child(piece);
-    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).pad(12.0, 10.0).gap(8.0).border(1.0, Paint::FAINT).on_press(Msg::Go(p)).role(amenui::el::Role::Link).label(cell_name(p))
+    let mut c = col().key(key.to_owned()).fill_width().min_width(0.0).pad(12.0, 10.0).gap(8.0).border(1.0, crate::tokens::HAIRLINE).on_press(Msg::Go(p)).role(amenui::el::Role::Link).label(cell_name(p))
         .child(row().fill_width().gap(8.0)
-            .child(text(name, 11.0, Paint::TEXT).font(Font::Mono).key(format!("{key}/name")))
+            .child(text(name, 11.0, crate::tokens::TEXT).font(Font::Mono).key(format!("{key}/name")))
             .child(space(0.0, 0.0).grow(1.0))
-            .child(text(hint.unwrap_or_default(), 11.0, Paint::DIM).font(Font::Mono).key(format!("{key}/hint"))))
+            .child(text(hint.unwrap_or_default(), 11.0, crate::tokens::DIM).font(Font::Mono).key(format!("{key}/hint"))))
         .child(stage_el);
     if let Some(f) = family_of(p) { c = c.on_move(move |q| Some(Msg::Lab(LMsg::Fam(f, q.is_some())))); }
     c
@@ -575,7 +575,7 @@ fn still(p: super::Page) -> Option<El<Msg>> {
                 y += 12.0;
             }
             layers([
-                col().width(w).height(h).center().child(text("Aa", 76.0, Paint::TEXT).font(Font::Face(0)).weight(2.6)),
+                col().width(w).height(h).center().child(text("Aa", 76.0, crate::tokens::TEXT).font(Font::Face(0)).weight(2.6)),
                 canvas(d).width(w).key("labx/decode/still"),
             ])
         }
@@ -634,15 +634,15 @@ fn still(p: super::Page) -> Option<El<Msg>> {
         Page::Gaze => {
             // A dimension line: the extent between two ticks, its number above.
             let mut d = Drawing::new(w, 14.0);
-            d.line((1.0, 7.0), (w - 1.0, 7.0), 1.0, Paint::TEXT);
-            for x in [1.0, w - 1.0] { d.line((x, 1.0), (x, 13.0), 1.0, Paint::TEXT); }
+            d.line((1.0, 7.0), (w - 1.0, 7.0), 1.0, crate::tokens::TEXT);
+            for x in [1.0, w - 1.0] { d.line((x, 1.0), (x, 13.0), 1.0, crate::tokens::TEXT); }
             col().key("labx/gaze/still").width(w).gap(6.0).align(taffy::AlignItems::CENTER)
-                .child(text("200", 11.0, Paint::TEXT).font(Font::Mono))
+                .child(text("200", 11.0, crate::tokens::TEXT).font(Font::Mono))
                 .child(canvas(d).width(w))
         }
         Page::Type => row().key("labx/type/still").gap(14.0).align(taffy::AlignItems::BASELINE)
-            .child(text("Type", 12.0, Paint::TEXT).font(Font::Display))
-            .child(text("Type", 20.0, Paint::TEXT).font(Font::Display))
+            .child(text("Type", 12.0, crate::tokens::TEXT).font(Font::Display))
+            .child(text("Type", 20.0, crate::tokens::TEXT).font(Font::Display))
             .child(text("Type", 34.0, Paint::INK).font(Font::Display)),
         _ => return None,
     })

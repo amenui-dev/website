@@ -8,6 +8,7 @@ pub mod drive;
 pub mod gallery;
 pub mod showcase;
 pub mod texts;
+pub mod tokens;
 
 /// The site's message catalogs (`assets/i18n/`), installed over amenui's own.
 pub const CATALOGS: [(amenui::i18n::Locale, &str, &str); 2] = [

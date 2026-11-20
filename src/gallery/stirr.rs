@@ -67,16 +67,16 @@ pub fn page(s: &Gallery) -> El<Msg> {
     let lower = row().gap(28.0).key("stirr/lower")
         .child(col().width(260.0).child(picture(SKY, ratio(SKY)).key("stirr/picture").markr(IMAGE_SLOT).respond(Response::Loosen)))
         .child(col().gap(12.0).width(380.0)
-            .child(text(words, 14.0, Paint::TEXT).key("stirr/text"))
-            .child(text("LOOSEN · LEGIBLE", 12.0, Paint::DIM).font(Font::Mono).key("stirr/legible").respond(Response::Loosen)));
+            .child(text(words, 14.0, crate::tokens::TEXT).key("stirr/text"))
+            .child(text("LOOSEN · LEGIBLE", 12.0, crate::tokens::DIM).font(Font::Mono).key("stirr/legible").respond(Response::Loosen)));
     let place = col().key("stirr/place").pad(28.0, 28.0).gap(36.0).width(AREA.0).height(AREA.1).child(shapes).child(lower);
     let label = col().pad(12.0, 10.0).gap(6.0).key("stirr/window")
         .child(text("DRAG ME", 12.0, Paint::INK).font(Font::Mono).key("stirr/window/title"))
-        .child(text("Throw it to a corner.", 11.0, Paint::DIM).key("stirr/window/hint"));
+        .child(text("Throw it to a corner.", 11.0, crate::tokens::DIM).key("stirr/window/hint"));
     let progress = p.drawn.map_or(0.0, |d| ((s.clock - d) / DRAW_S).clamp(0.0, 1.0));
     let trace = space(AREA.0, AREA.1).key("stirr/trace").trace(Trace { points: std::rc::Rc::new(path()), progress, weight: 1.5, dash: 6.0, gap: 4.0, pull: 1.0, stir: 1.0, paint: Paint::INK });
     let stage = layers([place, trace, floating("stirr/float", &p.float, label, |m| Msg::Stirr(SMsg::Float(m)))])
-        .key("stirr/stage").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, Paint::FAINT).clip();
+        .key("stirr/stage").width(AREA.0).height(AREA.1).radius(8.0).border(1.0, crate::tokens::HAIRLINE).clip();
     let params: Vec<CaptionParam> = MAP_PARAMS.iter().enumerate().map(|(i, &(n, min, max, step, decimals, unit))| {
         CaptionParam::new(n, fx.get(i), Spec { min, max, step, decimals, unit }).draft(p.draft.as_ref().filter(|x| x.0 == i).map(|x| x.1.as_str()))
     }).collect();

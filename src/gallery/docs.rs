@@ -9,7 +9,7 @@ use amenui::el::{El, Font, Paint, Role, col, row, space, text, text_lh};
 use amenui::i18n::{Locale, tr};
 use amenui::morph::Cmd;
 use amenui::style::{MATERIAL_COUNT, Material};
-use amenui::widgets::{SELECTED, Variant, button_as};
+use amenui::widgets::{Variant, button_as};
 use taffy::AlignItems;
 
 /// The prose pages, by slug, in reading order: the first six are 开始 (with the command line and the
@@ -126,8 +126,8 @@ fn pick(label: &str, l: Locale) -> String { match label.split_once(" · ") { Som
 /// A block of code, selectable, with a copy button.
 fn code(k: &str, src: &str) -> El<Msg> {
     // Code keeps its lines: a narrow window scrolls them sideways rather than widening the page.
-    let mut b = col().key(format!("{k}/code")).fill_width().min_width(0.0).scroll_x().pad(16.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).selectable();
-    for (j, line) in src.lines().enumerate() { b = b.child(text(if line.is_empty() { " ".to_owned() } else { line.to_owned() }, 12.5, Paint::TEXT).font(Font::Mono).key(format!("{k}/code/{j}"))); }
+    let mut b = col().key(format!("{k}/code")).fill_width().min_width(0.0).scroll_x().pad(16.0, 12.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).selectable();
+    for (j, line) in src.lines().enumerate() { b = b.child(text(if line.is_empty() { " ".to_owned() } else { line.to_owned() }, 12.5, crate::tokens::TEXT).font(Font::Mono).key(format!("{k}/code/{j}"))); }
     col().key(k.to_owned()).gap(6.0).fill_width()
         .child(row().key(format!("{k}/bar")).child(space(0.0, 0.0).grow(1.0)).child(button_as(format!("{k}/copy"), &tr("docs.copy"), Variant::Quiet, Msg::Copy(src.to_owned())).height(24.0)))
         .child(b)
@@ -141,10 +141,10 @@ fn section(page: &str, i: usize, title: &str, body: El<Msg>) -> El<Msg> {
 /// The right-hand outline: the page's sections, the one in view marked; pressing one scrolls to it.
 fn outline(s: &Gallery, page: &str, titles: &[(String, String)]) -> El<Msg> {
     let mut c = col().key(format!("doc/{page}/outline")).width(180.0).gap(6.0).role(Role::Navigation)
-        .child(text(tr("docs.on-this-page"), 12.0, Paint::DIM).key(format!("doc/{page}/outline/title")));
+        .child(text(tr("docs.on-this-page"), 12.0, crate::tokens::DIM).key(format!("doc/{page}/outline/title")));
     for (i, (t, k)) in titles.iter().enumerate() {
         let on = s.outline_at == i;
-        c = c.child(text(t.clone(), 13.0, if on { Paint::INK } else { Paint::TEXT }).key(format!("doc/{page}/outline/{i}"))
+        c = c.child(text(t.clone(), 13.0, if on { Paint::INK } else { crate::tokens::TEXT }).key(format!("doc/{page}/outline/{i}"))
             .on_press(Msg::Outline(k.clone())).focusable(false).role(Role::Link));
     }
     c
@@ -225,7 +225,7 @@ pub fn page_hash(name: &str) -> String { name.replace('_', "-") }
 pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<El<Msg>>) -> El<Msg> {
     let l = s.locale;
     let all = items();
-    let Some(it) = all.iter().find(|i| i.name == name) else { return text(format!("⟨{name}⟩"), 14.0, Paint::DIM) };
+    let Some(it) = all.iter().find(|i| i.name == name) else { return text(format!("⟨{name}⟩"), 14.0, crate::tokens::DIM) };
     let h = page_hash(name);
     let src = it.files.first().map(|f| widget_source(f)).unwrap_or("");
     let ex_src = example_source(name).unwrap_or("");
@@ -238,18 +238,18 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let head = col().key(format!("doc/{h}/head")).gap(10.0)
         .child(row().wrap().gap(14.0).align(AlignItems::BASELINE).key(format!("doc/{h}/title-row"))
             .child(text(title, 34.0, Paint::INK).font(Font::Display).heading(1).key(format!("{h}/title")).flow(s.title_flow()))
-            .child(text(it.functions.join(" / "), 13.0, Paint::DIM).font(Font::Mono)))
-        .child(text_lh(desc, 16.0, 27.0, Paint::DIM).key(format!("{h}/desc")));
+            .child(text(it.functions.join(" / "), 13.0, crate::tokens::DIM).font(Font::Mono)))
+        .child(text_lh(desc, 16.0, 27.0, crate::tokens::DIM).key(format!("{h}/desc")));
     // 1. Preview / code.
     let first = if previews.is_empty() { None } else { Some(as_msg(previews.remove(0))) };
-    let shown = live.or_else(|| amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| as_msg(e).rekey(&format!("doc/{h}/live")))).unwrap_or_else(|| text("—", 14.0, Paint::DIM));
+    let shown = live.or_else(|| amenui::recipes::components::examples(example_name(name)).into_iter().next().map(|e| as_msg(e).rekey(&format!("doc/{h}/live")))).unwrap_or_else(|| text("—", 14.0, crate::tokens::DIM));
     let tabs = row().key(format!("doc/{h}/tabs")).gap(4.0).role(Role::TabList)
         .child(tab(&h, 0, &tr("docs.tab.preview"), s.doc_tab == 0)).child(tab(&h, 1, &tr("docs.tab.code"), s.doc_tab == 1));
     // The look strip sits at the top of the stage, on the tabs' line, and changes the stage only.
     let tabs = row().key(format!("doc/{h}/stage-top")).fill_width().wrap().gap(12.0).align(AlignItems::CENTER)
         .child(tabs).child(space(0.0, 0.0).grow(1.0)).child(if s.doc_tab == 0 { super::look_strip(s, &format!("doc/{h}/look")) } else { space(0.0, 0.0) });
     let pane = if s.doc_tab == 1 { code(&format!("doc/{h}/source"), ex_src) }
-        else { col().key(format!("doc/{h}/preview")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 16.0 } else { 40.0 }, 36.0).gap(16.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START)
+        else { col().key(format!("doc/{h}/preview")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 16.0 } else { 40.0 }, 36.0).gap(16.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).align(AlignItems::START)
             // The strip's material on what the stage shows; the frame and the page round it keep the site's.
             .child(col().key(format!("doc/{h}/stage")).min_width(0.0).material(s.stage_material.id()).child(shown)) };
     let mut preview = col().key(format!("doc/{h}/preview-col")).gap(10.0).fill_width().min_width(0.0).child(tabs).child(pane);
@@ -257,9 +257,9 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     // 2. Installation: the add command and the files it copies.
     let files = amenui::add::files(REGISTRY, &[name]).unwrap_or_default();
     let install = col().key(format!("doc/{h}/install")).gap(10.0).fill_width().min_width(0.0)
-        .child(text_lh(tr("docs.install.lead"), 15.0, 26.0, Paint::TEXT))
+        .child(text_lh(tr("docs.install.lead"), 15.0, 26.0, crate::tokens::TEXT))
         .child(code(&format!("doc/{h}/add"), &format!("cargo run --release --bin amenui -- add {name} --to ../my-app")))
-        .child(text_lh(format!("{}: {}", tr("docs.install.files"), files.join(", ")), 13.0, 22.0, Paint::DIM));
+        .child(text_lh(format!("{}: {}", tr("docs.install.files"), files.join(", ")), 13.0, 22.0, crate::tokens::DIM));
     // 3. Usage: the first example's code.
     let usage = col().key(format!("doc/{h}/usage")).gap(10.0).fill_width().min_width(0.0)
         .child(code(&format!("doc/{h}/use"), &format!("use amenui::widgets::{{{}}};\n\n{}", it.functions.join(", "), examples.first().map(|e| e.1.clone()).unwrap_or_default())));
@@ -270,7 +270,7 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
         let p = p.rekey(&format!("doc/{h}/ex{j}/k"));
         exs = exs.child(col().key(format!("doc/{h}/ex{j}")).gap(8.0).fill_width()
             .child(text(pick(label, l), 15.0, Paint::INK).key(format!("doc/{h}/ex{j}/label")))
-            .child(col().key(format!("doc/{h}/ex{j}/box")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 12.0 } else { 24.0 }, 20.0).radius(6.0).border(1.0, Paint::FAINT).align(AlignItems::START).child(p))
+            .child(col().key(format!("doc/{h}/ex{j}/box")).fill_width().min_width(0.0).scroll_x().pad(if s.width < super::NARROW { 12.0 } else { 24.0 }, 20.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).align(AlignItems::START).child(p))
             .child(code(&format!("doc/{h}/ex{j}/src"), c)));
     }
     // 5. API: from the registry and the widget's own header.
@@ -282,12 +282,12 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
     let kb_md = format!("| | |\n|---|---|\n| {} | {} |\n| {} | {} |\n", tr("docs.kb.states"), header_line(src, "States:"), tr("docs.kb.keys"), header_line(src, "Messages:"));
     let kb = col().key(format!("doc/{h}/kb-col")).gap(10.0).fill_width().min_width(0.0)
         .child(amenui::markdown::render(&kb_md, &format!("doc/{h}/kb"), doc_w(s, 780.0), &|t| link(t)).0)
-        .child(text_lh(tr("docs.kb.mirror"), 14.0, 24.0, Paint::DIM).width(doc_w(s, 780.0)).key(format!("doc/{h}/kb-mirror")));
+        .child(text_lh(tr("docs.kb.mirror"), 14.0, 24.0, crate::tokens::DIM).width(doc_w(s, 780.0)).key(format!("doc/{h}/kb-mirror")));
     // 7. Right to left: the first example in a subtree that runs right to left, and what follows.
     let rtl_ex = amenui::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/rtl/k"));
     let rtl = col().key(format!("doc/{h}/rtl")).gap(10.0).fill_width().min_width(0.0)
-        .child(text_lh(tr("docs.rtl.note"), 14.0, 24.0, Paint::TEXT).width(doc_w(s, 780.0)).key(format!("doc/{h}/rtl-note")))
-        .child(row().key(format!("doc/{h}/rtl/box")).fill_width().min_width(0.0).pad(24.0, 20.0).radius(6.0).border(1.0, Paint::FAINT).rtl(true).child(rtl_ex));
+        .child(text_lh(tr("docs.rtl.note"), 14.0, 24.0, crate::tokens::TEXT).width(doc_w(s, 780.0)).key(format!("doc/{h}/rtl-note")))
+        .child(row().key(format!("doc/{h}/rtl/box")).fill_width().min_width(0.0).pad(24.0, 20.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).rtl(true).child(rtl_ex));
     // 8. Under every material: the first example, small, once per material.
     let mut strip = row().key(format!("doc/{h}/mats")).wrap().gap(10.0).fill_width();
     let first_ex = amenui::recipes::components::examples(example_name(name)).into_iter().next();
@@ -297,8 +297,8 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
             let mat = Material::from_id(m);
             let e = amenui::recipes::components::examples(example_name(name)).into_iter().next().map(as_msg).unwrap_or_else(|| space(0.0, 0.0)).rekey(&format!("doc/{h}/mat{m}/k"));
             strip = strip.child(col().key(format!("doc/{h}/mat{m}")).gap(6.0).width(220.0)
-                .child(col().key(format!("doc/{h}/mat{m}/box")).width(220.0).height(120.0).pad(12.0, 12.0).radius(6.0).border(1.0, Paint::FAINT).clip().material(mat.id()).align(AlignItems::START).child(e))
-                .child(text(mat.name(), 12.0, Paint::DIM).font(Font::Mono)));
+                .child(col().key(format!("doc/{h}/mat{m}/box")).width(220.0).height(120.0).pad(12.0, 12.0).radius(6.0).border(1.0, crate::tokens::HAIRLINE).clip().material(mat.id()).align(AlignItems::START).child(e))
+                .child(text(mat.name(), 12.0, crate::tokens::DIM).font(Font::Mono)));
         }
     }
     let secs = [preview, install, usage, exs, api, kb, rtl, strip];
@@ -309,8 +309,9 @@ pub fn component(s: &Gallery, name: &str, live: Option<El<Msg>>, params: Option<
 }
 fn tab(h: &str, i: usize, label: &str, on: bool) -> El<Msg> {
     let mut t = row().key(format!("doc/{h}/tab{i}")).height(30.0).pad(12.0, 0.0).radius(4.0).center().on_press(Msg::DocTab(i)).role(Role::Tab).selected(on)
-        .child(text(label, 13.0, if on { Paint::INK } else { Paint::TEXT }));
-    if on { t = t.fill(SELECTED); }
+        .child(text(label, 13.0, if on { Paint::GROUND } else { crate::tokens::TEXT }));
+    // The chosen tab is an ink plate with its label in the ground colour, as a segmented choice.
+    if on { t = t.fill(Paint::INK); }
     t
 }
 

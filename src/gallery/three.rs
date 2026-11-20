@@ -6,7 +6,8 @@ use super::mechanism::{self, MMsg, Mech};
 use super::{Gallery, Msg, Target};
 use amenui::el::{El, Paint, Response, col, row, scene3d, text};
 use amenui::mesh::{Camera, Light, Mat4, Mesh3d, MeshHit, MeshId, MeshInstances, Pick, Projection, Scene3d};
-use amenui::widgets::{number, segmented};
+use super::segmented;
+use amenui::widgets::number;
 use taffy::AlignItems;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,14 +146,14 @@ pub fn page(s: &Gallery) -> El<Msg> {
             let on = t.mech.hover.or(t.mech.chosen) == Some(i);
             let name = amenui::i18n::tr(p.name);
             let z = if p.teeth > 0 { format!("{name}  ·  z = {}", p.teeth) } else { name };
-            text(format!("{:02}  {z}", i + 1), 13.0, if on { Paint::ACCENT } else { Paint::TEXT }).key(format!("three/part{i}"))
+            text(format!("{:02}  {z}", i + 1), 13.0, if on { Paint::ACCENT } else { crate::tokens::TEXT }).key(format!("three/part{i}"))
         }))
-        .child(text(amenui::i18n::tr(mechanism::KEYS), 13.0, Paint::DIM).max_width(380.0));
+        .child(text(amenui::i18n::tr(mechanism::KEYS), 13.0, crate::tokens::DIM).max_width(380.0));
     col().key("three/page").fill_width().max_width(1100.0).gap(34.0)
         .child(header(s, h, "三维", "El::mesh / scene3d / MeshInstances", "三维物体是页面上的又一种东西：在布局给它的矩形里画，会松开、变形，可以按到。机件由代码里的基本形搭成：齿轮按齿数比啮合，凸轮推着从动杆；两种色调的平涂、画出的轮廓线，材质可以换。网格在一张离屏图里画出明暗、法线、深度和编号，再变成和文字一样的墨与近度：轮廓和棱都是“边”。"))
         .child(section(h, "机件", row().key("three/object-row").fill_width().wrap().gap(24.0).align(AlignItems::START).child(view).child(controls)))
         .child(section(h, "两千个，一次画出", col().key("three/field-col").fill_width().gap(10.0).child(field)
-            .child(row().gap(24.0).child(text(hovered, 13.0, Paint::DIM).key("three/hovered")).child(text(picked, 13.0, Paint::DIM).key("three/picked")))))
+            .child(row().gap(24.0).child(text(hovered, 13.0, crate::tokens::DIM).key("three/hovered")).child(text(picked, 13.0, crate::tokens::DIM).key("three/picked")))))
         .child(section(h, "参数", nums))
         .child(amenui::el::space(1.0, 24.0))
 }

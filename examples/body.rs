@@ -120,8 +120,8 @@ pub const INTRO_VERSION: u32 = 1;
 /// How the text is drawn on the form: nothing turned away, glyphs fading out from facing 0.5 (gone at
 /// 0.3), a glyph more than a third covered by nearer ones left out, the far side dimmer.
 pub const FORM_FX: FormFx = FormFx { back: 0.0, edge: 0.5, overlap: 0.35, fog: 0.6 };
-/// The hairline colour (rules, frames, the console's line numbers).
-pub const HAIR: Paint = Paint::FAINT;
+/// The hairline colour (rules, frames).
+pub const HAIR: Paint = crate::tokens::HAIRLINE;
 
 /// One cell of the surface: where (unit body space), its outward normal, the line's tangent there.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1154,7 +1154,7 @@ impl Body {
         for m in &self.motes { let f = 1.0 - m.age / MOTE_LIFE; d.dot(m.x, m.y, 0.6 + 0.9 * f, Paint::INK.alpha(0.6 * f * self.idle)); }
         for l in labels {
             if l.alpha <= 0.0 { continue; }
-            let p = Paint::DIM.alpha(l.alpha);
+            let p = crate::tokens::DIM.alpha(l.alpha);
             d.line(l.from, l.elbow, 0.5, p);
             d.line(l.elbow, l.to, 0.5, p);
             d.dot(l.from.0, l.from.1, 1.4, Paint { tone: 1.0, ..p });
@@ -1305,7 +1305,7 @@ impl Body {
         let mut s = amenui::widgets::slider(&k("gather"), g, spec, c.w, Msg::GatherTo);
         let (lx, lt) = (t0 - c.x, ((c.row - LINE) * 0.5).round());
         s.children = vec![
-            mono("GATHER", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
+            mono("GATHER", crate::tokens::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
             layers(vec![space(run, 1.0).fill(HAIR.alpha(ia)).shift(-(run * (1.0 - ia)).round(), 0.0)]).width(run).height(1.0).clip().absolute(Some(lx), Some(mid), None, None),
             layers(vec![space(run, 2.0).fill(ink).shift((travel * g + 4.0 - run).round(), 0.0)]).width(run).height(2.0).clip().absolute(Some(lx), Some(mid - 1.0), None, None),
             space(8.0, 16.0).fill(ink).absolute(Some(lx), Some(((c.row - 16.0) * 0.5).round()), None, None).shift((travel * g).round(), 0.0),
@@ -1323,7 +1323,7 @@ impl Body {
         parts.push(s);
         // MATERIAL: four segments, the chosen one an ink plate; no frame round the group.
         let phone_rest = if c.fit == Fit::Phone && self.shown_state() == 4 { 0.0 } else { 1.0 };
-        if c.fit == Fit::Wide { parts.push(mono("MATERIAL", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(c.row + lt), None, None)); }
+        if c.fit == Fit::Wide { parts.push(mono("MATERIAL", crate::tokens::DIM.alpha(la)).absolute(Some(0.0), Some(c.row + lt), None, None)); }
         let names: Vec<&str> = MATERIALS.iter().map(|m| m.0).collect();
         let mut m = amenui::widgets::segmented(&k("material"), &names, self.material, 20.0, Msg::Material);
         let (s0, s3) = (c.segment(0), c.segment(3));
@@ -1338,7 +1338,7 @@ impl Body {
             // The underline is always there; hover shows it by its alpha, so the tree keeps its shape.
             let nw = ADVANCE * name.len() as f32;
             let label = vec![
-                mono(name, (if on { Paint::GROUND } else if over { Paint::INK } else { Paint::TEXT }).alpha(ia)),
+                mono(name, (if on { Paint::GROUND } else if over { Paint::INK } else { crate::tokens::TEXT }).alpha(ia)),
                 space(nw, 1.0).fill(Paint::INK.alpha(if over { 1.0 } else { 0.0 })).absolute(Some(((b[2] - b[0] - nw) * 0.5).round()), Some(17.0), None, None),
             ];
             let mut seg = seg.pad(0.0, 0.0).width(b[2] - b[0]).height(20.0).unframed();
@@ -1356,8 +1356,8 @@ impl Body {
         let (tb, tf) = (c.turn(), c.turn_frame());
         let mut sw = amenui::widgets::switch_sized(k("turn"), "", on, None, 14.0, Msg::Turn);
         sw.children = vec![
-            mono("TURN", Paint::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
-            layers(vec![space(12.0, 10.0).fill((if on { Paint::INK } else { Paint::DIM }).alpha(ia)).absolute(Some(1.0), Some(1.0), None, None).shift((12.0 * slide).round(), 0.0)])
+            mono("TURN", crate::tokens::DIM.alpha(la)).absolute(Some(0.0), Some(lt), None, None),
+            layers(vec![space(12.0, 10.0).fill((if on { Paint::INK } else { crate::tokens::DIM }).alpha(ia)).absolute(Some(1.0), Some(1.0), None, None).shift((12.0 * slide).round(), 0.0)])
                 .width(28.0).height(14.0).border(1.0, (if hov(Ctl::Turn) { Paint::INK } else { HAIR }).alpha(ia)).absolute(Some(tf[0] - tb[0]), Some(tf[1] - tb[1]), None, None),
         ];
         sw = sw.pad(0.0, 0.0).gap(0.0).label("Turn by itself").unframed().disabled(self.reduced);
@@ -1366,7 +1366,7 @@ impl Body {
         let flash = self.t - self.flash < 0.08;
         let sb = c.seed();
         let mut b = amenui::widgets::button(k("seed"), "", Msg::Seed(1));
-        b.children = vec![mono(format!("SEED {:02} →", self.seed), (if flash { Paint::GROUND } else { Paint::TEXT }).alpha(la)).recompose(true).key(k("seed/n"))];
+        b.children = vec![mono(format!("SEED {:02} →", self.seed), (if flash { Paint::GROUND } else { crate::tokens::TEXT }).alpha(la)).recompose(true).key(k("seed/n"))];
         (b.fill, b.radius) = (flash.then_some(Paint::INK), 0.0);
         b = b.border(1.0, (if hov(Ctl::Seed) { Paint::INK } else { HAIR }).alpha(ia)).pad(8.0, 0.0).label(format!("Next seed, {:02}", self.seed)).unframed();
         parts.push(put(b, &c, sb).opacity(phone_rest));
@@ -1384,11 +1384,11 @@ impl Body {
         let sy = sb[1] + ((sb[3] - sb[1] - LINE) * 0.5).round();
         let lines: Vec<&str> = head.split('\n').collect();
         let digits = format!("{:02}", self.seed);
-        let mut want: Vec<(usize, &str, (f32, f32), f32)> = vec![(0, "GATHER", (c.x, c.y + lt), Paint::DIM.tone)];
-        if c.fit == Fit::Wide { want.push((1, "MATERIAL", (c.x, c.y + c.row + lt), Paint::DIM.tone)); }
-        want.push((2, "TURN", (c.turn()[0], c.turn()[1] + lt), Paint::DIM.tone));
-        want.push((3, "SEED", (sb[0] + 8.0, sy), Paint::TEXT.tone));
-        if lines.get(3).is_some_and(|l| l.contains(&format!("= {digits};"))) { want.push((3, "26", (sb[0] + 8.0 + 5.0 * ADVANCE, sy), Paint::TEXT.tone)); }
+        let mut want: Vec<(usize, &str, (f32, f32), f32)> = vec![(0, "GATHER", (c.x, c.y + lt), crate::tokens::DIM.tone)];
+        if c.fit == Fit::Wide { want.push((1, "MATERIAL", (c.x, c.y + c.row + lt), crate::tokens::DIM.tone)); }
+        want.push((2, "TURN", (c.turn()[0], c.turn()[1] + lt), crate::tokens::DIM.tone));
+        want.push((3, "SEED", (sb[0] + 8.0, sy), crate::tokens::TEXT.tone));
+        if lines.get(3).is_some_and(|l| l.contains(&format!("= {digits};"))) { want.push((3, "26", (sb[0] + 8.0 + 5.0 * ADVANCE, sy), crate::tokens::TEXT.tone)); }
         want.into_iter().filter_map(|(l, w, to, tone)| {
             let w = if w == "26" { digits.as_str() } else { w };
             let i = find_word(lines.get(l)?, w)?;
@@ -1485,22 +1485,22 @@ impl Body {
         let ghost = posed("ghost").hidden_until_morphed(true);
         // The listing as it lies flat, never drawn: the end a morph to or from the word takes.
         let flat_el = txt(s.text.clone(), ink, "flat").absolute(Some(lx), Some(ty), None, None).width(cols as f32 * ADVANCE).height(s.rows as f32 * LINE).hidden_until_morphed(true);
-        // The line numbers, each as opaque as its line's ink: dim in the listing; the console's lines keep
-        // theirs in the hairline colour (on a phone in 04 only row A's); under the console a line's
-        // number leaves with its line, to the word or to the stone.
+        // The line numbers, each as opaque as its line's ink, dim in the listing and beside the console
+        // (on a phone in 04 only row A's); under the console a line's number leaves with its line, to the
+        // word or to the stone.
         let num = |i: usize, p: Paint, y: f32| txt(format!("{i:>3}"), p, &format!("lines/{i}")).absolute(Some(st[0]), Some(y), None, None);
         let phone_04 = self.phone() && shown == 4;
         let mut numbers = vec![];
         for i in 1..=head {
             let a = if phone_04 && i as f32 * LINE > self.console().row { 0.0 } else { dim };
-            numbers.push(num(i, (if head_on { Paint::DIM } else { HAIR }).alpha(a), ly + (i - 1) as f32 * LINE));
+            numbers.push(num(i, crate::tokens::DIM.alpha(a), ly + (i - 1) as f32 * LINE));
         }
         let worded = shown == 3 || (self.was == 3 && self.t < self.lands);
         let firsts = self.line_glyphs(s.rows);
         let n = self.stone_glyphs();
         for (j, &gi) in firsts.iter().enumerate() {
             let a = if worded { 0.0 } else { (1.0 - progress(g, gi, n)) * dim };
-            numbers.push(num(head + 1 + j, Paint::DIM.alpha(a), ty + j as f32 * LINE));
+            numbers.push(num(head + 1 + j, crate::tokens::DIM.alpha(a), ty + j as f32 * LINE));
         }
         let numbers = layers(numbers).key(format!("{key}/lines")).absolute(Some(0.0), Some(0.0), None, None).width(w).height(h).pass(true);
         let marks = if stone { self.readouts() } else { vec![] };
@@ -1538,10 +1538,10 @@ impl Body {
             let sb = self.console().seed();
             let digits = format!("{:02}", self.seed);
             let rest = if flying.iter().any(|w| w.text == digits) { "        →".to_owned() } else { format!("     {digits} →") };
-            parts.push(txt(rest, Paint::TEXT.alpha(ia * dim), "fly/seed-rest").absolute(Some(sb[0] + 8.0), Some(sb[1] + ((sb[3] - sb[1] - LINE) * 0.5).round()), None, None));
+            parts.push(txt(rest, crate::tokens::TEXT.alpha(ia * dim), "fly/seed-rest").absolute(Some(sb[0] + 8.0), Some(sb[1] + ((sb[3] - sb[1] - LINE) * 0.5).round()), None, None));
         }
         for m in &marks {
-            parts.push(txt(m.text.clone(), Paint::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
+            parts.push(txt(m.text.clone(), crate::tokens::DIM.alpha(m.alpha), &format!("readout/{}", m.key)).absolute(Some(m.at.0), Some(m.at.1), None, None));
         }
         // The caption: the state's number in the dim colour, its sentence in the text colour; in 04 the
         // sentence dims after 4 s without a change.
@@ -1555,14 +1555,14 @@ impl Body {
         };
         let quiet = body && self.t - self.changed > 4.0;
         let cy = self.caption_y();
-        parts.push(txt(num.into(), Paint::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None).opacity(dim).recompose(!self.reduced));
+        parts.push(txt(num.into(), crate::tokens::DIM, "caption/n").absolute(Some(st[0]), Some(cy), None, None).opacity(dim).recompose(!self.reduced));
         let gutter = if w < 360.0 { GUTTER - ADVANCE } else { GUTTER };
-        parts.push(txt(sentence, if quiet { Paint::DIM } else { Paint::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite).opacity(dim).recompose(!self.reduced));
+        parts.push(txt(sentence, if quiet { crate::tokens::DIM } else { crate::tokens::TEXT }, "caption").absolute(Some(st[0] + gutter), Some(cy), None, None).live(amenui::el::Live::Polite).opacity(dim).recompose(!self.reduced));
         // The line that adds the console's components, in 02, where it clears the caption by 48 px.
         let add = "$ amenui add switch slider choice button";
         let ax = { let c = self.console(); c.x + c.w - ADVANCE * add.chars().count() as f32 };
         if shown == 2 && !self.phone() && ax >= self.caption_box()[2] + 48.0 {
-            parts.push(txt(add.into(), Paint::DIM, "add").absolute(Some(ax.floor()), Some(cy), None, None).opacity(dim));
+            parts.push(txt(add.into(), crate::tokens::DIM, "add").absolute(Some(ax.floor()), Some(cy), None, None).opacity(dim));
         }
         let grabbing = self.grab.is_some() && self.dragged;
         layers(parts).key(key.to_owned()).width(w).height(h).clip()
@@ -1961,8 +1961,8 @@ pub fn ui(faces: Vec<amenui::text::Face>, w: u32, h: u32, scale: f32) -> amenui:
 }
 /// The site's two schemes (AA.9, AA.10), graphite and paper, as (ground, ink, accent, second).
 pub fn palette(paper: bool) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3]) {
-    let c = |v: u32| [((v >> 16) & 255) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0];
-    if paper { (c(0xf1f0eb), c(0x141517), c(0xb23f0d), c(0x1a5cc7)) } else { (c(0x1a1b1d), c(0xf2f2ee), c(0xf47a3c), c(0x7db0f7)) }
+    let t = crate::tokens::of(paper);
+    (crate::tokens::rgb(t.ground), crate::tokens::rgb(t.ink), crate::tokens::rgb(t.accent), crate::tokens::rgb(t.second))
 }
 /// The scene's look, `gathered` of the way from the listing to the stone: the scheme's flat ground,
 /// the plain material, and a small bloom on the brightest glyphs as the stone gathers (none on paper:
