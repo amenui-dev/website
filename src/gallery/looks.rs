@@ -5,7 +5,7 @@ use super::{Gallery, IMAGE_SLOT, Msg, Page, Target};
 use crate::demo::{SKY, TERRAIN};
 use amenui::el::{El, Font, Paint, Response, Scope, col, picture, row, space, text, text_lh};
 use amenui::style::{GAZE_MODES, MAT_PARAMS, Material, gaze};
-use amenui::widgets::{SELECTED, Spec, Variant, button_as, card, number, switch, segmented};
+use amenui::widgets::{Spec, Variant, button_as, card, number, switch, segmented, toggle};
 use taffy::{AlignItems, JustifyContent};
 
 pub fn page(s: &Gallery) -> El<Msg> {
@@ -109,9 +109,7 @@ fn gaze_page(s: &Gallery) -> El<Msg> {
     for (i, name) in gaze::NAMES.iter().enumerate() {
         let bit = 1u16 << i;
         let on = g.has(bit);
-        chips = chips.child(row().key(format!("gaze/kind:{i}")).height(26.0).pad(10.0, 0.0).radius(4.0).align(AlignItems::CENTER)
-            .fill(if on { SELECTED } else { Paint::GROUND }).border(1.0, if on { Paint::ACCENT } else { Paint::HAIRLINE }).on_press(Msg::GazeKind(bit))
-            .child(text(*name, 13.0, if on { Paint::ACCENT } else { Paint::TEXT })));
+        chips = chips.child(toggle(format!("gaze/kind:{i}"), name, on, Msg::GazeKind(bit)));
     }
     let controls = col().key("gaze/controls").fill_width().gap(14.0)
         .child(row().gap(12.0).align(AlignItems::CENTER).child(text("模式", 13.0, Paint::DIM)).child(segmented("gaze/mode", &names, mode, 30.0, Msg::GazeMode)))

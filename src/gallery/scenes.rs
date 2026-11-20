@@ -876,10 +876,10 @@ fn styles_scene(g: &Gallery, w: f32, _h: f32) -> El<Msg> {
     let mut grid = row().key("st/grid").gap(8.0).wrap().width(if narrow { w } else { 300.0 });
     for (i, st) in all.iter().enumerate() {
         let on = g.style == Some(i);
-        let mut b = row().key(format!("st/s{i}")).height(34.0).width(if narrow { (w - 16.0) / 3.0 } else { 146.0 }).pad(10.0, 0.0).radius(4.0).align(AlignItems::CENTER)
-            .border(1.0, if on { Paint::ACCENT } else { Paint::HAIRLINE }).on_press(Msg::Scene(SMsg::Look(i))).commit()
-            .child(text(st.name, 12.0, if on { Paint::ACCENT } else { Paint::TEXT }));
-        if on { b = b.fill(Paint::ACCENT.alpha(0.12)); }
+        let b = row().key(format!("st/s{i}")).height(34.0).width(if narrow { (w - 16.0) / 3.0 } else { 146.0 }).pad(10.0, 0.0).radius(4.0).align(AlignItems::CENTER)
+            .fill(if on { Paint::INK } else { Paint::GROUND }).border(1.0, if on { Paint::INK } else { Paint::DIM }).border_hover(Paint::INK)
+            .on_press(Msg::Scene(SMsg::Look(i))).commit().role(amenui::el::Role::Button).checked(on).label(st.name)
+            .child(text(st.name, 12.0, if on { Paint::GROUND } else { Paint::TEXT }));
         grid = grid.child(b);
     }
     let cw = if narrow { w } else { (w - 340.0).min(860.0) };

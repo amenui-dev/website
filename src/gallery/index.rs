@@ -186,8 +186,8 @@ pub fn widget_preview(name: &str, key: &str) -> Option<El<Msg>> {
         "caption" => col().gap(8.0)
             .child(space(72.0, 36.0).key(k("rect")).radius(6.0).fill(Paint::ACCENT))
             .child(caption(&k("cap"), "rect(w=72, r=6)", &[], |_, _| Msg::Nothing)),
-        "skip_link" => row().key(k("sl")).height(32.0).pad(12.0, 0.0).radius(6.0).center().fill(Paint::ACCENT)
-            .child(text("Skip to content", 13.0, Paint::GROUND)),
+        "skip_link" => row().key(k("sl")).height(32.0).pad(12.0, 0.0).radius(amenui::widgets::RADIUS).center().fill(Paint::INK)
+            .child(text("Skip to content", amenui::widgets::LABEL, Paint::GROUND)),
         _ => return None,
     })
 }

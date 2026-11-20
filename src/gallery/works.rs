@@ -120,29 +120,15 @@ pub fn theme(i: usize) -> Theme {
     // W-04: the notes' ink, the rays' middle and tip as its second and third hues, and the line's type as
     // its ground (which the picture covers, V.2 a), so the type and a ray's stops are paints of their own.
     if i == NIGHTLY {
-        let greys = legible_greys(nightly::GROUND, nightly::INK);
+        let greys = Greys::mixed_dim(nightly::GROUND, nightly::INK, 4.5);
         return Theme { ink: nightly::INK, accent, second: nightly::MID, third: nightly::TYPE_C, ground: nightly::GROUND, ground2: nightly::GROUND, greys, ..amenui::style::DARK };
     }
     if i == TOUCH_GRASS {
-        let greys = legible_greys(touch::STALK_LEAN, touch::INK);
+        let greys = Greys::mixed_dim(touch::STALK_LEAN, touch::INK, 4.5);
         return Theme { ink: touch::INK, accent, second: touch::HEAD, third: touch::STALK, ground: touch::STALK_LEAN, ground2: touch::STALK_LEAN, greys, ..amenui::style::DARK };
     }
     let ground = amenui::style::DARK.ground;
     Theme { ink, accent, second: ACCENT_LIGHT, third: SURVEY, greys: Greys::mixed(ground, ink), ..amenui::style::DARK }
-}
-/// A piece's greys from its own ground and ink: their plain mixes, lifted toward the ink together until
-/// `dim` stands at 4.5:1 or more on that ground.
-fn legible_greys(ground: [f32; 3], ink: [f32; 3]) -> Greys {
-    let lifted = |k: f32| {
-        let at = |p: Paint| { let t = p.tone + (1.0 - p.tone) * k; std::array::from_fn(|c| ground[c] + (ink[c] - ground[c]) * t) };
-        Greys { raised: at(Paint::RAISED), hairline: at(Paint::HAIRLINE), dim: at(Paint::DIM), text: at(Paint::TEXT) }
-    };
-    let ok = |g: &Greys| amenui::style::contrast(g.dim, ground) >= 4.5;
-    if ok(&lifted(0.0)) { return Greys::mixed(ground, ink); }
-    // The least lift that reads, found by halves.
-    let (mut lo, mut hi) = (0.0f32, 1.0f32);
-    for _ in 0..24 { let m = 0.5 * (lo + hi); if ok(&lifted(m)) { hi = m; } else { lo = m; } }
-    lifted(hi)
 }
 /// The bar's tone on a page: 0 none (the site's), 1 light, 2 dark.
 pub fn tone(p: Page) -> u8 { match p { Page::Work(i) => if PIECES[i as usize].bar_light { 1 } else { 2 }, _ => 0 } }
