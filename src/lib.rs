@@ -55,6 +55,16 @@ pub fn picture(id: u32) -> Option<(u32, u32, Vec<u8>)> {
     let (w, h) = *demo::PICTURE_SIZES.get(id as usize)?;
     Some((w, h, f(w, h)))
 }
+/// The pictures `scene` draws that `made` does not hold yet, each once, in id order; they are added to
+/// `made` before any is made, so a picture that fails to be made is not asked for again.
+pub fn new_pictures(scene: &amenui::scene::Scene, made: &mut Vec<u32>) -> Vec<u32> {
+    let mut want: Vec<u32> = scene.instances.iter().filter(|i| i.paint[3] == amenui::scene::PICTURE).map(|i| i.extra[1] as u32).collect();
+    want.sort_unstable();
+    want.dedup();
+    want.retain(|id| !made.contains(id));
+    made.extend_from_slice(&want);
+    want
+}
 /// On the web each picture waits until a page draws it (`pictures`): home shows none, most pages one
 /// or two, and making them all is most of what starting a page would cost.
 #[cfg(target_arch = "wasm32")]
@@ -111,26 +121,21 @@ mod site_exports {
     /// Make the pictures the page's scene draws that the renderer does not have yet, each once. The
     /// page calls it after a route and after every frame; when it made one it returns true and the
     /// page draws that frame again at once, each new picture where it is, so no picture is ever seen
-    /// blank.
+    /// blank. Nothing new: false, and nothing is drawn again.
     #[wasm_bindgen]
     pub fn pictures() -> bool {
         thread_local! { static MADE: std::cell::RefCell<Vec<u32>> = const { std::cell::RefCell::new(Vec::new()) }; }
         host(|s| {
-            let mut want: Vec<u32> = s.ui.scene().instances.iter().filter(|i| i.paint[3] == amenui::scene::PICTURE).map(|i| i.extra[1] as u32).collect();
-            want.sort_unstable();
-            want.dedup();
-            MADE.with(|m| {
-                let mut m = m.borrow_mut();
-                want.retain(|id| !m.contains(id));
-                for &id in &want {
-                    if let Some((w, h, px)) = super::picture(id) { s.r.set_picture(id, w, h, &px); }
-                    m.push(id);
-                }
-            });
-            if want.is_empty() { return false; }
+            // The ids are taken and the list let go before any is made: a panic while making one (the
+            // web build does not unwind) leaves neither a borrow held nor the picture asked for again.
+            let new = MADE.with(|m| super::new_pictures(s.ui.scene(), &mut m.borrow_mut()));
+            let mut set = false;
+            for id in new {
+                if let Some((w, h, px)) = super::picture(id) { s.r.set_picture(id, w, h, &px); set = true; }
+            }
             // The next frame draws each new picture again where it is (`Renderer::set_picture`).
-            s.ui.invalidate();
-            true
+            if set { s.ui.invalidate(); }
+            set
         }).unwrap_or(false)
     }
     /// A text the module does not carry (`texts`), given by the page: the view is laid out again.
