@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-Hans" class="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>骨架演示 · amenui</title>
+<meta name="description" content="amenui 是一个用 Rust 写的、自己绘制一切的图形界面框架，用于桌面和网页。">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:,">
+<script>(() => {
+const D = document, r = D.documentElement, KEY = 'amenui.theme', PICKS = ['auto', 'light', 'dark'];
+const sys = matchMedia('(prefers-color-scheme: light)');
+let pick = 'auto';
+try { const v = localStorage.getItem(KEY); if (PICKS.includes(v)) pick = v; } catch (e) {}
+const label = () => { for (const b of D.querySelectorAll('.scheme')) { const v = b.querySelector('.' + pick[0]); if (v) b.setAttribute('aria-label', b.dataset.label + ': ' + v.textContent); } };
+const apply = from => {
+const was = r.dataset.theme, now = pick === 'auto' ? (sys.matches ? 'light' : 'dark') : pick;
+r.dataset.pick = pick;
+r.dataset.theme = now;
+label();
+if (was && was !== now) D.dispatchEvent(new CustomEvent('amenui:scheme', { detail: { from } }));
+};
+apply(null);
+sys.addEventListener('change', () => { if (pick === 'auto') apply(null); });
+D.addEventListener('DOMContentLoaded', label);
+D.addEventListener('click', e => {
+const b = e.target.closest && e.target.closest('.scheme');
+if (!b) return;
+pick = PICKS[(PICKS.indexOf(pick) + 1) % PICKS.length];
+try { localStorage.setItem(KEY, pick); } catch (e) {}
+const c = b.getBoundingClientRect();
+apply([c.left + c.width / 2, c.top + c.height / 2]);
+});
+})();</script>
+<script>{const l=document.createElement('link');l.rel='preload';l.as='fetch';l.crossOrigin='';l.href=navigator.gpu?'/amenui-webgpu.4fba1d46c2.wasm':'/amenui.433535f353.wasm';document.head.appendChild(l)}</script>
+<link rel="preload" href="/fonts/departure-mono.3957b852a1.otf" as="fetch" crossorigin>
+<style>
+/*chrome*/
+/* The page around the canvas: the navigation bar, the home page's text, its stage with the source
+   listing and the rail row, and the boot line. Everything here is in the first response; nothing
+   blocks the first paint. */
+/* A change of page inside the canvas (AA.11): the HTML over it comes in with the canvas's new page,
+   140 ms from 70 ms. */
+@keyframes pagein { from { opacity: 0; } }
+.home .hero, .home .rail { animation: pagein 140ms linear 70ms both; }
+@media (prefers-reduced-motion: reduce) { .home .hero, .home .rail { animation: none; } }
+/* The two schemes (AA.9, AA.10): graphite and paper. The page follows the system unless the bar's
+   switch chose one (`data-theme`, set before the first paint); without the script, the system's.
+   `--halo` is the selection's plate, `--lift` a primary button under the pointer, `--line-n` the
+   listing's line numbers as the canvas draws them (Paint::DIM on the ground). */
+:root { color-scheme: dark; --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; --halo: #f2f2ee; --lift: #ffffff; --line-n: #a9a9a7;
+  --mono: "Departure Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif; --m: 32px; }
+:root[data-theme="light"] { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; } }
+@media (max-width: 1079px) { :root { --m: 24px; } }
+@media (max-width: 719px) { :root { --m: 16px; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--text); font: 17px/1.6 var(--serif); overflow: hidden; -webkit-font-smoothing: none; -moz-osx-font-smoothing: unset; }
+a { color: inherit; text-decoration: none; }
+/* Selection (L.1, AA.9): an ink plate with the text in the ground, the plate made as a halo, each
+   glyph's outline moved out 3 px in one opaque colour, so selected lines never form a lighter band. */
+::selection { background: transparent; color: var(--ground); text-shadow:
+  3px 0 var(--halo), -3px 0 var(--halo), 0 3px var(--halo), 0 -3px var(--halo),
+  2px 2px var(--halo), -2px 2px var(--halo), 2px -2px var(--halo), -2px -2px var(--halo),
+  3px 1px var(--halo), -3px 1px var(--halo), 3px -1px var(--halo), -3px -1px var(--halo),
+  1px 3px var(--halo), -1px 3px var(--halo), 1px -3px var(--halo), -1px -3px var(--halo); }
+.bar, .rail, .status, .sheet, button, .side, .toc, .pn, .toc-inline summary { -webkit-user-select: none; user-select: none; }
+.install code { -webkit-user-select: all; user-select: all; }
+input, textarea { caret-color: var(--accent); caret-shape: block; }
+.mono, .bar, .eyebrow, .btn, .install, .status, .sheet, h1 { font-family: var(--mono); font-weight: normal; }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+/* Past the bar to the page: the first Tab stop, shown only while focused. */
+.skip { position: fixed; z-index: 20; left: 8px; top: 8px; height: 32px; padding: 0 12px; display: flex; align-items: center; background: var(--ink); color: var(--ground);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; transform: translateY(-200%); }
+.skip:focus { transform: none; }
+
+/* The bar: 48 px (44 on a phone), 11 px uppercase labels with 44 px tall hit areas. */
+.bar { position: fixed; z-index: 10; left: 0; right: 0; top: 0; height: 48px; padding: 0 var(--m); display: flex; align-items: center; gap: 24px;
+  font-size: 11px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; background: var(--ground); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.home .bar { background: transparent; border-color: transparent; }
+/* Home lays out in a frame of at most 1,600 px, centred: the bar, the text block, the stage, the rail
+   and the status line keep the window's margins only up to the frame's width. */
+:root { --fw: min(100vw, 1600px); --fx: max(0px, (100vw - 1600px) / 2); }
+.home .bar { padding: 0 calc(var(--m) + var(--fx)); }
+.bar a, .bar button { display: inline-flex; align-items: center; height: 44px; color: var(--text); background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.bar a:hover, .bar button:hover { color: var(--ink); }
+.bar a.word { text-transform: none; color: var(--ink); font-size: 22px; line-height: 22px; letter-spacing: 0; }
+.word i { display: inline-block; width: .55em; height: .8em; margin-left: 2px; background: var(--accent); animation: blink 1s steps(1) 3; }
+@keyframes blink { 50% { opacity: 0; } }
+.nav { display: flex; gap: 12px; }
+.nav a::before { content: "["; color: transparent; } .nav a::after { content: "]"; color: transparent; }
+/* The current section: its label in ink, its brackets the one mark in the accent (AA.9). */
+.nav a[aria-current] { color: var(--ink); } .nav a[aria-current]::before, .nav a[aria-current]::after { color: var(--accent); }
+.nav a:hover::before, .nav a:hover::after { color: var(--dim); }
+.end { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.lang b { color: var(--ink); font-weight: normal; }
+.lang span { color: var(--dim); padding: 0 6px; }
+/* The scheme's switch: the choice's name, auto · light · dark in turn. With no script it is not there. */
+.scheme span { display: none; }
+:root[data-pick="auto"] .scheme .a, :root[data-pick="light"] .scheme .l, :root[data-pick="dark"] .scheme .d { display: inline; }
+:root:not([data-pick]) .scheme { display: none !important; }
+.menu-btn { display: none !important; margin-left: auto; }
+@media (max-width: 1079px) { .wide { display: none !important; } }
+@media (max-width: 719px) {
+  .bar { height: 44px; } .nav, .end { display: none; } .menu-btn { display: inline-flex !important; }
+}
+/* The phone's sheet: the sections, then search, language and GitHub. */
+.sheet { position: fixed; z-index: 9; inset: 0; padding: 60px var(--m) var(--m); background: var(--ground); display: none; flex-direction: column; }
+.sheet.open { display: flex; }
+.sheet a { display: flex; align-items: center; height: 56px; color: var(--text); font-size: 22px; border-bottom: 1px solid var(--hairline); }
+.sheet a small { font-size: 11px; color: var(--dim); width: 40px; }
+.sheet a[aria-current] { color: var(--ink); } .sheet a[aria-current] small { color: var(--accent); }
+.sheet .row { display: flex; gap: 24px; padding-top: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.sheet .row a, .sheet .row button { height: 44px; font-size: 11px; border: 0; background: none; color: var(--text); font-family: inherit; text-transform: inherit; letter-spacing: inherit; padding: 0; }
+
+/* Cross-document view transitions (F.8): the bar holds while the page under it changes. */
+@view-transition { navigation: auto; }
+.bar { view-transition-name: bar; }
+::view-transition-group(*) { animation-duration: 140ms; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/*/chrome*/
+/* The canvas: under the bar, or the whole window behind it on home and in Scenes. It draws its own
+   focus marks, so it has no outline of its own. */
+#stage { position: fixed; left: 0; right: 0; bottom: 0; top: 48px; }
+.home #stage { top: 0; }
+@media (max-width: 719px) { #stage { top: 44px; } }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; opacity: 0; transition: opacity .3s; }
+.ready canvas { opacity: 1; }
+canvas:focus-visible { outline: none; }
+.home canvas { transition: none; }
+/* The text agent (an invisible field at the caret while a text field has focus) and the accessibility
+   mirror (the interface's roles and names, invisible but not hidden from assistive technology). */
+.a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+.a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
+.ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
+
+/* Home: the text block in columns 1 to 5 (1 to 7 on a middle width, under the rail on a phone). */
+:root { --hw: min(520px, calc((var(--fw) - 2 * var(--m) - 11 * 24px) / 12 * 5 + 96px)); --st: max(340px, 44vh); --sx: calc(var(--fx) + var(--m) + var(--hw) + 48px); }
+@media (max-width: 1079px) { :root { --hw: min(440px, calc((100vw - 2 * var(--m) - 11 * 24px) / 12 * 7 + 144px)); } }
+.hero { position: fixed; z-index: 2; left: calc(var(--fx) + var(--m)); top: 50%; transform: translateY(-50%); width: var(--hw); display: none; }
+.home .hero { display: block; }
+/* A phone: the document scrolls from the first paint. The stage is the upper part of the page in
+   normal flow, the rail under it, then the text block; the canvas scrolls with them. */
+@media (max-width: 719px) {
+  html.home, .home body { height: auto; }
+  .home body { overflow: visible; display: flex; flex-direction: column; }
+  .home #stage { position: absolute; top: 0; bottom: auto; height: calc(64px + var(--st) + 8px); }
+  .home canvas { touch-action: pan-y; }
+  .home .hero { position: relative; order: 3; top: auto; left: auto; transform: none; width: auto; margin: 16px 16px 24px; }
+}
+.eyebrow { font-size: 11px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin: 0 0 22px; }
+h1 { font-size: 44px; line-height: 44px; color: var(--ink); margin: 0 0 22px; }
+@media (max-width: 1079px) { h1 { font-size: 33px; line-height: 33px; } }
+@media (max-height: 640px) and (min-width: 720px) { h1 { font-size: 33px; line-height: 33px; } .hero p.lead { margin-bottom: 16px; } }
+.lead { margin: 0 0 24px; color: var(--text); }
+@media (max-width: 719px) { .lead { font-size: 16px; line-height: 1.5; margin-bottom: 16px; } .eyebrow, h1 { margin-bottom: 16px; } }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--hairline); color: var(--ink); }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.btn.primary:hover { background: var(--lift); border-color: var(--lift); }
+@media (max-width: 719px) { .actions { flex-direction: column; } .btn { height: 48px; justify-content: center; } .actions { margin-bottom: 16px; } }
+.install { display: flex; align-items: center; gap: 16px; font-size: 11px; line-height: 14px; color: var(--ink); max-width: 100%; }
+.install code { font: inherit; white-space: pre; min-width: 0; }
+.install code::before { content: "$ "; color: var(--dim); }
+/* Under 1,280 px the address goes on a second line, so what is shown is always a whole command. */
+.install .cont { display: none; color: var(--dim); }
+@media (max-width: 1279px) { .install .cont { display: inline; } .install .url { display: block; padding-left: 4ch; } }
+@media (max-width: 379px) { .install { flex-wrap: wrap; row-gap: 0; } }
+.install button { font: inherit; color: var(--dim); background: none; border: 0; padding: 0; height: 44px; cursor: pointer; text-transform: uppercase; letter-spacing: .06em; flex: none; }
+.install button:hover { color: var(--ink); }
+
+/* The stage: the rectangle the home page's scene draws in, laid out here and passed to the canvas.
+   From 48 px right of the text block to the margin, 72 px from the top to 88 px above the bottom
+   (status line, rail row, gap); on a phone inside the margins from 64 px down. */
+.hstage { position: fixed; left: var(--sx); right: calc(var(--fx) + var(--m)); top: 72px; bottom: 88px; pointer-events: none; display: none; }
+.home .hstage { display: block; }
+@media (max-width: 719px) { .home .hstage { position: relative; order: 1; left: auto; right: auto; top: auto; bottom: auto; margin: 64px 16px 0; height: var(--st); flex: none; } }
+/* The listing: this page's first lines of examples/body.rs while the module loads, as many as the
+   share of its bytes that has arrived; the canvas then draws the same lines at the same pixels. */
+.listing { position: absolute; z-index: 1; margin: 0; font: 11px/14px "Departure Mono", monospace; color: var(--ink); white-space: pre; pointer-events: none; display: none; }
+.home .listing { display: block; }
+.listing .n { color: var(--line-n); } /* the two listings are the same pixels */
+.listing .caret { animation: blink 1s steps(1) infinite; }
+.listing.gone { opacity: 0; transition: opacity 120ms linear; }
+.failed .listing .caret { display: none; }
+@media (prefers-reduced-motion: reduce) { .listing .caret, .word i { animation: none; } }
+/* The rail row under the stage: the states and the door to the section of the current one. */
+.rail { position: fixed; z-index: 3; left: var(--sx); right: calc(var(--fx) + var(--m)); bottom: 28px; height: 44px; display: none; align-items: center; gap: 20px;
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.home .rail { display: flex; }
+.rail button, .rail a { display: inline-flex; align-items: center; height: 44px; padding: 0; border: 0; background: none; color: var(--dim); font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.rail button:hover, .rail a:hover { color: var(--ink); }
+.rail .st[aria-pressed="true"] { color: var(--ink); }
+/* Every chapter has a slot for the mark inside its own box, 6 x 6 and 8 px before its number; only the
+   current one's is filled, in the accent, and its number is ink (AA.9, use 1). Nothing moves when the
+   chapter changes. */
+.rail .st::before { content: ""; flex: none; width: 6px; height: 6px; margin-right: 8px; }
+.rail .st[aria-pressed="true"]::before { background: var(--accent); }
+.rail .st i { font-style: normal; margin-right: 8px; }
+/* On a phone only the current state has its name. */
+@media (max-width: 719px) { .rail .st:not([aria-pressed="true"]) span { display: none; } .rail .st:not([aria-pressed="true"]) i { margin-right: 0; } }
+.rail .ctl { display: none; gap: 12px; align-items: center; margin-left: auto; }
+.rail .ctl b { font-weight: normal; color: var(--ink); }
+.rail.body .ctl { display: none; }
+/* The stone's seed is on the console; on a phone it is on the rail's second row as well. */
+@media (max-width: 719px) { .rail.body .ctl { display: flex; } }
+.rail .ctl [aria-pressed="true"] { color: var(--ink); }
+.rail .door { margin-left: auto; color: var(--text); }
+.rail.body .door { margin-left: 12px; }
+@media (max-width: 719px) { .home .rail { position: relative; order: 2; left: auto; right: auto; bottom: auto; margin: 16px 16px 0; height: 88px; flex: none; flex-wrap: wrap; column-gap: 16px; row-gap: 0; align-content: flex-start; }
+  .rail .ctl { margin-left: 0; } .rail .door { margin-left: auto; } .rail.body .door { margin-left: auto; } .rail .break { flex-basis: 100%; height: 0; } }
+.rail .break { display: none; } @media (max-width: 719px) { .rail .break { display: block; } }
+/* Under 360 px the door ends the states' row, and the form row drops the word Seed. */
+@media (max-width: 359px) { .rail .door, .rail.body .door { order: 1; } .rail .break, .rail .ctl { order: 2; } .rail .seedw { display: none; } }
+
+/* The boot line in the status line's place, which becomes the status line once the canvas draws. */
+.status { position: fixed; z-index: 3; right: calc(var(--fx) + var(--m)); bottom: 0; height: 28px; display: flex; align-items: center; font: 11px/11px var(--mono); color: var(--dim); white-space: nowrap; transition: opacity .6s; }
+.status b { color: var(--ink); font-weight: normal; }
+.status.gone { opacity: 0; }
+/* Its items: the line, `F2` (the full readout; the quality choice is beside the line while it is open). */
+.status .line { white-space: pre; }
+.status button { font: inherit; color: var(--dim); background: none; border: 0; padding: 0; height: 28px; cursor: pointer; }
+.status button:hover, .status button[aria-pressed="true"], .status .f2[aria-expanded="true"] { color: var(--ink); }
+.status .f2::before { content: " · "; color: var(--dim); white-space: pre; }
+.status .quality { margin-right: 24px; }
+.status [hidden] { display: none; }
+/* On a phone the open readout's quality choice takes the line's place (the readout shows its numbers). */
+@media (max-width: 719px) { .status.open .line { display: none; } .status .quality { margin-right: 0; } }
+/* On a phone's home page the status line is the page's last line, at its right, as on desktop. */
+@media (max-width: 719px) { .home .status { position: relative; order: 4; right: auto; bottom: auto; align-self: flex-end; margin: 0 16px 8px; } }
+/* Off home the canvas stops above the status line. */
+html:not(.home) #stage { bottom: 28px; }
+/* Off home the bar and the status line are bands of the ground, each with a hairline on the stage's side. */
+html:not(.home) .status { left: 0; right: 0; padding: 0 calc(var(--fx) + var(--m)); justify-content: flex-end; background: var(--ground); border-top: 1px solid var(--hairline); box-sizing: border-box; }
+/* A piece of Works (M.2): the picture is the whole window, and the bar and the status line lie over it
+   with no ground, in the piece's tone (dark type over a pale sky, pale over a dark one). */
+html.work #stage { top: 0; bottom: 0; }
+/* Works from 720 px wide: the canvas is the whole window on the index too, so a piece is laid out once
+   at the window's size and the index → piece Flow keeps one canvas (U.2 item 1). */
+@media (min-width: 720px) { html.works #stage { top: 0; bottom: 0; } }
+html.work .bar, html.work .status { background: transparent; border-color: transparent; }
+.work .status { transition: opacity .15s, color .12s; }
+.work.idle .status { opacity: 0; }
+[data-tone="light"] { --ink: #141517; --text: rgba(20, 21, 23, .59); --dim: rgba(20, 21, 23, .59); --accent: #b23f0d; }
+[data-tone="dark"] { --ink: #f2f2ee; --text: rgba(242, 242, 238, .59); --dim: rgba(242, 242, 238, .59); --accent: #f47a3c; }
+.work .bar a, .work .bar button, .work .bar a::before, .work .bar a::after { transition: color .12s linear; }
+/* Over a piece every item of the bar is in the tone's ink at full strength, the current one bracketed
+   in ink: the only accent in the bar is the wordmark's block; the accent is the piece's (N.2 item 6). */
+.work .bar, .work .bar a, .work .bar button, .work .nav a[aria-current], .work .nav a[aria-current]::before, .work .nav a[aria-current]::after { color: var(--ink); }
+/* With no graphics adapter: one sentence in the stage, 24 px under the listing's last line. */
+.fail { position: absolute; z-index: 3; width: 308px; margin: 0; font: 11px/14px var(--mono); color: var(--text); }
+.fail a { color: var(--second); text-decoration: underline dotted; }
+</style>
+</head>
+<body>
+<!--bar--><a class="skip" href="#main">跳到内容</a>
+<header class="bar" data-tone="">
+  <a class="word" href="/zh-Hans/" data-route="" aria-label="amenui">amenui<i></i></a>
+  <nav class="nav" aria-label="栏目">
+    <a href="/zh-Hans/docs/" data-route="docs/" data-section="docs">文档</a>
+    <a href="/zh-Hans/components/" data-route="components/" data-section="components">组件</a>
+    <a href="/zh-Hans/lab/" data-route="lab/" data-section="lab" aria-current="page">实验室</a>
+    <a href="/zh-Hans/works/" data-route="works/" data-section="works">作品</a>
+  </nav>
+  <div class="end">
+    <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / 搜索 ]</button>
+    <span class="lang"><a href="/lab/skeleton/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span>
+    <button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button>
+    <a class="wide" href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a>
+    <a class="wide" href="/zh-Hans/docs/release-notes/" data-route="docs/release-notes/">v0.0.1</a>
+  </div>
+  <button type="button" class="menu-btn" aria-expanded="false" aria-controls="sheet">[ 菜单 ]</button>
+</header>
+<div class="sheet" id="sheet">
+  <a href="/zh-Hans/docs/" data-route="docs/" data-section="docs"><small>01</small>文档</a>
+  <a href="/zh-Hans/components/" data-route="components/" data-section="components"><small>02</small>组件</a>
+  <a href="/zh-Hans/lab/" data-route="lab/" data-section="lab" aria-current="page"><small>03</small>实验室</a>
+  <a href="/zh-Hans/works/" data-route="works/" data-section="works"><small>04</small>作品</a>
+  <div class="row"><button type="button" class="search">/ 搜索</button><span class="lang"><a href="/lab/skeleton/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span><button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
+  <a class="close" href="#" aria-label="关闭">×</a>
+</div><!--/bar-->
+<div id="stage">
+  <canvas class="c" id="main" tabindex="0" aria-label="由 amenui 绘制的页面"></canvas>
+  <textarea class="ta" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" tabindex="-1" aria-label="文本输入"></textarea>
+  <div class="a11y"></div>
+</div>
+<section class="hero" aria-labelledby="headline">
+  <p class="eyebrow">Rust · wgpu · 桌面 + 网页</p>
+  <h1 id="headline">Every pixel is a glyph.</h1>
+  <p class="lead">amenui 是一个自己绘制一切的图形界面框架。文字、形状和图片都保留真实的轮廓，可以松开、变形，再合拢。</p>
+  <div class="actions"><a class="btn primary" href="/zh-Hans/docs/start/installation/" data-route="docs/start/installation/">开始使用&nbsp;→</a><a class="btn" href="/zh-Hans/components/" data-route="components/">组件</a></div>
+  <div class="install"><code data-copy="cargo add amenui --git https://github.com/amenui-dev/amenui">cargo add amenui --git<span class="cont"> \</span><span class="url"> https://github.com/amenui-dev/amenui</span></code><button type="button" class="copy">拷贝</button></div>
+</section>
+<div class="hstage" id="hstage" role="region" aria-label="amenui demonstration"></div>
+<pre class="listing" aria-hidden="true"></pre>
+<template id="source"></template>
+<nav class="rail" aria-label="Demonstration">
+  <button type="button" class="play" aria-label="Play">▸</button>
+  <button type="button" class="st" data-state="source" aria-pressed="false"><i>01</i><span>Source</span></button>
+  <button type="button" class="st" data-state="interface" aria-pressed="false"><i>02</i><span>Interface</span></button>
+  <button type="button" class="st" data-state="material" aria-pressed="false"><i>03</i><span>Material</span></button>
+  <button type="button" class="st" data-state="body" aria-pressed="false"><i>04</i><span>Body</span></button>
+  <span class="break"></span>
+  <span class="ctl"><span><span class="seedw">Seed</span>&nbsp;<b class="seed">26</b></span><button type="button" data-seed="-1" aria-label="Previous seed">‹</button><button type="button" data-seed="1" aria-label="Next seed">›</button></span>
+  <a class="door" href="/zh-Hans/docs/" data-route="docs/">docs →</a>
+</nav>
+<div class="status" data-tone=""><span class="quality" hidden>质量 <button type="button" data-q="0">自动</button> · <button type="button" data-q="1">1</button> · <button type="button" data-q="0.75">0.75</button> · <button type="button" data-q="0.5">0.5</button></span><span class="line" role="status" aria-live="polite"></span><button type="button" class="f2" hidden aria-expanded="false" aria-label="读数">F2</button></div>
+<script>
+// The page before the module: the bar, the home page's stage with the source listing (lines shown as
+// the module's bytes arrive), the boot line, and the downloads started at once (the module compiles
+// while it arrives).
+(() => {
+  const A = window.AMENUI = {"base":"/","prefix":"zh-Hans/","route":"lab/skeleton/","locale":"zh-Hans","files":{"wasm":"/amenui.433535f353.wasm","wasmSize":8259126,"wasmGz":2878411,"glue":"/glue.f61795b6bd.js","wasmGpu":"/amenui-webgpu.4fba1d46c2.wasm","wasmGpuSize":6074775,"wasmGpuGz":2103876,"glueGpu":"/glue-webgpu.bf30d253db.js","fonts":[{"name":"sans","url":"/fonts/sans.cjk.f6ba471ea5.otf","size":229656},{"name":"pixel","url":"/fonts/pixel.cjk.56a6c2a05c.otf","size":131060},{"name":"departure-mono","url":"/fonts/departure-mono.3957b852a1.otf","size":9256}],"faces":{"GeistPixel-Square.otf":"/fonts/geistpixel-square.bd09d0dd9d.otf","GeistPixel-Grid.otf":"/fonts/geistpixel-grid.175657a0ac.otf","GeistPixel-Circle.otf":"/fonts/geistpixel-circle.5ef877b414.otf","GeistPixel-Triangle.otf":"/fonts/geistpixel-triangle.c5d56a3ffd.otf","GeistPixel-Line.otf":"/fonts/geistpixel-line.e217d06edb.otf"},"texts":"/texts/","textsV":"e96d16a8","boot":["english.txt"]},"t":{"rest":"休息中 · 移动指针继续","copied":"已拷贝","fps":"帧/秒","glyphs":"字形","compiling":"编译中","starting":"正在启动 {gpu}","first-frame":"首帧 {ms} 毫秒","fail":"这个浏览器无法启动 WebGPU 或 WebGL2。文档是普通网页，不用它也能阅读：<a href=\"/zh-Hans/docs/\">文档 ↗</a>"}};
+  const D = document, root = D.documentElement;
+  const status = D.querySelector('.status');
+  // One run of text (in a flex box, the spaces round a bare <b> would be dropped).
+  const line = status.querySelector('.line');
+  A.line = h => { line.innerHTML = h; };
+  // Bar and sheet: the menu button and copy (search is the search script's, below).
+  const sheet = D.getElementById('sheet'), mb = D.querySelector('.menu-btn');
+  mb.addEventListener('click', () => { const o = sheet.classList.toggle('open'); mb.setAttribute('aria-expanded', o); });
+  D.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet.classList.contains('open')) { sheet.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); } });
+  // The skip link focuses the page's canvas (without touching the address, which holds the home page's state).
+  D.querySelector('.skip').addEventListener('click', e => { e.preventDefault(); D.getElementById('main').focus(); });
+  const copy = D.querySelector('.copy');
+  if (copy) copy.addEventListener('click', () => { if (navigator.clipboard) navigator.clipboard.writeText(D.querySelector('.install code').dataset.copy).then(() => { copy.textContent = A.t.copied; }, () => {}); });
+  // The current section, marked in the bar and the sheet.
+  A.mark = path => {
+    const sec = path.split('/')[0];
+    root.classList.toggle('home', path === '');
+    root.classList.toggle('work', sec === 'works' && path !== 'works/');
+    root.classList.toggle('works', sec === 'works');
+    for (const a of D.querySelectorAll('[data-section]')) { if (a.dataset.section === sec) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
+  };
+  A.mark(A.route);
+  if (!A.files) { status.remove(); return; }
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The stage, in whole px (the canvas is given the same rectangle).
+  const hs = D.getElementById('hstage'), pre = D.querySelector('.listing');
+  A.stage = () => { const r = hs.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; };
+  let fail = null;
+  // The listing: as the canvas lays it out, as many of its 14 px lines as fit with the caption 16 px
+  // under the last, each cut at the last whole word that fits in whole 7 px cells.
+  const src = D.getElementById('source').content.textContent.split('\n');
+  const cut = (l, cols) => {
+    l = l.replace(/\s+$/, '');
+    const ch = [...l];
+    if (ch.length <= cols) return l;
+    const head = ch.slice(0, cols).join('');
+    if (/\s/.test(ch[cols])) return head.replace(/\s+$/, '');
+    const b = head.search(/\s\S*$/);
+    return b < 0 ? '' : head.slice(0, b).replace(/\s+$/, '');
+  };
+  const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let share = 0, face = false, caret = true, queued = 0;
+  // On a phone the body is made of fewer lines, as many as its radius shows at 11 px (`body::phone_table`):
+  // the radius as the canvas places it, above the caption at the stage's foot.
+  const phoneLines = (w, h) => { const t = A.phone || [], r = Math.min(0.385 * w, (h - 22 - 60) * 0.5 / 1.05); const e = t.find(e => r >= e[1]) || t[t.length - 1]; return e ? e[0] : src.length; };
+  A.lines = () => { const [x0, y0, x1, y1] = A.stage(), most = innerWidth < 720 ? phoneLines(innerWidth, y1 - y0) : src.length; return [Math.min(src.length, most, Math.max(1, Math.floor((y1 - y0 - 30) / 14))), Math.max(1, Math.floor((x1 - x0 - 28) / 7))]; };
+  // The text block's optical centre (vertical): the body's centre is level with it (not on a phone,
+  // where the text is under the stage).
+  const hero = D.querySelector('.hero');
+  A.centre = () => { if (innerWidth < 720 || !hero) return -1; const r = hero.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
+  const draw = () => {
+    queued = 0;
+    if (!face || !pre.isConnected || A.route !== '') return;
+    const [x0, y0, x1, y1] = A.stage(), [rows, cols] = A.lines(), sx = scrollX, sy = scrollY;
+    pre.style.left = (x0 + sx) + 'px'; pre.style.top = (y0 + sy) + 'px';
+    // With the failure sentence the listing leaves it room inside the stage.
+    const room = fail ? Math.max(1, Math.floor((y1 - y0 - 24 - fail.offsetHeight) / 14)) : rows;
+    const n = Math.min(rows, room, reduced ? rows : Math.ceil(rows * share - 1e-9));
+    const out = [];
+    for (let i = 0; i < n; i++) out.push('<span class="n">' + String(i + 1).padStart(3) + ' </span>' + esc(cut(src[i] || '', cols)));
+    if (caret && out.length) out[out.length - 1] += ' <span class="caret">█</span>';
+    pre.innerHTML = out.join('\n');
+    pre.dataset.lines = n;
+    if (fail) { fail.style.left = (x0 + sx) + 'px'; fail.style.top = (y0 + sy + n * 14 + 24) + 'px'; fail.style.width = Math.min(308, x1 - x0) + 'px'; }
+  };
+  A.draw = () => { if (!queued) queued = requestAnimationFrame(draw); };
+  addEventListener('resize', A.draw);
+  // The downloads: the module (its bytes counted as they come), and the faces, the listing's first.
+  const mbs = n => (n / 1048576).toFixed(2);
+  // Two builds of one module: the WebGPU-only one where the browser has WebGPU, and the full one, which
+  // also draws with WebGL2 (and is the one tried again when the other cannot start). Each comes with
+  // its own glue, a script that sets `amenuiGlue[kind]`.
+  A.load = kind => {
+    A.kind = kind;
+    const url = A.files[kind === 'webgpu' ? 'wasmGpu' : 'wasm'], raw = A.files[kind === 'webgpu' ? 'wasmGpuSize' : 'wasmSize'];
+    A.glue = new Promise((ok, no) => {
+      const s = D.createElement('script'); s.src = A.files[kind === 'webgpu' ? 'glueGpu' : 'glue'];
+      s.onload = () => ok(self.amenuiGlue[kind]); s.onerror = () => no(new Error(s.src + ': not loaded'));
+      D.head.appendChild(s);
+    });
+    A.wasm = fetch(url).then(r => {
+      if (!r.ok) throw new Error('amenui.wasm: HTTP ' + r.status);
+      // The stream gives the module's bytes as they decode; the line reports the transfer (the response's
+      // length, else the compressed size the build measured) in the same proportion.
+      const total = +r.headers.get('Content-Length') || A.files[kind === 'webgpu' ? 'wasmGpuGz' : 'wasmGz']; let got = 0;
+      const show = () => { share = Math.min(1, got / raw); A.line(share >= 1 ? A.t.compiling : 'amenui.wasm <b>' + mbs(total * share) + '</b> / ' + mbs(total) + ' MB'); A.draw(); };
+      show();
+      const reader = r.body.getReader();
+      const body = new ReadableStream({ async pull(c) { const { done, value } = await reader.read(); if (done) { got = raw; show(); c.close(); return; } got += value.byteLength; show(); c.enqueue(value); } });
+      return new Response(body, { headers: { 'Content-Type': 'application/wasm' } });
+    });
+  };
+  A.load(navigator.gpu ? 'webgpu' : 'full');
+  const fonts = A.files.fonts.map(f => fetch(f.url).then(r => { if (!r.ok) throw new Error(f.url + ': HTTP ' + r.status); return r.arrayBuffer(); }));
+  A.fonts = Promise.all(fonts);
+  // The texts this route's first frame shows that the module does not carry, beside it (none fails the
+  // page: the module asks again for what it lacks).
+  A.texts = Promise.all((A.files.boot || []).map(n => fetch(A.files.texts + n + '?' + A.files.textsV).then(r => r.ok ? r.text() : null).catch(() => null).then(b => [n, b])));
+  // Departure Mono is the listing's face and the bar's; nothing in it is shown in another face.
+  fonts[2].then(b => { const ff = new FontFace('Departure Mono', b.slice(0)); D.fonts.add(ff); return ff.load(); }).then(() => { face = true; A.draw(); }, () => {});
+  // The canvas drew its first frame: the listing gives way to the same lines on the canvas.
+  A.done = (backend, glyphs) => {
+    root.classList.add('ready');
+    const ms = Math.round(performance.now()).toLocaleString('en');
+    A.line('<b>' + backend + '</b> · ' + A.t['first-frame'].replace('{ms}', '<b>' + ms + '</b>') + (A.route === '' ? ' · <b>' + glyphs.toLocaleString('en') + '</b> ' + A.t.glyphs : ''));
+    caret = false;
+    pre.classList.add('gone');
+    setTimeout(() => pre.remove(), 140);
+  };
+  // If the module cannot start: the listing stays whole without its caret, and one sentence.
+  A.fail = e => {
+    root.classList.add('failed');
+    A.line('gpu unavailable');
+    share = 1; caret = false;
+    fail = D.createElement('p'); fail.className = 'fail'; fail.innerHTML = A.t.fail; D.body.appendChild(fail);
+    A.draw();
+    console.error(e);
+  };
+})();
+</script>
+<script>window.SEARCH={"js":"/search.499d89d29a.js","index":"/search/zh-Hans.5356526b18.json","base":"/zh-Hans/","t":{"search":"搜索","placeholder":"搜索文档、组件、实验室和场景","results":"结果","none":"没有结果","loading":"正在载入索引…","hint":"↑ ↓ 移动 · 回车打开 · esc 关闭","hintDocs":"⇧ 回车打开文档","docs":"文档"}};(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);for(const b of D.querySelectorAll(".search"))b.addEventListener("click",()=>{const s=D.getElementById("sheet");if(s)s.classList.remove("open");open()})})()</script>
+<script src="/site.3563e25435.js" defer></script>
+</body>
+</html>

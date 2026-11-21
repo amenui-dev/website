@@ -1,0 +1,10 @@
+// The site on Cloudflare: a Worker that only serves static assets, deployed from the cloudflare-pages
+// branch (the build for the root of the site's own domain, in public/) with `npx wrangler deploy`.
+{
+  "name": "amenui-website",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  }
+}
