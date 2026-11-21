@@ -1,0 +1,1385 @@
+{
+  "name": "amenui",
+  "description": "组件以源码分发：把 files 里的文件和 dependencies 里各项的文件拷进自己的项目，再按需要改。组件只依赖框架的 el 模块（界面树）和 taffy 的对齐类型。",
+  "description_en": "Components are distributed as source: copy the files in `files`, and those of each entry in `dependencies`, into your project and change them as you need. Components depend only on the framework's el module (the interface tree) and taffy's alignment types.",
+  "requires": [
+    "src/el.rs"
+  ],
+  "items": [
+    {
+      "name": "base",
+      "title": "共用尺寸",
+      "description": "组件共用的尺寸（字号、控件高度、线宽、圆角）和选中时的颜色。每个组件都用到它。",
+      "description_en": "The sizes every component shares (type sizes, control heights, line widths, corner radii) and the selection colour. Every component uses it.",
+      "files": [
+        "src/widgets/mod.rs"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "button",
+      "title": "按钮",
+      "group": "inputs",
+      "functions": [
+        "button",
+        "button_as"
+      ],
+      "description": "执行一个操作。按下时立即触发，也可以用 Enter 或空格键触发。",
+      "description_en": "Perform an action. It fires on press, and Enter or Space fire it too.",
+      "files": [
+        "src/widgets/button.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/form.md"
+    },
+    {
+      "name": "number",
+      "title": "数字",
+      "group": "inputs",
+      "functions": [
+        "number"
+      ],
+      "description": "精确设置一个数值：获得焦点后直接键入，或用方向键和两侧的按钮按步长改；在数值上横向拖动可以连续调。",
+      "description_en": "Set a value exactly: type it once focused, or step it with the arrow keys and the buttons on either side; drag across the value to scrub it.",
+      "files": [
+        "src/widgets/number.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "its value text ({key}/shown) recomposes when the value changes",
+      "recipe": "docs/recipes/form.md"
+    },
+    {
+      "name": "input",
+      "title": "输入框",
+      "group": "inputs",
+      "functions": [
+        "input",
+        "textarea"
+      ],
+      "description": "输入一行或多行文字（textarea）。可以点、拖动、双击选择，Shift 加方向键扩展选区；Ctrl / ⌘ 加 A、C、X、V、Z 全选、复制、剪切、粘贴、撤销；支持输入法，正在组字的部分画在插入点上，带下划线。",
+      "description_en": "Enter one line or several (textarea). Click, drag or double-click to select, Shift with the arrows to extend; Ctrl / ⌘ with A, C, X, V, Z to select all, copy, cut, paste and undo; input methods are supported, with the composition drawn underlined at the caret.",
+      "files": [
+        "src/widgets/input.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "never (typing is immediate)",
+      "recipe": "docs/recipes/form.md"
+    },
+    {
+      "name": "switch",
+      "title": "开关",
+      "group": "inputs",
+      "functions": [
+        "switch",
+        "switch_sized"
+      ],
+      "description": "在两种状态之间切换一项设置。",
+      "description_en": "Turn a setting on or off.",
+      "files": [
+        "src/widgets/switch.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/form.md"
+    },
+    {
+      "name": "slider",
+      "title": "滑块",
+      "group": "inputs",
+      "functions": [
+        "slider"
+      ],
+      "description": "在一个范围内大致地选一个值。需要精确的值时，用数字控件。",
+      "description_en": "Pick a value roughly within a range. For an exact value, use a number control.",
+      "files": [
+        "src/widgets/slider.rs"
+      ],
+      "dependencies": [
+        "base",
+        "number"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "tabs",
+      "title": "标签页",
+      "group": "navigation",
+      "functions": [
+        "tabs"
+      ],
+      "description": "在同一位置的几组内容之间切换。",
+      "description_en": "Switch between groups of content in the same place.",
+      "files": [
+        "src/widgets/tabs.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "choice",
+      "title": "选项",
+      "group": "inputs",
+      "functions": [
+        "choice",
+        "segmented"
+      ],
+      "description": "从几个互斥的选项中选一个。",
+      "description_en": "Choose one of a few mutually exclusive options.",
+      "files": [
+        "src/widgets/choice.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "list",
+      "title": "列表",
+      "group": "data",
+      "functions": [
+        "list"
+      ],
+      "description": "显示一组条目，可以选中其中一项；条目多时可以滚动。",
+      "description_en": "Show a set of items, one of which can be selected; it scrolls when there are many.",
+      "files": [
+        "src/widgets/list.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/list.md"
+    },
+    {
+      "name": "menu",
+      "title": "菜单",
+      "group": "navigation",
+      "functions": [
+        "menu"
+      ],
+      "description": "按钮显示当前选项；按下后在它下方的一层里列出全部选项。按一项选中它，按列表以外的地方或 Esc 关闭。",
+      "description_en": "A button that shows the current option; pressing it lists every option in a layer below it. Press one to choose it; press outside the list or Esc to close.",
+      "files": [
+        "src/widgets/menu.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "card",
+      "title": "卡片",
+      "group": "layout",
+      "functions": [
+        "card"
+      ],
+      "description": "把相关的内容放在一个带边框的区域里。",
+      "description_en": "Keep related content together in a bordered area.",
+      "files": [
+        "src/widgets/card.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "inherits (text inside is nudged and legible)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/flow.md"
+    },
+    {
+      "name": "dialog",
+      "title": "对话框",
+      "group": "feedback",
+      "functions": [
+        "dialog"
+      ],
+      "description": "在页面之上显示需要处理的内容。关闭之前，页面的其余部分不响应操作；Esc 或关闭按钮关闭它。",
+      "description_en": "Show content that needs attention above the page. Until it closes, the rest of the page does not respond; Esc or the close button closes it.",
+      "files": [
+        "src/widgets/dialog.rs"
+      ],
+      "dependencies": [
+        "base",
+        "button"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/dialog.md"
+    },
+    {
+      "name": "image",
+      "title": "图片",
+      "group": "display",
+      "functions": [
+        "image"
+      ],
+      "description": "按原比例显示一张图片。图片松开时变成记号；指针在图上移动时，图会在指针附近松开。",
+      "description_en": "Show a picture at its own aspect ratio. A loosened picture turns into marks; under the pointer it loosens nearby.",
+      "files": [
+        "src/widgets/image.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "loosen (decoration)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "divider",
+      "title": "分隔线",
+      "group": "layout",
+      "functions": [
+        "divider",
+        "vdivider"
+      ],
+      "description": "分开两组内容。",
+      "description_en": "Separate two groups of content.",
+      "files": [
+        "src/widgets/divider.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "loosen (decoration)",
+      "recompose": "keyed labels recompose when their text changes",
+      "aliases": [
+        "separator"
+      ]
+    },
+    {
+      "name": "scroll-area",
+      "title": "滚动区",
+      "group": "layout",
+      "functions": [
+        "scroll_area"
+      ],
+      "description": "在固定的高度里显示更长的内容，用滚轮滚动；一侧的细条表示当前位置。",
+      "description_en": "Show longer content in a fixed height, scrolled with the wheel; a thin bar at one side shows the position.",
+      "files": [
+        "src/widgets/scroll.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "inherits (text inside is nudged and legible)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "orbit",
+      "title": "三维视图",
+      "group": "display",
+      "functions": [
+        "orbit"
+      ],
+      "description": "转动一个三维视图：拖动环绕，滚轮推近拉远，获得焦点后方向键转动；快速拖动后松手会慢慢停下。相机是状态里的 Orbit，组件只报告输入。",
+      "description_en": "Turn a 3D view: drag to orbit, the wheel to dolly, the arrow keys once focused; a quick drag coasts to a stop. The camera is an Orbit in the state; the component only reports input.",
+      "files": [
+        "src/widgets/orbit.rs",
+        "src/mesh.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "loosen (a 3D element is decoration, like a picture, even when it can be turned)",
+      "recompose": "none (no text)",
+      "recipe": "docs/recipes/mesh.md"
+    },
+    {
+      "name": "checkbox",
+      "title": "复选框",
+      "group": "inputs",
+      "functions": [
+        "checkbox"
+      ],
+      "description": "选择一个选项是否适用，和别的选项无关。按下、空格或 Enter 切换。",
+      "description_en": "Choose whether one option applies. Press, Space or Enter toggles.",
+      "files": [
+        "src/widgets/checkbox.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "radio",
+      "title": "单选组",
+      "group": "inputs",
+      "functions": [
+        "radio_group"
+      ],
+      "description": "在几个都看得见的选项里选一个。整组是一个焦点位置，方向键移动并选中。",
+      "description_en": "Choose one of a few visible options. One focus stop; the arrows move and select.",
+      "files": [
+        "src/widgets/radio.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "select",
+      "title": "选择框",
+      "group": "inputs",
+      "functions": [
+        "select"
+      ],
+      "description": "从按需打开的列表里选一项。Enter、空格或 ↓ 打开，↑ ↓ 移动，Enter 选中，Esc 关上。",
+      "description_en": "Choose one option from a list that opens on demand.",
+      "files": [
+        "src/widgets/select.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "tooltip",
+      "title": "提示",
+      "group": "feedback",
+      "functions": [
+        "tooltip"
+      ],
+      "description": "控件被悬停或获得焦点时显示的一句说明。",
+      "description_en": "A short description shown while a control is hovered or focused.",
+      "files": [
+        "src/widgets/tooltip.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "popover",
+      "title": "浮层",
+      "group": "feedback",
+      "functions": [
+        "popover"
+      ],
+      "description": "锚在按钮下面、按需打开的一层内容。",
+      "description_en": "Rich content in a layer anchored to a button.",
+      "files": [
+        "src/widgets/popover.rs"
+      ],
+      "dependencies": [
+        "base",
+        "button"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "toast",
+      "title": "通知",
+      "group": "feedback",
+      "functions": [
+        "toast"
+      ],
+      "description": "角落里一条简短的通知，过一会儿自己消失。",
+      "description_en": "A brief notice in a corner that goes away by itself.",
+      "files": [
+        "src/widgets/toast.rs"
+      ],
+      "dependencies": [
+        "base",
+        "button"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "progress",
+      "title": "进度",
+      "group": "feedback",
+      "functions": [
+        "progress"
+      ],
+      "description": "一项工作做到哪里了，或者正在进行。",
+      "description_en": "How far a task has come, or that it is going on.",
+      "files": [
+        "src/widgets/progress.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "accordion",
+      "title": "折叠面板",
+      "group": "layout",
+      "functions": [
+        "accordion"
+      ],
+      "description": "每个标题下一段可以展开、收起的内容。",
+      "description_en": "Sections that open and close under their headings.",
+      "files": [
+        "src/widgets/accordion.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "table",
+      "title": "表格",
+      "group": "data",
+      "functions": [
+        "table"
+      ],
+      "description": "有列名的一行行记录。整张表一个焦点位置，↑ ↓ 换选中的行。",
+      "description_en": "Rows of records with named columns.",
+      "files": [
+        "src/widgets/table.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "badge",
+      "title": "徽标",
+      "group": "display",
+      "functions": [
+        "badge"
+      ],
+      "description": "表示状态或数量的小标签。",
+      "description_en": "A small label for a status or a count.",
+      "files": [
+        "src/widgets/badge.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "avatar",
+      "title": "头像",
+      "group": "display",
+      "functions": [
+        "avatar",
+        "initials"
+      ],
+      "description": "用名字的首字母代表一个人（不用照片）。",
+      "description_en": "Stands for a person by their initials (no pictures).",
+      "files": [
+        "src/widgets/avatar.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "skeleton",
+      "title": "骨架",
+      "group": "display",
+      "functions": [
+        "skeleton",
+        "Loading"
+      ],
+      "description": "内容还没来时按它的形状占位。更好的做法是在真实的行上写 El::skeleton()：同一棵树、同样的布局，字画成量出来的行宽的条，图片画成块；Loading 的规则（skeleton_after_ms 300 以后才出骨架，换内容时每行错开 swap_stagger_ms 40）决定什么时候画什么，换上内容时框不动。",
+      "description_en": "Holds the place of content that is still loading. Better: El::skeleton() on the real rows — the same tree and layout, text drawn as bars of the measured line widths, pictures as blocks; the Loading rules (a skeleton only after skeleton_after_ms 300, rows swapped in swap_stagger_ms 40 apart) decide what shows, and nothing moves when the content comes.",
+      "files": [
+        "src/widgets/skeleton.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes",
+      "recipe": "docs/recipes/loading.md"
+    },
+    {
+      "name": "breadcrumb",
+      "title": "面包屑",
+      "group": "navigation",
+      "functions": [
+        "breadcrumb"
+      ],
+      "description": "这一页在层级里的位置，每一级都能回去。",
+      "description_en": "Where this page is in a hierarchy, each level a link back.",
+      "files": [
+        "src/widgets/breadcrumb.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "skip-link",
+      "title": "跳到正文",
+      "group": "navigation",
+      "functions": [
+        "skip_link"
+      ],
+      "description": "键盘用户最先遇到的链接，把焦点跳过导航，直接移到正文。",
+      "description_en": "A link keyboard users meet first that moves focus past the navigation to the main content.",
+      "files": [
+        "src/widgets/skip_link.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "pagination",
+      "title": "分页",
+      "group": "navigation",
+      "functions": [
+        "pagination"
+      ],
+      "description": "在结果的各页之间移动。",
+      "description_en": "Move between pages of results.",
+      "files": [
+        "src/widgets/pagination.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "sheet",
+      "title": "抽屉",
+      "group": "feedback",
+      "functions": [
+        "sheet"
+      ],
+      "description": "从窗口一侧盖上来的一块面板，页面仍然看得见。",
+      "description_en": "A panel over one side of the window.",
+      "files": [
+        "src/widgets/sheet.rs"
+      ],
+      "dependencies": [
+        "base",
+        "button"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "context_menu",
+      "title": "右键菜单",
+      "group": "navigation",
+      "functions": [
+        "context_menu"
+      ],
+      "description": "指针下的东西能做的命令，在那里打开。",
+      "description_en": "Commands for what is under the pointer, opened where it is.",
+      "files": [
+        "src/widgets/context_menu.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "command",
+      "title": "命令面板",
+      "group": "navigation",
+      "functions": [
+        "command",
+        "command_matches"
+      ],
+      "description": "打字找到并执行一个命令（⌘K / Ctrl+K）。",
+      "description_en": "Find and run a command by typing.",
+      "files": [
+        "src/widgets/command.rs"
+      ],
+      "dependencies": [
+        "base",
+        "input"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "toggle",
+      "title": "切换按钮",
+      "group": "inputs",
+      "functions": [
+        "toggle",
+        "toggle_group"
+      ],
+      "description": "一直按着的按钮（粗体、斜体），或一组这样的按钮。",
+      "description_en": "A button that stays pressed, or a group of them.",
+      "files": [
+        "src/widgets/toggle.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "bottom_sheet",
+      "title": "底部面板",
+      "group": "feedback",
+      "functions": [
+        "bottom_sheet"
+      ],
+      "description": "从底边升起的面板：按把手或正文拖动，停在几档高度之间；往下甩就收起。松手时的速度交给弹簧，停在哪一档由这个速度能把它带到哪里决定；拉过最高一档会越拉越难；正文里的滚动到顶以后再往下拉就变成拖面板。Esc 收起。面板升起和拖动时在场图里留下尾迹（`El::stirr`，强弱由预设定）。",
+      "description_en": "A panel that rises from the bottom edge: dragged by its handle or body between detents, swiped down to dismiss. The release velocity carries on into a spring; where it rests is decided by where that velocity would take it; past the top detent it resists; a scroll inside hands off to the sheet at its top. Esc dismisses. Rising and dragged, it leaves a trail in the field map (`El::stirr`; the preset sets how strong).",
+      "files": [
+        "src/widgets/bottom_sheet.rs",
+        "src/gesture.rs"
+      ],
+      "recipe": "docs/recipes/gesture.md",
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "floating",
+      "title": "浮动窗口",
+      "group": "layout",
+      "functions": [
+        "floating"
+      ],
+      "description": "浮在一块区域上的小框（画中画）：随便拖，松手后按甩出去的方向和速度投射出终点，用弹簧滑到离终点最近的角。获得焦点后方向键换角。拖动、甩出和滑到角上时在场图里留下尾迹（`El::stirr`，强弱由预设定），经过的装饰松开一点、顺着动的方向漂开。",
+      "description_en": "A small box floating over an area (picture in picture): drag it anywhere; let go, the throw's projected end picks the nearest corner and a spring takes it there. Arrow keys move it between corners. Dragged, thrown and gliding, it leaves a trail in the field map (`El::stirr`; the preset sets how strong): decoration it passes loosens a little and drifts the way it went.",
+      "files": [
+        "src/widgets/floating.rs",
+        "src/gesture.rs"
+      ],
+      "recipe": "docs/recipes/gesture.md",
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "caption",
+      "title": "公式注",
+      "group": "display",
+      "functions": [
+        "caption"
+      ],
+      "description": "实时演示下面的一行等宽小字：印出驱动它的真实参数（从同一些字段读出来，不是手写的），每个参数也是一个能改的数字控件。El::caption_params 把它放在演示下面。",
+      "description_en": "A small monospaced line under a live demo that prints the parameters driving it (read from the same fields, never typed by hand), each also a number control. El::caption_params puts it under the demo.",
+      "files": [
+        "src/widgets/caption.rs"
+      ],
+      "dependencies": [
+        "base",
+        "number"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "nested_menu",
+      "title": "多级菜单",
+      "group": "navigation",
+      "functions": [
+        "nested_menu"
+      ],
+      "description": "行可以打开子菜单的菜单，按指针往哪里去来决定：指针在“上一处位置到子菜单两个近角”的三角形里朝子菜单移动时，经过的兄弟行不会接管（每次移动重新等 close_delay_ms，默认 200 ms）；在三角形外，停在一行上 submenu_delay_ms（默认 120 ms）后它接管。方向键、Enter、Esc；可以把三角形画出来（标注层）。",
+      "description_en": "A menu whose rows open submenus, steered by where the pointer heads: moving toward an open submenu inside the triangle from its previous position to the submenu's near corners does not switch rows (each move waits close_delay_ms again, 200 ms); outside it, a row takes over after submenu_delay_ms (120 ms). Arrow keys, Enter, Esc; the triangle can be drawn (annotation layer).",
+      "files": [
+        "src/widgets/nested_menu.rs"
+      ],
+      "recipe": "docs/recipes/submenu.md",
+      "dependencies": [
+        "base"
+      ],
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "keyed labels recompose when their text changes"
+    },
+    {
+      "name": "card_stack",
+      "title": "卡片叠",
+      "group": "display",
+      "functions": [
+        "card_stack"
+      ],
+      "description": "一叠卡片：悬停或按下一张，它下面的卡片绕左下角展开，第 n 张转 angle0 × falloff^n（默认 42° × 0.7^n），晚 delay_ms × n（默认 28 ms）开始，各自用弹簧。卡片是三维元素，所以样子跟着材质：平的、带厚度能看见边的、或者由记号（点阵、ASCII）画出来的。展开和落定时每张卡片在场图里留下一小段尾迹（`El::stirr`）。",
+      "description_en": "A stack of cards: hover or press one and the cards beneath fan out about their bottom-left corners, card n turning angle0 × falloff^n (42° × 0.7^n) and starting delay_ms × n (28 ms) later, each on its own spring. The cards are a 3D element, so the look follows the material: flat, thick with visible edges, or drawn in marks (dots, ASCII). Fanning out and settling, each card leaves a short trail in the field map (`El::stirr`).",
+      "files": [
+        "src/widgets/card_stack.rs",
+        "src/gesture.rs",
+        "src/mesh.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "response": "loosen (a 3D element is decoration, like a picture, even when it can be turned)",
+      "recompose": "none (no text)",
+      "recipe": "docs/recipes/stack.md"
+    },
+    {
+      "name": "dot_chart",
+      "title": "点阵图表",
+      "group": "data",
+      "functions": [
+        "dot_chart"
+      ],
+      "description": "一条曲线画成一片点：每一列从轴往上填到曲线，点的大小和亮度说它有多少在曲线下面（面积就是曲线下的面积）；一段范围用强调色；指针扫过时一条竖线和那里的值；轴上的控制点可以拖，曲线跟着重算。标签用等宽（像素）字。",
+      "description_en": "A series as a field of dots: each column filled from the axis up to the curve, a dot's size and brightness saying how much of it lies under the curve (the area reads as the area under it); a range in the accent colour; a scrubbing marker with the value; control points on the axis that drag the curve live. Labels in the mono (pixel) face.",
+      "files": [
+        "src/widgets/dot_chart.rs"
+      ],
+      "dependencies": [
+        "base"
+      ],
+      "recipe": "docs/recipes/chart.md",
+      "response": "nudge (a control: pushed as one piece by fronts, held and condensing at most to Look::legible_cap)",
+      "recompose": "the value label does not recompose (it follows the pointer)"
+    }
+  ],
+  "experiments": [
+    {
+      "name": "lumen",
+      "file": "examples/lab/lumen.rs",
+      "page": "lab-lumen",
+      "docs": [
+        "docs/site/en/lab-lumen.md",
+        "docs/site/zh-Hans/lab-lumen.md"
+      ],
+      "formula": "L(d) = L0 + (1 − L0)·e^(−d²/r²)",
+      "params": [
+        {
+          "name": "L0",
+          "default": 0.16,
+          "min": 0.05,
+          "max": 1.0,
+          "step": 0.01,
+          "unit": ""
+        },
+        {
+          "name": "r",
+          "default": 54.0,
+          "min": 8.0,
+          "max": 160.0,
+          "step": 1.0,
+          "unit": "px"
+        },
+        {
+          "name": "ω",
+          "default": 0.35,
+          "min": 0.0,
+          "max": 2.0,
+          "step": 0.05,
+          "unit": "rad/s"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "contours",
+      "file": "examples/lab/contours.rs",
+      "page": "lab-contours",
+      "docs": [
+        "docs/site/en/lab-contours.md",
+        "docs/site/zh-Hans/lab-contours.md"
+      ],
+      "formula": "f(x,y) = n(x/s, y/s, t) + a·e^(−|p−m|²/r²)",
+      "params": [
+        {
+          "name": "s",
+          "default": 52.0,
+          "min": 12.0,
+          "max": 120.0,
+          "step": 1.0,
+          "unit": "px"
+        },
+        {
+          "name": "a",
+          "default": 0.7,
+          "min": 0.0,
+          "max": 2.0,
+          "step": 0.05,
+          "unit": ""
+        },
+        {
+          "name": "r",
+          "default": 30.0,
+          "min": 6.0,
+          "max": 90.0,
+          "step": 1.0,
+          "unit": "px"
+        },
+        {
+          "name": "n",
+          "default": 9.0,
+          "min": 2.0,
+          "max": 16.0,
+          "step": 1.0,
+          "unit": ""
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "silk",
+      "file": "examples/lab/silk.rs",
+      "page": "lab-silk",
+      "docs": [
+        "docs/site/en/lab-silk.md",
+        "docs/site/zh-Hans/lab-silk.md"
+      ],
+      "formula": "ṗ = v·s·curl n(p/s) + u(p)",
+      "params": [
+        {
+          "name": "N",
+          "default": 1400.0,
+          "min": 100.0,
+          "max": 20000.0,
+          "step": 100.0,
+          "unit": ""
+        },
+        {
+          "name": "v",
+          "default": 22.0,
+          "min": 0.0,
+          "max": 60.0,
+          "step": 1.0,
+          "unit": "px/s"
+        },
+        {
+          "name": "s",
+          "default": 60.0,
+          "min": 10.0,
+          "max": 200.0,
+          "step": 1.0,
+          "unit": "px"
+        },
+        {
+          "name": "τ",
+          "default": 0.6,
+          "min": 0.05,
+          "max": 3.0,
+          "step": 0.05,
+          "unit": "s"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "grown",
+      "file": "examples/lab/grown.rs",
+      "page": "lab-grown",
+      "docs": [
+        "docs/site/en/lab-grown.md",
+        "docs/site/zh-Hans/lab-grown.md"
+      ],
+      "formula": "u′ = ∇²u − uv² + f(1−u), v′ = ½∇²v + uv² − (f+k)v",
+      "params": [
+        {
+          "name": "f",
+          "default": 0.029,
+          "min": 0.01,
+          "max": 0.08,
+          "step": 0.001,
+          "unit": ""
+        },
+        {
+          "name": "k",
+          "default": 0.057,
+          "min": 0.04,
+          "max": 0.07,
+          "step": 0.001,
+          "unit": ""
+        },
+        {
+          "name": "steps",
+          "default": 24.0,
+          "min": 1.0,
+          "max": 40.0,
+          "step": 1.0,
+          "unit": "/frame"
+        },
+        {
+          "name": "T",
+          "default": 7.0,
+          "min": 2.0,
+          "max": 30.0,
+          "step": 0.5,
+          "unit": "s"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "mercury",
+      "file": "examples/lab/mercury.rs",
+      "page": "lab-mercury",
+      "docs": [
+        "docs/site/en/lab-mercury.md",
+        "docs/site/zh-Hans/lab-mercury.md"
+      ],
+      "formula": "Σ rᵢ²/dᵢ² = 1",
+      "params": [
+        {
+          "name": "r0",
+          "default": 22.0,
+          "min": 4.0,
+          "max": 40.0,
+          "step": 0.5,
+          "unit": "px"
+        },
+        {
+          "name": "r",
+          "default": 16.0,
+          "min": 4.0,
+          "max": 40.0,
+          "step": 0.5,
+          "unit": "px"
+        },
+        {
+          "name": "k",
+          "default": 120.0,
+          "min": 10.0,
+          "max": 600.0,
+          "step": 10.0,
+          "unit": "N/m"
+        },
+        {
+          "name": "c",
+          "default": 14.0,
+          "min": 1.0,
+          "max": 60.0,
+          "step": 1.0,
+          "unit": "N·s/m"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "flow",
+      "file": "examples/lab/flow.rs",
+      "page": "lab-flow",
+      "docs": [
+        "docs/site/en/lab-flow.md",
+        "docs/site/zh-Hans/lab-flow.md"
+      ],
+      "formula": "y(x) = A·sin(2πx/λ − ωt) + bump",
+      "params": [
+        {
+          "name": "A",
+          "default": 9.0,
+          "min": 0.0,
+          "max": 40.0,
+          "step": 0.5,
+          "unit": "px"
+        },
+        {
+          "name": "λ",
+          "default": 150.0,
+          "min": 20.0,
+          "max": 400.0,
+          "step": 1.0,
+          "unit": "px"
+        },
+        {
+          "name": "ω",
+          "default": 1.6,
+          "min": 0.0,
+          "max": 8.0,
+          "step": 0.1,
+          "unit": "rad/s"
+        },
+        {
+          "name": "σ",
+          "default": 40.0,
+          "min": 6.0,
+          "max": 160.0,
+          "step": 1.0,
+          "unit": "px"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "loupe",
+      "file": "examples/lab/loupe.rs",
+      "page": "lab-loupe",
+      "docs": [
+        "docs/site/en/lab-loupe.md",
+        "docs/site/zh-Hans/lab-loupe.md"
+      ],
+      "formula": "(λ, φ) → R·h·(cos φ sin λ, sin φ)",
+      "params": [
+        {
+          "name": "R",
+          "default": 0.46,
+          "min": 0.2,
+          "max": 0.5,
+          "step": 0.01,
+          "unit": "·h"
+        },
+        {
+          "name": "ω0",
+          "default": 0.3,
+          "min": 0.0,
+          "max": 2.0,
+          "step": 0.05,
+          "unit": "rad/s"
+        },
+        {
+          "name": "μ",
+          "default": 1.6,
+          "min": 0.1,
+          "max": 8.0,
+          "step": 0.1,
+          "unit": "/s"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "orbit",
+      "file": "examples/lab/orbit.rs",
+      "page": "lab-orbit",
+      "docs": [
+        "docs/site/en/lab-orbit.md",
+        "docs/site/zh-Hans/lab-orbit.md"
+      ],
+      "formula": "ω(r) = ω1·r^−1.5",
+      "params": [
+        {
+          "name": "ω1",
+          "default": 1.2,
+          "min": 0.0,
+          "max": 4.0,
+          "step": 0.05,
+          "unit": "rad/s"
+        },
+        {
+          "name": "G",
+          "default": 9000.0,
+          "min": 0.0,
+          "max": 40000.0,
+          "step": 500.0,
+          "unit": ""
+        },
+        {
+          "name": "k",
+          "default": 26.0,
+          "min": 1.0,
+          "max": 200.0,
+          "step": 1.0,
+          "unit": "/s²"
+        },
+        {
+          "name": "c",
+          "default": 5.0,
+          "min": 0.0,
+          "max": 30.0,
+          "step": 0.5,
+          "unit": "/s"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "spring",
+      "file": "examples/lab/spring.rs",
+      "page": "lab-spring",
+      "docs": [
+        "docs/site/en/lab-spring.md",
+        "docs/site/zh-Hans/lab-spring.md"
+      ],
+      "formula": "m·x″ = −k(x − x₀) − c·x′",
+      "params": [
+        {
+          "name": "k",
+          "default": 180.0,
+          "min": 10.0,
+          "max": 1200.0,
+          "step": 10.0,
+          "unit": "N/m"
+        },
+        {
+          "name": "c",
+          "default": 6.0,
+          "min": 0.0,
+          "max": 80.0,
+          "step": 0.5,
+          "unit": "N·s/m"
+        },
+        {
+          "name": "m",
+          "default": 1.0,
+          "min": 0.2,
+          "max": 5.0,
+          "step": 0.1,
+          "unit": "kg"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "stack",
+      "file": "examples/lab/stack.rs",
+      "page": "lab-stack",
+      "docs": [
+        "docs/site/en/lab-stack.md",
+        "docs/site/zh-Hans/lab-stack.md"
+      ],
+      "formula": "angle(n) = angle0 × falloff^n",
+      "params": [
+        {
+          "name": "angle0",
+          "default": null,
+          "min": 0.0,
+          "max": 90.0,
+          "step": 1.0,
+          "unit": "°"
+        },
+        {
+          "name": "falloff",
+          "default": null,
+          "min": 0.1,
+          "max": 1.0,
+          "step": 0.01,
+          "unit": ""
+        },
+        {
+          "name": "delay",
+          "default": null,
+          "min": 0.0,
+          "max": 200.0,
+          "step": 1.0,
+          "unit": "ms"
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    },
+    {
+      "name": "decode",
+      "file": "src/decode.rs",
+      "page": "decode",
+      "formula": "tier i on over [i·S, i·S + W], content at C = (T−1)·S + W, finest off over [C, C + W]",
+      "params": [
+        {
+          "name": "tiers",
+          "default": [
+            32,
+            16,
+            8,
+            4
+          ],
+          "unit": "px"
+        },
+        {
+          "name": "stagger_ms",
+          "default": 90
+        },
+        {
+          "name": "duration_ms",
+          "default": 720
+        },
+        {
+          "name": "seed",
+          "default": 7
+        }
+      ],
+      "input": "number",
+      "stage": "4:3, the piece fills it; runs every frame while seen (reduced motion: rests)",
+      "params_toggle": "[ params ]"
+    }
+  ],
+  "scenes": [
+    {
+      "name": "body",
+      "file": "examples/body.rs",
+      "page": "body",
+      "docs": [
+        "docs/site/en/scene-body.md",
+        "docs/site/zh-Hans/scene-body.md"
+      ],
+      "what": "The landing page: a passage, first a readable page, gathers into a slowly turning luminous body of its own glyphs (the skin, conserved) and some eleven thousand budgeted volume marks, lit by one key light, over a reflection pool and drifting dust; it goes back to readable text.",
+      "rest_states": [
+        "page: every glyph where the layout put it, no pose (after the first 2.4 s)",
+        "body: turning slowly and breathing (its only motion)"
+      ],
+      "params": [
+        {
+          "name": "gather",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 1.0,
+          "unit": ""
+        },
+        {
+          "name": "form",
+          "default": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": 1.0,
+          "unit": "rock / cloud"
+        },
+        {
+          "name": "seed",
+          "default": 7.0,
+          "min": 0.0,
+          "max": 99.0,
+          "step": 1.0,
+          "unit": ""
+        },
+        {
+          "name": "ω",
+          "default": 0.16,
+          "min": 0.0,
+          "max": 1.5,
+          "step": 0.01,
+          "unit": "rad/s"
+        },
+        {
+          "name": "open",
+          "default": 120.0,
+          "min": 20.0,
+          "max": 300.0,
+          "step": 5.0,
+          "unit": "px"
+        }
+      ],
+      "input": "click, Space or Enter toggles; drag turns; ← → nudge the turn; the markings in the picture (form, seed, gather / release, language, Lab, components)"
+    }
+  ],
+  "materials": [
+    {
+      "name": "plain",
+      "description": "什么都不散成单元：前沿照样推动，新出现的照样凝聚（淡入）；底子是平的。",
+      "description_en": "Nothing loosens into units: fronts still push and new things still condense (as a fade); the ground is flat.",
+      "files": [
+        "src/materials/plain.wgsl"
+      ]
+    },
+    {
+      "name": "dottr",
+      "description": "全局的点阵：松开的字按下面的墨散成单元，底子是一片小单元。",
+      "description_en": "The global dot lattice: loosening text breaks into units sized by the ink under them, and the ground is a field of small units.",
+      "files": [
+        "src/materials/dottr.wgsl"
+      ]
+    },
+    {
+      "name": "halftonr",
+      "description": "墨是转过角度的网点，第二种颜色套印错开。",
+      "description_en": "Ink as round dots on a rotated screen, with the second colour out of register.",
+      "files": [
+        "src/materials/halftonr.wgsl"
+      ]
+    },
+    {
+      "name": "charr",
+      "description": "墨是按亮度挑出的字符，排在格子上。",
+      "description_en": "Ink as characters chosen by brightness, on a grid.",
+      "files": [
+        "src/materials/charr.wgsl"
+      ]
+    },
+    {
+      "name": "smudgr",
+      "description": "粗糙的印刷：纸纹、错位的专色、斑点和洇开。",
+      "description_en": "Lo-fi print: paper grain, misregistered spot ink, specks and bleed.",
+      "files": [
+        "src/materials/smudgr.wgsl"
+      ]
+    },
+    {
+      "name": "carvr",
+      "description": "木刻：沿轮廓一条条刻出的刀痕。",
+      "description_en": "Linocut: carved gouges along the outline, in bands.",
+      "files": [
+        "src/materials/carvr.wgsl"
+      ]
+    },
+    {
+      "name": "glitchr",
+      "description": "松开时，行横向错开、颜色分离、块重复。",
+      "description_en": "Rows that slip sideways, colour fringes and held blocks while something is loose.",
+      "files": [
+        "src/materials/glitchr.wgsl"
+      ]
+    },
+    {
+      "name": "near",
+      "description": "把中间的图像画出来：带符号的距离画成等高的带，轮廓，和每个实例的松开度。",
+      "description_en": "The intermediate images made visible: the signed nearness as contour bands, the outline, and each instance's looseness as a tint.",
+      "files": [
+        "src/materials/near.wgsl"
+      ]
+    },
+    {
+      "name": "scribblr",
+      "description": "一根线把墨写出去再写回来：静止时是 plain，松开时一根等宽的线离开轮廓，在场有能量的地方打结。",
+      "description_en": "One thread writes the ink out and back: at rest the page is plain; loosened, a line of constant width leaves the outline and knots where the field map has energy.",
+      "files": [
+        "src/materials/scribblr.wgsl"
+      ]
+    }
+  ],
+  "materials_description_en": "Materials are distributed as source too: `amenui add material <name>` copies `src/materials/<name>.wgsl`; change it and add it with `Look::material_source` under a name of its own."
+}
