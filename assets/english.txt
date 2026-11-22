@@ -307,7 +307,7 @@
 交叉线 = Crosshatch
 像素画 = Pixel art
 内边距 = Padding
-刀与木 = Knife and wood
+刀与木 = Knife & wood
 分享到 = Share to
 分辨率 = Resolution
 删除… = Delete…

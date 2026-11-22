@@ -211,9 +211,12 @@ fn linocut(s: &Gallery, h: &str) -> El<Msg> {
     let shown = [TREE, TERRAIN, SKY][s.choices[3].min(2)];
     row().key(format!("{h}/comp")).gap(44.0).align(AlignItems::START).wrap()
         .child(col().key(format!("{h}/left")).width(520.0).gap(20.0)
-            .child(col().key(format!("{h}/hero")).width(520.0).height(300.0)
+            // The headline in the flow, 130 px under the top with the sun behind it: the hero is as tall
+            // as its lines: two in English, "Knife &" / "wood" (`assets/english.txt`).
+            .child(col().key(format!("{h}/hero")).width(520.0)
                 .child(space(190.0, 190.0).radius(95.0).fill(Paint::ACCENT).loose(0.6).key(format!("{h}/sun")).absolute(Some(320.0), Some(0.0), None, None))
-                .child(text_lh("刀与木", 140.0, 150.0, Paint::INK).font(Font::Display).weight(3.0).loose(0.45).key(format!("{h}/headline")).absolute(Some(0.0), Some(130.0), None, None)))
+                .child(space(1.0, 130.0))
+                .child(text_lh("刀与木", 140.0, 150.0, Paint::INK).font(Font::Display).weight(3.0).loose(0.45).key(format!("{h}/headline"))))
             .child(text_lh("每一道线都是从板上挖掉的。留下的才是墨。", 18.0, 30.0, Paint::INK))
             .child(text_lh("版画展　十一月二十日至十二月十日　每天九点至五点", 14.0, 24.0, Paint::DIM))
             .child(row().gap(12.0).align(AlignItems::CENTER)
