@@ -491,6 +491,7 @@
 对比线位置 = Comparison line
 小 中 大 = Small Medium Large
 形·色·线 = Shape · color · line
+形\n色\n线 = Shape\ncolor\nline
 形状 方块 = Shape: squares
 打开对话框 = Open dialog
 文稿 MD = Manuscript MD
