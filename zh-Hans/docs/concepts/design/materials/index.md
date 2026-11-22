@@ -1,0 +1,46 @@
+# 1.6 材质
+
+The screen-space shading stage is one full-screen shader. Each material is a set of functions:
+`loosened(p)` (what to draw here when loose), `ground(p)` (the background) and `resolve(...)` (the
+composite). A material is chosen as global plus per-instance override. Every parameter is a number in
+`Fx`, each with a name, a range and a step.
+
+There are nine (§1.6.2; `scribblr` was added later, §1.30). Under any material a picture turns into marks
+by its own `Markr` slot, the slot being its instance override (`glitchr` is the exception: it displaces the
+whole frame, but sampling inside a picture never leaves it). In `plain`, looseness `b` fades text and
+shapes to `mix(1, 0.3, √b)`: the square root makes the 0.35 looseness under a dialog visible.
+
+`El::material(id)` gives a subtree another material (the inner one wins when nested); it works under any
+global material. `El::effect(Effect { material, response, scope })` puts a material, a response (§1.15) and a
+scope on a subtree in one line, leaving what is `None` as it is; a scope of `Scope::Container(None)` also makes the
+element the container, so the effect's fronts stay inside it. `el::wrap_text(src)` turns plain text or Markdown
+(the subset `markdown.rs` reads; a link shows as its text) into a page to read, 600 px wide and keyed `wrap/…`, so
+existing text takes an effect without being rewritten. Text to read under an effect stays legible (§1.15): a
+looseness given to the subtree (`El::loosen`) reaches its paragraphs, list items and code at most at
+`Look::legible_cap`, while headings take the full value; a showcase marks text `legible(false)`. A control inside
+such a subtree (an element with its own handler, other than a picture, canvas or 3D scene) is legible again unless it
+says `legible` itself, so its fill and label stay at the cap as at rest: a showcase loosens its decoration, never its
+buttons. A tab list's heads and rule are the control (`tabs` marks them).
+
+**The least mark.** A thin line falls between a mark material's taps: a 1 px rule under `dottr` at looseness 1 had
+no dots at half the offsets from the cells. So a loose cell of `dottr` or `charr` with ink in it (a pixel of it at
+least half covered: the ink pixel nearest the cell's centre, found by the nearness and its gradient, is one of the
+cell's own pixels, its top and left edges in it and its bottom and right ones not; a cell wider than the nearness
+reaches is looked at as up to 4 × 4 smaller ones) and sampled below `INK_FLOOR` = 0.25 is drawn as if sampled at
+0.25: `dottr` a dot of that ink, `charr` the lightest character that is not blank, its ink box (`marks::INK_BOX_ROW`)
+centred across the line on the line's centreline, as a thin accent rule's row is (§1.6.2), and kept within the line's
+length at its ends; in the ink's own colour. A cell sampled at 0.25 or more is as it was, so a solid face or the inside
+of a large letter does not get heavier, and a line lights one row (column) of cells, the lower (right) one when it lies
+on the edge between two. `halftonr` has no floor: its line is drawn exactly under its screens. `tests/thin_lines.rs`:
+a 1 px line at every offset in a cell has a mark in each cell it crosses (dottr 25 of 25, charr 14 of 14, one row),
+charr's characters centred within 2 px and whole; under halftonr every pixel of the line is ink (24/255 off the ground)
+and its screens' dots stay within a pitch; a solid square changes only within 1.5 cells of its edge; a fanning card
+stack's edges have marks all along. `Renderer::checks` draws without the floor for the comparison.
+
+**Names.** A material that prints the page is named for what it does, the verb with an `r`: `dottr`, `halftonr`,
+`charr`, `smudgr` (ink that spreads, specks and falls out of register), `carvr`, `glitchr`, `scribblr`. `plain`
+(nobody's hand) and `near` (the mechanism laid open) are not printings and keep their names. The same rule names
+`Markr` (the picture marks, §1.6.1), `Dithr` (the finishing pass's dither, `post.dithr`), `Cmd::Ripplr` and
+`El::ripplr` (a front) and `El::wipr` (the compare wipe). There are no aliases: an old material name is refused,
+and the error names the new one (`style::RENAMED`); for any other unknown name the error gives the closest. Look recipes start with
+`look:v3:`; a `look:v1:` recipe, from before the names changed, is refused with the renames listed, and a `look:v2:` one, from before the beat, with its beat (§1.32).

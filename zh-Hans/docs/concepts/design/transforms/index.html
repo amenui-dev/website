@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-Hans" class="doc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>1.10 变换 · amenui</title>
+<meta name="description" content="Two things: particles (anything breaks into particles and flies over to become anything else) and flows (on a page change, the parts both pages share move to their new places).…">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:,">
+<script>(() => {
+const D = document, r = D.documentElement, KEY = 'amenui.theme', PICKS = ['auto', 'light', 'dark'];
+const sys = matchMedia('(prefers-color-scheme: light)');
+let pick = 'auto';
+try { const v = localStorage.getItem(KEY); if (PICKS.includes(v)) pick = v; } catch (e) {}
+const label = () => { for (const b of D.querySelectorAll('.scheme')) { const v = b.querySelector('.' + pick[0]); if (v) b.setAttribute('aria-label', b.dataset.label + ': ' + v.textContent); } };
+const apply = from => {
+const was = r.dataset.theme, now = pick === 'auto' ? (sys.matches ? 'light' : 'dark') : pick;
+r.dataset.pick = pick;
+r.dataset.theme = now;
+label();
+if (was && was !== now) D.dispatchEvent(new CustomEvent('amenui:scheme', { detail: { from } }));
+};
+apply(null);
+sys.addEventListener('change', () => { if (pick === 'auto') apply(null); });
+D.addEventListener('DOMContentLoaded', label);
+D.addEventListener('click', e => {
+const b = e.target.closest && e.target.closest('.scheme');
+if (!b) return;
+pick = PICKS[(PICKS.indexOf(pick) + 1) % PICKS.length];
+try { localStorage.setItem(KEY, pick); } catch (e) {}
+const c = b.getBoundingClientRect();
+apply([c.left + c.width / 2, c.top + c.height / 2]);
+});
+})();</script>
+<link rel="alternate" hreflang="en" href="/website/docs/concepts/design/transforms/"><link rel="alternate" hreflang="zh-Hans" href="/website/zh-Hans/docs/concepts/design/transforms/">
+<link rel="preload" href="/website/fonts/departure-mono.3957b852a1.otf" as="font" type="font/otf" crossorigin>
+<style>@font-face{font-family:"Departure Mono";src:url(/website/fonts/departure-mono.3957b852a1.otf) format("opentype");font-display:swap}@font-face{font-family:"Source Serif 4";src:url(/website/fonts/source-serif.ef5a402db1.ttf) format("truetype");font-display:swap}
+/* The page around the canvas: the navigation bar, the home page's text, its stage with the source
+   listing and the rail row, and the boot line. Everything here is in the first response; nothing
+   blocks the first paint. */
+/* A change of page inside the canvas (AA.11): the HTML over it comes in with the canvas's new page,
+   140 ms from 70 ms. */
+@keyframes pagein { from { opacity: 0; } }
+.home .hero, .home .rail { animation: pagein 140ms linear 70ms both; }
+@media (prefers-reduced-motion: reduce) { .home .hero, .home .rail { animation: none; } }
+/* The two schemes (AA.9, AA.10): graphite and paper. The page follows the system unless the bar's
+   switch chose one (`data-theme`, set before the first paint); without the script, the system's.
+   `--halo` is the selection's plate, `--lift` a primary button under the pointer, `--line-n` the
+   listing's line numbers as the canvas draws them (Paint::DIM on the ground). */
+:root { color-scheme: dark; --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; --halo: #f2f2ee; --lift: #ffffff; --line-n: #a9a9a7;
+  --mono: "Departure Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif; --m: 32px; }
+:root[data-theme="light"] { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; } }
+@media (max-width: 1079px) { :root { --m: 24px; } }
+@media (max-width: 719px) { :root { --m: 16px; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--text); font: 17px/1.6 var(--serif); overflow: hidden; -webkit-font-smoothing: none; -moz-osx-font-smoothing: unset; }
+a { color: inherit; text-decoration: none; }
+/* Selection (L.1, AA.9): an ink plate with the text in the ground, the plate made as a halo, each
+   glyph's outline moved out 3 px in one opaque colour, so selected lines never form a lighter band. */
+::selection { background: transparent; color: var(--ground); text-shadow:
+  3px 0 var(--halo), -3px 0 var(--halo), 0 3px var(--halo), 0 -3px var(--halo),
+  2px 2px var(--halo), -2px 2px var(--halo), 2px -2px var(--halo), -2px -2px var(--halo),
+  3px 1px var(--halo), -3px 1px var(--halo), 3px -1px var(--halo), -3px -1px var(--halo),
+  1px 3px var(--halo), -1px 3px var(--halo), 1px -3px var(--halo), -1px -3px var(--halo); }
+.bar, .rail, .status, .sheet, button, .side, .toc, .pn, .toc-inline summary { -webkit-user-select: none; user-select: none; }
+.install code { -webkit-user-select: all; user-select: all; }
+input, textarea { caret-color: var(--accent); caret-shape: block; }
+.mono, .bar, .eyebrow, .btn, .install, .status, .sheet, h1 { font-family: var(--mono); font-weight: normal; }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+/* Past the bar to the page: the first Tab stop, shown only while focused. */
+.skip { position: fixed; z-index: 20; left: 8px; top: 8px; height: 32px; padding: 0 12px; display: flex; align-items: center; background: var(--ink); color: var(--ground);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; transform: translateY(-200%); }
+.skip:focus { transform: none; }
+
+/* The bar: 48 px (44 on a phone), 11 px uppercase labels with 44 px tall hit areas. */
+.bar { position: fixed; z-index: 10; left: 0; right: 0; top: 0; height: 48px; padding: 0 var(--m); display: flex; align-items: center; gap: 24px;
+  font-size: 11px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; background: var(--ground); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.home .bar { background: transparent; border-color: transparent; }
+/* Home lays out in a frame of at most 1,600 px, centred: the bar, the text block, the stage, the rail
+   and the status line keep the window's margins only up to the frame's width. */
+:root { --fw: min(100vw, 1600px); --fx: max(0px, (100vw - 1600px) / 2); }
+.home .bar { padding: 0 calc(var(--m) + var(--fx)); }
+.bar a, .bar button { display: inline-flex; align-items: center; height: 44px; color: var(--text); background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.bar a:hover, .bar button:hover { color: var(--ink); }
+.bar a.word { text-transform: none; color: var(--ink); font-size: 22px; line-height: 22px; letter-spacing: 0; }
+.word i { display: inline-block; width: .55em; height: .8em; margin-left: 2px; background: var(--accent); animation: blink 1s steps(1) 3; }
+@keyframes blink { 50% { opacity: 0; } }
+.nav { display: flex; gap: 12px; }
+.nav a::before { content: "["; color: transparent; } .nav a::after { content: "]"; color: transparent; }
+/* The current section: its label in ink, its brackets the one mark in the accent (AA.9). */
+.nav a[aria-current] { color: var(--ink); } .nav a[aria-current]::before, .nav a[aria-current]::after { color: var(--accent); }
+.nav a:hover::before, .nav a:hover::after { color: var(--dim); }
+.end { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.lang b { color: var(--ink); font-weight: normal; }
+.lang span { color: var(--dim); padding: 0 6px; }
+/* The scheme's switch: the choice's name, auto · light · dark in turn. With no script it is not there. */
+.scheme span { display: none; }
+:root[data-pick="auto"] .scheme .a, :root[data-pick="light"] .scheme .l, :root[data-pick="dark"] .scheme .d { display: inline; }
+:root:not([data-pick]) .scheme { display: none !important; }
+.menu-btn { display: none !important; margin-left: auto; }
+@media (max-width: 1079px) { .wide { display: none !important; } }
+@media (max-width: 719px) {
+  .bar { height: 44px; } .nav, .end { display: none; } .menu-btn { display: inline-flex !important; }
+}
+/* The phone's sheet: the sections, then search, language and GitHub. */
+.sheet { position: fixed; z-index: 9; inset: 0; padding: 60px var(--m) var(--m); background: var(--ground); display: none; flex-direction: column; }
+.sheet.open { display: flex; }
+.sheet a { display: flex; align-items: center; height: 56px; color: var(--text); font-size: 22px; border-bottom: 1px solid var(--hairline); }
+.sheet a small { font-size: 11px; color: var(--dim); width: 40px; }
+.sheet a[aria-current] { color: var(--ink); } .sheet a[aria-current] small { color: var(--accent); }
+.sheet .row { display: flex; gap: 24px; padding-top: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.sheet .row a, .sheet .row button { height: 44px; font-size: 11px; border: 0; background: none; color: var(--text); font-family: inherit; text-transform: inherit; letter-spacing: inherit; padding: 0; }
+
+/* Cross-document view transitions (F.8): the bar holds while the page under it changes. */
+@view-transition { navigation: auto; }
+.bar { view-transition-name: bar; }
+::view-transition-group(*) { animation-duration: 140ms; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* The docs pages (site design D.5): sidebar 232 px, text at most 720 px, contents 200 px, 48 px
+   between; in the site's two schemes (AA.9, AA.10), whose tokens are the chrome's. Inlined into every
+   docs page after the chrome's rules from shell.html. */
+html.doc { --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace; scroll-padding-top: 72px; }
+html.doc, .doc body { height: auto; }
+.doc body { overflow: visible; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+.doc .bar, .doc .sheet, .doc .docs .side, .doc .path, .doc .title, .doc .toc, .doc .pn, .doc h2, .doc h3, .doc figcaption, .doc th, .doc .foot, .doc .stage figcaption { -webkit-font-smoothing: none; }
+.doc .bar { background: var(--ground); }
+.sheet .close { display: none; }
+.doc .sheet:target { display: flex; }
+.doc .sheet .close { display: flex; position: absolute; right: var(--m); top: 0; height: 44px; font-size: 22px; border: 0; }
+
+/* The three columns, centred in the 1,320 px content width. */
+.docs { display: grid; grid-template-columns: 232px minmax(0, 720px) 200px; column-gap: 48px; justify-content: center; max-width: 1320px; margin: 0 auto; padding: 48px var(--m) 0; }
+.side, .toc { position: sticky; top: 48px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.side-in { padding: 32px 0 48px; }
+.toc-in { padding: 104px 0 48px; }
+.doc-main { min-width: 0; padding: 32px 0 72px; }
+
+/* Sidebar: groups 11 px uppercase dim with their numbers; pages 11 px uppercase in 28 px rows. */
+.side, .toc, .path, .title .num, .pn, .foot, .only-en { font: 11px/14px var(--mono); letter-spacing: .06em; }
+.side .g { margin: 24px 0 4px; color: var(--dim); text-transform: uppercase; }
+.side .g:first-of-type { margin-top: 0; }
+.side .g small, .sheet small { font-size: inherit; margin-right: 12px; }
+.side ul { list-style: none; margin: 0; padding: 0; }
+.side li a, .side summary { position: relative; display: flex; align-items: center; min-height: 28px; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.side li a:hover, .side summary:hover { color: var(--ink); }
+.side a[aria-current] { color: var(--ink); } .side .here { color: var(--accent); }
+.side .here, .toc .here { position: absolute; left: 0; font-style: normal; view-transition-name: here; }
+.side summary { cursor: pointer; list-style: none; color: var(--dim); }
+.side summary::-webkit-details-marker { display: none; }
+.side summary::before { content: "+"; position: absolute; left: 0; }
+.side details[open] > summary::before { content: "−"; }
+.side summary small { font-size: inherit; margin-left: 8px; }
+.side .sub ul { padding-left: 12px; }
+.side-close { display: none; }
+
+/* Title block: the path in 11 px dim, the title at 33 px with the page number at the right. */
+.path { margin: 0 0 24px; color: var(--dim); text-transform: uppercase; }
+.path a { color: var(--dim); } .path a:hover { color: var(--ink); }
+.path-open { display: none; }
+.title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 24px; }
+.title h1 { min-width: 0; overflow-wrap: anywhere; font: 33px/33px var(--mono); color: var(--ink); margin: 0; -webkit-font-smoothing: none; }
+/* A heading that holds Chinese is one face, the system's CJK sans at weight 500, Latin included
+   (D.1 as amended by I.3 ruling 11); the build marks it `cjk`. */
+.doc h1.cjk, .prose h2.cjk { font-family: var(--cjk); font-weight: 500; -webkit-font-smoothing: auto; }
+.prose h3.cjk, .prose h4.cjk { font: 500 14px/20px var(--cjk); letter-spacing: 0; -webkit-font-smoothing: auto; }
+.title .num { color: var(--dim); flex: none; }
+.only-en { color: var(--dim); margin: -12px 0 24px; text-transform: uppercase; }
+
+/* Text: Source Serif 4 at 17 px for English, the system's CJK sans at 16 px for Chinese. */
+.prose { font: 17px/1.6 var(--serif); color: var(--text); overflow-wrap: break-word; }
+html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
+.prose p, .prose ul, .prose ol { margin: 0 0 16px; }
+.prose ul, .prose ol { padding-left: 24px; }
+.prose li { margin: 0 0 4px; }
+.prose li > ul, .prose li > ol { margin: 4px 0 0; }
+.prose .lead { color: var(--ink); }
+.prose strong { font-weight: normal; color: var(--ink); }
+.prose em { font-style: italic; }
+.prose a { color: var(--second); text-decoration: underline dotted 1px; text-underline-offset: 3px; }
+.prose a:hover { text-decoration-style: solid; }
+.prose h2 a, .prose h3 a, .prose h4 a { color: inherit; text-decoration: none; }
+/* Second level: 22 px, set into a hairline like a section header. Third: 11 px uppercase in ink. */
+.prose h2 { display: flex; align-items: center; gap: 16px; font: 22px/22px var(--mono); color: var(--ink); margin: 48px 0 24px; }
+.prose h2::before { content: ""; flex: 0 0 24px; height: 1px; background: var(--hairline); }
+.prose h2::after { content: ""; flex: 1 1 24px; min-width: 24px; height: 1px; background: var(--hairline); }
+.prose h3, .prose h4 { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin: 32px 0 12px; }
+.prose hr { border: 0; border-top: 1px solid var(--hairline); margin: 32px 0; }
+.prose img { max-width: 100%; height: auto; }
+.prose code { font: .92em var(--code); background: var(--raised); padding: 1px 4px; }
+
+/* Code blocks: raised ground, hairline frame, a 28 px header with the language and copy. */
+.code { margin: 24px 0; min-width: 0; max-width: 100%; background: var(--raised); border: 1px solid var(--hairline); }
+.code figcaption { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px; border-bottom: 1px solid var(--hairline);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.code .copy { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--dim); background: none; border: 0; padding: 0 0 0 16px; height: 28px; cursor: pointer; }
+.code .copy:hover { color: var(--ink); }
+.js .code .copy { display: inline; }
+.code pre { margin: 0; padding: 12px 16px; overflow-x: auto; font: 13.5px/1.55 var(--code); color: var(--ink); tab-size: 4; }
+.prose .code code { font: inherit; background: none; padding: 0; }
+.code pre.num code { counter-reset: l; }
+.code .l { counter-increment: l; }
+.code .l::before { content: counter(l); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--dim); -webkit-user-select: none; user-select: none; }
+.code .c { color: var(--dim); } .code .s, .code .n { color: var(--second); } .code .hl { color: var(--ink); }
+
+/* Tables: header row 11 px uppercase dim, a hairline under each row, scrolling in their own box. */
+.table { overflow-x: auto; margin: 24px 0; }
+.prose table { border-collapse: collapse; min-width: 100%; font-size: 15px; line-height: 1.5; }
+html[lang="zh-Hans"] .prose:not([lang]) table { font-size: 14px; }
+.prose th { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
+.prose td { padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.prose .r { text-align: right; font-variant-numeric: tabular-nums; }
+.prose table.kv th { width: 30%; vertical-align: top; padding-top: 12px; }
+.prose td code { white-space: nowrap; }
+
+/* Notes: a character in the margin, the text indented 24 px, no box. */
+.note { position: relative; padding-left: 24px; margin: 24px 0; }
+.note .mark { position: absolute; left: 0; top: 0; font: 11px/27px var(--mono); color: var(--dim); }
+.note.warn .mark { color: var(--warn); }
+
+/* Page end: two cells, each a hairline frame 72 px high. */
+.pn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 72px; }
+.pn a { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 72px; padding: 0 16px; border: 1px solid var(--hairline); color: var(--ink); text-transform: uppercase; }
+.pn a:hover { border-color: var(--ink); }
+.pn small { font-size: inherit; color: var(--dim); }
+.pn .next { text-align: right; align-items: flex-end; grid-column: 2; }
+.pn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Table of contents: second-level headings; the one in view in ink, its mark in the accent. */
+.toc .label { margin: 0 0 8px; color: var(--dim); text-transform: uppercase; }
+.toc ol { list-style: none; margin: 0 0 24px; padding: 0; }
+.toc li a { position: relative; display: block; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.toc li a:hover { color: var(--ink); }
+.toc li a.on { color: var(--ink); } .toc .here { color: var(--accent); }
+.toc li a.on::before { content: "▸"; position: absolute; left: 0; }
+.toc .links a { display: block; padding: 7px 0; color: var(--text); text-transform: uppercase; }
+.toc .links a:hover { color: var(--ink); }
+.toc-inline { display: none; margin: 0 0 32px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.toc-inline summary { cursor: pointer; color: var(--dim); list-style: none; height: 28px; display: flex; align-items: center; }
+.toc-inline summary::-webkit-details-marker { display: none; }
+.toc-inline ol { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 1px solid var(--hairline); }
+.toc-inline a { display: block; padding: 7px 0; color: var(--text); }
+
+/* The live stage: the route's stage alone, 280 px tall (200 on a phone), full width, a hairline frame on
+   the raised colour and a 28 px caption strip. The still is drawn at the desktop box's size and shown
+   at its own size, centred, so a narrower box crops it as the live canvas does. */
+.stage { margin: 32px 0; view-transition-name: stage; }
+.stage .box { position: relative; height: 280px; background: var(--raised); border: 1px solid var(--hairline); overflow: hidden; }
+@media (max-width: 719px) { .stage .box { height: 200px; } }
+html:not(.js) .stage .run { cursor: default; }
+.stage .run { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; }
+.stage .box .live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* A still at its own size (docs.STILLS), centred: a box of another width crops it. */
+.stage .box img { position: absolute; left: 50%; top: 50%; width: 718px; height: 278px; max-width: none; transform: translate(-50%, -50%); display: block; }
+@media (max-width: 719px) { .stage .box img { width: min(358px, 100%); height: auto; } }
+/* The still of the scheme the page is in. */
+.stage img.s-light { display: none; }
+:root[data-theme="light"] .stage img.s-light { display: block; } :root[data-theme="light"] .stage img.s-dark { display: none; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .stage img.s-light { display: block; } :root:not([data-theme]) .stage img.s-dark { display: none; } }
+.stage .live canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.stage .live .a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+.stage .live .a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
+.stage .live .ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
+.stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 28px; padding: 4px 0; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.stage figcaption a, .stage figcaption button { color: var(--text); font: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
+.stage figcaption a:hover, .stage figcaption button:hover { color: var(--ink); }
+.stage.on .state { color: var(--accent); }
+.stage .acts { display: flex; gap: 16px; flex: none; }
+
+/* The docs index: groups behind section headers (D.4). */
+/* Section header (D.4): a hairline with an index and a name set into it, 11 px; 48 px above, 24 below. */
+.prose h2.sec { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; gap: 12px; margin: 48px 0 24px; }
+.prose h2.sec::before { flex-basis: 16px; }
+.prose h2.sec small { font: inherit; color: var(--dim); }
+.prose h2.sec small::after { content: ""; display: inline-block; width: 16px; height: 1px; background: var(--hairline); vertical-align: middle; margin-left: 12px; }
+.idx { list-style: none; padding: 0; margin: 0 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); column-gap: 24px; }
+.idx li { min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.idx a { display: flex; gap: 12px; color: var(--ink); text-decoration: none; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; -webkit-font-smoothing: none; }
+.idx a:hover { color: var(--ink); }
+.idx small { font-size: inherit; color: var(--dim); flex: none; width: 40px; }
+.idx p { margin: 6px 0 0 52px; font-size: 15px; line-height: 1.5; color: var(--text); }
+.idx.compact li { padding: 8px 0; }
+.idx .subhead { grid-column: 1 / -1; border: 0; padding: 16px 0 4px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+
+/* The 404 page: "Not found" at 44 px, one line, three doors. */
+.nf { max-width: 1320px; margin: 0 auto; padding: 168px var(--m) 120px; }
+.nf h1 { font: 44px/44px var(--mono); color: var(--ink); margin: 0 0 24px; -webkit-font-smoothing: none; }
+.nf p { margin: 0 0 32px; color: var(--text); }
+html[lang="zh-Hans"] .nf p { font: 16px/1.75 var(--cjk); }
+.nf .doors { display: flex; flex-wrap: wrap; gap: 12px; }
+.nf .btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--hairline); color: var(--ink); -webkit-font-smoothing: none; }
+.nf .btn:hover { border-color: var(--ink); }
+@media (max-width: 719px) { .nf { padding-top: 120px; } .nf .doors { flex-direction: column; } .nf .btn { height: 48px; justify-content: center; } }
+
+/* The footer: GitHub and the version, which leave the bar below 1,080 px. */
+.foot { max-width: 1320px; margin: 0 auto; padding: 24px var(--m) 32px; display: flex; gap: 24px; color: var(--dim); text-transform: uppercase; border-top: 1px solid var(--hairline); }
+.foot a { color: var(--text); } .foot a:hover { color: var(--ink); }
+
+/* 1,080 to 1,279 px: the contents fold into a line under the title. */
+@media (max-width: 1279px) {
+  .docs { grid-template-columns: 232px minmax(0, 720px); }
+  .toc { display: none; }
+  .toc-inline { display: block; }
+}
+/* Below 1,080 px: the sidebar is a sheet opened from the path line. */
+@media (max-width: 1079px) {
+  .docs { grid-template-columns: minmax(0, 720px); }
+  .side { display: none; position: fixed; z-index: 9; inset: 48px 0 0 0; max-height: none; background: var(--ground); padding: 0 var(--m); }
+  .side:target, .side.open { display: block; }
+  .side-close { display: flex; position: sticky; top: 0; justify-content: flex-end; align-items: center; height: 44px; font: 22px/22px var(--mono); color: var(--text); margin-bottom: -12px; }
+  .path-open { display: inline; } .path-text { display: none; }
+}
+@media (max-width: 719px) {
+  .docs { padding-top: 44px; }
+  .side { inset: 44px 0 0 0; }
+  .doc-main { padding-top: 24px; }
+  .title h1 { font-size: 22px; line-height: 22px; }
+  .prose h2 { font-size: 22px; margin-top: 40px; }
+  .pn { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pn .next { grid-column: 1; }
+  .idx { grid-template-columns: 1fr; }
+  .prose table { font-size: 14px; }
+}
+
+/* View transitions (F.8, with the chrome's): the sidebar holds and its marker glides. */
+.doc .side { view-transition-name: side; }
+@media print { .bar, .side, .toc, .pn, .foot, .stage { display: none !important; } .docs { display: block; padding: 0; } }
+/* A code name inside a label set in capitals keeps its case; zh-Hans labels are not transformed. */
+.side code, .path code, .pn code, .toc code, .toc-inline code, .idx code, .prose h3 code, .prose h4 code, .prose th code, .prose h2.sec code, .stage figcaption code { text-transform: none; font: inherit; letter-spacing: 0; }
+html[lang="zh-Hans"] .side, html[lang="zh-Hans"] .side *, html[lang="zh-Hans"] .path, html[lang="zh-Hans"] .pn a, html[lang="zh-Hans"] .toc *, html[lang="zh-Hans"] .toc-inline, html[lang="zh-Hans"] .prose h3, html[lang="zh-Hans"] .prose h4, html[lang="zh-Hans"] .prose th, html[lang="zh-Hans"] .prose h2.sec, html[lang="zh-Hans"] .idx a, html[lang="zh-Hans"] .idx .subhead, html[lang="zh-Hans"] .only-en, html[lang="zh-Hans"] .stage figcaption, html[lang="zh-Hans"] .foot { text-transform: none; }
+</style>
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<a class="skip" href="#main">跳到内容</a>
+<header class="bar" data-tone="">
+  <a class="word" href="/website/zh-Hans/" data-route="" aria-label="amenui">amenui<i></i></a>
+  <nav class="nav" aria-label="栏目">
+    <a href="/website/zh-Hans/docs/" data-route="docs/" data-section="docs" aria-current="page">文档</a>
+    <a href="/website/zh-Hans/components/" data-route="components/" data-section="components">组件</a>
+    <a href="/website/zh-Hans/lab/" data-route="lab/" data-section="lab">实验室</a>
+    <a href="/website/zh-Hans/works/" data-route="works/" data-section="works">作品</a>
+  </nav>
+  <div class="end">
+    <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / 搜索 ]</button>
+    <span class="lang"><a href="/website/docs/concepts/design/transforms/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span>
+    <button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button>
+    <a class="wide" href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a>
+    <a class="wide" href="/website/zh-Hans/docs/release-notes/" data-route="docs/release-notes/">v0.0.1</a>
+  </div>
+  <a class="menu-btn" href="#sheet" aria-expanded="false" aria-controls="sheet">[ 菜单 ]</a>
+</header>
+<div class="sheet" id="sheet">
+  <a href="/website/zh-Hans/docs/" data-route="docs/" data-section="docs" aria-current="page"><small>01</small>文档</a>
+  <a href="/website/zh-Hans/components/" data-route="components/" data-section="components"><small>02</small>组件</a>
+  <a href="/website/zh-Hans/lab/" data-route="lab/" data-section="lab"><small>03</small>实验室</a>
+  <a href="/website/zh-Hans/works/" data-route="works/" data-section="works"><small>04</small>作品</a>
+  <div class="row"><button type="button" class="search">/ 搜索</button><span class="lang"><a href="/website/docs/concepts/design/transforms/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span><button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
+  <a class="close" href="#" aria-label="关闭">×</a>
+</div>
+<div class="docs"><nav class="side" id="side" aria-label="文档"><div class="side-in"><a class="side-close" href="#" aria-label="关闭">×</a><p class="g"><small>01</small>开始</p><ul><li><a href="/website/zh-Hans/docs/start/introduction/">介绍</a></li><li><a href="/website/zh-Hans/docs/start/installation/">安装</a></li><li><a href="/website/zh-Hans/docs/start/first-view/">第一个视图</a></li><li><a href="/website/zh-Hans/docs/start/project-structure/">项目结构</a></li></ul><p class="g"><small>02</small>指南</p><ul><li><a href="/website/zh-Hans/docs/guides/forms/">表单</a></li><li><a href="/website/zh-Hans/docs/guides/theming/">主题与深色模式</a></li><li><a href="/website/zh-Hans/docs/guides/i18n/">多语言</a></li><li><a href="/website/zh-Hans/docs/guides/rtl/">从右到左</a></li><li><a href="/website/zh-Hans/docs/guides/accessibility/">无障碍</a></li><li><a href="/website/zh-Hans/docs/guides/testing/">用 render 和树测试</a></li><li><a href="/website/zh-Hans/docs/guides/performance/">性能</a></li><li><a href="/website/zh-Hans/docs/guides/development/">开发</a></li><li class="sub"><details><summary>配方 <small>17</small></summary><ul><li><a href="/website/zh-Hans/docs/guides/recipes/annotate/">子树上的标注层</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/chapter/">一章：一个场景，角色依次流入</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/chart/">点阵图表</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/counter/">带重组和局部涟漪的计数器</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/dialog/">对话框</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/flow/">带共享部件的换页</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/form/">表单</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/form3d/">形体上的文字</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/gesture/">手势：底部面板和浮动框</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/list/">可选择的列表</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/loading/">逐步载入的列表</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/material/">单个元素上的自定义材质</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/mesh/">卡片里的三维物体</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/morph/">把 A 变形为 B</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/preset/">自定义预设</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/stack/">可扇形展开的卡片堆</a></li><li><a href="/website/zh-Hans/docs/guides/recipes/submenu/">带子菜单和安全区的菜单</a></li></ul></details></li></ul><p class="g"><small>03</small>概念</p><ul><li><a href="/website/zh-Hans/docs/concepts/overview/">概览</a></li><li><a href="/website/zh-Hans/docs/concepts/text/">文字</a></li><li><a href="/website/zh-Hans/docs/concepts/materials/">材质与松开</a></li><li><a href="/website/zh-Hans/docs/concepts/annotation/">标注</a></li><li class="sub"><details open><summary>设计 <small>55</small></summary><ul><li><a href="/website/zh-Hans/docs/concepts/design/">设计</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-pipeline/">1. 管线</a></li><li><a href="/website/zh-Hans/docs/concepts/design/layout/">1.2 布局</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-scene/">1.3 场景（<code>scene.rs</code>）</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-two-g-buffer-targets/">1.4 两个 G-buffer 目标</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-wave-field/">1.5 波场</a></li><li><a href="/website/zh-Hans/docs/concepts/design/materials/">1.6 材质</a></li><li><a href="/website/zh-Hans/docs/concepts/design/how-a-picture-turns-into-marks/">1.6.1 图像如何变成记号</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-materials/">1.6.2 各种材质</a></li><li><a href="/website/zh-Hans/docs/concepts/design/pixel-type/">1.6.3 像素字</a></li><li><a href="/website/zh-Hans/docs/concepts/design/materials-as-source/">1.6.4 以源码提供的材质</a></li><li><a href="/website/zh-Hans/docs/concepts/design/faces-that-come-later/">1.6.5 Faces that come later</a></li><li><a href="/website/zh-Hans/docs/concepts/design/glyph-outlines-between-letters/">1.6.6 Glyph outlines, between letters</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-annotation-layer/">1.7 标注层</a></li><li><a href="/website/zh-Hans/docs/concepts/design/input/">1.8 输入</a></li><li><a href="/website/zh-Hans/docs/concepts/design/text-input/">1.8.1 文字输入</a></li><li><a href="/website/zh-Hans/docs/concepts/design/pointer-touch-and-wheel/">1.8.2 指针、触摸和滚轮</a></li><li><a href="/website/zh-Hans/docs/concepts/design/how-scrolling-looks/">1.8.3 滚动的外观</a></li><li><a href="/website/zh-Hans/docs/concepts/design/gesture-physics/">1.8.4 手势物理（<code>src/gesture.rs</code>）</a></li><li><a href="/website/zh-Hans/docs/concepts/design/nested-menus-and-the-safe-zone/">1.8.5 嵌套菜单和安全区</a></li><li><a href="/website/zh-Hans/docs/concepts/design/platforms/">1.9 平台</a></li><li><a href="/website/zh-Hans/docs/concepts/design/transforms/" aria-current="page"><i class="here" aria-hidden="true">▸</i>1.10 变换</a></li><li><a href="/website/zh-Hans/docs/concepts/design/drawing-only-when-something-changed/">1.11 只在有变化时绘制</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-frame-time-readout-and-the-resolution-budget/">1.12 帧时间读数和分辨率预算</a></li><li><a href="/website/zh-Hans/docs/concepts/design/incremental-updates-and-long-lists/">1.13 增量更新和长列表</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-accessibility-mirror/">1.14 无障碍镜像</a></li><li><a href="/website/zh-Hans/docs/concepts/design/ripple-rules/">1.15 涟漪规则</a></li><li><a href="/website/zh-Hans/docs/concepts/design/recomposition/">1.16 重组</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-surface-for-models/">1.17 面向模型的接口</a></li><li><a href="/website/zh-Hans/docs/concepts/design/3d/">1.18 三维</a></li><li><a href="/website/zh-Hans/docs/concepts/design/drawing-only-what-changed/">1.19 只绘制变化的部分</a></li><li><a href="/website/zh-Hans/docs/concepts/design/languages/">1.20 语言</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-finishing-pass-post-effects-dithering-and-pa/">1.21 收尾处理：后期效果、抖动和调色板</a></li><li><a href="/website/zh-Hans/docs/concepts/design/marks-that-move-by-themselves-shedding-and-flow/">1.22 自行运动的记号：脱落和流场</a></li><li><a href="/website/zh-Hans/docs/concepts/design/how-loading-looks/">1.23 载入时的外观</a></li><li><a href="/website/zh-Hans/docs/concepts/design/a-stack-of-cards/">1.24 卡片堆</a></li><li><a href="/website/zh-Hans/docs/concepts/design/a-dot-chart/">1.25 点阵图表</a></li><li><a href="/website/zh-Hans/docs/concepts/design/fields-drawings-and-glyph-poses/">1.26 场、绘图和字形姿态</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-frame-budget-for-marks/">1.27 记号的帧预算</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-decode-transition/">1.28 解码过渡</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-field-map-and-trails/">1.29 场图和轨迹</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-thread-material-scribblr-and-long-paths/">1.30 线材质 <code>scribblr</code> 和长路径</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-audit/">1.31 检查</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-beat/">1.32 The beat</a></li><li><a href="/website/zh-Hans/docs/concepts/design/plates/">1.33 Plates</a></li><li><a href="/website/zh-Hans/docs/concepts/design/effects-that-can-be-turned-off/">1.34 Effects that can be turned off</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-stage/">1.35 The stage</a></li><li><a href="/website/zh-Hans/docs/concepts/design/drawn-once-cached-subtrees-and-round-clips/">1.36 Drawn once: cached subtrees and round clips</a></li><li><a href="/website/zh-Hans/docs/concepts/design/components/">3. 组件</a></li><li><a href="/website/zh-Hans/docs/concepts/design/style-theme-material-material-parameters-annotat/">4. 风格 = 主题 × 材质 × 材质参数 × 标注 × 字体</a></li><li><a href="/website/zh-Hans/docs/concepts/design/the-gallery/">5. 展厅</a></li><li><a href="/website/zh-Hans/docs/concepts/design/scenes/">6. 场景</a></li><li><a href="/website/zh-Hans/docs/concepts/design/what-is-done-and-its-acceptance/">7. 已完成的部分和验收</a></li><li><a href="/website/zh-Hans/docs/concepts/design/8-layout/">8. 布局</a></li><li><a href="/website/zh-Hans/docs/concepts/design/where-the-implementation-differs-from-the-design/">9. 实现与设计的差异</a></li></ul></details></li></ul><p class="g"><small>04</small>组件</p><ul><li class="sub"><details><summary>输入 <small>10</small></summary><ul><li><a href="/website/zh-Hans/docs/components/button/">按钮</a></li><li><a href="/website/zh-Hans/docs/components/number/">数字</a></li><li><a href="/website/zh-Hans/docs/components/input/">输入框</a></li><li><a href="/website/zh-Hans/docs/components/switch/">开关</a></li><li><a href="/website/zh-Hans/docs/components/slider/">滑块</a></li><li><a href="/website/zh-Hans/docs/components/choice/">选项</a></li><li><a href="/website/zh-Hans/docs/components/checkbox/">复选框</a></li><li><a href="/website/zh-Hans/docs/components/radio/">单选组</a></li><li><a href="/website/zh-Hans/docs/components/select/">选择框</a></li><li><a href="/website/zh-Hans/docs/components/toggle/">切换按钮</a></li></ul></details></li><li class="sub"><details><summary>展示 <small>7</small></summary><ul><li><a href="/website/zh-Hans/docs/components/image/">图片</a></li><li><a href="/website/zh-Hans/docs/components/orbit/">三维视图</a></li><li><a href="/website/zh-Hans/docs/components/badge/">徽标</a></li><li><a href="/website/zh-Hans/docs/components/avatar/">头像</a></li><li><a href="/website/zh-Hans/docs/components/skeleton/">骨架</a></li><li><a href="/website/zh-Hans/docs/components/caption/">公式注</a></li><li><a href="/website/zh-Hans/docs/components/card-stack/">卡片叠</a></li></ul></details></li><li class="sub"><details><summary>反馈 <small>7</small></summary><ul><li><a href="/website/zh-Hans/docs/components/dialog/">对话框</a></li><li><a href="/website/zh-Hans/docs/components/tooltip/">提示</a></li><li><a href="/website/zh-Hans/docs/components/popover/">浮层</a></li><li><a href="/website/zh-Hans/docs/components/toast/">通知</a></li><li><a href="/website/zh-Hans/docs/components/progress/">进度</a></li><li><a href="/website/zh-Hans/docs/components/sheet/">抽屉</a></li><li><a href="/website/zh-Hans/docs/components/bottom-sheet/">底部面板</a></li></ul></details></li><li class="sub"><details><summary>导航 <small>8</small></summary><ul><li><a href="/website/zh-Hans/docs/components/tabs/">标签页</a></li><li><a href="/website/zh-Hans/docs/components/menu/">菜单</a></li><li><a href="/website/zh-Hans/docs/components/breadcrumb/">面包屑</a></li><li><a href="/website/zh-Hans/docs/components/skip-link/">跳到正文</a></li><li><a href="/website/zh-Hans/docs/components/pagination/">分页</a></li><li><a href="/website/zh-Hans/docs/components/context-menu/">右键菜单</a></li><li><a href="/website/zh-Hans/docs/components/command/">命令面板</a></li><li><a href="/website/zh-Hans/docs/components/nested-menu/">多级菜单</a></li></ul></details></li><li class="sub"><details><summary>布局 <small>5</small></summary><ul><li><a href="/website/zh-Hans/docs/components/card/">卡片</a></li><li><a href="/website/zh-Hans/docs/components/divider/">分隔线</a></li><li><a href="/website/zh-Hans/docs/components/scroll-area/">滚动区</a></li><li><a href="/website/zh-Hans/docs/components/accordion/">折叠面板</a></li><li><a href="/website/zh-Hans/docs/components/floating/">浮动窗口</a></li></ul></details></li><li class="sub"><details><summary>数据 <small>3</small></summary><ul><li><a href="/website/zh-Hans/docs/components/list/">列表</a></li><li><a href="/website/zh-Hans/docs/components/table/">表格</a></li><li><a href="/website/zh-Hans/docs/components/dot-chart/">点阵图表</a></li></ul></details></li></ul><p class="g"><small>05</small>参考</p><ul><li><a href="/website/zh-Hans/docs/reference/cli/">命令行</a></li><li><a href="/website/zh-Hans/docs/reference/registry-schema/">注册表结构</a></li><li><a href="/website/zh-Hans/docs/reference/registry/">组件清单</a></li><li><a href="/website/zh-Hans/docs/reference/agents/"><code>AGENTS.md</code></a></li><li><a href="/website/zh-Hans/docs/reference/llms/"><code>llms.txt</code></a></li><li><a href="/website/zh-Hans/docs/reference/architecture/">架构</a></li><li><a href="/website/zh-Hans/docs/reference/fonts/">字体</a></li></ul><p class="g"><small>06</small>更新记录</p><ul><li><a href="/website/zh-Hans/docs/release-notes/">更新记录</a></li></ul></div></nav><main id="main" class="doc-main"><p class="path"><a class="path-open" href="#side" aria-controls="side">文档 / 概念 / 设计 / 1.10 变换 <span aria-hidden="true">▾</span></a><span class="path-text"><a href="/website/zh-Hans/docs/">文档</a> / <a href="/website/zh-Hans/docs/#concepts">概念</a> / 设计 /</span></p><header class="title"><h1 class="cjk">1.10 变换</h1><span class="num">03.26</span></header><p class="only-en">本页只有英文。</p><details class="toc-inline"><summary>本页内容 ▾</summary><ol><li><a href="#particles">Particles</a></li><li><a href="#particles-on-the-gpu">Particles on the GPU</a></li><li><a href="#flows">Flows</a></li></ol></details><article class="prose" lang="en"><p class="lead">Two things: <strong>particles</strong> (anything breaks into particles and flies over to become anything else) and <strong>flows</strong> (on a page change, the parts both pages share move to their new places). Both go through the two-stage drawing: particles and instances in flight are drawn into the coverage and SDF buffers as usual and the material treats them as usual; there is no separate look. The code is in <code>src/morph.rs</code> (data and pure functions), <code>src/ui.rs</code> (running it) and <code>src/particles.wgsl</code> (the particle pass).</p>
+<p><strong>Commands.</strong> <code>update</code> never touches the runtime; it puts commands in its own state, and the runtime takes them with <code>Ui::on_commands(fn(&amp;mut S) -&gt; Vec&lt;Cmd&gt;)</code> before each layout (a flow needs the picture from before the layout). <code>Cmd::Morph { from, to, spec }</code> (two keys) and <code>Cmd::Flow(FlowSpec)</code>. <code>Ui::morph(from, to, spec)</code> can also be called directly. <code>Ui::morph_from_last(to, spec)</code> (or a <code>MorphSpec</code> with <code>from_last: Some(key)</code>) takes the source from the frame drawn last rather than from an element on the page, so a title flies from where it was across a route change even though its old element is gone: the glyphs drawn for <code>key</code> last frame are kept, and after the new layout each flies, whole, to the glyph of <code>to</code> in the same place in order. In every material, plain too: the unit is the glyph, never a copy at each end fading over (plain, its edges are clear all the way; a material draws its own marks of it as it goes, loosened by <code>0.6 × sin(π × p)</code> at its own progress <code>p</code>, so it comes apart into the dots or characters on the way and is whole at both ends). Each goes in a straight line, eased in and out on a sine (<code>p = 0.5 − 0.5 × cos(π × t)</code>), its size and colour going from the old glyph's to the new one's (drawn as the old glyph for the first half, as the new for the second); in the word's order from the end that faces the way it goes (the glyph in front leaves first, so the word opens out a little rather than running into itself): the way, from the old glyphs' centre to the new ones', projected onto the text's direction (the old word's first glyph to its last); going on along it the last glyph leaves first, going back the first does. Where that projection is under 10 % of the way's length (near square to the text, as a title going straight down the page), no end is in front and there is no stagger: all glyphs go together, each for the whole <code>duration_ms</code>. Otherwise each starts 12 ms after the one before, the whole stagger at most 15 % of <code>duration_ms</code>, each flying for <code>duration_ms</code> less the whole stagger, so the last lands at <code>duration_ms</code> and the word moves as a word. The frame at <code>duration_ms</code> is the new page as drawn directly, byte for byte; nothing tightens after. Glyphs only one side has fade where they are, the old over the first 30 %, the new over the last 30 %; the rest of the new page is in place from the first frame, and the flying glyphs stir nothing. With less motion nothing flies: the old title fades out where it was and the new one in where it is, 150 ms each. <code>MorphSpec</code> is <code>Clone</code>, not <code>Copy</code>, for this field; of its other fields this morph reads only <code>duration_ms</code>. A subtree with <code>El::hidden_until_morphed(true)</code> is laid out as usual but not drawn, takes no input and can't be hit until a morph reveals it; after the morph, the view decides again.</p>
+<h2 id="particles"><a href="#particles">Particles</a></h2>
+<p><strong>A particle is a cell.</strong> A particle is one cell of the material lattice (device pitch <code>P = max(1.5, lattice × scale)</code>, the same grid as <code>dottr</code>'s), and has no colour of its own: it shows what the source element drew in its cell, and on landing what the target draws in its cell. Both are read pixel by pixel from images: when a morph starts, the renderer runs the G-buffer stage once on its own for the source's and the target's instances (looseness 1, already born), giving four images (source coverage, target coverage, source SDF, target SDF), once per morph. So a particle at progress 0 is exactly the cell it replaces and at progress 1 exactly the target's cell, whatever the material and the content (text, shapes, pictures, whole subtrees). What a stage (<a href="/website/zh-Hans/docs/concepts/design/the-stage/">§1.35</a>) drew of the source is taken as the frame before the morph drew it, element by element, even when the view that asks for the morph (<code>Cmd::Morph</code> from a changed state) poses its glyphs elsewhere or hides them: a stage's glyphs may be posed anew by every step, and the tiles start where they were seen.</p>
+<p><strong>Sampling (CPU, once per morph).</strong> An element's instances, within their ink grown by <code>SPREAD</code> (the SDF's range), are cut into cells on the screen grid; each cell's coverage is the average of four points at the cell center ±P/4 (the way <code>dottr</code> reads coverage): glyphs read the CPU copy of the atlas, shapes compute distance on the CPU, pictures are 1; ink in the page background colour (tone and accent both 0) does not count as visible. Cells with coverage ≥ <code>threshold</code> fly; the rest are "dust" and stay in place, the source's dust fading out over the first 20% of its progress and the target's fading in over the last 20%. When the total passes <code>count_max</code>, cells become 2, 3 … times the lattice wide until it no longer does; nothing is dropped at random.</p>
+<p><strong>Pairing.</strong> Each side's flying cells are sorted by Morton code normalized to their element's bounds and paired by rank (<code>morph::pair</code>, a pure function): pairs = max(ns, nt), every source and target used at least once, deterministic. With more targets, the extra targets start from the source of nearest rank (one starting point, <code>SPLIT</code>, fading in over the first 20%); with more sources, the extras land on shared targets (<code>MERGE</code>, fading out over the last 20%).</p>
+<p><strong>The record</strong> (<code>Particle</code>, 48 bytes, uploaded once per morph): <code>ab</code> the top-left corners of the source and target cells (device pixels); <code>run</code> start and end progress, delay, duration (seconds, on this flight's clock); <code>misc</code> kind, cell size, seed, and the progress at which the drawing style switches.</p>
+<p><strong>The shader</strong> (<code>particles.wgsl</code>, vertex and fragment only, works on WebGL2, no per-frame CPU work): <code>l = clamp((clock − delay) / dur)</code>, progress <code>u = mix(u0, u1, ease(l))</code>; position <code>mix(A, B, u) + curl · sin(πu) · (normal · (0.8 + 0.5n₁) + forward · 0.35n₂)</code>, where <code>n</code> is smooth noise at the source position (neighbours drift together, so the group travels in arcs) plus jitter from the seed; dust doesn't drift. Delay = <code>stagger × flight × 0.95 × (0.6 × the side facing the target first + 0.4 × noise)</code> and each cell's own duration = <code>flight × (1 − stagger)</code>, so the last cell lands before the flight ends and the front ones peel away first. Fragment: content cross-fades between the two images by <code>u</code>; where the two sides are drawn differently (a picture on one side, text on the other, different <code>near.g</code>) each cell switches at its own progress point. In the air: ink in the page background colour (the ground of a default button) counts tone and accent as coverage, so it doesn't punch background-coloured holes in what it passes; in a morph involving a picture, all text cells take the theme colours they show and are drawn as picture during the flight (after 30 ms and before the last 30 ms), because a pixel can only be drawn one way and a text cell over a picture cell would be taken for the picture's colour. <code>near.b = 1</code> (fully loose).</p>
+<p><strong>Three phases.</strong> 1. The source's looseness goes from <code>k0</code> (usually 0) to 1 over <code>loosen_ms × (1 − k0)</code>.</p>
+<ol start="2"><li>Hand-off: from this moment the source isn't drawn and particles take over at exactly the same positions, flying for <code>duration_ms</code>; the target is laid out but not drawn. 3. Particles give way to the target at looseness 1, which closes to 0 within <code>tighten_ms</code>. Looseness uses the existing mechanism (an instance's static looseness, ramped on the CPU each frame), so under <code>plain</code> it is plain's own loose look (fading). What a morph shows does not condense a second time.</li></ol>
+<p><strong>Reversing.</strong> When the morph requested is exactly the reverse of the one in progress: during the flight, the CPU computes each cell's current progress with the same formula, rewrites it as <code>u0 = now, u1 = the other end</code> with delay 0 and uploads again, so particles return from where they are along the same path; while still loosening, the source closes back from its current looseness; while closing, a new morph starts from the target's current looseness. A new morph during a different one ends the old one at once.</p>
+<p><strong>Parameters</strong> (<code>MorphSpec</code>, all numbers; the website's particle page sets them with number controls and the easing with a segmented choice):</p>
+<div class="table"><table><thead><tr><th>Name</th><th>Default</th><th>Meaning</th></tr></thead><tbody><tr><td><code>loosen_ms</code></td><td>220</td><td>How long the source takes to loosen</td></tr><tr><td><code>duration_ms</code></td><td>900</td><td>The flight, from the first cell leaving to the last landing</td></tr><tr><td><code>tighten_ms</code></td><td>260</td><td>How long the target takes to close</td></tr><tr><td><code>count_max</code></td><td>40000</td><td>Particle limit</td></tr><tr><td><code>threshold</code></td><td>0.5</td><td>How much coverage a cell needs to fly</td></tr><tr><td><code>curl</code></td><td>48 px</td><td>The farthest a flight strays from a straight line</td></tr><tr><td><code>stagger</code></td><td>0.35</td><td>The share of the flight that departures are spread over</td></tr><tr><td><code>ease</code></td><td>ease in-out</td><td>linear / ease in-out (cubic) / exponential deceleration</td></tr><tr><td><code>lattice</code></td><td>5</td><td>The material lattice pitch (<code>Fx::pitch</code>), filled in by the application</td></tr></tbody></table></div>
+<h2 id="particles-on-the-gpu"><a href="#particles-on-the-gpu">Particles on the GPU</a></h2>
+<p>When the cell count passes <code>Particles::gpu_above</code> (20000 by default) and the renderer can do it, a morph does not cut and pair cells on the CPU but simulates a grid on the GPU (<code>morph::Grid</code>): the ink bounds of the two elements (grown by the SDF range) are each covered by a grid with the same rows and columns, cells a whole number of device pixels and no smaller than the lattice (<code>MorphSpec::lattice</code>), at most <code>count_max</code> cells; cell i pairs with cell i (pairing sorted by position, non-crossing like the CPU's Morton ranks). Departure times, durations, arcs and the style switch point are computed from the index hash and position as on the CPU. State lives in a texture, one texel per cell: the offset from the eased path and its velocity, stepped at 1/60 s (a fixed step: the same clock gives the same state): curl noise (<code>curl</code>, <code>curl_scale</code>), pointer attraction or repulsion (<code>pointer</code>, <code>pointer_radius</code>), a push from passing fronts (<code>front</code>), damping, and a spring back to the path. The drawn position is path + offset × sin(πu), so at progress 0 and 1 each particle is exactly on its own cell and the hand-off and landing frames are unchanged (<code>check</code> item 4 tests both paths, and that the GPU path gives the same result twice on the same clock).</p>
+<p>Three tiers (<code>render::ParticleTier</code>, which the host tells the renderer from the adapter): WebGPU and native use a compute shader (<code>sim_cs.wgsl</code> writes an rgba32f storage texture); WebGL2 ping-pongs with a fragment shader between float targets (rgba32f, or rgba16f if that fails); with neither, the CPU path stays, and the readout says "cpu (no float targets)". Integration is one WGSL function (<code>integrate</code> in <code>particles.wgsl</code>). The readout (F2) shows the particle count and where it is simulated (<code>gpu compute</code>, <code>gpu rgba32f</code>…). The particle page (<code>#particles</code>): mesh → text → picture → another mesh, the particle count is a number control (up to 1,000,000), the pointer pushes particles away, and a press on the stage sends a front. Samples: <code>samples &lt;dir&gt; particles</code>.</p>
+<h2 id="flows"><a href="#flows">Flows</a></h2>
+<p><code>El::flow(id)</code> gives a subtree an identity across pages. In the layout after <code>Cmd::Flow</code>, within the subtrees with the same flow id on both pages, instances are paired by "flow id + index in the subtree" (glyphs counted apart from other instances, and glyphs must be the same glyph); only instances that disappear from an old position and appear at a new one are paired. Paired instances keep their birth time (they don't condense again), and their rect (size included) moves from old to new over <code>flow_ms</code> with ease in-out, their looseness raised by a bump of <code>flow_loose × sin(π e)</code>, loosest in mid-flight and sharp on arrival. In flight they are drawn on a layer above the page (pictures and shapes first, then text), so they never pass beneath other things and are never taken for a picture below. Interpolation is on the CPU: the runtime keeps each instance as laid out and, each frame (<code>tick</code>), edits a copy by the flow and morph ramps; nothing is done without animation. A flier's clip goes from its old clip to its new one in step with its rect, so what was inside its clip at both ends is inside it all the way. Unpaired instances of the old page stay in the scene, loosening to 1 and fading out within <code>out_ms</code>; new instances of the new page fade in over <code>fade_ms</code>.</p>
+<p>A subtree with a picture on both pages grows instead (an index's window into its piece, and back): its first picture on each page are paired whatever their places in the subtrees (a picture, not cells that read one: <code>el::cells</code> is a picture instance too), and the picture is drawn as one, its box going from the old one to the new one and shown only inside the part of it that shows, which goes from the old one's (the window) to the new one's (the full view); both on whole pixels every frame. It is drawn in the page pass as the page's last picture, after everything that dissolves, so it is above every other window, and what rides on it is ink over a picture (its own colour). Nothing else of the subtree is paired, since the two pages lay out different things over the picture: the rest of the old subtree rides with the picture. Type keeps its size: an element's glyphs go together (a word, a label), whole, their centre (an own-size label's own point, <code>El::own_size</code>) where the picture takes it; shapes that touch go together the same way, each part whole, so no box of panels comes apart. A drawing's marks are geometry, not notes: each goes with the picture's transform, its pen kept (a line's width across), with no setting (as design's U rules: geometry scales, strokes stay as drawn, only type keeps its size), so a drawn box of four lines stays closed and a drawing over a window's picture (a curtain of rays) shrinks into the window with it and is never drawn at its page place over the index; under a view scale (<code>El::view_scale</code>) the whole old subtree is the layout's geometry and goes so too (a border keeps its width), and only own-size labels ride at their own point (<code>tests/ride_scaled.rs</code>, with no view scale). It stays inside the part that shows, without loosening, whole until the picture lands; what of it lies along the edge of the part that showed (its centre within 3 px of it: a frame round the window) is the window's, and fades over <code>out_ms</code> where it was, under the picture. The rest of the new subtree is there at once when the picture lands, as the old goes, so each note over the picture is drawn once every frame and never missing; everything new outside the flows comes in over <code>fade_ms</code> once the picture has landed. What the new page lays out only after the flow began (a view while it is on its way: a note shown once what it follows is in view, a drawing's new marks) comes in as what was new when it began does, from the same start (<code>Ui::flow_late</code>): never drawn at once where it is, outside the part of the picture that shows. A picture that grows keeps the look's ground the old page's until then (<code>Ui::look</code>), so around it is the page it came from, and the new page's ground comes in under a picture that covers it. A picture that shrinks takes its page with it: the look's ground is the new page's at once, what else of the old page lies in the part that showed rides with the picture too, and what lies outside it goes at once, so around the picture is only the new page's ground. Text that flows with it (a title) is paired as above and drawn over the picture; neighbouring windows are old instances that dissolve under it.</p>
+<p>An element keyed the same (<code>El::key</code>) in the old and new subtree of a picture that grows is not two layouts: each of its instances (matched by which of the element's instances it is: glyph or not, how many of that kind before it, and the glyph) goes from where it was to where it is with the picture. Its point (its centre, or an own-size label's own point) is carried by the picture's transform, and what is left between that and its new place closes on the picture's cubic, as does its size (a line's width does not change); its colour goes linearly. It is drawn once every frame, over the picture after what rides on it, inside the part that shows, and lands on its new layout within half a pixel. Own-size type keyed the same at another type size on the new page cannot change size on the way: it is reported (<code>ViewProblem::FlowOwnSize</code>) and the two cross-fade once the picture lands. One keyed the same that rode on the growing picture on the old page and is outside every flow on the new (a layer over the page's frame: the site's pointer box and its label) is carried by that picture in the same way (its glyphs matched by their place in the text), never drawn at once at its new place outside the part that shows (<code>tests/flow.rs</code>). A picture with the same flow id on both pages whose box changed grows too. <code>tests/keyed.rs</code> (into the piece and back).</p>
+<p>On the website: on a page change, the page title (<code>page-title</code>) and the side rail's selection background (<code>rail-selection</code>) flow, the selection sliding from the old item to the new one; on the page-change page, the cards' pictures and titles flow into the detail view. Parameters (<code>FlowSpec</code>): <code>flow_ms</code> 420, <code>flow_loose</code> 0.25, <code>out_ms</code> 180. The works index into a piece: <code>flow_ms</code> 420, <code>flow_loose</code> 0, <code>out_ms</code> 180, <code>fade_ms</code> 180.</p>
+<p><strong>Acceptance.</strong> <code>cargo test</code>: pairing (every cell used, the pair count, deterministic, non-crossing), the easing's ends, exact landing, reversing starts from current progress and returns to the start, and the count limit enlarges cells by whole multiples; the runtime's phase times (half loosened, before and after the hand-off, the target appears at looseness 1 without condensing, the end), reversing in flight and while loosening; flow rects at t = 0 / ½ / 1, kept birth times, unpaired instances dissolving, a straight swap without a flow command; the commands of two website pages; <code>tests/flow.rs</code> (pages built as the site's: a picture with abs-placed text notes, a <code>Drawing</code> over it, shades at a real alpha, a window with a frame drawn round it and a live line under it, a neighbouring window; an index window growing into its piece at 420 ms and back, both ways at 40, 80, 200 and 350 ms: one picture in one rect on whole pixels where the ease puts it, its birth time kept, the index's ground around it, the notes over it in their own colour and no green over it, every other instance drawn at a size and colour one of the pages draws and not loosened over the picture, the frame and live line gone by their opacity within <code>out_ms</code> and never drawn over the picture, no other window over it, the title's glyphs once each, over the picture, opaque and inside their clips; landed, the new page as at rest on its own ground; back to an index whose other window is in a layer, that window's ray, a ramp in a colour of its own through a middle stop, not drawn at 0, 40, 80, 200 and 350 ms and never in the accent while it fades in, in its own colour at rest). <code>check</code>: the hand-off frame (source at looseness 1 against particles at t = 0) and the landing frame (particles at t = 1 against the target at looseness 1), under <code>plain</code> and <code>dottr</code>, differ by ≤ 2/255 per pixel within the elements' bounds (in fact 0); in the light theme mid-flight there are particles outside both elements (with a control). <code>film</code> gives samples for every pair × every material × seven moments, and the page change there and back at five moments each. The web version under WebGL2 captures three mid-flight frames on a virtual clock, all different, with no console errors.</p>
+<p>With less motion a flow is a fade in place over <code>FlowSpec::fade_ms</code> (150 ms by default; the website uses 120 for its route fade), and what comes and goes fades over the same time (<code>tests/transform.rs</code>).</p>
+<p>With or without less motion, what is new on the page (not shared with the old one) fades in over <code>fade_ms</code> where it is laid out while the old page fades out, so a route change never draws the new page whole over the old from its first frame. With no flight (<code>flow_ms</code> 0, an opacity change) nothing is shared: the whole old page fades out and the whole new one in, shared parts too. A new window size during the flow (a bar that goes with the old page) moves what fades in with the page, and shared parts fly on to where they now are. <code>tests/transform.rs</code> (<code>a_flow_fades_the_new_page_in_and_goes_on_through_a_resize</code>: with 120 ms the new page is under half its opacity at 40 ms and the frames at 40 and 80 ms differ from both ends; with the 420 ms default the shared tile grows at 60, 200 and 350 ms through a resize and ends exactly on its box).</p></article><nav class="pn" aria-label="上一页和下一页"><a class="prev" href="/website/zh-Hans/docs/concepts/design/platforms/" rel="prev"><small>← 03.25</small><span>1.9 平台</span></a><a class="next" href="/website/zh-Hans/docs/concepts/design/drawing-only-when-something-changed/" rel="next"><small>03.27 →</small><span>1.11 只在有变化时绘制</span></a></nav></main><aside class="toc" aria-label="本页内容"><div class="toc-in"><p class="label">本页内容</p><ol><li><a href="#particles">Particles</a></li><li><a href="#particles-on-the-gpu">Particles on the GPU</a></li><li><a href="#flows">Flows</a></li></ol><p class="links"><a href="https://github.com/amenui-dev/amenui/edit/main/docs/DESIGN.md" rel="noopener">在 GitHub 上编辑&nbsp;↗</a><a href="index.md">原始 .md&nbsp;↗</a></p></div></aside></div>
+<footer class="foot"><a href="/website/zh-Hans/docs/release-notes/">amenui v0.0.1</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>
+<script>window.DOCS={"files":{"wasm":"/website/amenui.acffe9d8cf.wasm","fonts":[{"name":"sans","url":"/website/fonts/sans.cjk.b7f5f60d03.otf","size":229364},{"name":"pixel","url":"/website/fonts/pixel.cjk.ca7a9a952b.otf","size":130916},{"name":"departure-mono","url":"/website/fonts/departure-mono.3957b852a1.otf","size":9256}],"faces":{"GeistPixel-Square.otf":"/website/fonts/geistpixel-square.bd09d0dd9d.otf","GeistPixel-Grid.otf":"/website/fonts/geistpixel-grid.175657a0ac.otf","GeistPixel-Circle.otf":"/website/fonts/geistpixel-circle.5ef877b414.otf","GeistPixel-Triangle.otf":"/website/fonts/geistpixel-triangle.c5d56a3ffd.otf","GeistPixel-Line.otf":"/website/fonts/geistpixel-line.e217d06edb.otf"},"app":"/website/app.690df7d3e1.js","texts":"/website/texts/","textsV":"26219b8b"},"copied":"已拷贝","live":"运行中","starting":"正在启动…","fail":"这个浏览器无法启动 WebGPU 或 WebGL2","canvas":"由 amenui 绘制的页面"}</script>
+<script src="/website/docs.6031d1e3a1.js" defer></script>
+<script>window.SEARCH={"js":"/website/search.499d89d29a.js","index":"/website/search/zh-Hans.a4e335cb8d.json","base":"/website/zh-Hans/","t":{"search":"搜索","placeholder":"搜索文档、组件、实验室和场景","results":"结果","none":"没有结果","loading":"正在载入索引…","hint":"↑ ↓ 移动 · 回车打开 · esc 关闭","hintDocs":"⇧ 回车打开文档","docs":"文档"}};(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);for(const b of D.querySelectorAll(".search"))b.addEventListener("click",()=>{const s=D.getElementById("sheet");if(s)s.classList.remove("open");open()})})()</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Materials and looseness
+
+
+A material is how the second pass draws: plain, dottr, halftonr, charr, smudgr, carvr, glitchr, near, scribblr. At rest they look like plain (but for the few with a look of their own); loosened, each has its own. `El::material(id)` gives a subtree another material. Scrolling fast, each material leaves its own trace (DESIGN §1.8.3).
+
+`scribblr` draws no differently at rest: its second pass is plain's frame. Loosened, an element's fill fades and its ink becomes one thread of constant width (`src/strand.rs`), drawn as shapes in the first pass: along the glyphs' true outlines, then joined into one stroke by straight bridges, then wandering, knotting where the field map has energy and trailing off along its flow; drawn back, the knots go first and the fill comes back. Text to read only gets a line on its outline. `Look::beat` (`Beat { bpm, steps, swing }`, DESIGN.md §1.32) holds the line's pose for one step of the look's tempo: at 180 bpm and four steps a beat a step is 83 ms, twelve poses a second; `bpm` 0, the default, holds none. `El::trace(Trace)` draws a long path by progress under any material, solid or dashed, pushed by the map's flow, its head stirring the map.
