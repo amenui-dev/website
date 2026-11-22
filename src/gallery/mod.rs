@@ -12,7 +12,7 @@ pub mod mechanism;
 mod looks;
 mod pages;
 mod scenes;
-mod styles;
+pub mod styles;
 pub mod three;
 pub mod works;
 mod touch;

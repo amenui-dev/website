@@ -24,27 +24,97 @@ pub const STYLE_DESC: [&str; 10] = [
 pub fn page(s: &Gallery, i: usize) -> El<Msg> {
     let st = styles()[i];
     let h = format!("style-{}", st.hash);
+    let (margin, measure) = preset_rules(i);
+    let inset = if s.width < super::NARROW { margin.max(18.0) } else { 48.0 };
+    let r = Room { narrow: s.width < super::NARROW, w: s.width - 2.0 * inset };
     let body = match i {
-        0 => gaze_feed(s, &h),
-        1 => dotmatrix(s, &h),
-        2 => print_zine(s, &h),
-        3 => glitch(s, &h),
-        4 => linocut(s, &h),
-        5 => manual(s, &h),
-        6 => normcore(s, &h),
-        7 => cyber(s, &h),
-        8 => bauhaus(s, &h),
-        _ => loose_thread(s, &h),
+        0 => gaze_feed(s, &h, r),
+        1 => dotmatrix(s, &h, r),
+        2 => print_zine(s, &h, r),
+        3 => glitch(s, &h, r),
+        4 => linocut(s, &h, r),
+        5 => manual(s, &h, r),
+        6 => normcore(s, &h, r),
+        7 => cyber(s, &h, r),
+        8 => bauhaus(s, &h, r),
+        _ => loose_thread(s, &h, r),
     };
     // A press anywhere on the composition sends its front over the whole composition (DESIGN.md §1.15):
     // pictures and shapes loosen, text and controls only as far as the legibility cap.
-    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(if s.width < super::NARROW { 18.0 } else { 48.0 }, 36.0).ripplr_scope().ripplr(Scope::Container(None))
-        .child(row().key(format!("{h}/caption")).fill_width().gap(14.0).align(AlignItems::BASELINE).wrap()
+    // The caption is two lines: the style's name, a label, then its description, a sentence that is
+    // read, no wider than the preset's measure: 6 px a character at 13 px (the body faces set a line of
+    // these sentences at 6.1 to 6.3 px a character, so 6.5 lets a line run a few characters over).
+    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(inset, 36.0).ripplr_scope().ripplr(Scope::Container(None))
+        .child(col().key(format!("{h}/caption")).fill_width().gap(4.0)
             .child(text(st.name, 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/name")))
-            .child(text(STYLE_DESC[i], 13.0, Paint::DIM).key(format!("{h}/desc")).grow(1.0)))
-        // A composition is drawn at its own size: a narrow window scrolls it sideways.
-        .child(if s.width < super::NARROW { col().key(format!("{h}/pan")).fill_width().min_width(0.0).scroll_x().child(body) } else { body })
+            .child(text_lh(STYLE_DESC[i], 13.0, 20.0, Paint::TEXT).key(format!("{h}/desc")).fill_width().max_width(measure * 6.0)))
+        .child(body)
 }
+
+/// Each preset's side margin and measure (`preset::Rule::Margin`, `Rule::Measure`), by style.
+fn preset_rules(i: usize) -> (f32, f32) {
+    use amenui::preset::Rule;
+    static RULES: std::sync::OnceLock<Vec<(f32, f32)>> = std::sync::OnceLock::new();
+    let all = RULES.get_or_init(|| amenui::preset::presets().iter().map(|p| p.rules.iter().fold((0.0, 80.0), |(m, w), r| match *r {
+        Rule::Margin { min } => (min, w),
+        Rule::Measure { max } => (m, max),
+        _ => (m, w),
+    })).collect());
+    all.get(i).copied().unwrap_or((0.0, 80.0))
+}
+
+/// The width a style page is set in. Below `NARROW` it is the window less the page's side insets, and
+/// the composition is set again in one column of that width: a row of columns becomes one column in
+/// source order, a fixed width no wider than the room, pictures as wide as the room at their own ratio,
+/// and nothing read by scrolling sideways.
+#[derive(Clone, Copy)]
+pub struct Room { pub narrow: bool, pub w: f32 }
+impl Room {
+    /// A fixed width `w`: below `NARROW` no wider than the room.
+    fn of(self, w: f32) -> f32 { if self.narrow { w.min(self.w) } else { w } }
+    /// A picture's or a column's width: the room below `NARROW`, else `w`.
+    fn full(self, w: f32) -> f32 { if self.narrow { self.w } else { w } }
+    /// A display line's size (`DISPLAY`): below `NARROW`, `fit` in the room.
+    fn size(self, line: usize) -> f32 { let (_, _, size, wide) = DISPLAY[line]; if self.narrow { fit(size, wide, self.w) } else { size } }
+}
+
+/// The largest size, in steps of 2 px and no more than the designed `size`, at which a line whose widest
+/// unbreakable piece is `wide` px at `size` fits `room`; 40 px at least.
+pub fn fit(size: f32, wide: f32, room: f32) -> f32 {
+    if wide <= room { return size; }
+    ((size * room / wide / 2.0).floor() * 2.0).clamp(40.0_f32.min(size), size)
+}
+
+/// The pieces of a line that do not break: its words, a word without letters or digits (`&`, `·`)
+/// kept with the one before it.
+pub fn units(line: &str) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for w in line.split(' ').filter(|w| !w.is_empty()) {
+        match out.last_mut() {
+            Some(last) if !w.chars().any(char::is_alphanumeric) => { last.push(' '); last.push_str(w); }
+            _ => out.push(w.to_owned()),
+        }
+    }
+    out
+}
+
+/// The style pages' display lines: the style, the line as written, its designed size, and the width of
+/// its widest unbreakable piece (`units`) at that size in the style's display face, as shown (in
+/// English: `english.txt`). `tests/styles.rs` measures them again.
+pub const DISPLAY: [(usize, &str, f32, f32); 9] = [
+    (0, "视野里的一切都被看见", 34.0, 210.0),
+    (1, "出发", 72.0, 210.0),
+    (1, "到达", 72.0, 204.0),
+    (2, "复印机里的春天", 64.0, 366.0),
+    (3, "信号中断", 120.0, 348.0),
+    (4, "刀与木", 140.0, 463.0),
+    (6, "设置", 26.0, 99.0),
+    (8, "形·色·线", 96.0, 400.0),
+    (8, "形式追随功能。", 24.0, 101.0),
+];
+/// The departure board's LED clock in the style's mono face: `00:00` at 150 px and the seconds `00`
+/// at 56 px, px wide (`tests/styles.rs` measures them again).
+pub const LED: [(&str, f32, f32); 2] = [("00:00", 150.0, 490.0), ("00", 56.0, 70.0)];
 
 fn pic(h: &str, k: &str, id: u32, w: f32) -> El<Msg> { pic_at(h, k, id, w, 0.0) }
 /// A picture in the style's marks, held at a looseness (1: always shown as marks).
@@ -53,7 +123,7 @@ fn pic_at(h: &str, k: &str, id: u32, w: f32, loose: f32) -> El<Msg> {
 }
 
 // ── 1 Algorithmic / Digital Gaze: a feed, framed and measured ───────────────────────────────────────
-fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
+fn gaze_feed(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     const ITEMS: [(u32, &str, &str, f32); 6] = [
         (TREE, "风景", "IMG_0412", 0.93), (TERRAIN, "地形", "IMG_0418", 0.88), (SKY, "天空", "IMG_0421", 0.97),
         (SPHERE, "物体", "IMG_0433", 0.71), (TREE, "风景", "IMG_0440", 0.84), (TERRAIN, "地形", "IMG_0452", 0.66),
@@ -63,17 +133,18 @@ fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
     let mut feed = row().key(format!("{h}/feed")).gap(22.0).wrap().fill_width();
     for (i, (id, tag, file, conf)) in ITEMS.iter().enumerate() {
         if filter != 0 && *tag != names[filter] { continue; }
-        feed = feed.child(col().key(format!("{h}/item{i}")).width(250.0).gap(8.0).on_press(Msg::Row(i)).focusable(false)
-            .child(pic(h, &format!("p{i}"), *id, 250.0))
+        feed = feed.child(col().key(format!("{h}/item{i}")).width(r.full(250.0)).gap(8.0).on_press(Msg::Row(i)).focusable(false)
+            .child(pic(h, &format!("p{i}"), *id, r.full(250.0)))
             .child(row().justify(JustifyContent::SPACE_BETWEEN).fill_width()
                 .child(text(*file, 12.0, Paint::TEXT).font(Font::Mono))
                 .child(text(format!("{tag} {conf:.2}"), 12.0, Paint::ACCENT).font(Font::Mono))));
     }
     col().key(format!("{h}/comp")).fill_width().gap(24.0).gaze_scope()
         .child(row().key(format!("{h}/head")).fill_width().align(AlignItems::END).justify(JustifyContent::SPACE_BETWEEN).wrap().gap(16.0)
-            .child(col().gap(4.0)
+            // Below `NARROW` the heading is the column's width and wraps.
+            .child(col().gap(4.0).min_width(0.0).max_width(r.w)
                 .child(text("FIELD 07 / 观察记录", 12.0, Paint::DIM).font(Font::Mono))
-                .child(text_lh("视野里的一切都被看见", 34.0, 44.0, Paint::INK).font(Font::Display)))
+                .child(text_lh("视野里的一切都被看见", r.size(0), 44.0 * r.size(0) / 34.0, Paint::INK).font(Font::Display)))
             .child(segmented(&format!("{h}/filter"), &names, filter, 30.0, |i| Msg::Choose(0, i))))
         .child(feed)
 }
@@ -81,7 +152,7 @@ fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
 // ── 2 Neo-Dotmatrix: a departure board ──────────────────────────────────────────────────────────────
 // A live board: the clock, the LED panel's seconds and the ticker move every second on purpose
 // (`.ongoing()`), so the audit does not count the frames they ask for as restless.
-fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
+fn dotmatrix(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let t = 8.0 * 3600.0 + 42.0 * 60.0 + s.clock.floor();
     let clock = format!("{:02}:{:02}:{:02}", (t / 3600.0) as u32 % 24, (t / 60.0) as u32 % 60, t as u32 % 60);
     let arrive = s.choices[1] == 1;
@@ -91,15 +162,19 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
         [("08:47", "北京 南", "2"), ("08:55", "广州 南", "6"), ("09:03", "成都 东", "4"), ("09:12", "西安 北", "1"), ("09:26", "武汉", "7")]
     };
     let tick = s.clock.floor() as usize;
-    let mut board = col().key(format!("{h}/board")).width(760.0).gap(2.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE);
-    board = board.child(row().key(format!("{h}/cols")).fill_width().gap(18.0).pad(0.0, 6.0)
+    // Below `NARROW` the board is the room's width and a row that does not fit breaks after the
+    // destination: platform and status go to a second line.
+    let cells = |e: El<Msg>| if r.narrow { e.wrap() } else { e };
+    let mut board = col().key(format!("{h}/board")).width(r.full(760.0)).gap(2.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE);
+    board = board.child(cells(row().key(format!("{h}/cols")).fill_width().gap(18.0).pad(0.0, 6.0))
         .child(text("时间", 12.0, Paint::DIM).width(90.0)).child(text("目的地", 12.0, Paint::DIM).grow(1.0))
         .child(text("站台", 12.0, Paint::DIM).width(60.0)).child(text("状态", 12.0, Paint::DIM).width(120.0)));
     for (i, (time, dest, plat)) in rows.iter().enumerate() {
         // The status of one row changes every few seconds, as boards do.
         let late = (tick / 4 + i).is_multiple_of(5);
         let status = if late { format!("晚点 {} 分", 3 + (tick / 4 + i) % 7) } else { "正点".to_owned() };
-        board = board.child(row().key(format!("{h}/row{i}")).fill_width().gap(18.0).height(36.0).align(AlignItems::CENTER)
+        let line = row().key(format!("{h}/row{i}")).fill_width().gap(18.0).align(AlignItems::CENTER);
+        board = board.child(cells(if r.narrow { line.min_height(36.0) } else { line.height(36.0) })
             .child(text(*time, 22.0, Paint::ACCENT).font(Font::Mono).width(90.0))
             .child(text(*dest, 24.0, Paint::ACCENT).grow(1.0))
             .child(text(*plat, 22.0, Paint::ACCENT).font(Font::Mono).width(60.0))
@@ -107,10 +182,10 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
     }
     col().key(format!("{h}/comp")).gap(26.0)
         .child(row().key(format!("{h}/sign")).gap(30.0).align(AlignItems::END).wrap()
-            .child(text_lh(if arrive { "到达" } else { "出发" }, 72.0, 80.0, Paint::ACCENT).font(Font::Display).key(format!("{h}/title-{arrive}")))
+            .child(text_lh(if arrive { "到达" } else { "出发" }, r.size(1 + usize::from(arrive)), 80.0 * r.size(1 + usize::from(arrive)) / 72.0, Paint::ACCENT).font(Font::Display).key(format!("{h}/title-{arrive}")))
             .child(text(clock, 48.0, Paint::ACCENT).font(Font::Mono).print(4.0).key(format!("{h}/clock")).ongoing()))
         .child(board)
-        .child(led_panel(s, h, t))
+        .child(led_panel(s, h, t, r))
         .child(row().key(format!("{h}/controls")).gap(12.0).align(AlignItems::CENTER).wrap()
             .child(segmented(&format!("{h}/mode"), &["出发", "到达"], s.choices[1].min(1), 30.0, |i| Msg::Choose(1, i)))
             .child(button_as(format!("{h}/refresh"), "刷新", Variant::Default, Msg::Press))
@@ -121,7 +196,7 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
 }
 
 /// The second panel: a big clock printed in dots, and a ticker that runs along under it.
-fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
+fn led_panel(s: &Gallery, h: &str, t: f32, r: Room) -> El<Msg> {
     let t = t + s.slides[6] * 60.0;
     let big = format!("{:02}:{:02}", (t / 3600.0).rem_euclid(24.0) as u32, (t / 60.0).rem_euclid(60.0) as u32);
     let secs = format!("{:02}", t.rem_euclid(60.0) as u32);
@@ -130,13 +205,21 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
     // The ticker moves a character's width every second: the text is the view, the clock moves it.
     let step = (s.clock.floor() as usize) % 40;
     let shown: String = msg.chars().chain(msg.chars()).skip(step).take(60).collect();
-    col().key(format!("{h}/panel2")).width(760.0).gap(10.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE)
+    // Below `NARROW` the panel is the room's width, and the clock and its seconds are set smaller
+    // together (2 px steps) until both fit inside it, their dot pitch with them, 4 px at least.
+    let w = r.full(760.0);
+    let ((_, big_at, big_w), (_, secs_at, secs_w)) = (LED[0], LED[1]);
+    // At clock size `z` the two are (big_w + secs_w) × z / big_at wide and 10 px apart, inside the
+    // panel's 22 px padding.
+    let big_size = if r.narrow { fit(big_at, big_w + secs_w, w - 44.0 - 10.0) } else { big_at };
+    let secs_size = if r.narrow { ((secs_at * big_size / big_at / 2.0).floor() * 2.0).max(4.0) } else { secs_at };
+    col().key(format!("{h}/panel2")).width(w).gap(10.0).pad(22.0, 18.0).radius(4.0).border(2.0, Paint::HAIRLINE)
         .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN)
             .child(text(format!("{plat} 站台　·　本站时间"), 12.0, Paint::DIM))
             .child(text("NEXT 08:47", 12.0, Paint::DIM).font(Font::Mono)))
         .child(row().gap(10.0).align(AlignItems::END)
-            .child(text_lh(big, 150.0, 156.0, Paint::ACCENT).font(Font::Mono).print(7.0).key(format!("{h}/bigclock")))
-            .child(text_lh(secs, 56.0, 64.0, Paint::hue(1)).font(Font::Mono).print(4.0).key(format!("{h}/secs")).ongoing()))
+            .child(text_lh(big, big_size, 156.0 * big_size / big_at, Paint::ACCENT).font(Font::Mono).print((7.0 * big_size / big_at).max(4.0)).key(format!("{h}/bigclock")))
+            .child(text_lh(secs, secs_size, 64.0 * secs_size / secs_at, Paint::hue(1)).font(Font::Mono).print((4.0 * secs_size / secs_at).max(4.0)).key(format!("{h}/secs")).ongoing()))
         .child(space(1.0, 2.0).fill_width().fill(Paint::HAIRLINE))
         // The ticker: one long line, clipped to the panel, moved one character a second.
         .child(col().key(format!("{h}/ticker")).fill_width().height(40.0).clip()
@@ -144,38 +227,41 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
 }
 
 // ── 3 Lo-Fi Print: a zine page ───────────────────────────────────────────────────────────────────────
-fn print_zine(s: &Gallery, h: &str) -> El<Msg> {
+fn print_zine(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let issue = s.choices[2].min(2);
     let issues = ["第 5 期", "第 6 期", "第 7 期"];
     let para = |k: &str, t: &str| text_lh(t, 15.0, 27.0, Paint::TEXT).key(format!("{h}/{k}"));
-    col().key(format!("{h}/comp")).width(900.0).gap(0.0)
+    // Below `NARROW` the spread is one column: the headline, the byline, the paragraphs and the
+    // controls, then the photo and its caption.
+    let spread = if r.narrow { col().gap(30.0) } else { row().gap(36.0) };
+    col().key(format!("{h}/comp")).width(r.of(900.0)).gap(0.0)
         .child(row().key(format!("{h}/mast")).fill_width().height(44.0).pad(18.0, 0.0).fill(Paint::INK).align(AlignItems::CENTER).justify(JustifyContent::SPACE_BETWEEN)
             .child(text("慢 读 · LO-FI ZINE", 15.0, Paint::GROUND).font(Font::Mono))
             .child(text(issues[issue], 15.0, Paint::GROUND)))
-        .child(row().key(format!("{h}/spread")).fill_width().gap(36.0).pad(0.0, 30.0).align(AlignItems::START)
-            .child(col().key(format!("{h}/left")).width(470.0).gap(18.0)
-                .child(text_lh("复印机里的春天", 64.0, 72.0, Paint::ACCENT).font(Font::Display).weight(1.5).key(format!("{h}/headline")))
+        .child(spread.key(format!("{h}/spread")).fill_width().pad(0.0, 30.0).align(AlignItems::START)
+            .child(col().key(format!("{h}/left")).width(r.of(470.0)).gap(18.0)
+                .child(text_lh("复印机里的春天", r.size(3), 72.0 * r.size(3) / 64.0, Paint::ACCENT).font(Font::Display).weight(1.5).key(format!("{h}/headline")))
                 .child(text("文 / 编辑部　图 / 读者来稿", 13.0, Paint::DIM))
                 .child(para("p1", "这一期收的是读者寄来的照片和短文。我们把它们放大、复印、再复印，直到颗粒和墨点都成了画面的一部分。"))
                 .child(para("p2", "纸张偏黄，粉色的专色和黑色分两次印，所以总有一点对不准。那一点错位，是手工的证明。"))
                 .child(row().gap(12.0).align(AlignItems::CENTER).wrap()
                     .child(button_as(format!("{h}/subscribe"), "订阅", Variant::Primary, Msg::Press))
                     .child(segmented(&format!("{h}/issue"), &issues, issue, 30.0, |i| Msg::Choose(2, i)))))
-            .child(col().key(format!("{h}/right")).width(390.0).gap(12.0)
-                .child(pic_at(h, "photo", if issue == 1 { SKY } else { TREE }, 390.0, 1.0))
-                .child(row().gap(10.0).align(AlignItems::CENTER)
+            .child(col().key(format!("{h}/right")).width(r.full(390.0)).gap(12.0)
+                .child(pic_at(h, "photo", if issue == 1 { SKY } else { TREE }, r.full(390.0), 1.0))
+                .child(row().fill_width().gap(10.0).align(AlignItems::CENTER)
                     .child(space(28.0, 28.0).radius(14.0).fill(Paint::ACCENT))
                     .child(text_lh("图注：孤树，复印三次。", 13.0, 20.0, Paint::DIM)))))
         .child(space(1.0, 3.0).fill_width().fill(Paint::INK))
 }
 
 // ── 4 Glitch: a title card that bursts ───────────────────────────────────────────────────────────────
-fn glitch(s: &Gallery, h: &str) -> El<Msg> {
+fn glitch(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     col().key(format!("{h}/comp")).fill_width().gap(30.0).pad(0.0, 30.0)
         .child(col().key(format!("{h}/card")).gap(10.0)
             .child(text("ERR 0x3F　连接已中断", 14.0, Paint::hue(1)).font(Font::Mono))
             // Pressable, so the pointer coming onto it fires a burst over it.
-            .child(text_lh("信号中断", 120.0, 132.0, Paint::INK).font(Font::Display).weight(3.0).key(format!("{h}/title")).on_press(Msg::Press).focusable(false))
+            .child(text_lh("信号中断", r.size(4), 132.0 * r.size(4) / 120.0, Paint::INK).font(Font::Display).weight(3.0).key(format!("{h}/title")).on_press(Msg::Press).focusable(false))
             .child(text_lh("画面会在你经过时短暂地错位。静止时，它就是一张干净的页面。", 16.0, 28.0, Paint::DIM)))
         .child(row().key(format!("{h}/bar")).fill_width().height(2.0).fill(Paint::ACCENT))
         .child(row().key(format!("{h}/controls")).gap(12.0).align(AlignItems::CENTER).wrap()
@@ -184,71 +270,77 @@ fn glitch(s: &Gallery, h: &str) -> El<Msg> {
             .child(button_as(format!("{h}/report"), "发送报告", Variant::Quiet, Msg::Press))
             .child(switch(format!("{h}/auto"), "自动重试", s.toggles[3], None, Msg::Toggle(3)).width(200.0))
             .child(text(format!("已重试 {} 次", s.presses), 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/count"))))
-        .child(glitch_monitor(s, h))
+        .child(glitch_monitor(s, h, r))
 }
 
 /// Below the card: three channels, each a picture and a signal level, that tear when the pointer
 /// comes onto them.
-fn glitch_monitor(s: &Gallery, h: &str) -> El<Msg> {
+fn glitch_monitor(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let chans = [(SKY, "CH 01", 0.82), (TERRAIN, "CH 02", 0.41), (TREE, "CH 03", 0.0)];
-    let mut r = row().key(format!("{h}/monitor")).gap(20.0).wrap();
+    let mut mon = row().key(format!("{h}/monitor")).gap(20.0).wrap();
     for (i, (id, name, level)) in chans.iter().enumerate() {
         let lost = *level == 0.0 && s.presses == 0;
         let bars = (0..12).fold(row().gap(3.0).align(AlignItems::END).height(22.0), |r, b| {
             let on = (b as f32) < level * 12.0 || (!lost && *level == 0.0 && b < 9);
             r.child(space(6.0, 6.0 + b as f32 * 1.4).fill(if on { Paint::ACCENT } else { Paint::HAIRLINE }))
         });
-        r = r.child(col().key(format!("{h}/ch{i}")).width(260.0).gap(8.0).on_press(Msg::Press).focusable(false)
-            .child(pic(h, &format!("ch{i}-pic"), *id, 260.0))
+        mon = mon.child(col().key(format!("{h}/ch{i}")).width(r.full(260.0)).gap(8.0).on_press(Msg::Press).focusable(false)
+            .child(pic(h, &format!("ch{i}-pic"), *id, r.full(260.0)))
             .child(row().fill_width().justify(JustifyContent::SPACE_BETWEEN).align(AlignItems::CENTER)
                 .child(text(*name, 12.0, Paint::TEXT).font(Font::Mono))
                 .child(text(if lost { "无信号" } else { "已连接" }, 12.0, if lost { Paint::hue(0) } else { Paint::hue(1) }))
                 .child(bars)));
     }
-    r
+    mon
 }
 
 // ── 5 Metamorphosis Linocut: a poster ────────────────────────────────────────────────────────────────
-fn linocut(s: &Gallery, h: &str) -> El<Msg> {
+fn linocut(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let shown = [TREE, TERRAIN, SKY][s.choices[3].min(2)];
+    // Below `NARROW` the headline is set by `fit`; the space above it and the sun scale with it.
+    let z = r.size(5);
+    let k = z / 140.0;
     row().key(format!("{h}/comp")).gap(44.0).align(AlignItems::START).wrap()
-        .child(col().key(format!("{h}/left")).width(520.0).gap(20.0)
+        .child(col().key(format!("{h}/left")).width(r.full(520.0)).gap(20.0)
             // The headline in the flow, 130 px under the top with the sun behind it: the hero is as tall
             // as its lines: two in English, "Knife &" / "wood" (`assets/english.txt`).
-            .child(col().key(format!("{h}/hero")).width(520.0)
-                .child(space(190.0, 190.0).radius(95.0).fill(Paint::ACCENT).loose(0.6).key(format!("{h}/sun")).absolute(Some(320.0), Some(0.0), None, None))
-                .child(space(1.0, 130.0))
-                .child(text_lh("刀与木", 140.0, 150.0, Paint::INK).font(Font::Display).weight(3.0).loose(0.45).key(format!("{h}/headline"))))
+            .child(col().key(format!("{h}/hero")).width(r.full(520.0))
+                .child(space(190.0 * k, 190.0 * k).radius(95.0 * k).fill(Paint::ACCENT).loose(0.6).key(format!("{h}/sun")).absolute(Some(320.0 * k), Some(0.0), None, None))
+                .child(space(1.0, 130.0 * k))
+                .child(text_lh("刀与木", z, 150.0 * k, Paint::INK).font(Font::Display).weight(3.0).loose(0.45).key(format!("{h}/headline"))))
             .child(text_lh("每一道线都是从板上挖掉的。留下的才是墨。", 18.0, 30.0, Paint::INK))
-            .child(text_lh("版画展　十一月二十日至十二月十日　每天九点至五点", 14.0, 24.0, Paint::DIM))
+            .child(text_lh("版画展　十一月二十日至十二月十日　每天九点至五点", 14.0, 24.0, Paint::TEXT))
             .child(row().gap(12.0).align(AlignItems::CENTER)
                 .child(button_as(format!("{h}/next"), "换一张", Variant::Primary, Msg::Choose(3, (s.choices[3] + 1) % 3)))
                 .child(text(format!("第 {} 张，共 3 张", s.choices[3] % 3 + 1), 13.0, Paint::DIM))))
-        .child(col().key(format!("{h}/right")).width(380.0).gap(10.0)
+        .child(col().key(format!("{h}/right")).width(r.full(380.0)).gap(10.0)
             // The print itself is held loose: cut in strokes that follow the form.
-            .child(col().key(format!("{h}/print-box")).width(380.0).child(picture(shown, ratio(shown)).key(format!("{h}/print")).markr(STYLE_SLOT).loose(1.0)))
+            .child(col().key(format!("{h}/print-box")).width(r.full(380.0)).child(picture(shown, ratio(shown)).key(format!("{h}/print")).markr(STYLE_SLOT).loose(1.0)))
             .child(text("木版　34 × 28 厘米", 12.0, Paint::DIM)))
 }
 
 // ── 6 Tech-Manual: an exploded diagram and its parts list ───────────────────────────────────────────
 const PARTS: [(&str, &str); 6] = [("上盖", "1"), ("面板", "1"), ("旋钮", "2"), ("电路板", "1"), ("电池仓", "1"), ("底座", "1")];
-fn manual(s: &Gallery, h: &str) -> El<Msg> {
+fn manual(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let hot = |i: usize| s.hovered.as_deref() == Some(format!("{h}/part{i}").as_str()) || s.hovered.as_deref() == Some(format!("{h}/row{i}").as_str());
-    let part = |i: usize, l: f32, t: f32, w: f32, hh: f32, r: f32| {
+    // Below `NARROW` the drawing is the room's width at its own ratio: every part scales with it.
+    let k = r.of(600.0) / 600.0;
+    let part = |i: usize, l: f32, t: f32, w: f32, hh: f32, rad: f32| {
         let on = hot(i);
-        space(w, hh).radius(r).fill(if on { Paint::ACCENT.alpha(0.85) } else { Paint::tone(0.06) }).border(1.0, if on { Paint::ACCENT } else { Paint::INK })
+        let (l, t, w, hh, rad) = (l * k, t * k, w * k, hh * k, rad * k);
+        space(w, hh).radius(rad).fill(if on { Paint::ACCENT.alpha(0.85) } else { Paint::tone(0.06) }).border(1.0, if on { Paint::ACCENT } else { Paint::INK })
             .key(format!("{h}/part{i}")).annotate(PARTS[i].0).on_press(Msg::Row(i)).focusable(false).absolute(Some(l), Some(t), None, None)
     };
     // The parts stacked along a diagonal, pulled apart.
-    let diagram = col().key(format!("{h}/diagram")).width(600.0).height(520.0).gaze_scope()
+    let diagram = col().key(format!("{h}/diagram")).width(600.0 * k).height(520.0 * k).gaze_scope()
         .child(part(0, 210.0, 40.0, 240.0, 46.0, 8.0))
         .child(part(1, 230.0, 120.0, 200.0, 70.0, 4.0))
         .child(part(2, 270.0, 215.0, 36.0, 36.0, 18.0))
-        .child(space(1.0, 300.0).fill(Paint::DIM).absolute(Some(330.0), Some(70.0), None, None))
+        .child(space(1.0, 300.0 * k).fill(Paint::DIM).absolute(Some(330.0 * k), Some(70.0 * k), None, None))
         .child(part(3, 220.0, 280.0, 220.0, 54.0, 2.0))
         .child(part(4, 250.0, 360.0, 160.0, 44.0, 6.0))
         .child(part(5, 190.0, 440.0, 280.0, 40.0, 10.0));
-    let mut list = col().key(format!("{h}/parts")).width(300.0).gap(0.0)
+    let mut list = col().key(format!("{h}/parts")).width(r.of(300.0)).gap(0.0)
         .child(row().fill_width().pad(10.0, 8.0).child(text("零件表", 15.0, Paint::INK).font(Font::Display).grow(1.0)).child(text("数量", 12.0, Paint::DIM)))
         .child(space(1.0, 2.0).fill_width().fill(Paint::INK));
     for (i, (name, n)) in PARTS.iter().enumerate() {
@@ -260,26 +352,29 @@ fn manual(s: &Gallery, h: &str) -> El<Msg> {
         if on { r = r.fill(Paint::ACCENT); }
         list = list.child(r).child(space(1.0, 1.0).fill_width().fill(Paint::HAIRLINE));
     }
-    list = list.child(text_lh("把指针移到一行上，图上对应的部件会标出来；反过来也一样。", 12.0, 20.0, Paint::DIM).key(format!("{h}/hint")));
+    list = list.child(text_lh("把指针移到一行上，图上对应的部件会标出来；反过来也一样。", 12.0, 20.0, Paint::TEXT).key(format!("{h}/hint")));
     row().key(format!("{h}/comp")).gap(40.0).align(AlignItems::START).wrap()
         .child(col().gap(8.0).child(text("图 3　分解图（单位：毫米）", 12.0, Paint::DIM).font(Font::Mono)).child(diagram))
         .child(list)
 }
 
 // ── 7 Normcore: a plain settings form ────────────────────────────────────────────────────────────────
-fn normcore(s: &Gallery, h: &str) -> El<Msg> {
-    let field = |label: &str, el: El<Msg>| row().fill_width().gap(16.0).align(AlignItems::CENTER).child(row().width(120.0).child(text(label, 14.0, Paint::TEXT))).child(el);
-    col().key(format!("{h}/comp")).width(560.0).gap(16.0)
-        .child(text("设置", 26.0, Paint::INK).font(Font::Display))
+fn normcore(s: &Gallery, h: &str, r: Room) -> El<Msg> {
+    // Below `NARROW` a field's label goes above its control.
+    let field = |label: &str, el: El<Msg>| if r.narrow { col().fill_width().gap(6.0).child(text(label, 14.0, Paint::TEXT)).child(el) }
+        else { row().fill_width().gap(16.0).align(AlignItems::CENTER).child(row().width(120.0).child(text(label, 14.0, Paint::TEXT))).child(el) };
+    let w = r.of(560.0);
+    col().key(format!("{h}/comp")).width(w).gap(16.0)
+        .child(text("设置", r.size(6), Paint::INK).font(Font::Display))
         .child(text("通用", 12.0, Paint::DIM))
         .child(card(format!("{h}/general"), None, col().gap(12.0).fill_width()
-            .child(field("名称", input(&format!("{h}/general/name"), &s.text, "我的电脑", 300.0, 40, Msg::Text)))
+            .child(field("名称", input(&format!("{h}/general/name"), &s.text, "我的电脑", r.of(300.0), 40, Msg::Text)))
             .child(field("外观", segmented(&format!("{h}/look"), &["自动", "浅色", "深色"], s.choices[4].min(2), 28.0, |i| Msg::Choose(4, i))))
-            .child(field("字号", number(&format!("{h}/size"), "", s.slides[3], Spec { min: 10.0, max: 22.0, step: 1.0, decimals: 0, unit: "pt" }, s.draft(Target::StyleNum(3)), |e| Msg::Num(Target::StyleNum(3), e)).width(300.0)))).width(560.0))
+            .child(field("字号", number(&format!("{h}/size"), "", s.slides[3], Spec { min: 10.0, max: 22.0, step: 1.0, decimals: 0, unit: "pt" }, s.draft(Target::StyleNum(3)), |e| Msg::Num(Target::StyleNum(3), e)).width(r.of(300.0))))).width(w))
         .child(text("通知", 12.0, Paint::DIM))
         .child(card(format!("{h}/notes"), None, col().gap(8.0).fill_width()
             .child(switch(format!("{h}/updates"), "自动检查更新", s.toggles[4], None, Msg::Toggle(4)).fill_width())
-            .child(switch(format!("{h}/alerts"), "显示通知", s.toggles[5], None, Msg::Toggle(5)).fill_width())).width(560.0))
+            .child(switch(format!("{h}/alerts"), "显示通知", s.toggles[5], None, Msg::Toggle(5)).fill_width())).width(w))
         .child(row().fill_width().gap(10.0).justify(JustifyContent::END)
             .child(button_as(format!("{h}/cancel"), "取消", Variant::Default, Msg::Press))
             .child(button_as(format!("{h}/save"), "存储", Variant::Primary, Msg::Press)))
@@ -290,10 +385,10 @@ const COMMANDS: [(&str, &str); 8] = [
     ("layout.reset", "恢复默认布局"), ("layout.grid", "显示网格"), ("theme.dark", "切换到深色"), ("files.open", "打开文件"),
     ("files.recent", "最近的文件"), ("view.zoom", "缩放"), ("lab.ripple", "放出一道波前"), ("lab.gaze", "打开标注层"),
 ];
-fn cyber(s: &Gallery, h: &str) -> El<Msg> {
+fn cyber(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let q = s.query.text.to_lowercase();
     let hits: Vec<&(&str, &str)> = COMMANDS.iter().filter(|(c, d)| q.is_empty() || c.contains(&q) || d.contains(&q)).collect();
-    let w = (s.width - if s.width < super::NARROW { 40.0 } else { super::side(s) + 100.0 }).clamp(280.0, 560.0);
+    let w = r.of((s.width - if r.narrow { 40.0 } else { super::side(s) + 100.0 }).clamp(280.0, 560.0));
     let mut results = col().key(format!("{h}/results")).width(w).gap(0.0);
     let sel = s.row.unwrap_or(0).min(hits.len().saturating_sub(1));
     for (i, (c, d)) in hits.iter().enumerate() {
@@ -317,27 +412,34 @@ fn cyber(s: &Gallery, h: &str) -> El<Msg> {
         .child(space(w, 1.0).fill(Paint::ACCENT).key(format!("{h}/rule")))
         .child(space(1.0, 10.0))
         .child(list)
-        .child(row().key(format!("{h}/status")).fill_width().justify(JustifyContent::SPACE_BETWEEN).absolute(Some(0.0), None, Some(0.0), Some(0.0))
+        // Below `NARROW` the status line wraps inside the results' width: what is picked goes under the count.
+        .child(if r.narrow { row().width(w).gap(4.0).wrap().absolute(Some(0.0), None, None, Some(0.0)) } else { row().fill_width().absolute(Some(0.0), None, Some(0.0), Some(0.0)) }
+            .key(format!("{h}/status")).justify(JustifyContent::SPACE_BETWEEN)
             .child(text(format!("{} 条结果　·　↑↓ 选择　·　回车执行", hits.len()), 11.0, Paint::DIM).font(Font::Mono))
             .child(text(format!("已选 {picked}"), 11.0, Paint::ACCENT).font(Font::Mono).key(format!("{h}/picked"))))
 }
 
 // ── 9 Bauhaus: a geometric poster with a control group ─────────────────────────────────────────────
-fn bauhaus(s: &Gallery, h: &str) -> El<Msg> {
+fn bauhaus(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     let pick = s.choices[5].min(2);
     let big = |i: usize| if pick == i { 1.0 } else { 0.62 };
-    let poster = col().key(format!("{h}/poster")).width(620.0).height(620.0)
-        .child(space(620.0, 8.0).fill(Paint::INK).absolute(Some(0.0), Some(140.0), None, None))
-        .child(space(8.0, 620.0).fill(Paint::INK).absolute(Some(400.0), Some(0.0), None, None))
-        .child(space(300.0 * big(0), 300.0 * big(0)).radius(150.0 * big(0)).fill(Paint::ACCENT).key(format!("{h}/circle")).absolute(Some(60.0), Some(190.0), None, None))
-        .child(space(200.0 * big(1), 200.0 * big(1)).fill(Paint::hue(1)).key(format!("{h}/square")).absolute(Some(410.0), Some(150.0), None, None))
-        .child(space(210.0, 110.0 * big(2)).radius(55.0 * big(2)).fill(Paint::hue(2)).key(format!("{h}/bar")).absolute(Some(408.0), Some(470.0), None, None))
-        .child(text_lh("形·色·线", 96.0, 110.0, Paint::INK).font(Font::Display).weight(2.5).key(format!("{h}/headline")).absolute(Some(20.0), Some(16.0), None, None))
-        .child(text_lh("包豪斯 1919 — 1933", 15.0, 22.0, Paint::INK).font(Font::Mono).absolute(Some(20.0), Some(580.0), None, None));
+    // Below `NARROW` the poster is the room's width at its own ratio: its shapes and grid scale with it,
+    // and the headline is set by `fit` in the width beside its offset.
+    let k = r.of(620.0) / 620.0;
+    let (lines, at) = (DISPLAY[7], 20.0 * k);
+    let z = if r.narrow { fit(lines.2, lines.3, 620.0 * k - at) } else { lines.2 };
+    let poster = col().key(format!("{h}/poster")).width(620.0 * k).height(620.0 * k)
+        .child(space(620.0 * k, 8.0 * k).fill(Paint::INK).absolute(Some(0.0), Some(140.0 * k), None, None))
+        .child(space(8.0 * k, 620.0 * k).fill(Paint::INK).absolute(Some(400.0 * k), Some(0.0), None, None))
+        .child(space(300.0 * big(0) * k, 300.0 * big(0) * k).radius(150.0 * big(0) * k).fill(Paint::ACCENT).key(format!("{h}/circle")).absolute(Some(60.0 * k), Some(190.0 * k), None, None))
+        .child(space(200.0 * big(1) * k, 200.0 * big(1) * k).fill(Paint::hue(1)).key(format!("{h}/square")).absolute(Some(410.0 * k), Some(150.0 * k), None, None))
+        .child(space(210.0 * k, 110.0 * big(2) * k).radius(55.0 * big(2) * k).fill(Paint::hue(2)).key(format!("{h}/bar")).absolute(Some(408.0 * k), Some(470.0 * k), None, None))
+        .child(text_lh("形·色·线", z, 110.0 * z / 96.0, Paint::INK).font(Font::Display).weight(2.5).key(format!("{h}/headline")).absolute(Some(at), Some(16.0 * k), None, None))
+        .child(text_lh("包豪斯 1919 — 1933", 15.0, 22.0, Paint::INK).font(Font::Mono).absolute(Some(at), Some(620.0 * k - 40.0), None, None));
     row().key(format!("{h}/comp")).gap(32.0).align(AlignItems::START).wrap()
         .child(poster)
-        .child(col().key(format!("{h}/side")).width(260.0).gap(18.0)
-            .child(text_lh("形式追随功能。", 24.0, 34.0, Paint::INK).font(Font::Display))
+        .child(col().key(format!("{h}/side")).width(r.full(260.0)).gap(18.0)
+            .child(text_lh("形式追随功能。", r.size(8), 34.0 * r.size(8) / 24.0, Paint::INK).font(Font::Display))
             .child(text_lh("选一个形状，它会变大。三种颜色、三种形状和一道粗网格，就是这张海报的全部。", 15.0, 26.0, Paint::TEXT))
             .child(segmented(&format!("{h}/shape"), &["圆", "方", "条"], pick, 32.0, |i| Msg::Choose(5, i)))
             .child(choice(&format!("{h}/weight"), "网格", &["细", "粗"], s.choices[6].min(1), |i| Msg::Choose(6, i)))
@@ -365,19 +467,20 @@ fn tangle(r: f32, above: f32, below: f32) -> std::rc::Rc<Vec<[f32; 2]>> {
         p
     })
 }
-fn loose_thread(s: &Gallery, h: &str) -> El<Msg> {
+fn loose_thread(s: &Gallery, h: &str, r: Room) -> El<Msg> {
     use amenui::el::Role;
     use amenui::style::{THREAD, THREAD_PAPER, theme_index};
     // English whatever the language (the demo pages show no Chinese).
     let en = |k: &str| amenui::i18n::Locale::En.tr(k);
     let narrow = s.width < super::NARROW;
-    let w = if narrow { (s.width - 40.0).max(280.0) } else { 640.0 };
+    let w = if narrow { r.w } else { 640.0 };
     let (pic_w, side_w, height) = if narrow { (w, w, 760.0) } else { (300.0, 260.0, 480.0) };
     // The pointer stirs the field map where it passes: a point under it that stirs as it moves.
     let stylus = s.thread_at.map(|(x, y)| space(1.0, 1.0).key(format!("{h}/stylus")).stirr(Stirr { energy: 1.0, radius: Some(72.0), scope: Scope::Container(Some(format!("{h}/comp"))) }).absolute(Some(x), Some(y), None, None));
     // Its own scope for ripples, the map and the threads (they stop at its edge).
-    let mut comp = col().key(format!("{h}/comp")).width(w + 72.0).height(height).gap(0.0).gaze_scope().ripplr_scope().on_move(|p| Some(Msg::ThreadAt(p)));
-    comp.style.padding.right = taffy::prelude::length(72.0);
+    // The 72 px on the right are the strand's (drawn only at full width).
+    let mut comp = col().key(format!("{h}/comp")).width(if narrow { w } else { w + 72.0 }).height(height).gap(0.0).gaze_scope().ripplr_scope().on_move(|p| Some(Msg::ThreadAt(p)));
+    if !narrow { comp.style.padding.right = taffy::prelude::length(72.0); }
     // The tangle: content, drawn under any material, its knot under the picture's bottom right corner
     // (behind it) and its strand from the top of the page to just above the footer, clear of the text to read.
     if !narrow {
