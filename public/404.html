@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en" class="doc">
+<head>
+<script>(()=>{const m={"accordion":"components/accordion/","ai-agents":"docs/reference/agents/","ai-llms":"docs/reference/llms/","ai-registry":"docs/reference/registry/","avatar":"components/avatar/","badge":"components/badge/","body":"","bottom-sheet":"components/bottom-sheet/","breadcrumb":"components/breadcrumb/","button":"components/button/","caption":"components/caption/","card":"components/card/","card-stack":"components/card-stack/","changelog":"docs/release-notes/","checkbox":"components/checkbox/","choice":"components/choice/","command":"components/command/","components":"components/","context-menu":"components/context-menu/","decode":"lab/decode/","demo":"lab/skeleton/","dialog":"components/dialog/","divider":"components/divider/","docs-accessibility":"docs/guides/accessibility/","docs-annotation":"docs/concepts/annotation/","docs-cli":"docs/reference/cli/","docs-first-view":"docs/start/first-view/","docs-forms":"docs/guides/forms/","docs-i18n":"docs/guides/i18n/","docs-installation":"docs/start/installation/","docs-introduction":"docs/start/introduction/","docs-layout":"docs/concepts/layout/","docs-materials":"docs/concepts/materials/","docs-particles":"docs/concepts/particles/","docs-performance":"docs/guides/performance/","docs-presets":"docs/concepts/presets/","docs-project-structure":"docs/start/project-structure/","docs-registry-schema":"docs/reference/registry-schema/","docs-ripples":"docs/concepts/ripples/","docs-rtl":"docs/guides/rtl/","docs-testing":"docs/guides/testing/","docs-text":"docs/concepts/text/","docs-theming":"docs/guides/theming/","docs-three-d":"docs/concepts/three-d/","docs-transforms":"docs/concepts/transforms/","docs-tree-and-messages":"docs/concepts/tree-and-messages/","dot-chart":"components/dot-chart/","floating":"components/floating/","flow":"lab/page-change/","gallery":"components/","gaze":"lab/annotation/","image":"components/image/","input":"components/input/","lab":"lab/","lab-contours":"lab/contours/","lab-flow":"lab/flow/","lab-grown":"lab/grown/","lab-kern":"lab/kern/","lab-loupe":"lab/loupe/","lab-lumen":"lab/lumen/","lab-reader":"lab/reader/","lab-silk":"lab/silk/","lab-spring":"lab/spring/","lab-stack":"lab/stack/","lab-weld":"lab/weld/","list":"components/list/","list-10k":"components/list/10k/","marks-braille":"lab/marks/braille/","marks-brick":"lab/marks/brick/","marks-chars":"lab/marks/chars/","marks-cross":"lab/marks/cross/","marks-cubes":"lab/marks/cubes/","marks-diagonal":"lab/marks/diagonal/","marks-diamond":"lab/marks/diamond/","marks-dither":"lab/marks/dither/","marks-dots":"lab/marks/dots/","marks-glow":"lab/marks/glow/","marks-hatch":"lab/marks/hatch/","marks-hex":"lab/marks/hex/","marks-led":"lab/marks/led/","marks-lines":"lab/marks/lines/","marks-mosaic":"lab/marks/mosaic/","marks-pixel":"lab/marks/pixel/","marks-stipple":"lab/marks/stipple/","marks-stroke":"lab/marks/stroke/","marks-topo":"lab/marks/topo/","marks-truchet":"lab/marks/truchet/","material-carvr":"lab/materials/carvr/","material-charr":"lab/materials/charr/","material-dottr":"lab/materials/dottr/","material-glitchr":"lab/materials/glitchr/","material-halftonr":"lab/materials/halftonr/","material-near":"lab/materials/near/","material-plain":"lab/materials/plain/","material-scribblr":"lab/materials/scribblr/","material-smudgr":"lab/materials/smudgr/","menu":"components/menu/","morph":"lab/morph/","nested-menu":"components/nested-menu/","number":"components/number/","orbit":"components/orbit/","pagination":"components/pagination/","particles":"lab/particles/","popover":"components/popover/","progress":"components/progress/","radio":"components/radio/","scene-morph":"lab/word-to-interface/","scene-opening":"lab/opening/","scene-printing":"lab/printed/","scene-reading":"lab/read-an-article/","scene-sound":"lab/sound/","scene-styles":"lab/nine-styles/","scene-xray":"lab/take-apart/","scenes":"lab/","scroll-area":"components/scroll-area/","select":"components/select/","sheet":"components/sheet/","skeleton":"components/skeleton/","skip-link":"components/skip-link/","slider":"components/slider/","stirr":"lab/field-map/","style-bauhaus":"lab/presets/bauhaus/","style-cyberminimal":"lab/presets/cyberminimal/","style-dotmatrix":"lab/presets/dotmatrix/","style-gaze":"lab/presets/gaze/","style-glitch":"lab/presets/glitch/","style-linocut":"lab/presets/linocut/","style-lofi-print":"lab/presets/lofi-print/","style-loose-thread":"lab/presets/loose-thread/","style-normcore":"lab/presets/normcore/","style-tech-manual":"lab/presets/tech-manual/","styles":"lab/presets/","switch":"components/switch/","table":"components/table/","tabs":"components/tabs/","three":"lab/3d/","toast":"components/toast/","toggle":"components/toggle/","tooltip":"components/tooltip/","type":"lab/type/","work-ground-truth":"works/ground-truth/","work-nightly":"works/nightly/","work-touch-grass":"works/touch-grass/","works":"works/"},h=decodeURIComponent(location.hash.slice(1));if(h&&!h.startsWith("look:")&&m[h]!==undefined)location.replace("/"+m[h]);})()</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Not found · amenui</title>
+<meta name="description" content="amenui is a GUI framework in Rust that draws everything itself, on the desktop and on the web.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:,">
+<script>(() => {
+const D = document, r = D.documentElement, KEY = 'amenui.theme', PICKS = ['auto', 'light', 'dark'];
+const sys = matchMedia('(prefers-color-scheme: light)');
+let pick = 'auto';
+try { const v = localStorage.getItem(KEY); if (PICKS.includes(v)) pick = v; } catch (e) {}
+const label = () => { for (const b of D.querySelectorAll('.scheme')) { const v = b.querySelector('.' + pick[0]); if (v) b.setAttribute('aria-label', b.dataset.label + ': ' + v.textContent); } };
+const apply = from => {
+const was = r.dataset.theme, now = pick === 'auto' ? (sys.matches ? 'light' : 'dark') : pick;
+r.dataset.pick = pick;
+r.dataset.theme = now;
+label();
+if (was && was !== now) D.dispatchEvent(new CustomEvent('amenui:scheme', { detail: { from } }));
+};
+apply(null);
+sys.addEventListener('change', () => { if (pick === 'auto') apply(null); });
+D.addEventListener('DOMContentLoaded', label);
+D.addEventListener('click', e => {
+const b = e.target.closest && e.target.closest('.scheme');
+if (!b) return;
+pick = PICKS[(PICKS.indexOf(pick) + 1) % PICKS.length];
+try { localStorage.setItem(KEY, pick); } catch (e) {}
+const c = b.getBoundingClientRect();
+apply([c.left + c.width / 2, c.top + c.height / 2]);
+});
+})();</script>
+<link rel="alternate" hreflang="en" href="/"><link rel="alternate" hreflang="zh-Hans" href="/zh-Hans/">
+<link rel="preload" href="/fonts/departure-mono.3957b852a1.otf" as="font" type="font/otf" crossorigin>
+<style>@font-face{font-family:"Departure Mono";src:url(/fonts/departure-mono.3957b852a1.otf) format("opentype");font-display:swap}@font-face{font-family:"Source Serif 4";src:url(/fonts/source-serif.ef5a402db1.ttf) format("truetype");font-display:swap}
+/* The page around the canvas: the navigation bar, the home page's text, its stage with the source
+   listing and the rail row, and the boot line. Everything here is in the first response; nothing
+   blocks the first paint. */
+/* A change of page inside the canvas (AA.11): the HTML over it comes in with the canvas's new page,
+   140 ms from 70 ms. */
+@keyframes pagein { from { opacity: 0; } }
+.home .hero, .home .rail { animation: pagein 140ms linear 70ms both; }
+@media (prefers-reduced-motion: reduce) { .home .hero, .home .rail { animation: none; } }
+/* The two schemes (AA.9, AA.10): graphite and paper. The page follows the system unless the bar's
+   switch chose one (`data-theme`, set before the first paint); without the script, the system's.
+   `--halo` is the selection's plate, `--lift` a primary button under the pointer, `--line-n` the
+   listing's line numbers as the canvas draws them (Paint::DIM on the ground). */
+:root { color-scheme: dark; --ground: #1a1b1d; --raised: #232528; --hairline: #383b40; --dim: #989da4; --text: #d6d8d4; --ink: #f2f2ee; --accent: #f47a3c; --second: #7db0f7; --warn: #f2c94c; --halo: #f2f2ee; --lift: #ffffff; --line-n: #a9a9a7;
+  --mono: "Departure Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; --serif: "Source Serif 4", "Source Serif Pro", Georgia, serif; --m: 32px; }
+:root[data-theme="light"] { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light; --ground: #f1f0eb; --raised: #e6e5df; --hairline: #cbc9c1; --dim: #5f6266; --text: #2b2c2e; --ink: #141517; --accent: #b23f0d; --second: #1a5cc7; --warn: #7d5c00; --halo: #141517; --lift: #000000; --line-n: #5f605f; } }
+@media (max-width: 1079px) { :root { --m: 24px; } }
+@media (max-width: 719px) { :root { --m: 16px; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--text); font: 17px/1.6 var(--serif); overflow: hidden; -webkit-font-smoothing: none; -moz-osx-font-smoothing: unset; }
+a { color: inherit; text-decoration: none; }
+/* Selection (L.1, AA.9): an ink plate with the text in the ground, the plate made as a halo, each
+   glyph's outline moved out 3 px in one opaque colour, so selected lines never form a lighter band. */
+::selection { background: transparent; color: var(--ground); text-shadow:
+  3px 0 var(--halo), -3px 0 var(--halo), 0 3px var(--halo), 0 -3px var(--halo),
+  2px 2px var(--halo), -2px 2px var(--halo), 2px -2px var(--halo), -2px -2px var(--halo),
+  3px 1px var(--halo), -3px 1px var(--halo), 3px -1px var(--halo), -3px -1px var(--halo),
+  1px 3px var(--halo), -1px 3px var(--halo), 1px -3px var(--halo), -1px -3px var(--halo); }
+.bar, .rail, .status, .sheet, button, .side, .toc, .pn, .toc-inline summary { -webkit-user-select: none; user-select: none; }
+.install code { -webkit-user-select: all; user-select: all; }
+input, textarea { caret-color: var(--accent); caret-shape: block; }
+.mono, .bar, .eyebrow, .btn, .install, .status, .sheet, h1 { font-family: var(--mono); font-weight: normal; }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+/* Past the bar to the page: the first Tab stop, shown only while focused. */
+.skip { position: fixed; z-index: 20; left: 8px; top: 8px; height: 32px; padding: 0 12px; display: flex; align-items: center; background: var(--ink); color: var(--ground);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; transform: translateY(-200%); }
+.skip:focus { transform: none; }
+
+/* The bar: 48 px (44 on a phone), 11 px uppercase labels with 44 px tall hit areas. */
+.bar { position: fixed; z-index: 10; left: 0; right: 0; top: 0; height: 48px; padding: 0 var(--m); display: flex; align-items: center; gap: 24px;
+  font-size: 11px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; background: var(--ground); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.home .bar { background: transparent; border-color: transparent; }
+/* Home lays out in a frame of at most 1,600 px, centred: the bar, the text block, the stage, the rail
+   and the status line keep the window's margins only up to the frame's width. */
+:root { --fw: min(100vw, 1600px); --fx: max(0px, (100vw - 1600px) / 2); }
+.home .bar { padding: 0 calc(var(--m) + var(--fx)); }
+.bar a, .bar button { display: inline-flex; align-items: center; height: 44px; color: var(--text); background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.bar a:hover, .bar button:hover { color: var(--ink); }
+.bar a.word { text-transform: none; color: var(--ink); font-size: 22px; line-height: 22px; letter-spacing: 0; }
+.word i { display: inline-block; width: .55em; height: .8em; margin-left: 2px; background: var(--accent); animation: blink 1s steps(1) 3; }
+@keyframes blink { 50% { opacity: 0; } }
+.nav { display: flex; gap: 12px; }
+.nav a::before { content: "["; color: transparent; } .nav a::after { content: "]"; color: transparent; }
+/* The current section: its label in ink, its brackets the one mark in the accent (AA.9). */
+.nav a[aria-current] { color: var(--ink); } .nav a[aria-current]::before, .nav a[aria-current]::after { color: var(--accent); }
+.nav a:hover::before, .nav a:hover::after { color: var(--dim); }
+.end { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.lang b { color: var(--ink); font-weight: normal; }
+.lang span { color: var(--dim); padding: 0 6px; }
+/* The scheme's switch: the choice's name, auto · light · dark in turn. With no script it is not there. */
+.scheme span { display: none; }
+:root[data-pick="auto"] .scheme .a, :root[data-pick="light"] .scheme .l, :root[data-pick="dark"] .scheme .d { display: inline; }
+:root:not([data-pick]) .scheme { display: none !important; }
+.menu-btn { display: none !important; margin-left: auto; }
+@media (max-width: 1079px) { .wide { display: none !important; } }
+@media (max-width: 719px) {
+  .bar { height: 44px; } .nav, .end { display: none; } .menu-btn { display: inline-flex !important; }
+}
+/* The phone's sheet: the sections, then search, language and GitHub. */
+.sheet { position: fixed; z-index: 9; inset: 0; padding: 60px var(--m) var(--m); background: var(--ground); display: none; flex-direction: column; }
+.sheet.open { display: flex; }
+.sheet a { display: flex; align-items: center; height: 56px; color: var(--text); font-size: 22px; border-bottom: 1px solid var(--hairline); }
+.sheet a small { font-size: 11px; color: var(--dim); width: 40px; }
+.sheet a[aria-current] { color: var(--ink); } .sheet a[aria-current] small { color: var(--accent); }
+.sheet .row { display: flex; gap: 24px; padding-top: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.sheet .row a, .sheet .row button { height: 44px; font-size: 11px; border: 0; background: none; color: var(--text); font-family: inherit; text-transform: inherit; letter-spacing: inherit; padding: 0; }
+
+/* Cross-document view transitions (F.8): the bar holds while the page under it changes. */
+@view-transition { navigation: auto; }
+.bar { view-transition-name: bar; }
+::view-transition-group(*) { animation-duration: 140ms; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+/* The docs pages (site design D.5): sidebar 232 px, text at most 720 px, contents 200 px, 48 px
+   between; in the site's two schemes (AA.9, AA.10), whose tokens are the chrome's. Inlined into every
+   docs page after the chrome's rules from shell.html. */
+html.doc { --cjk: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace; scroll-padding-top: 72px; }
+html.doc, .doc body { height: auto; }
+.doc body { overflow: visible; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+.doc .bar, .doc .sheet, .doc .docs .side, .doc .path, .doc .title, .doc .toc, .doc .pn, .doc h2, .doc h3, .doc figcaption, .doc th, .doc .foot, .doc .stage figcaption { -webkit-font-smoothing: none; }
+.doc .bar { background: var(--ground); }
+.sheet .close { display: none; }
+.doc .sheet:target { display: flex; }
+.doc .sheet .close { display: flex; position: absolute; right: var(--m); top: 0; height: 44px; font-size: 22px; border: 0; }
+
+/* The three columns, centred in the 1,320 px content width. */
+.docs { display: grid; grid-template-columns: 232px minmax(0, 720px) 200px; column-gap: 48px; justify-content: center; max-width: 1320px; margin: 0 auto; padding: 48px var(--m) 0; }
+.side, .toc { position: sticky; top: 48px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.side-in { padding: 32px 0 48px; }
+.toc-in { padding: 104px 0 48px; }
+.doc-main { min-width: 0; padding: 32px 0 72px; }
+
+/* Sidebar: groups 11 px uppercase dim with their numbers; pages 11 px uppercase in 28 px rows. */
+.side, .toc, .path, .title .num, .pn, .foot, .only-en { font: 11px/14px var(--mono); letter-spacing: .06em; }
+.side .g { margin: 24px 0 4px; color: var(--dim); text-transform: uppercase; }
+.side .g:first-of-type { margin-top: 0; }
+.side .g small, .sheet small { font-size: inherit; margin-right: 12px; }
+.side ul { list-style: none; margin: 0; padding: 0; }
+.side li a, .side summary { position: relative; display: flex; align-items: center; min-height: 28px; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.side li a:hover, .side summary:hover { color: var(--ink); }
+.side a[aria-current] { color: var(--ink); } .side .here { color: var(--accent); }
+.side .here, .toc .here { position: absolute; left: 0; font-style: normal; view-transition-name: here; }
+.side summary { cursor: pointer; list-style: none; color: var(--dim); }
+.side summary::-webkit-details-marker { display: none; }
+.side summary::before { content: "+"; position: absolute; left: 0; }
+.side details[open] > summary::before { content: "−"; }
+.side summary small { font-size: inherit; margin-left: 8px; }
+.side .sub ul { padding-left: 12px; }
+.side-close { display: none; }
+
+/* Title block: the path in 11 px dim, the title at 33 px with the page number at the right. */
+.path { margin: 0 0 24px; color: var(--dim); text-transform: uppercase; }
+.path a { color: var(--dim); } .path a:hover { color: var(--ink); }
+.path-open { display: none; }
+.title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 24px; }
+.title h1 { min-width: 0; overflow-wrap: anywhere; font: 33px/33px var(--mono); color: var(--ink); margin: 0; -webkit-font-smoothing: none; }
+/* A heading that holds Chinese is one face, the system's CJK sans at weight 500, Latin included
+   (D.1 as amended by I.3 ruling 11); the build marks it `cjk`. */
+.doc h1.cjk, .prose h2.cjk { font-family: var(--cjk); font-weight: 500; -webkit-font-smoothing: auto; }
+.prose h3.cjk, .prose h4.cjk { font: 500 14px/20px var(--cjk); letter-spacing: 0; -webkit-font-smoothing: auto; }
+.title .num { color: var(--dim); flex: none; }
+.only-en { color: var(--dim); margin: -12px 0 24px; text-transform: uppercase; }
+
+/* Text: Source Serif 4 at 17 px for English, the system's CJK sans at 16 px for Chinese. */
+.prose { font: 17px/1.6 var(--serif); color: var(--text); overflow-wrap: break-word; }
+html[lang="zh-Hans"] .prose:not([lang]) { font: 16px/1.75 var(--cjk); }
+.prose p, .prose ul, .prose ol { margin: 0 0 16px; }
+.prose ul, .prose ol { padding-left: 24px; }
+.prose li { margin: 0 0 4px; }
+.prose li > ul, .prose li > ol { margin: 4px 0 0; }
+.prose .lead { color: var(--ink); }
+.prose strong { font-weight: normal; color: var(--ink); }
+.prose em { font-style: italic; }
+.prose a { color: var(--second); text-decoration: underline dotted 1px; text-underline-offset: 3px; }
+.prose a:hover { text-decoration-style: solid; }
+.prose h2 a, .prose h3 a, .prose h4 a { color: inherit; text-decoration: none; }
+/* Second level: 22 px, set into a hairline like a section header. Third: 11 px uppercase in ink. */
+.prose h2 { display: flex; align-items: center; gap: 16px; font: 22px/22px var(--mono); color: var(--ink); margin: 48px 0 24px; }
+.prose h2::before { content: ""; flex: 0 0 24px; height: 1px; background: var(--hairline); }
+.prose h2::after { content: ""; flex: 1 1 24px; min-width: 24px; height: 1px; background: var(--hairline); }
+.prose h3, .prose h4 { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin: 32px 0 12px; }
+.prose hr { border: 0; border-top: 1px solid var(--hairline); margin: 32px 0; }
+.prose img { max-width: 100%; height: auto; }
+.prose code { font: .92em var(--code); background: var(--raised); padding: 1px 4px; }
+
+/* Code blocks: raised ground, hairline frame, a 28 px header with the language and copy. */
+.code { margin: 24px 0; min-width: 0; max-width: 100%; background: var(--raised); border: 1px solid var(--hairline); }
+.code figcaption { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px; border-bottom: 1px solid var(--hairline);
+  font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.code .copy { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--dim); background: none; border: 0; padding: 0 0 0 16px; height: 28px; cursor: pointer; }
+.code .copy:hover { color: var(--ink); }
+.js .code .copy { display: inline; }
+.code pre { margin: 0; padding: 12px 16px; overflow-x: auto; font: 13.5px/1.55 var(--code); color: var(--ink); tab-size: 4; }
+.prose .code code { font: inherit; background: none; padding: 0; }
+.code pre.num code { counter-reset: l; }
+.code .l { counter-increment: l; }
+.code .l::before { content: counter(l); display: inline-block; width: 3ch; margin-right: 16px; text-align: right; color: var(--dim); -webkit-user-select: none; user-select: none; }
+.code .c { color: var(--dim); } .code .s, .code .n { color: var(--second); } .code .hl { color: var(--ink); }
+
+/* Tables: header row 11 px uppercase dim, a hairline under each row, scrolling in their own box. */
+.table { overflow-x: auto; margin: 24px 0; }
+.prose table { border-collapse: collapse; min-width: 100%; font-size: 15px; line-height: 1.5; }
+html[lang="zh-Hans"] .prose:not([lang]) table { font-size: 14px; }
+.prose th { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); text-align: left; padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: bottom; }
+.prose td { padding: 8px 16px 8px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.prose .r { text-align: right; font-variant-numeric: tabular-nums; }
+.prose table.kv th { width: 30%; vertical-align: top; padding-top: 12px; }
+.prose td code { white-space: nowrap; }
+
+/* Notes: a character in the margin, the text indented 24 px, no box. */
+.note { position: relative; padding-left: 24px; margin: 24px 0; }
+.note .mark { position: absolute; left: 0; top: 0; font: 11px/27px var(--mono); color: var(--dim); }
+.note.warn .mark { color: var(--warn); }
+
+/* Page end: two cells, each a hairline frame 72 px high. */
+.pn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 72px; }
+.pn a { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 72px; padding: 0 16px; border: 1px solid var(--hairline); color: var(--ink); text-transform: uppercase; }
+.pn a:hover { border-color: var(--ink); }
+.pn small { font-size: inherit; color: var(--dim); }
+.pn .next { text-align: right; align-items: flex-end; grid-column: 2; }
+.pn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Table of contents: second-level headings; the one in view in ink, its mark in the accent. */
+.toc .label { margin: 0 0 8px; color: var(--dim); text-transform: uppercase; }
+.toc ol { list-style: none; margin: 0 0 24px; padding: 0; }
+.toc li a { position: relative; display: block; padding: 7px 0 7px 16px; color: var(--text); text-transform: uppercase; }
+.toc li a:hover { color: var(--ink); }
+.toc li a.on { color: var(--ink); } .toc .here { color: var(--accent); }
+.toc li a.on::before { content: "▸"; position: absolute; left: 0; }
+.toc .links a { display: block; padding: 7px 0; color: var(--text); text-transform: uppercase; }
+.toc .links a:hover { color: var(--ink); }
+.toc-inline { display: none; margin: 0 0 32px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.toc-inline summary { cursor: pointer; color: var(--dim); list-style: none; height: 28px; display: flex; align-items: center; }
+.toc-inline summary::-webkit-details-marker { display: none; }
+.toc-inline ol { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 1px solid var(--hairline); }
+.toc-inline a { display: block; padding: 7px 0; color: var(--text); }
+
+/* The live stage: the route's stage alone, 280 px tall (200 on a phone), full width, a hairline frame on
+   the raised colour and a 28 px caption strip. The still is drawn at the desktop box's size and shown
+   at its own size, centred, so a narrower box crops it as the live canvas does. */
+.stage { margin: 32px 0; view-transition-name: stage; }
+.stage .box { position: relative; height: 280px; background: var(--raised); border: 1px solid var(--hairline); overflow: hidden; }
+@media (max-width: 719px) { .stage .box { height: 200px; } }
+html:not(.js) .stage .run { cursor: default; }
+.stage .run { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; }
+.stage .box .live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* A still at its own size (docs.STILLS), centred: a box of another width crops it. */
+.stage .box img { position: absolute; left: 50%; top: 50%; width: 718px; height: 278px; max-width: none; transform: translate(-50%, -50%); display: block; }
+@media (max-width: 719px) { .stage .box img { width: min(358px, 100%); height: auto; } }
+/* The still of the scheme the page is in. */
+.stage img.s-light { display: none; }
+:root[data-theme="light"] .stage img.s-light { display: block; } :root[data-theme="light"] .stage img.s-dark { display: none; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .stage img.s-light { display: block; } :root:not([data-theme]) .stage img.s-dark { display: none; } }
+.stage .live canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.stage .live .a11y { position: absolute; inset: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+.stage .live .a11y div { position: fixed; overflow: hidden; white-space: nowrap; color: transparent; }
+.stage .live .ta { position: absolute; left: 0; top: 0; width: 2px; height: 20px; padding: 0; border: 0; margin: 0; resize: none; overflow: hidden; opacity: 0; color: transparent; background: transparent; caret-color: transparent; outline: none; white-space: pre; pointer-events: none; }
+.stage figcaption { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 28px; padding: 4px 0; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.stage figcaption a, .stage figcaption button { color: var(--text); font: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
+.stage figcaption a:hover, .stage figcaption button:hover { color: var(--ink); }
+.stage.on .state { color: var(--accent); }
+.stage .acts { display: flex; gap: 16px; flex: none; }
+
+/* The docs index: groups behind section headers (D.4). */
+/* Section header (D.4): a hairline with an index and a name set into it, 11 px; 48 px above, 24 below. */
+.prose h2.sec { font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; gap: 12px; margin: 48px 0 24px; }
+.prose h2.sec::before { flex-basis: 16px; }
+.prose h2.sec small { font: inherit; color: var(--dim); }
+.prose h2.sec small::after { content: ""; display: inline-block; width: 16px; height: 1px; background: var(--hairline); vertical-align: middle; margin-left: 12px; }
+.idx { list-style: none; padding: 0; margin: 0 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); column-gap: 24px; }
+.idx li { min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.idx a { display: flex; gap: 12px; color: var(--ink); text-decoration: none; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; -webkit-font-smoothing: none; }
+.idx a:hover { color: var(--ink); }
+.idx small { font-size: inherit; color: var(--dim); flex: none; width: 40px; }
+.idx p { margin: 6px 0 0 52px; font-size: 15px; line-height: 1.5; color: var(--text); }
+.idx.compact li { padding: 8px 0; }
+.idx .subhead { grid-column: 1 / -1; border: 0; padding: 16px 0 4px; font: 11px/14px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+
+/* The 404 page: "Not found" at 44 px, one line, three doors. */
+.nf { max-width: 1320px; margin: 0 auto; padding: 168px var(--m) 120px; }
+.nf h1 { font: 44px/44px var(--mono); color: var(--ink); margin: 0 0 24px; -webkit-font-smoothing: none; }
+.nf p { margin: 0 0 32px; color: var(--text); }
+html[lang="zh-Hans"] .nf p { font: 16px/1.75 var(--cjk); }
+.nf .doors { display: flex; flex-wrap: wrap; gap: 12px; }
+.nf .btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font: 11px/11px var(--mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--hairline); color: var(--ink); -webkit-font-smoothing: none; }
+.nf .btn:hover { border-color: var(--ink); }
+@media (max-width: 719px) { .nf { padding-top: 120px; } .nf .doors { flex-direction: column; } .nf .btn { height: 48px; justify-content: center; } }
+
+/* The footer: GitHub and the version, which leave the bar below 1,080 px. */
+.foot { max-width: 1320px; margin: 0 auto; padding: 24px var(--m) 32px; display: flex; gap: 24px; color: var(--dim); text-transform: uppercase; border-top: 1px solid var(--hairline); }
+.foot a { color: var(--text); } .foot a:hover { color: var(--ink); }
+
+/* 1,080 to 1,279 px: the contents fold into a line under the title. */
+@media (max-width: 1279px) {
+  .docs { grid-template-columns: 232px minmax(0, 720px); }
+  .toc { display: none; }
+  .toc-inline { display: block; }
+}
+/* Below 1,080 px: the sidebar is a sheet opened from the path line. */
+@media (max-width: 1079px) {
+  .docs { grid-template-columns: minmax(0, 720px); }
+  .side { display: none; position: fixed; z-index: 9; inset: 48px 0 0 0; max-height: none; background: var(--ground); padding: 0 var(--m); }
+  .side:target, .side.open { display: block; }
+  .side-close { display: flex; position: sticky; top: 0; justify-content: flex-end; align-items: center; height: 44px; font: 22px/22px var(--mono); color: var(--text); margin-bottom: -12px; }
+  .path-open { display: inline; } .path-text { display: none; }
+}
+@media (max-width: 719px) {
+  .docs { padding-top: 44px; }
+  .side { inset: 44px 0 0 0; }
+  .doc-main { padding-top: 24px; }
+  .title h1 { font-size: 22px; line-height: 22px; }
+  .prose h2 { font-size: 22px; margin-top: 40px; }
+  .pn { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pn .next { grid-column: 1; }
+  .idx { grid-template-columns: 1fr; }
+  .prose table { font-size: 14px; }
+}
+
+/* View transitions (F.8, with the chrome's): the sidebar holds and its marker glides. */
+.doc .side { view-transition-name: side; }
+@media print { .bar, .side, .toc, .pn, .foot, .stage { display: none !important; } .docs { display: block; padding: 0; } }
+/* A code name inside a label set in capitals keeps its case; zh-Hans labels are not transformed. */
+.side code, .path code, .pn code, .toc code, .toc-inline code, .idx code, .prose h3 code, .prose h4 code, .prose th code, .prose h2.sec code, .stage figcaption code { text-transform: none; font: inherit; letter-spacing: 0; }
+html[lang="zh-Hans"] .side, html[lang="zh-Hans"] .side *, html[lang="zh-Hans"] .path, html[lang="zh-Hans"] .pn a, html[lang="zh-Hans"] .toc *, html[lang="zh-Hans"] .toc-inline, html[lang="zh-Hans"] .prose h3, html[lang="zh-Hans"] .prose h4, html[lang="zh-Hans"] .prose th, html[lang="zh-Hans"] .prose h2.sec, html[lang="zh-Hans"] .idx a, html[lang="zh-Hans"] .idx .subhead, html[lang="zh-Hans"] .only-en, html[lang="zh-Hans"] .stage figcaption, html[lang="zh-Hans"] .foot { text-transform: none; }
+</style>
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<div id="nf"><a class="skip" href="#main">Skip to content</a>
+<header class="bar" data-tone="">
+  <a class="word" href="/" data-route="" aria-label="amenui">amenui<i></i></a>
+  <nav class="nav" aria-label="Sections">
+    <a href="/docs/" data-route="docs/" data-section="docs">docs</a>
+    <a href="/components/" data-route="components/" data-section="components">components</a>
+    <a href="/lab/" data-route="lab/" data-section="lab">lab</a>
+    <a href="/works/" data-route="works/" data-section="works">works</a>
+  </nav>
+  <div class="end">
+    <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / search ]</button>
+    <span class="lang"><b>en</b><span>·</span><a href="/zh-Hans/" lang="zh-Hans" hreflang="zh-Hans">中</a></span>
+    <button type="button" class="scheme" data-label="Appearance"><span class="a">auto</span><span class="l">light</span><span class="d">dark</span></button>
+    <a class="wide" href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a>
+    <a class="wide" href="/docs/release-notes/" data-route="docs/release-notes/">v0.0.1</a>
+  </div>
+  <a class="menu-btn" href="#sheet" aria-expanded="false" aria-controls="sheet">[ menu ]</a>
+</header>
+<div class="sheet" id="sheet">
+  <a href="/docs/" data-route="docs/" data-section="docs"><small>01</small>docs</a>
+  <a href="/components/" data-route="components/" data-section="components"><small>02</small>components</a>
+  <a href="/lab/" data-route="lab/" data-section="lab"><small>03</small>lab</a>
+  <a href="/works/" data-route="works/" data-section="works"><small>04</small>works</a>
+  <div class="row"><button type="button" class="search">/ search</button><span class="lang"><b>en</b><span>·</span><a href="/zh-Hans/" lang="zh-Hans" hreflang="zh-Hans">中</a></span><button type="button" class="scheme" data-label="Appearance"><span class="a">auto</span><span class="l">light</span><span class="d">dark</span></button><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
+  <a class="close" href="#" aria-label="Close">×</a>
+</div>
+<main id="main" class="nf"><h1>Not found</h1><p>There is no page at this address.</p><p class="doors"><a class="btn" href="/">home</a><a class="btn" href="/docs/">docs</a><a class="btn" href="/components/">components</a></p></main></div><template data-lang="zh-Hans"><a class="skip" href="#main">跳到内容</a>
+<header class="bar" data-tone="">
+  <a class="word" href="/zh-Hans/" data-route="" aria-label="amenui">amenui<i></i></a>
+  <nav class="nav" aria-label="栏目">
+    <a href="/zh-Hans/docs/" data-route="docs/" data-section="docs">文档</a>
+    <a href="/zh-Hans/components/" data-route="components/" data-section="components">组件</a>
+    <a href="/zh-Hans/lab/" data-route="lab/" data-section="lab">实验室</a>
+    <a href="/zh-Hans/works/" data-route="works/" data-section="works">作品</a>
+  </nav>
+  <div class="end">
+    <button type="button" class="search" aria-keyshortcuts="/ Control+K Meta+K">[ / 搜索 ]</button>
+    <span class="lang"><a href="/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span>
+    <button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button>
+    <a class="wide" href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a>
+    <a class="wide" href="/zh-Hans/docs/release-notes/" data-route="docs/release-notes/">v0.0.1</a>
+  </div>
+  <a class="menu-btn" href="#sheet" aria-expanded="false" aria-controls="sheet">[ 菜单 ]</a>
+</header>
+<div class="sheet" id="sheet">
+  <a href="/zh-Hans/docs/" data-route="docs/" data-section="docs"><small>01</small>文档</a>
+  <a href="/zh-Hans/components/" data-route="components/" data-section="components"><small>02</small>组件</a>
+  <a href="/zh-Hans/lab/" data-route="lab/" data-section="lab"><small>03</small>实验室</a>
+  <a href="/zh-Hans/works/" data-route="works/" data-section="works"><small>04</small>作品</a>
+  <div class="row"><button type="button" class="search">/ 搜索</button><span class="lang"><a href="/" lang="en" hreflang="en">en</a><span>·</span><b>中</b></span><button type="button" class="scheme" data-label="外观"><span class="a">自动</span><span class="l">浅色</span><span class="d">深色</span></button><a href="https://github.com/amenui-dev/amenui">github&nbsp;↗</a></div>
+  <a class="close" href="#" aria-label="关闭">×</a>
+</div>
+<main id="main" class="nf"><h1 class="cjk">未找到</h1><p>这个地址没有页面。</p><p class="doors"><a class="btn" href="/zh-Hans/">首页</a><a class="btn" href="/zh-Hans/docs/">文档</a><a class="btn" href="/zh-Hans/components/">组件</a></p></main></template>
+<footer class="foot"><a href="/docs/release-notes/">amenui v0.0.1</a><a href="https://github.com/amenui-dev/amenui" rel="noopener">github&nbsp;↗</a><span>MIT</span></footer>
+<script>window.DOCS={"files":{"wasm":"/amenui.acffe9d8cf.wasm","fonts":[{"name":"sans","url":"/fonts/sans.0ec7fbba23.otf","size":122548},{"name":"pixel","url":"/fonts/pixel.cf4c64491c.otf","size":67988},{"name":"departure-mono","url":"/fonts/departure-mono.3957b852a1.otf","size":9256}],"faces":{"GeistPixel-Square.otf":"/fonts/geistpixel-square.bd09d0dd9d.otf","GeistPixel-Grid.otf":"/fonts/geistpixel-grid.175657a0ac.otf","GeistPixel-Circle.otf":"/fonts/geistpixel-circle.5ef877b414.otf","GeistPixel-Triangle.otf":"/fonts/geistpixel-triangle.c5d56a3ffd.otf","GeistPixel-Line.otf":"/fonts/geistpixel-line.e217d06edb.otf"},"app":"/app.690df7d3e1.js","texts":"/texts/","textsV":"26219b8b"},"copied":"copied","live":"live","starting":"starting…","fail":"this browser could not start WebGPU or WebGL2","canvas":"The page, drawn by amenui"}</script>
+<script src="/docs.6031d1e3a1.js" defer></script>
+<script>(()=>{const B="/";for(const t of document.querySelectorAll("template[data-lang]")){const l=t.dataset.lang;if(!location.pathname.startsWith(B+l+"/"))continue;document.getElementById("nf").replaceWith(t.content);document.documentElement.lang=l;document.title=document.querySelector(".nf h1").textContent+" · amenui";window.NF=l}})()</script><script>window.SEARCH={"js":"/search.499d89d29a.js","index":"/search/en.d8675e0c14.json","base":"/","t":{"search":"search","placeholder":"Search the docs, components, lab and scenes","results":"Results","none":"No results","loading":"Loading the index…","hint":"↑ ↓ to move · enter to open · esc to close","hintDocs":"⇧ enter for docs","docs":"docs"}};(()=>{const S=SEARCH,D=document;let p;const open=()=>(p||(p=new Promise((y,n)=>{const s=D.createElement("script");s.src=S.js;s.onload=y;s.onerror=()=>{p=null;n()};D.head.appendChild(s)}))).then(()=>S.open(),()=>{});D.addEventListener("keydown",e=>{if(e.defaultPrevented||e.isComposing)return;const a=D.activeElement,k=(e.key||"").toLowerCase(),typing=a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable);if(((e.metaKey||e.ctrlKey)&&k==="k"&&!e.altKey&&!e.shiftKey)||(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!typing)){e.preventDefault();e.stopImmediatePropagation();open()}},true);for(const b of D.querySelectorAll(".search"))b.addEventListener("click",()=>{const s=D.getElementById("sheet");if(s)s.classList.remove("open");open()})})()</script>
+<script>if(window.NF)Object.assign(window.SEARCH,{"zh-Hans":{"js":"/search.499d89d29a.js","index":"/search/zh-Hans.35ad93b87b.json","base":"/zh-Hans/","t":{"search":"搜索","placeholder":"搜索文档、组件、实验室和场景","results":"结果","none":"没有结果","loading":"正在载入索引…","hint":"↑ ↓ 移动 · 回车打开 · esc 关闭","hintDocs":"⇧ 回车打开文档","docs":"文档"}}}[window.NF])</script>
+</body>
+</html>

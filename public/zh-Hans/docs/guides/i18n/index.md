@@ -1,0 +1,24 @@
+# 多语言
+
+
+屏幕上的每段文字都来自消息目录，一种语言一个，所以应用换成任何语言都不用改视图。
+
+## 消息目录
+
+消息目录是纯文本文件（`assets/i18n/en.txt`、`zh-Hans.txt`……）：每行一条 `键 = 文字`，`{名字}` 是参数，`键.one` / `键.other`（以及这种语言用到的其他 CLDR 复数类别）是复数形式。框架为自己的组件带了英文、简体中文和阿拉伯语的目录；应用在启动时用 `i18n::install` 装一次自己的目录，查找时先查应用的，再查框架的。
+
+```rust
+use amenui::i18n::Locale;
+let l = Locale::En;
+assert_eq!(amenui::t!(l, "widget.list.rows", n = 3), "3 rows");
+```
+
+## 语言
+
+`Locale::En` 和 `Locale::ZhHans` 是内置的；`Locale::Other` 接受任意 BCP 47 标签（`ar`、`pt-BR`、`sr-Latn`），用 `Locale::from_tag` 创建。目录里缺的键回退到英文，`i18n::misses` 列出回退过的键，测试可以据此失败。`Locale::number` 和 `Locale::date` 按语言格式化数字和日期。
+
+语言放在应用的状态里。`Ui::on_locale` 在建视图时让它成为当前语言，`i18n::tr` 直接读取，不用层层传递；换语言是一条普通的消息，下一帧就用新语言画。
+
+## 文字和方向
+
+从右往左读的语言（如阿拉伯语）让行从右边开始排（见[从右到左](#docs-rtl)）。文字由 parley 排版，先用内置字体，再用系统字体，所以内置字体不覆盖的文字也能显示。

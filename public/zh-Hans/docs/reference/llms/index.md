@@ -1,0 +1,141 @@
+# llms.txt
+
+
+> A self-drawn interface framework in Rust (wgpu, native and web). Views are plain trees of values; every glyph, shape and picture has a true outline that can loosen, morph and condense; looks are swappable materials. Built to be written and checked by models: a deterministic `render` tool gives a PNG and the laid-out tree as JSON.
+
+Start with AGENTS.md (the mental model, the ten things you write, the rules, how to verify). DESIGN.md is the contract; §1.15–§1.17 cover ripple rules, recomposition and the AI-facing surface.
+
+## Docs
+
+- [AGENTS.md](AGENTS.md): how to write and verify interfaces here
+- [DESIGN.md](docs/DESIGN.md): the design contract, every number and acceptance
+- [registry.json](registry.json): the widgets, their files, responses, recomposition and recipes
+- [README.md](README.md): what amenui is, install and quick start
+- [docs/README.md](docs/README.md): the documentation index: guides, references, design
+- [Architecture](docs/reference/architecture.md): the pipeline and what each module owns
+
+## Recipes
+
+- [A form](docs/recipes/form.md): code in examples/form.rs
+- [A list with selection](docs/recipes/list.md): code in examples/list.rs
+- [A dialog](docs/recipes/dialog.md): code in examples/dialog.rs
+- [A page change with a shared part](docs/recipes/flow.md): code in examples/flow.rs
+- [Morph A into B](docs/recipes/morph.md): code in examples/morph.rs
+- [A custom material on one element](docs/recipes/material.md): code in examples/material.rs
+- [The annotation layer on a subtree](docs/recipes/annotate.md): code in examples/annotate.rs
+- [A counter with recomposition and a scoped ripple](docs/recipes/counter.md): code in examples/counter.rs
+- [A 3D object in a card](docs/recipes/mesh.md): code in examples/mesh.rs
+- [A custom preset with its own transition](docs/recipes/preset.md): code in examples/preset.rs
+- [A chapter: one scene with actors that flow in](docs/recipes/chapter.md): code in examples/chapter.rs
+- [Gestures: a bottom sheet and a floating box](docs/recipes/gesture.md): code in examples/gesture.rs
+- [A menu with submenus and a safe zone](docs/recipes/submenu.md): code in examples/submenu.rs
+- [A list that loads](docs/recipes/loading.md): code in examples/loading.rs
+- [A stack of cards that fans](docs/recipes/stack.md): code in examples/stack.rs
+- [A dot chart](docs/recipes/chart.md): code in examples/chart.rs
+- [Text on a form](docs/recipes/form3d.md): code in examples/form3d.rs; depth, facing, thinning, words whole, the pointer on the surface (`El::form`, `form::Form`, `Form::hit`)
+
+## Lab
+
+The Lab (`#lab`) is a grid of small live experiments, one file each in the website repository's `examples/lab/`, written against the public API (`amenui::experiment::Experiment`); each has a page `#lab-<name>` with its formula and parameters (registry.json `experiments`). Each piece fills a 4:3 stage; the numbers open under `[ params ]`; seen cells run every frame (reduced motion: they rest).
+
+- [Lumen](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-lumen.md): light on text, tone by distance, outlines untouched (`El::pose`)
+- [Contours](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-contours.md): iso-lines of noise plus a pointer bump (`field::Grid::contours`)
+- [Silk](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-silk.md): marks advected by curl noise and a stirred flow (`field::Swarm`, `budget::grant`)
+- [Grown](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-grown.md): Gray–Scott inside an element's true outline (`El::on_outline`, `field::GrayScott`)
+- [Mercury](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-mercury.md): metaballs with a spring-followed ball (`field::Balls`)
+- [Flow](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-flow.md): text on a waving path (`Pose::angle`)
+- [Loupe](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-loupe.md): text on a sphere, drag to spin
+- [Orbit](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-orbit.md): Kepler orbits with pointer attraction
+- [Spring](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-spring.md): the gesture spring, dragged and thrown
+- [Stack](https://github.com/amenui-dev/website/blob/main/docs/site/en/lab-stack.md): the card stack in the lab's look
+- [Body](https://github.com/amenui-dev/website/blob/main/docs/site/en/scene-body.md): the landing page and first scene (`#body`, the website's `examples/body.rs`): a passage gathers into a turning, luminous body of its own glyphs and back; full-bleed, markings in the picture; two rest states, glyph count conserved
+- [Decode](src/decode.rs): `El::decode`, blocks over the true outline resolving coarse to fine (`#decode`)
+- [Field map](src/fieldmap.rs): `El::stirr` trails and `Cmd::Stir`, energy and flow that settle to zero; decoration loosens and drifts behind what moves (`#stirr`)
+- [scribblr](src/strand.rs): the thread material, plain at rest, loose ink as one line that knots and trails off and writes itself back; `El::trace` long paths, solid or dashed (`#material-scribblr`, `#stirr`)
+- [Edge notes and readouts](src/gaze.rs): `El::tracking`, `El::whisper()` in a small serif; `gaze::EDGE`, `OSC`, `LEVEL` read the runtime and the field map (`Ui::readout()`); the Loose Thread preset with `post.binary` and `post.invert` (`#style-loose-thread`)
+- [Text on a form](src/form.rs): `Pose::z` and `Pose::facing`, `El::form(FormFx)`, `form::Form` and `Form::hit`; `Ui::glyph_at` and `El::turn` hit what is drawn (`src/hit.rs`)
+- [Warm-up](src/render_warm.rs): `Renderer::begin`, `Warmup::step`, plain first, then the look arriving at rest and coming apart a little over 120 ms; `Ui::prepare` / `Ui::ready` (`src/warmup.rs`)
+- [Audit](src/audit.rs): `render --audit [--strict]`, `drive::audit`: text cut off, contrast, overlap, size, restlessness, text a material wears away, each with a fix; `gaze::INK`
+- [Materials as source](src/materials.rs): one WGSL file per material (`src/materials/<name>.wgsl`); `amenui add material <name>`, `Look::material_source`; `El::effect(Effect)` and `el::wrap_text` put one on existing text
+- [Sample sheets](src/sample.rs): `sheet --material <name> --loose 1,0.5,0 --arrival`, a material at several loosenesses and as it arrives, checked
+
+## Pages
+
+Every documentation page as Markdown, at `md/en/<page>.md` and `md/zh-Hans/<page>.md` next to the web build (`cargo run --release --bin md -- dist/md`).
+
+- [Introduction](md/en/docs-introduction.md): amenui is an interface framework that draws every pixel itself, written in Rust on wgpu; the same code runs in a native window and on the web.
+- [Installation](md/en/docs-installation.md): Pick the host your interface lives in.
+- [Command line](md/en/docs-cli.md): Components are distributed as source, the way shadcn/ui does it: you copy a component's file into your project and change it there.
+- [Your first view](md/en/docs-first-view.md): A view is a function from state to an element tree; an update is a function from state and a message to a new state.
+- [Project structure](md/en/docs-project-structure.md): 
+- [Forms](md/en/docs-forms.md): A form is state and messages, like everything else: the state holds every value, each widget sends a message for each edit, and update is the only place a va…
+- [The tree and messages](md/en/docs-tree-and-messages.md): After every message the runtime calls view(&state) once, gets a new El tree, compares it with the last by key and lays out again only what changed.
+- [Layout](md/en/docs-layout.md): Layout is taffy's flexbox and grid, in logical pixels; elements do not shrink unless asked.
+- [Text](md/en/docs-text.md): Text is set by parley and rasterised by swash; every atlas pixel holds coverage and the signed distance to the stroke, so every material draws a glyph by its…
+- [Materials and looseness](md/en/docs-materials.md): A material is how the second pass draws: plain, dottr, halftonr, charr, smudgr, carvr, glitchr, near, scribblr.
+- [Ripple rules](md/en/docs-ripples.md): A press sends a front that by default reaches only the control pressed (Scope::Own); Scope::Container and Scope::Global reach further.
+- [Transforms](md/en/docs-transforms.md): Two kinds: a morph (Cmd::Morph: one element breaks into cells that fly onto another's shape) and a flow (Cmd::Flow: what two pages share moves to its new pla…
+- [Presets](md/en/docs-presets.md): A style preset is data: theme, material and its numbers, annotation, interaction character, how scrolling looks, and a transition program.
+- [Annotation](md/en/docs-annotation.md): The third pass is the annotation layer: frames, numbers, sizes, leaders and rulers drawn from the real layout, never loosened.
+- [3D](md/en/docs-three-d.md): el::scene3d(Scene3d) is one more element on the page: meshes are drawn off screen into shade, normals and depth, then become ink and nearness like glyphs, so…
+- [Particles](md/en/docs-particles.md): When a morph has many cells it is simulated on the GPU (a compute shader, or ping-ponging float targets), otherwise on the CPU, where a mesh side's cells sta…
+- [Languages](md/en/docs-i18n.md): Each language has a message catalog (`assets/i18n/zh-Hans.
+- [Accessibility](md/en/docs-accessibility.md): The screen is drawn by the framework, so the runtime builds an accessibility mirror from the tree: every element's role (the WAI-ARIA role of the same name),…
+- [Performance](md/en/docs-performance.md): Draw only when something changed; draw only what changed (two boxes); scrolling moves, it does not lay out again; a long list builds only the rows that show;…
+- [Testing with render and the tree](md/en/docs-testing.md): render plays events on a fixed 60 Hz clock and draws the last frame and its tree; the same arguments give the same bytes.
+- [Theming and dark mode](md/en/docs-theming.md): A theme is a set of colours and the faces for display, body and monospace (style::THEMES).
+- [Right to left](md/en/docs-rtl.md): A row lays out from the right when its direction is right to left: El::rtl(true) on the row (or any ancestor), or a locale that reads right to left.
+- [Registry schema](md/en/docs-registry-schema.md): `registry.
+- [button](md/en/button.md): Perform an action.
+- [number](md/en/number.md): Set a value exactly: type it once focused, or step it with the arrow keys and the buttons on either side; drag across the value to scrub it.
+- [input](md/en/input.md): Enter one line or several (textarea).
+- [switch](md/en/switch.md): Turn a setting on or off.
+- [slider](md/en/slider.md): Pick a value roughly within a range.
+- [tabs](md/en/tabs.md): Switch between groups of content in the same place.
+- [choice](md/en/choice.md): Choose one of a few mutually exclusive options.
+- [list](md/en/list.md): Show a set of items, one of which can be selected; it scrolls when there are many.
+- [card](md/en/card.md): Keep related content together in a bordered area.
+- [dialog](md/en/dialog.md): Show content that needs attention above the page.
+- [image](md/en/image.md): Show a picture at its own aspect ratio.
+- [divider](md/en/divider.md): Separate two groups of content.
+- [scroll area](md/en/scroll-area.md): Show longer content in a fixed height, scrolled with the wheel; a thin bar at one side shows the position.
+- [menu](md/en/menu.md): A button that shows the current option; pressing it lists every option in a layer below it.
+- [orbit](md/en/orbit.md): Turn a 3D view: drag to orbit, the wheel to dolly, the arrow keys once focused; a quick drag coasts to a stop.
+- [checkbox](md/en/checkbox.md): Choose whether one option applies.
+- [radio](md/en/radio.md): Choose one of a few visible options.
+- [select](md/en/select.md): Choose one option from a list that opens on demand.
+- [tooltip](md/en/tooltip.md): A short description shown while a control is hovered or focused.
+- [popover](md/en/popover.md): Rich content in a layer anchored to a button.
+- [toast](md/en/toast.md): A brief notice in a corner that goes away by itself.
+- [progress](md/en/progress.md): How far a task has come, or that it is going on.
+- [accordion](md/en/accordion.md): Sections that open and close under their headings.
+- [table](md/en/table.md): Rows of records with named columns.
+- [badge](md/en/badge.md): A small label for a status or a count.
+- [avatar](md/en/avatar.md): Stands for a person by their initials (no pictures).
+- [skeleton](md/en/skeleton.md): Holds the place of content that is still loading.
+- [breadcrumb](md/en/breadcrumb.md): Where this page is in a hierarchy, each level a link back.
+- [pagination](md/en/pagination.md): Move between pages of results.
+- [sheet](md/en/sheet.md): A panel over one side of the window.
+- [context menu](md/en/context-menu.md): Commands for what is under the pointer, opened where it is.
+- [command](md/en/command.md): Find and run a command by typing.
+- [toggle](md/en/toggle.md): A button that stays pressed, or a group of them.
+- [bottom sheet](md/en/bottom-sheet.md): A panel that rises from the bottom edge: dragged by its handle or body between detents, swiped down to dismiss.
+- [floating](md/en/floating.md): A small box floating over an area (picture in picture): drag it anywhere; let go, the throw's projected end picks the nearest corner and a spring takes it th…
+- [caption](md/en/caption.md): A small monospaced line under a live demo that prints the parameters driving it (read from the same fields, never typed by hand), each also a number control.
+- [nested menu](md/en/nested-menu.md): A menu whose rows open submenus, steered by where the pointer heads: moving toward an open submenu inside the triangle from its previous position to the subm…
+- [card stack](md/en/card-stack.md): A stack of cards: hover or press one and the cards beneath fan out about their bottom-left corners, card n turning angle0 × falloff^n (42° × 0.
+- [dot chart](md/en/dot-chart.md): A series as a field of dots: each column filled from the axis up to the curve, a dot's size and brightness saying how much of it lies under the curve (the ar…
+- [AGENTS.md](md/en/ai-agents.md): amenui is a self-drawn interface framework in Rust (wgpu; the same code runs natively and on the web).
+- [llms.txt](md/en/ai-llms.md): Start with AGENTS.
+- [Registry](md/en/ai-registry.md): {
+- [Changelog](md/en/changelog.md): What changed, newest first.
+
+## Optional
+
+- [src/el.rs](src/el.rs): the element tree and its builders
+- [src/ui.rs](src/ui.rs): the runtime
+- [src/drive.rs](src/drive.rs): scripted input and the render tool
+- [src/field.rs](src/field.rs): fields: noise, bumps, metaballs, curl, grids, marching-squares contours, flows, swarms, masked Gray–Scott
+- [src/draw.rs](src/draw.rs): drawings (`el::canvas`): dots and strokes as shapes with true outlines
+- [src/budget.rs](src/budget.rs): the frame budget every small mark draws from
+- [src/wrap.rs](src/wrap.rs): text around true outlines (`.around(Around)`); a piece beside an obstacle is justified flush on both edges, at most `Around::justify_max` ems per gap (default 0.25), between Latin letters only with `Around::justify_latin_letters` (default off)
