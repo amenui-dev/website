@@ -102,6 +102,12 @@ fn audit(ui: &mut GalleryUi, name: &str, bad: &mut Vec<String>) {
 #[test]
 fn pointer_moves_on_every_gallery_page() {
     let mut ui = gallery::new_ui(fonts(), W as u32, H as u32, 1.0);
+    // The stage scale's governor told the device's scale, with no frames yet: a stage that draws slowly
+    // steps its scale down before it holds (`Stage::drew`), and with no frames it never steps, so no
+    // stage holds. Unfed, a stage is held once its draws take long on the clock, as they do on a slower
+    // machine or an unoptimised build, and what a move costs would depend on the machine. Holding is the
+    // framework's to test (amenui `tests/stage.rs`).
+    ui.stage_governor().feed(0.0, 0.0, 1.0, false);
     let mut bad = vec![];
     for p in Page::all() {
         gallery::update(&mut ui.state, Msg::Go(p));
