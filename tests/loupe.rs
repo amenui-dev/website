@@ -143,21 +143,39 @@ fn the_glass_costs_at_most_800_instances_and_nothing_is_drawn_at_rest() {
     assert_eq!(frames, 0, "{frames} frames in 5 s at rest");
 }
 
+/// The distance bands (`Loupe::bands`) are traced again as the glass moves: each move of the glass makes
+/// and draws the lens alone (`El::steps`), so in distance mode a move is no full view, no layout and two
+/// restages: one for the pointer's message, which sets where the glass heads, and one for the step that
+/// eases the glass there, the bands among what it makes. Wall time is only a loose guard (3 ms for the bands at ×8,
+/// radius 132), not the budget: it is the work per move that is checked.
 #[test]
 fn the_distance_bands_are_traced_within_the_budget() {
-    let (mut ui, _) = page(1440, 900, 1.0);
+    let (mut ui, mut t) = page(1440, 900, 1.0);
     ui.state.lab.loupe.mode = 2;
+    ui.relayout();
+    rest(&mut ui, &mut t, 30);
+    let s = rect(&ui, &format!("{K}/stage"));
     let l = shown(&ui);
     let text = l.in_glass();
+    let n = l.bands(&text).len();
+    assert!(n > 0, "no bands");
+    // Moves of the glass across the page, one pointer move a frame.
+    let (from, to) = ((s.x + s.w * 0.40, s.y + s.h * 0.50), (s.x + s.w * 0.60, s.y + s.h * 0.55));
+    glide(&mut ui, &mut t, from, (from.0 + 2.0, from.1), 2);
+    let c0 = ui.perf().counters;
+    let moves = 30u64;
+    glide(&mut ui, &mut t, from, to, moves as usize);
+    let c = ui.perf().counters;
+    let (views, layouts, restages) = (c.views - c0.views, c.layouts - c0.layouts, c.restages - c0.restages);
     let best = (0..10).map(|_| {
         let t0 = std::time::Instant::now();
         for _ in 0..5 { std::hint::black_box(l.bands(&text)); }
         t0.elapsed().as_secs_f64() * 1000.0 / 5.0
     }).fold(f64::INFINITY, f64::min);
-    let n = l.bands(&text).len();
-    eprintln!("loupe distance at ×8, radius 132: {n} band lines in {best:.3} ms");
-    assert!(n > 0, "no bands");
-    if !cfg!(debug_assertions) { assert!(best <= 1.0, "the bands took {best:.3} ms"); }
+    eprintln!("loupe distance at ×8, radius 132: {n} band lines in {best:.3} ms; {moves} moves: {views} views, {layouts} layouts, {restages} restages");
+    assert_eq!((views, layouts), (0, 0), "a move of the glass viewed or laid out the page");
+    assert_eq!(restages, 2 * moves, "each move should restage the lens twice: the pointer's message, then the step");
+    if !cfg!(debug_assertions) { assert!(best <= 3.0, "the bands took {best:.3} ms"); }
 }
 
 #[test]
