@@ -79,6 +79,8 @@ fn gaze_feed(s: &Gallery, h: &str) -> El<Msg> {
 }
 
 // ── 2 Neo-Dotmatrix: a departure board ──────────────────────────────────────────────────────────────
+// A live board: the clock, the LED panel's seconds and the ticker move every second on purpose
+// (`.ongoing()`), so the audit does not count the frames they ask for as restless.
 fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
     let t = 8.0 * 3600.0 + 42.0 * 60.0 + s.clock.floor();
     let clock = format!("{:02}:{:02}:{:02}", (t / 3600.0) as u32 % 24, (t / 60.0) as u32 % 60, t as u32 % 60);
@@ -106,7 +108,7 @@ fn dotmatrix(s: &Gallery, h: &str) -> El<Msg> {
     col().key(format!("{h}/comp")).gap(26.0)
         .child(row().key(format!("{h}/sign")).gap(30.0).align(AlignItems::END).wrap()
             .child(text_lh(if arrive { "到达" } else { "出发" }, 72.0, 80.0, Paint::ACCENT).font(Font::Display).key(format!("{h}/title-{arrive}")))
-            .child(text(clock, 48.0, Paint::ACCENT).font(Font::Mono).print(4.0).key(format!("{h}/clock"))))
+            .child(text(clock, 48.0, Paint::ACCENT).font(Font::Mono).print(4.0).key(format!("{h}/clock")).ongoing()))
         .child(board)
         .child(led_panel(s, h, t))
         .child(row().key(format!("{h}/controls")).gap(12.0).align(AlignItems::CENTER).wrap()
@@ -134,11 +136,11 @@ fn led_panel(s: &Gallery, h: &str, t: f32) -> El<Msg> {
             .child(text("NEXT 08:47", 12.0, Paint::DIM).font(Font::Mono)))
         .child(row().gap(10.0).align(AlignItems::END)
             .child(text_lh(big, 150.0, 156.0, Paint::ACCENT).font(Font::Mono).print(7.0).key(format!("{h}/bigclock")))
-            .child(text_lh(secs, 56.0, 64.0, Paint::hue(1)).font(Font::Mono).print(4.0).key(format!("{h}/secs"))))
+            .child(text_lh(secs, 56.0, 64.0, Paint::hue(1)).font(Font::Mono).print(4.0).key(format!("{h}/secs")).ongoing()))
         .child(space(1.0, 2.0).fill_width().fill(Paint::HAIRLINE))
         // The ticker: one long line, clipped to the panel, moved one character a second.
         .child(col().key(format!("{h}/ticker")).fill_width().height(40.0).clip()
-            .child(text_lh(shown, 24.0, 36.0, Paint::ACCENT).width(3000.0).key(format!("{h}/ticker-text")).absolute(Some(0.0), Some(2.0), None, None)))
+            .child(text_lh(shown, 24.0, 36.0, Paint::ACCENT).width(3000.0).key(format!("{h}/ticker-text")).ongoing().absolute(Some(0.0), Some(2.0), None, None)))
 }
 
 // ── 3 Lo-Fi Print: a zine page ───────────────────────────────────────────────────────────────────────
