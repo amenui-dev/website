@@ -44,18 +44,26 @@ pub fn page(s: &Gallery, i: usize) -> El<Msg> {
     // The caption is two lines: the style's name, a label, then its description, a sentence that is
     // read, no wider than the preset's measure: 6 px a character at 13 px (the body faces set a line of
     // these sentences at 6.1 to 6.3 px a character, so 6.5 lets a line run a few characters over).
-    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(inset, 36.0).ripplr_scope().ripplr(Scope::Container(None))
+    // The page is held to its preset's rules (`preset::Rule`); the strips above it are the site's
+    // chrome and keep the audit's own.
+    col().key(format!("{h}/page")).fill_width().min_width(0.0).gap(26.0).pad(inset, 36.0).ripplr_scope().ripplr(Scope::Container(None)).audit_under(&presets()[i])
         .child(col().key(format!("{h}/caption")).fill_width().gap(4.0)
             .child(text(st.name, 13.0, Paint::DIM).font(Font::Mono).key(format!("{h}/name")))
             .child(text_lh(STYLE_DESC[i], 13.0, 20.0, Paint::TEXT).key(format!("{h}/desc")).fill_width().max_width(measure * 6.0)))
         .child(body)
 }
 
+/// The style presets (`preset::presets`), made once.
+fn presets() -> &'static [amenui::preset::Preset] {
+    static ALL: std::sync::OnceLock<Vec<amenui::preset::Preset>> = std::sync::OnceLock::new();
+    ALL.get_or_init(amenui::preset::presets)
+}
+
 /// Each preset's side margin and measure (`preset::Rule::Margin`, `Rule::Measure`), by style.
 fn preset_rules(i: usize) -> (f32, f32) {
     use amenui::preset::Rule;
     static RULES: std::sync::OnceLock<Vec<(f32, f32)>> = std::sync::OnceLock::new();
-    let all = RULES.get_or_init(|| amenui::preset::presets().iter().map(|p| p.rules.iter().fold((0.0, 80.0), |(m, w), r| match *r {
+    let all = RULES.get_or_init(|| presets().iter().map(|p| p.rules.iter().fold((0.0, 80.0), |(m, w), r| match *r {
         Rule::Margin { min } => (min, w),
         Rule::Measure { max } => (m, max),
         _ => (m, w),
