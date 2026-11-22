@@ -29,6 +29,8 @@ impl Driven for Gallery {
     fn ongoing(&self) -> bool { amenui::drive::Driven::ongoing(&self.0) }
     fn frame_drawn(&mut self) { amenui::drive::Driven::frame_drawn(&mut self.0) }
     fn audit(&mut self, o: &mut Offscreen, look: &Look, px: &[u8]) -> Vec<amenui::audit::Finding> { amenui::drive::Driven::audit(&mut self.0, o, look, px) }
+    // A page opened in a preset (`render --preset`, `drive::in_preset`) is held to the preset's rules too.
+    fn audit_under(&mut self, o: &mut Offscreen, look: &Look, px: &[u8], preset: &amenui::preset::Preset) -> Vec<amenui::audit::Finding> { amenui::drive::Driven::audit_under(&mut self.0, o, look, px, preset) }
 }
 
 /// Pages opened from here are in the light scheme (paper) rather than the dark one: the renderer's
