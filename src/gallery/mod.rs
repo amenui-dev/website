@@ -989,6 +989,8 @@ fn strip_link(key: String, label: String, here: bool, m: Msg) -> El<Msg> {
         .child(text(label, 11.0, if here { Paint::INK } else { Paint::TEXT }).font(amenui::el::Font::Mono));
     if commit { l.commit() } else { l }
 }
+/// A separator in a strip, dim. The path's `/` is punctuation between the names, not text to read
+/// (`.legible(false)` at its call sites).
 fn sep(t: &str) -> El<Msg> { text(t.to_owned(), 11.0, Paint::DIM).font(amenui::el::Font::Mono) }
 /// The Lab's path strip (Z.5): `lab / ink / kern` on the left (the step goes to its header on the
 /// index), `← 02.2 take apart · 02.4 weld →` on the right, along the whole path. A family's page has
@@ -1010,14 +1012,14 @@ fn lab_strip(s: &Gallery) -> El<Msg> {
         .child(strip_link("strip/lab".into(), low(tr("nav.lab")), false, Msg::Go(Page::Lab)));
     let mut right = row().key("strip/steps").gap(8.0).align(AlignItems::CENTER);
     if let Some((st, _)) = lab::place(s.page) {
-        left = left.child(sep("/")).child(strip_link("strip/group".into(), low(lab::step_name(st)), false, Msg::Lab(lab::LMsg::GoStep(st))));
+        left = left.child(sep("/").legible(false)).child(strip_link("strip/group".into(), low(lab::step_name(st)), false, Msg::Lab(lab::LMsg::GoStep(st))));
     }
     if let Some((prev, (next, nl))) = lab::neighbours(s.page) {
         if let Some((p, l)) = prev { right = right.child(strip_link("strip/prev".into(), l, false, Msg::Go(p))).child(sep("·")); }
         right = right.child(strip_link("strip/next".into(), nl, false, Msg::Go(next)));
     }
     // Where one is: the one part of the strip that changes, and moves, from page to page.
-    left = left.child(sep("/")).child(text(low(lab::page_name(s.page)), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here").flow("strip-here"));
+    left = left.child(sep("/").legible(false)).child(text(low(lab::page_name(s.page)), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here").flow("strip-here"));
     let top = row().key("strip").fill_width().height(36.0).pad(pad, 0.0).gap(16.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
         .child(left).child(space(0.0, 0.0).grow(1.0)).child(if narrow { space(0.0, 0.0) } else { right });
     let Some(f) = lab::family_of(s.page) else { return top };
@@ -1045,8 +1047,8 @@ fn comp_strip(s: &Gallery) -> El<Msg> {
     let low = |t: String| t.to_lowercase();
     let mut path = row().key("strip/path").gap(8.0).align(AlignItems::CENTER)
         .child(strip_link("strip/components".into(), low(tr("nav.components")), s.page == Page::Components, Msg::Go(Page::Components)));
-    if let Some(g) = comp_group_of(s.page) { path = path.child(sep("/")).child(text(low(comp_groups()[g].0.clone()), 11.0, Paint::TEXT).font(amenui::el::Font::Mono)); }
-    if s.page != Page::Components { path = path.child(sep("/")).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here")); }
+    if let Some(g) = comp_group_of(s.page) { path = path.child(sep("/").legible(false)).child(text(low(comp_groups()[g].0.clone()), 11.0, Paint::TEXT).font(amenui::el::Font::Mono)); }
+    if s.page != Page::Components { path = path.child(sep("/").legible(false)).child(text(low(s.page.name()), 11.0, Paint::INK).font(amenui::el::Font::Mono).key("strip/here")); }
     row().key("strip").fill_width().height(36.0).pad(16.0, 0.0).gap(8.0).align(AlignItems::CENTER).calm().material(Material::Plain.id())
         .child(path).child(space(0.0, 0.0).grow(1.0))
         .child(strip_link("strip/sheet".into(), if s.sheet { "▴".into() } else { "▾".into() }, s.sheet, Msg::Sheet(!s.sheet)))
